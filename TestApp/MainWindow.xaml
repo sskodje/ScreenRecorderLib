@@ -28,7 +28,7 @@
                       SelectionChanged="ScreenComboBox_SelectionChanged" />
             <StackPanel Orientation="Horizontal"
                         Margin="5,0">
-                <!--<Label Content="Recording area: " />-->
+
                 <Label Content="left" />
                 <TextBox x:Name="RecordingAreaLeftTextBox"
                          VerticalContentAlignment="Center"

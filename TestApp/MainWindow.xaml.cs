@@ -96,9 +96,9 @@ namespace TestApp
             RecorderOptions options = new RecorderOptions
             {
                 RecorderMode = CurrentRecordingMode,
-                //AudioOptions = new AudioOptions { Bitrate = AudioBitrate.bitrate_96kbps, Channels = AudioChannels.Stereo, IsAudioEnabled = IsAudioEnabled },
-                //VideoOptions = new VideoOptions { Bitrate = VideoBitrate * 1000, Framerate = VideoFramerate, IsMousePointerEnabled = IsMousePointerEnabled, IsFixedFramerate = IsFixedFramerate },
-                //    DisplayOptions = new DisplayOptions(this.ScreenComboBox.SelectedIndex, left, top, right, bottom) 
+                AudioOptions = new AudioOptions { Bitrate = AudioBitrate.bitrate_96kbps, Channels = AudioChannels.Stereo, IsAudioEnabled = IsAudioEnabled },
+                VideoOptions = new VideoOptions { Bitrate = VideoBitrate * 1000, Framerate = VideoFramerate, IsMousePointerEnabled = IsMousePointerEnabled, IsFixedFramerate = IsFixedFramerate },
+                DisplayOptions = new DisplayOptions(this.ScreenComboBox.SelectedIndex, left, top, right, bottom)
             };
 
             _rec = Recorder.CreateRecorder(options);
