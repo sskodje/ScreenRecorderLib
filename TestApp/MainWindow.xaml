@@ -1,0 +1,144 @@
+﻿<Window x:Class="TestApp.MainWindow"
+        x:Name="MainWin"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:TestApp"
+        xmlns:System="clr-namespace:System;assembly=mscorlib"
+        xmlns:rec="clr-namespace:ScreenRecorderLib;assembly=ScreenRecorderLib"
+        mc:Ignorable="d"
+        Title="ScreenRecorderLib Demo"
+        Height="480"
+        Width="525">
+    <Window.Resources>
+        <ObjectDataProvider x:Key="dataFromEnum"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type System:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="rec:RecorderMode" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+    </Window.Resources>
+    <Grid x:Name="LayoutRoot">
+        <StackPanel HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+            <ComboBox x:Name="ScreenComboBox"
+                      Margin="5"
+                      SelectionChanged="ScreenComboBox_SelectionChanged" />
+            <StackPanel Orientation="Horizontal"
+                        Margin="5,0">
+                <!--<Label Content="Recording area: " />-->
+                <Label Content="left" />
+                <TextBox x:Name="RecordingAreaLeftTextBox"
+                         VerticalContentAlignment="Center"
+                         GotFocus="TextBox_GotFocus"
+                         MinWidth="
+                         30" />
+                <Label Content="top" />
+                <TextBox x:Name="RecordingAreaTopTextBox"
+                         VerticalContentAlignment="Center"
+                         GotFocus="TextBox_GotFocus"
+                         MinWidth="30" />
+                <Label Content="right" />
+                <TextBox x:Name="RecordingAreaRightTextBox"
+                         VerticalContentAlignment="Center"
+                         GotFocus="TextBox_GotFocus"
+                         MinWidth="
+                         30" />
+                <Label Content="bottom" />
+                <TextBox x:Name="RecordingAreaBottomTextBox"
+                         VerticalContentAlignment="Center"
+                         GotFocus="TextBox_GotFocus"
+                         MinWidth="30" />
+
+            </StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Margin="5">
+                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsAudioEnabled}"
+                              VerticalAlignment="Center"
+                              Content="Record audio" />
+                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsMousePointerEnabled}"
+                              Content="Show mouse pointer" />
+                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsFixedFramerate}"
+                              Content="Fixed framerate" />
+                    <StackPanel Orientation="Horizontal">
+                        <Label Content="Mode"
+                               VerticalAlignment="Top" />
+                        <ComboBox x:Name="RecordingModeComboBox"
+                                  MinWidth="100"
+                                  Margin="0,5,5,5"
+                                  ItemsSource="{Binding Source={StaticResource dataFromEnum}}"
+                                  SelectedItem="{Binding ElementName=MainWin,Path=CurrentRecordingMode}"
+                                  VerticalAlignment="Top" />
+                    </StackPanel>
+
+                </StackPanel>
+
+
+                <StackPanel Margin="5"
+                            Grid.Column="1">
+                    <StackPanel Orientation="Horizontal">
+                        <Label Content="Framerate" />
+                        <TextBox x:Name="FpsTextBox"
+                                 Width="30"
+                                 Text="{Binding ElementName=MainWin,Path=VideoFramerate}"
+                                 HorizontalAlignment="Left"
+                                 VerticalAlignment="Center" />
+                        <Label Content="fps" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Label Content="Bitrate" />
+                        <TextBox x:Name="BitrateTextBox"
+                                 MinWidth="30"
+                                 Text="{Binding ElementName=MainWin,Path=VideoBitrate}"
+                                 HorizontalAlignment="Left"
+                                 VerticalAlignment="Center" />
+                        <Label Content="kbps" />
+                    </StackPanel>
+                    <Button Content="Delete temp files"
+                            Click="DeleteTempFilesButton_Click"/>
+                </StackPanel>
+            </Grid>
+
+            <TextBlock FontSize="72"
+                       Text="00:00:00"
+                       HorizontalAlignment="Center"
+                       x:Name="TimeStampTextBlock" />
+            <TextBlock FontSize="42"
+                       Text="Idle"
+                       HorizontalAlignment="Center"
+                       x:Name="StatusTextBlock" />
+            <TextBlock FontSize="12"
+                       Text=""
+                       Margin="10,0"
+                       TextWrapping="Wrap"
+                       HorizontalAlignment="Center"
+                       x:Name="ErrorTextBlock" />
+            <Button Height="50"
+                    Width="150"
+                    x:Name="RecordButton"
+                    Content="Record"
+                    FontSize="28"
+                    Click="RecordButton_Click" />
+            <Button x:Name="PauseButton"
+                    Height="50"
+                    Width="150"
+                    Content="Pause"
+                    FontSize="28"
+                    Visibility="Hidden"
+                    Click="PauseButton_Click" />
+
+            <TextBlock>
+    <Hyperlink Click="Hyperlink_Click">
+        <TextBlock Text=""
+                    x:Name="OutputResultTextBlock" />
+    </Hyperlink>
+</TextBlock>
+        </StackPanel>
+    </Grid>
+</Window>
