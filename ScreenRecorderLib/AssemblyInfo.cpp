@@ -9,10 +9,10 @@ using namespace System::Security::Permissions;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 //
-[assembly:AssemblyTitleAttribute(L"ScreenRecorder")];
+[assembly:AssemblyTitleAttribute(L"ScreenRecorderLib")];
 [assembly:AssemblyDescriptionAttribute(L"")];
 [assembly:AssemblyConfigurationAttribute(L"")];
-[assembly:AssemblyCompanyAttribute(L"")];
+[assembly:AssemblyCompanyAttribute(L"Sverre Kristoffer Skodje")];
 [assembly:AssemblyProductAttribute(L"ScreenRecorder")];
 [assembly:AssemblyCopyrightAttribute(L"Copyright (c)  2017")];
 [assembly:AssemblyTrademarkAttribute(L"")];
