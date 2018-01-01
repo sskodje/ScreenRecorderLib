@@ -56,7 +56,7 @@ To change the options, pass a RecorderOptions when creating the Recorder:
 
 To only record a portion of the screen, or a different monitor than the main monitor, you can also set DisplayOptions:
 ```csharp
-            //crop to a 400x400 pixel square at x=400,y=400
+            //crop to a 400x400 pixel square at x=400,y=400. Passing 0 for these values will default to full screen recording.
             int left = 400;
             int top = 400;
             int right = 800;
