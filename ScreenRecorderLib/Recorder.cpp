@@ -59,28 +59,46 @@ Recorder::Recorder(RecorderOptions^ options)
 			break;
 		}
 	}
-	_Error_Delegate = gcnew Managed_Error_Delegate_Wrapper();
-	_Error_Delegate->_Delegate = gcnew InternalErrorCallbackDelegate(this, &Recorder::EventFailed);
-	CallbackErrorFunction errorCallback;
-	Marshal::StructureToPtr(_Error_Delegate, (System::IntPtr)&errorCallback, false);
-	lRec->RecordingFailedCallback = errorCallback;
-
-	_Complete_Delegate = gcnew Managed_Completion_Delegate_Wrapper();
-	_Complete_Delegate->_Delegate = gcnew InternalCompletionCallbackDelegate(this, &Recorder::EventComplete);
-	CallbackCompleteFunction completeCallback;
-	Marshal::StructureToPtr(_Complete_Delegate, (System::IntPtr)&completeCallback, false);
-	lRec->RecordingCompleteCallback = completeCallback;
-
-	_Status_Delegate = gcnew Managed_Status_Delegate_Wrapper();
-	_Status_Delegate->_Delegate = gcnew InternalStatusCallbackDelegate(this, &Recorder::EventStatusChanged);
-	CallbackStatusChangedFunction statusCallback;
-	Marshal::StructureToPtr(_Status_Delegate, (System::IntPtr)&statusCallback, false);
-	lRec->RecordingStatusChangedCallback = statusCallback;
+	createErrorCallback();
+	createCompletionCallback();
+	createStatusCallback();
 }
+void Recorder::createErrorCallback() {
+	InternalErrorCallbackDelegate^ fp = gcnew InternalErrorCallbackDelegate(this, &Recorder::EventFailed);
+	_errorDelegateGcHandler = GCHandle::Alloc(fp);
+	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
+	CallbackErrorFunction cb = static_cast<CallbackErrorFunction>(ip.ToPointer());
+	lRec->RecordingFailedCallback = cb;
 
+}
+void Recorder::createCompletionCallback() {
+	InternalCompletionCallbackDelegate^ fp = gcnew InternalCompletionCallbackDelegate(this, &Recorder::EventComplete);
+	_completedDelegateGcHandler = GCHandle::Alloc(fp);
+	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
+	CallbackCompleteFunction cb = static_cast<CallbackCompleteFunction>(ip.ToPointer());
+	lRec->RecordingCompleteCallback = cb;
+}
+void Recorder::createStatusCallback() {
+	InternalStatusCallbackDelegate^ fp = gcnew InternalStatusCallbackDelegate(this, &Recorder::EventStatusChanged);
+	_statusChangedDelegateGcHandler = GCHandle::Alloc(fp);
+	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
+	CallbackStatusChangedFunction cb = static_cast<CallbackStatusChangedFunction>(ip.ToPointer());
+	lRec->RecordingStatusChangedCallback = cb;
+}
 Recorder::~Recorder()
 {
-	delete lRec;
+	this->!Recorder();
+	GC::SuppressFinalize(this);
+}
+
+Recorder::!Recorder() {
+	if (lRec != nullptr) {
+		delete lRec;
+		lRec = nullptr;
+	}
+	_statusChangedDelegateGcHandler.Free();
+	_errorDelegateGcHandler.Free();
+	_completedDelegateGcHandler.Free();
 }
 
 void Recorder::EventComplete(std::wstring str, fifo_map<std::wstring, int> delays)

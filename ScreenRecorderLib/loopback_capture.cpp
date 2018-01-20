@@ -1,4 +1,4 @@
-
+//https://github.com/mvaneerde/blog/tree/master/loopback-capture
 #include <stdio.h>
 #include <audioclient.h>
 #include <vector>

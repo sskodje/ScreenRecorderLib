@@ -14,26 +14,7 @@ using namespace System::Collections::Generic;
 delegate void InternalStatusCallbackDelegate(int status);
 delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fifo_map<std::wstring, int>);
 delegate void InternalErrorCallbackDelegate(std::wstring path);
-[StructLayoutAttribute(LayoutKind::Sequential, CharSet = CharSet::Unicode)]
-public ref struct Managed_Completion_Delegate_Wrapper
-{
-	[MarshalAsAttribute(UnmanagedType::FunctionPtr)]
-	InternalCompletionCallbackDelegate ^_Delegate;
-};
 
-[StructLayoutAttribute(LayoutKind::Sequential, CharSet = CharSet::Unicode)]
-public ref struct Managed_Error_Delegate_Wrapper
-{
-	[MarshalAsAttribute(UnmanagedType::FunctionPtr)]
-	InternalErrorCallbackDelegate ^_Delegate;
-};
-
-[StructLayoutAttribute(LayoutKind::Sequential, CharSet = CharSet::Unicode)]
-public ref struct Managed_Status_Delegate_Wrapper
-{
-	[MarshalAsAttribute(UnmanagedType::FunctionPtr)]
-	InternalStatusCallbackDelegate ^_Delegate;
-};
 namespace ScreenRecorderLib {
 
 	public enum class RecorderStatus {
@@ -152,23 +133,26 @@ namespace ScreenRecorderLib {
 	private:
 		Recorder(RecorderOptions^ options);
 		~Recorder();
+		!Recorder();
 		RecorderStatus _status;
-		Managed_Completion_Delegate_Wrapper^ _Complete_Delegate;
-		Managed_Error_Delegate_Wrapper^ _Error_Delegate;
-		Managed_Status_Delegate_Wrapper^ _Status_Delegate;
+		void createErrorCallback();
+		void createCompletionCallback();
+		void createStatusCallback();
 		void EventComplete(std::wstring str, nlohmann::fifo_map<std::wstring, int> delays);
 		void EventFailed(std::wstring str);
 		void EventStatusChanged(int status);
-
+		GCHandle _statusChangedDelegateGcHandler;
+		GCHandle _errorDelegateGcHandler;
+		GCHandle _completedDelegateGcHandler;
 	public:
 		property RecorderStatus Status {
 			RecorderStatus get() {
 				return _status;
 			}
-		private:
-			void set(RecorderStatus value) {
-				_status = value;
-			}
+	private:
+		void set(RecorderStatus value) {
+			_status = value;
+		}
 		}
 		void Record(System::String^ path);
 		void Pause();

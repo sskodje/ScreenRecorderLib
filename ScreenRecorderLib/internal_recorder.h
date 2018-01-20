@@ -11,10 +11,9 @@
 #include <mfreadwrite.h>
 #include "fifo_map.h"
 
-typedef void(*CallbackCompleteFunction)(std::wstring,nlohmann::fifo_map<std::wstring,int>);
-typedef void(*CallbackStatusChangedFunction)(int);
-typedef void(*CallbackErrorFunction)(std::wstring);
-
+typedef void(__stdcall *CallbackCompleteFunction)(std::wstring,nlohmann::fifo_map<std::wstring,int>);
+typedef void(__stdcall *CallbackStatusChangedFunction)(int);
+typedef void(__stdcall *CallbackErrorFunction)(std::wstring);
 #define MODE_VIDEO 0
 #define MODE_SLIDESHOW 1
 #define MODE_SNAPSHOT 2
@@ -42,7 +41,7 @@ public:
 	~internal_recorder();
 	CallbackErrorFunction RecordingFailedCallback;
 	CallbackCompleteFunction RecordingCompleteCallback;
-	CallbackStatusChangedFunction RecordingStatusChangedCallback;
+	CallbackStatusChangedFunction RecordingStatusChangedCallback; 
 	HRESULT BeginRecording(std::wstring path);
 	void EndRecording();
 	void PauseRecording();

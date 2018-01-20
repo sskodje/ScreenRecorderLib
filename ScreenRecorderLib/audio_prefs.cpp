@@ -1,4 +1,5 @@
 // prefs.cpp
+//https://github.com/mvaneerde/blog/tree/master/loopback-capture
 #include <stdio.h>
 
 #include <windows.h>

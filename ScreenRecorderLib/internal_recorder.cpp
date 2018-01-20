@@ -552,7 +552,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 		if (m_Debug) {
 			m_Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
 			m_Debug.Release();
-	}
+		}
 #endif
 		if (!m_IsDestructed) {
 			if (SUCCEEDED(hr)) {
@@ -582,7 +582,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 			}
 		}
 		return hr;
-});
+	});
 
 	return S_OK;
 }
@@ -649,8 +649,8 @@ HRESULT internal_recorder::InitializeDx(ID3D11DeviceContext **ppContext, ID3D11D
 #endif
 			// Device creation success, no need to loop anymore
 			break;
+		}
 	}
-}
 
 	RETURN_ON_BAD_HR(hr);
 	CComPtr<ID3D10Multithread> pMulti = nullptr;

@@ -1,5 +1,5 @@
 // prefs.h
-
+//https://github.com/mvaneerde/blog/tree/master/loopback-capture
 class CPrefs {
 public:
 	IMMDevice *m_pMMDevice;
