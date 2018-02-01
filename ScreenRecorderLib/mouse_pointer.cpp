@@ -29,7 +29,8 @@ mouse_pointer::mouse_pointer()
 }
 mouse_pointer::~mouse_pointer()
 {
-
+	delete PtrInfo.PtrShapeBuffer;
+	PtrInfo.PtrShapeBuffer = nullptr;
 }
 HRESULT mouse_pointer::DrawMousePointer(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device, DXGI_OUTDUPL_FRAME_INFO FrameInfo, RECT screenRect, D3D11_TEXTURE2D_DESC DESC, IDXGIOutputDuplication *DeskDupl, ID3D11Texture2D *Frame)
 {
