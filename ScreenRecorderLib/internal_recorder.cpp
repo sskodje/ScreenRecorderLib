@@ -252,7 +252,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 				RecordingStatusChangedCallback(STATUS_RECORDING);
 
 			ULONGLONG lastFrameStartPos = 0;
-			m_LastFrame = std::chrono::high_resolution_clock::now();
+
 			hr = pMousePointer->Initialize(pImmediateContext, pDevice);
 			SetViewPort(pImmediateContext, OutputDuplDesc.ModeDesc.Width, OutputDuplDesc.ModeDesc.Height);
 			RETURN_ON_BAD_HR(hr);
@@ -308,7 +308,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 				FrameTimeout = 0;
 			}
 
-
+			m_LastFrame = std::chrono::high_resolution_clock::now();
 			while (m_IsRecording)
 			{
 				if (token.is_canceled()) {
@@ -374,11 +374,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 					SafeRelease(&pDesktopResource);
 					continue;
 				}
-				UINT64 durationSinceLastFrameMillis = duration_cast<milliseconds>(chrono::high_resolution_clock::now() - m_LastFrame).count();
+				UINT64 durationSinceLastFrame100Nanos = duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - m_LastFrame).count()/100;
 				if (frameNr > 0 //always draw first frame 
 					&& !m_IsFixedFramerate
 					&& (!m_IsMousePointerEnabled || FrameInfo.PointerShapeBufferSize == 0)//always redraw when pointer changes if we draw pointer
-					&& (hr == DXGI_ERROR_WAIT_TIMEOUT || durationSinceLastFrameMillis < VideoFrameDurationMillis)) //skip if frame timeouted or duration is under our chosen framerate
+					&& (hr == DXGI_ERROR_WAIT_TIMEOUT || (durationSinceLastFrame100Nanos) < VideoFrameDuration100Nanos)) //skip if frame timeouted or duration is under our chosen framerate
 				{
 					if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 						LOG(L"Skipped frame");
@@ -403,6 +403,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 
 				m_LastFrame = high_resolution_clock::now();
 				{
+					std::vector<BYTE> audioData;
+					if (recordAudio) {
+						audioData = pLoopbackCapture->GetRecordedBytes();
+					}
+
 					CComPtr<ID3D11Texture2D> pFrameCopy;
 					D3D11_TEXTURE2D_DESC desc;
 
@@ -437,7 +442,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 							SafeRelease(&pDesktopResource);
 							return hr;
 						}
-						SetDebugName(pAcquiredDesktopImage, "FrameCopy");
 						pImmediateContext->CopyResource(pFrameCopy, pAcquiredDesktopImage);
 					}
 
@@ -476,10 +480,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 							return hr;
 						}
 					}
-					ULONGLONG duration = VideoFrameDuration100Nanos;
-					if (durationSinceLastFrameMillis > 0) {
-						duration = (ULONGLONG)(durationSinceLastFrameMillis * 10 * 1000);
-					}
+
 					if (token.is_canceled()) {
 						return S_FALSE;
 					}
@@ -487,11 +488,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
 							FrameWriteModel *model = new FrameWriteModel();
 							model->Frame = pFrameCopy;
-							model->Duration = duration;
+							model->Duration = durationSinceLastFrame100Nanos;
 							model->StartPos = lastFrameStartPos;
 							if (recordAudio) {
-								std::vector<BYTE> vec = pLoopbackCapture->GetRecordedBytes();
-								model->Audio = vec;
+								model->Audio = audioData;
 							}
 							model->FrameNumber = frameNr;
 							EnqueueFrame(model);
@@ -503,7 +503,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 						}
 					}
 
-					lastFrameStartPos += duration;
+					lastFrameStartPos += durationSinceLastFrame100Nanos;
 					pDeskDupl->ReleaseFrame();
 					SafeRelease(&pDesktopResource);
 
