@@ -36,6 +36,7 @@ namespace TestApp
         public bool IsAudioEnabled { get; set; } = true;
         public bool IsMousePointerEnabled { get; set; } = true;
         public bool IsFixedFramerate { get; set; } = false;
+        public bool IsThrottlingDisabled { get; set; } = false;
         public RecorderMode CurrentRecordingMode { get; set; }
 
         public MainWindow()
@@ -96,8 +97,20 @@ namespace TestApp
             RecorderOptions options = new RecorderOptions
             {
                 RecorderMode = CurrentRecordingMode,
-                AudioOptions = new AudioOptions { Bitrate = AudioBitrate.bitrate_96kbps, Channels = AudioChannels.Stereo, IsAudioEnabled = IsAudioEnabled },
-                VideoOptions = new VideoOptions { Bitrate = VideoBitrate * 1000, Framerate = VideoFramerate, IsMousePointerEnabled = IsMousePointerEnabled, IsFixedFramerate = IsFixedFramerate },
+                IsThrottlingDisabled = this.IsThrottlingDisabled,
+                AudioOptions = new AudioOptions
+                {
+                    Bitrate = AudioBitrate.bitrate_96kbps,
+                    Channels = AudioChannels.Stereo,
+                    IsAudioEnabled = this.IsAudioEnabled
+                },
+                VideoOptions = new VideoOptions
+                {
+                    Bitrate = VideoBitrate * 1000,
+                    Framerate = this.VideoFramerate,
+                    IsMousePointerEnabled = this.IsMousePointerEnabled,
+                    IsFixedFramerate = this.IsFixedFramerate
+                },
                 DisplayOptions = new DisplayOptions(this.ScreenComboBox.SelectedIndex, left, top, right, bottom)
             };
 
@@ -229,7 +242,7 @@ namespace TestApp
             }
             catch (Exception ex)
             {
-                MessageBox.Show("An error occured while deleting files: "+ex.Message);
+                MessageBox.Show("An error occured while deleting files: " + ex.Message);
             }
         }
     }

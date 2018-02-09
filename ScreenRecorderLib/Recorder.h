@@ -101,6 +101,7 @@ namespace ScreenRecorderLib {
 	public ref class RecorderOptions {
 	public:
 		property RecorderMode RecorderMode;
+		property bool IsThrottlingDisabled;
 		property VideoOptions^ VideoOptions;
 		property DisplayOptions^ DisplayOptions;
 		property AudioOptions^ AudioOptions;

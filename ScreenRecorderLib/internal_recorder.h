@@ -50,12 +50,13 @@ public:
 	void SetVideoBitrate(UINT32 bitrate);
 	void SetAudioBitrate(UINT32 bitrate);
 	void SetAudioChannels(UINT32 channels);
-	void SetAudioEnabled(bool enabled);
-	void SetMousePointerEnabled(bool enabled);
+	void SetAudioEnabled(bool value);
+	void SetMousePointerEnabled(bool value);
 	void SetDestRectangle(RECT rect);
 	void SetDisplayOutput(UINT32 output);
 	void SetRecorderMode(UINT32 mode);
-	void SetFixedFramerate(bool enabled);
+	void SetFixedFramerate(bool value);
+	void SetIsThrottlingDisabled(bool value);
 private:
 
 	std::string NowToString();

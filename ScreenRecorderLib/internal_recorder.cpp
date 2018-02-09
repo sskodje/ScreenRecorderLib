@@ -101,6 +101,7 @@ UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 
 bool m_IsMousePointerEnabled = true;
 bool m_IsAudioEnabled = false;
 bool m_IsFixedFramerate = false;
+bool m_IsThrottlingDisabled = false;
 
 // Format constants
 const GUID   VIDEO_ENCODING_FORMAT = MFVideoFormat_H264;
@@ -172,9 +173,12 @@ void internal_recorder::SetRecorderMode(UINT32 mode)
 {
 	m_RecorderMode = mode;
 }
-void internal_recorder::SetFixedFramerate(bool enabled)
+void internal_recorder::SetFixedFramerate(bool value)
 {
-	m_IsFixedFramerate = enabled;
+	m_IsFixedFramerate = value;
+}
+void internal_recorder::SetIsThrottlingDisabled(bool value) {
+	m_IsThrottlingDisabled = value;
 }
 HRESULT internal_recorder::BeginRecording(std::wstring path) {
 	if (m_IsRecording) {
@@ -374,7 +378,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 					SafeRelease(&pDesktopResource);
 					continue;
 				}
-				UINT64 durationSinceLastFrame100Nanos = duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - m_LastFrame).count()/100;
+				UINT64 durationSinceLastFrame100Nanos = duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - m_LastFrame).count() / 100;
 				if (frameNr > 0 //always draw first frame 
 					&& !m_IsFixedFramerate
 					&& (!m_IsMousePointerEnabled || FrameInfo.PointerShapeBufferSize == 0)//always redraw when pointer changes if we draw pointer
@@ -765,11 +769,11 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, ID3D11De
 	DWORD videoStreamIndex;
 	RETURN_ON_BAD_HR(MFCreateDXGIDeviceManager(&pResetToken, &pDeviceManager));
 	RETURN_ON_BAD_HR(pDeviceManager->ResetDevice(pDevice, pResetToken));
-	// Passing 3 as the argument because we're adding 3 attributes immediately, saves re-allocations
-	RETURN_ON_BAD_HR(MFCreateAttributes(&pAttributes, 3));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, 1));
-	//RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, 1));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, 1));
+	// Passing 3 as the argument because we're adding 4 attributes immediately, saves re-allocations
+	RETURN_ON_BAD_HR(MFCreateAttributes(&pAttributes, 4));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, FALSE));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, m_IsThrottlingDisabled));
 	// Add device manager to attributes. This enables hardware encoding.
 	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_D3D_MANAGER, pDeviceManager));
 

@@ -66,6 +66,9 @@
                               Content="Show mouse pointer" />
                     <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsFixedFramerate}"
                               Content="Fixed framerate" />
+                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsThrottlingDisabled}"
+                              Content="Disable Throttling"
+                              ToolTip="Video samples are sent to encoder as fast as they are generated. Encoding is faster, but may result in out of memory errors on long recordings." />
                     <StackPanel Orientation="Horizontal">
                         <Label Content="Mode"
                                VerticalAlignment="Top" />
@@ -80,8 +83,13 @@
                 </StackPanel>
 
 
-                <StackPanel Margin="5"
-                            Grid.Column="1">
+                <Grid Margin="5"
+                      Grid.Column="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal">
                         <Label Content="Framerate" />
                         <TextBox x:Name="FpsTextBox"
@@ -91,7 +99,8 @@
                                  VerticalAlignment="Center" />
                         <Label Content="fps" />
                     </StackPanel>
-                    <StackPanel Orientation="Horizontal">
+                    <StackPanel Orientation="Horizontal"
+                                Grid.Row="1">
                         <Label Content="Bitrate" />
                         <TextBox x:Name="BitrateTextBox"
                                  MinWidth="30"
@@ -100,9 +109,12 @@
                                  VerticalAlignment="Center" />
                         <Label Content="kbps" />
                     </StackPanel>
-                    <Button Content="Delete temp files"
-                            Click="DeleteTempFilesButton_Click"/>
-                </StackPanel>
+                    <Grid Grid.Row="2">
+                        <Button Content="Delete temp files"
+                                Click="DeleteTempFilesButton_Click"
+                                VerticalAlignment="Center" />
+                    </Grid>
+                </Grid>
             </Grid>
 
             <TextBlock FontSize="72"

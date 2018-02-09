@@ -240,14 +240,14 @@ HRESULT LoopbackCapture(
 
 			LONG lBytesToWrite = nNumFramesToRead * nBlockAlign;
 #pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
-			if (!bIsSilence) {
+			//if (!bIsSilence) {
 				mtx.lock();
 				int size = lBytesToWrite;
 				if (m_RecordedBytes.size() == 0)
 					m_RecordedBytes.reserve(size);
 				m_RecordedBytes.insert(m_RecordedBytes.end(), &pData[0], &pData[size]);
 				mtx.unlock();
-			}
+			//}
 			*pnFrames += nNumFramesToRead;
 
 			hr = pAudioCaptureClient->ReleaseBuffer(nNumFramesToRead);

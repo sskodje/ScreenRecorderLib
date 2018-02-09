@@ -58,6 +58,7 @@ Recorder::Recorder(RecorderOptions^ options)
 		default:
 			break;
 		}
+		lRec->SetIsThrottlingDisabled(options->IsThrottlingDisabled);
 	}
 	createErrorCallback();
 	createCompletionCallback();
