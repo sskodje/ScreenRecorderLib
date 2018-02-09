@@ -48,6 +48,7 @@ To change the options, pass a RecorderOptions when creating the Recorder:
             RecorderOptions options = new RecorderOptions
             {
                 RecorderMode = RecorderMode.Video,
+                IsThrottlingDisabled = false,//If throttling is disabled, out of memory exceptions may eventually crash the program, depending on how much RAM your system has.
                 AudioOptions = new AudioOptions { Bitrate = AudioBitrate.bitrate_128kbps, Channels = AudioChannels.Stereo, IsAudioEnabled = true },
                 VideoOptions = new VideoOptions { Bitrate = 8000 * 1000, Framerate = 60, IsMousePointerEnabled = true, IsFixedFramerate = true }
             };
