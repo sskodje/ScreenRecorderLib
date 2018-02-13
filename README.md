@@ -49,7 +49,9 @@ To change the options, pass a RecorderOptions when creating the Recorder:
             RecorderOptions options = new RecorderOptions
             {
                 RecorderMode = RecorderMode.Video,
-                IsThrottlingDisabled = false,//If throttling is disabled, out of memory exceptions may eventually crash the program, depending on how much RAM your system has.
+                //If throttling is disabled, out of memory exceptions may eventually crash the program, 
+                //depending on encoder settings and system specifications.
+                IsThrottlingDisabled = false,
                 AudioOptions = new AudioOptions
                 {
                     Bitrate = AudioBitrate.bitrate_128kbps,
