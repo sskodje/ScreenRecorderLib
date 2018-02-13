@@ -41,6 +41,12 @@ namespace ScreenRecorderLib {
 		Slideshow,
 		Snapshot
 	};
+	public enum class H264Profile
+	{
+		Baseline=66,
+		Main=77,
+		High=100
+	};
 	public ref class FrameData {
 	public:
 		property String^ Path;
@@ -80,7 +86,9 @@ namespace ScreenRecorderLib {
 			Bitrate = 4000 * 1000;
 			IsFixedFramerate = false;
 			IsMousePointerEnabled = true;
+			EncoderProfile = H264Profile::Baseline;
 		}
+		property H264Profile EncoderProfile;
 		property int Framerate;
 		//Bitrate in bits per second
 		property int Bitrate;

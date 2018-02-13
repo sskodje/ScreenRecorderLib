@@ -38,7 +38,7 @@ namespace TestApp
         public bool IsFixedFramerate { get; set; } = false;
         public bool IsThrottlingDisabled { get; set; } = false;
         public RecorderMode CurrentRecordingMode { get; set; }
-
+        public H264Profile CurrentH264Profile { get; set; } = H264Profile.Baseline;
         public MainWindow()
         {
             InitializeComponent();
@@ -46,7 +46,7 @@ namespace TestApp
             {
                 this.ScreenComboBox.Items.Add(String.Format("{0} ({1})", target.FriendlyName, target.ConnectorInstance));
             }
-            this.ScreenComboBox.SelectedIndex = 0;
+            this.ScreenComboBox.SelectedIndex = 0;         
         }
 
 
@@ -109,7 +109,8 @@ namespace TestApp
                     Bitrate = VideoBitrate * 1000,
                     Framerate = this.VideoFramerate,
                     IsMousePointerEnabled = this.IsMousePointerEnabled,
-                    IsFixedFramerate = this.IsFixedFramerate
+                    IsFixedFramerate = this.IsFixedFramerate,
+                    EncoderProfile = this.CurrentH264Profile
                 },
                 DisplayOptions = new DisplayOptions(this.ScreenComboBox.SelectedIndex, left, top, right, bottom)
             };

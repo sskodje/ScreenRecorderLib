@@ -12,6 +12,7 @@
 #include <winnt.h>
 #include <concrt.h>
 #include <wincodec.h>
+#include <Codecapi.h>
 #include "mouse_pointer.h"
 #include "loopback_capture.h"
 #include "internal_recorder.h"
@@ -96,6 +97,7 @@ nlohmann::fifo_map<wstring, int> m_FrameDelays;
 
 UINT32 m_VideoFps = 30;
 UINT32 m_VideoBitrate = 4000 * 1000;//Bitrate in bits per second
+UINT32 m_H264Profile = eAVEncH264VProfile_Main; //Supported H264 profiles for the encoder are Baseline, Main and High.
 UINT32 m_AudioBitrate = (96 / 8) * 1000; //Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
 UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
 bool m_IsMousePointerEnabled = true;
@@ -179,6 +181,9 @@ void internal_recorder::SetFixedFramerate(bool value)
 }
 void internal_recorder::SetIsThrottlingDisabled(bool value) {
 	m_IsThrottlingDisabled = value;
+}
+void internal_recorder::SetH264EncoderProfile(UINT32 value) {
+	m_H264Profile = value;
 }
 HRESULT internal_recorder::BeginRecording(std::wstring path) {
 	if (m_IsRecording) {
@@ -769,7 +774,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, ID3D11De
 	DWORD videoStreamIndex;
 	RETURN_ON_BAD_HR(MFCreateDXGIDeviceManager(&pResetToken, &pDeviceManager));
 	RETURN_ON_BAD_HR(pDeviceManager->ResetDevice(pDevice, pResetToken));
-	// Passing 3 as the argument because we're adding 4 attributes immediately, saves re-allocations
+	// Passing 4 as the argument because we're adding 4 attributes immediately, saves re-allocations
 	RETURN_ON_BAD_HR(MFCreateAttributes(&pAttributes, 4));
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE));
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, FALSE));
@@ -795,6 +800,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, ID3D11De
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetGUID(MF_MT_SUBTYPE, VIDEO_ENCODING_FORMAT));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_AVG_BITRATE, m_VideoBitrate));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
+	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_MPEG2_PROFILE, m_H264Profile));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeOut, MF_MT_FRAME_SIZE, destWidth, destHeight));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeOut, MF_MT_FRAME_RATE, m_VideoFps, 1));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeOut, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
@@ -896,7 +902,7 @@ void internal_recorder::EnqueueFrame(FrameWriteModel *model) {
 				if (m_RecorderMode == MODE_VIDEO) {
 					hr = WriteFrameToVideo(model->StartPos, model->Duration, m_VideoStreamIndex, model->Frame);
 					if (FAILED(hr)) {
-						ERR(L"Writing of frame with start pos %lld ms failed\n", (model->StartPos / 10 / 1000));
+						ERR(L"Writing of video frame with start pos %lld ms failed\n", (model->StartPos / 10 / 1000));
 						m_IsRecording = false; //Stop recording if we fail
 					}
 				}
@@ -906,23 +912,31 @@ void internal_recorder::EnqueueFrame(FrameWriteModel *model) {
 					LONGLONG startposMs = (model->StartPos / 10 / 1000);
 					LONGLONG durationMs = (model->Duration / 10 / 1000);
 					if (FAILED(hr)) {
-						ERR(L"Writing of frame with start pos %lld ms failed\n", startposMs);
+						ERR(L"Writing of video frame with start pos %lld ms failed\n", startposMs);
 						m_IsRecording = false; //Stop recording if we fail
 					}
 					else {
 
 						m_FrameDelays.insert(std::pair<wstring, int>(path, model->FrameNumber == 0 ? 0 : durationMs));
-						ERR(L"Wrote frame with start pos %lld ms and with duration %lld ms\n", startposMs, durationMs);
+						ERR(L"Wrote video slideshow frame with start pos %lld ms and with duration %lld ms\n", startposMs, durationMs);
 					}
 				}
 				model->Frame.Release();
 				BYTE *data;
+				//If the audio capture returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
+				//If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
+				if (m_IsAudioEnabled && model->Audio.size() == 0) {
+					int frameCount = ceil(AUDIO_SAMPLES_PER_SECOND * ((double)model->Duration / 10 / 1000 / 1000));
+					LONGLONG byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
+						model->Audio.insert(model->Audio.end(), byteCount, 0);
+					LOG("Inserted %zd bytes of silence", model->Audio.size());
+				}
 				if (model->Audio.size() > 0) {
 					data = new BYTE[model->Audio.size()];
 					std::copy(model->Audio.begin(), model->Audio.end(), data);
 					hr = WriteAudioSamplesToVideo(model->StartPos, model->Duration, m_AudioStreamIndex, data, model->Audio.size());
 					if (FAILED(hr)) {
-						ERR(L"Writing of audio sample with start pos %lld ms failed\n", (model->StartPos / 10 / 1000));
+						ERR(L"Writing of audio sample with start pos %ll ms failed\n", (model->StartPos / 10 / 1000));
 					}
 					delete[] data;
 					model->Audio.clear();

@@ -9,14 +9,21 @@
         xmlns:rec="clr-namespace:ScreenRecorderLib;assembly=ScreenRecorderLib"
         mc:Ignorable="d"
         Title="ScreenRecorderLib Demo"
-        Height="480"
+        Height="525"
         Width="525">
     <Window.Resources>
-        <ObjectDataProvider x:Key="dataFromEnum"
+        <ObjectDataProvider x:Key="RecorderModeData"
                             MethodName="GetValues"
                             ObjectType="{x:Type System:Enum}">
             <ObjectDataProvider.MethodParameters>
                 <x:Type TypeName="rec:RecorderMode" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+        <ObjectDataProvider x:Key="VideoProfileData"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type System:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="rec:H264Profile" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
     </Window.Resources>
@@ -71,15 +78,26 @@
                               ToolTip="Video samples are sent to encoder as fast as they are generated. Encoding is faster, but may result in out of memory errors on long recordings." />
                     <StackPanel Orientation="Horizontal">
                         <Label Content="Mode"
-                               VerticalAlignment="Top" />
+                               Width="75"
+                               VerticalAlignment="Center" />
                         <ComboBox x:Name="RecordingModeComboBox"
                                   MinWidth="100"
                                   Margin="0,5,5,5"
-                                  ItemsSource="{Binding Source={StaticResource dataFromEnum}}"
+                                  ItemsSource="{Binding Source={StaticResource RecorderModeData}}"
                                   SelectedItem="{Binding ElementName=MainWin,Path=CurrentRecordingMode}"
                                   VerticalAlignment="Top" />
                     </StackPanel>
-
+                    <StackPanel Orientation="Horizontal">
+                        <Label Content="H264 profile"
+                               Width="75"
+                               VerticalAlignment="Center" />
+                        <ComboBox x:Name="VideoProfileComboBox"
+                                  MinWidth="100"
+                                  Margin="0,5,5,5"
+                                  ItemsSource="{Binding Source={StaticResource VideoProfileData}}"
+                                  SelectedItem="{Binding ElementName=MainWin,Path=CurrentH264Profile}"
+                                  VerticalAlignment="Top" />
+                    </StackPanel>
                 </StackPanel>
 
 
@@ -91,7 +109,8 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal">
-                        <Label Content="Framerate" />
+                        <Label Content="Framerate"
+                               Width="65"/>
                         <TextBox x:Name="FpsTextBox"
                                  Width="30"
                                  Text="{Binding ElementName=MainWin,Path=VideoFramerate}"
@@ -101,7 +120,8 @@
                     </StackPanel>
                     <StackPanel Orientation="Horizontal"
                                 Grid.Row="1">
-                        <Label Content="Bitrate" />
+                        <Label Content="Bitrate"
+                               Width="65"/>
                         <TextBox x:Name="BitrateTextBox"
                                  MinWidth="30"
                                  Text="{Binding ElementName=MainWin,Path=VideoBitrate}"

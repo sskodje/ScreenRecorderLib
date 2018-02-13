@@ -57,6 +57,7 @@ public:
 	void SetRecorderMode(UINT32 mode);
 	void SetFixedFramerate(bool value);
 	void SetIsThrottlingDisabled(bool value);
+	void SetH264EncoderProfile(UINT32 value);
 private:
 
 	std::string NowToString();
