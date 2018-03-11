@@ -208,9 +208,9 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 	else
 	{
 		// Failed to create directory.
-		ERR(L"failed to create temp folder");
+		ERR(L"failed to create output folder");
 		if (RecordingFailedCallback != NULL)
-			RecordingFailedCallback(L"failed to create temp folder");
+			RecordingFailedCallback(L"failed to create output folder");
 		return S_FALSE;
 	}
 	if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SNAPSHOT) {
