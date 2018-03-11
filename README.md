@@ -1,5 +1,5 @@
 # ScreenRecorderLib
-A .NET library for screen recording in Windows, using native Microsoft Media Foundation for realtime encoding to h264 video or PNG images.
+A .NET library for screen recording in Windows, using native Microsoft Media Foundation for realtime encoding to h264 video or PNG images. This library requires Windows 8 or higher to function.
 
 Available on [NuGet](https://www.nuget.org/packages/ScreenRecorderLib/).
 
@@ -7,6 +7,7 @@ Available on [NuGet](https://www.nuget.org/packages/ScreenRecorderLib/).
 
 This will start a video recording using the default settings:
 * 4000kbps video bitrate
+* H.264 video encoder with baseline profile.
 * 30fps
 * no audio
 * mouse pointer enabled
@@ -48,9 +49,23 @@ To change the options, pass a RecorderOptions when creating the Recorder:
             RecorderOptions options = new RecorderOptions
             {
                 RecorderMode = RecorderMode.Video,
-                IsThrottlingDisabled = false,//If throttling is disabled, out of memory exceptions may eventually crash the program, depending on how much RAM your system has.
-                AudioOptions = new AudioOptions { Bitrate = AudioBitrate.bitrate_128kbps, Channels = AudioChannels.Stereo, IsAudioEnabled = true },
-                VideoOptions = new VideoOptions { Bitrate = 8000 * 1000, Framerate = 60, IsMousePointerEnabled = true, IsFixedFramerate = true }
+                //If throttling is disabled, out of memory exceptions may eventually crash the program, 
+                //depending on encoder settings and system specifications.
+                IsThrottlingDisabled = false,
+                AudioOptions = new AudioOptions
+                {
+                    Bitrate = AudioBitrate.bitrate_128kbps,
+                    Channels = AudioChannels.Stereo,
+                    IsAudioEnabled = true
+                },
+                VideoOptions = new VideoOptions
+                {
+                    Bitrate = 8000 * 1000,
+                    Framerate = 60,
+                    IsMousePointerEnabled = true,
+                    IsFixedFramerate = true,
+                    EncoderProfile = H264Profile.Main
+                }
             };
             _rec = Recorder.CreateRecorder(options);
 ```
