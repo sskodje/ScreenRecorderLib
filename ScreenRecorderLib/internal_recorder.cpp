@@ -522,6 +522,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 					}
 				}
 			}
+			SetEvent(hStopEvent);
 			m_IsRecording = false;
 			if (!m_IsDestructed) {
 				if (RecordingStatusChangedCallback != NULL)
