@@ -225,7 +225,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 	concurrency::create_task([this, token]() {
 		HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 		hr = MFStartup(MF_VERSION);
-
+		m_InputAudioSamplesPerSecond = AUDIO_SAMPLES_PER_SECOND;
 		RETURN_ON_BAD_HR(hr);
 		{
 			DXGI_OUTDUPL_DESC OutputDuplDesc;
@@ -250,21 +250,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 			{
 				DestRect = m_DestRect;
 			}
-
-
-			if (m_RecorderMode == MODE_VIDEO) {
-				hr = InitializeVideoSinkWriter(m_OutputFullPath, pDevice, SourceRect, DestRect, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex);
-				RETURN_ON_BAD_HR(hr);
-			}
-			m_IsRecording = true;
-			if (RecordingStatusChangedCallback != NULL)
-				RecordingStatusChangedCallback(STATUS_RECORDING);
-
-			ULONGLONG lastFrameStartPos = 0;
-
-			hr = pMousePointer->Initialize(pImmediateContext, pDevice);
-			SetViewPort(pImmediateContext, OutputDuplDesc.ModeDesc.Width, OutputDuplDesc.ModeDesc.Height);
-			RETURN_ON_BAD_HR(hr);
 
 			// create a "loopback capture has started" event
 			HANDLE hStartedEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -305,9 +290,24 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 					return S_FALSE;
 				}
 				CloseHandleOnExit closeThread(hThread);
-
 				WaitForSingleObjectEx(hStartedEvent, 1000, false);
+				m_InputAudioSamplesPerSecond = pLoopbackCapture->GetInputSampleRate();
 			}
+
+			if (m_RecorderMode == MODE_VIDEO) {
+				hr = InitializeVideoSinkWriter(m_OutputFullPath, pDevice, SourceRect, DestRect, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex);
+				RETURN_ON_BAD_HR(hr);
+			}
+			m_IsRecording = true;
+			if (RecordingStatusChangedCallback != NULL)
+				RecordingStatusChangedCallback(STATUS_RECORDING);
+
+			ULONGLONG lastFrameStartPos = 0;
+
+			hr = pMousePointer->Initialize(pImmediateContext, pDevice);
+			SetViewPort(pImmediateContext, OutputDuplDesc.ModeDesc.Width, OutputDuplDesc.ModeDesc.Height);
+			RETURN_ON_BAD_HR(hr);
+
 			UINT64 VideoFrameDurationMillis = 1000 / m_VideoFps;
 			UINT64 VideoFrameDuration100Nanos = VideoFrameDurationMillis * 10 * 1000;
 			UINT FrameTimeout = 99;
@@ -834,7 +834,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, ID3D11De
 		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
 		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM));
 		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, AUDIO_BITS_PER_SAMPLE));
-		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, AUDIO_SAMPLES_PER_SECOND));
+		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, m_InputAudioSamplesPerSecond));
 		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, m_AudioChannels));
 		HRESULT hr = pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, NULL);
 		RETURN_ON_BAD_HR(hr);
@@ -926,7 +926,7 @@ void internal_recorder::EnqueueFrame(FrameWriteModel *model) {
 				//If the audio capture returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
 				//If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
 				if (m_IsAudioEnabled && model->Audio.size() == 0) {
-					int frameCount = ceil(AUDIO_SAMPLES_PER_SECOND * ((double)model->Duration / 10 / 1000 / 1000));
+					int frameCount = ceil(m_InputAudioSamplesPerSecond * ((double)model->Duration / 10 / 1000 / 1000));
 					LONGLONG byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
 						model->Audio.insert(model->Audio.end(), byteCount, 0);
 					LOG("Inserted %zd bytes of silence", model->Audio.size());

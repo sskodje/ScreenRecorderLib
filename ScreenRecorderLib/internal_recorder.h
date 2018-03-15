@@ -59,7 +59,7 @@ public:
 	void SetIsThrottlingDisabled(bool value);
 	void SetH264EncoderProfile(UINT32 value);
 private:
-
+	UINT32 m_InputAudioSamplesPerSecond;
 	std::string NowToString();
 	void SetDebugName(ID3D11DeviceChild* child, const std::string& name);
 	void SetViewPort(ID3D11DeviceContext *deviceContext, UINT Width, UINT Height);
