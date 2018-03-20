@@ -6,6 +6,7 @@
 #include "log.h"
 #include "cleanup.h"
 std::vector<BYTE> m_RecordedBytes;
+UINT32 m_SamplesPerSec;
 std::mutex mtx;           // mutex for critical section
 using namespace std;
 
@@ -109,6 +110,8 @@ HRESULT LoopbackCapture(
 		}
 	}
 
+	m_SamplesPerSec = pwfx->nSamplesPerSec;
+	
 	// create a periodic waitable timer
 	HANDLE hWakeUp = CreateWaitableTimer(NULL, FALSE, NULL);
 	if (NULL == hWakeUp) {
@@ -295,6 +298,9 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes()
 	return newvector;
 }
 
+UINT32 loopback_capture::GetInputSampleRate() {
+	return m_SamplesPerSec;
+}
 
 
 void loopback_capture::ClearRecordedBytes()
