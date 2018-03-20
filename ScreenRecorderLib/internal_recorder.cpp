@@ -13,6 +13,7 @@
 #include <concrt.h>
 #include <wincodec.h>
 #include <Codecapi.h>
+#include <mfidl.h>
 #include "mouse_pointer.h"
 #include "loopback_capture.h"
 #include "internal_recorder.h"
@@ -28,6 +29,7 @@
 #pragma comment(lib, "Mfplat.lib")
 #pragma comment(lib, "evr.lib")
 #pragma comment(lib, "mfreadwrite.lib")
+#pragma comment(lib, "Mf.lib")
 
 using namespace std;
 using namespace std::chrono;
@@ -40,7 +42,7 @@ using namespace DirectX;
     if (FAILED(_hr_)) { \
 	{\
 		_com_error err(_hr_);\
-		ERR(L"RETURN_ON_BAD_HR: error is %ls", err.ErrorMessage());\
+		ERR(L"RETURN_ON_BAD_HR: %ls", err.ErrorMessage());\
 	}\
 		return _hr_; \
 	} \
@@ -104,6 +106,9 @@ bool m_IsMousePointerEnabled = true;
 bool m_IsAudioEnabled = false;
 bool m_IsFixedFramerate = false;
 bool m_IsThrottlingDisabled = false;
+bool m_IsLowLatencyModeEnabled = false;
+bool m_IsMp4FastStartEnabled = true;
+bool m_IsHardwareEncodingEnabled = true;
 
 // Format constants
 const GUID   VIDEO_ENCODING_FORMAT = MFVideoFormat_H264;
@@ -155,6 +160,15 @@ void internal_recorder::SetMousePointerEnabled(bool enabled)
 {
 	m_IsMousePointerEnabled = enabled;
 }
+void internal_recorder::SetIsFastStartEnabled(bool enabled) {
+	m_IsMp4FastStartEnabled = enabled;
+}
+void internal_recorder::SetIsHardwareEncodingEnabled(bool enabled) {
+	m_IsHardwareEncodingEnabled = enabled;
+}
+void internal_recorder::SetIsLowLatencyModeEnabled(bool enabled) {
+	m_IsLowLatencyModeEnabled = enabled;
+}
 void internal_recorder::SetDestRectangle(RECT rect)
 {
 	if (rect.left % 2 != 0)
@@ -185,16 +199,8 @@ void internal_recorder::SetIsThrottlingDisabled(bool value) {
 void internal_recorder::SetH264EncoderProfile(UINT32 value) {
 	m_H264Profile = value;
 }
-HRESULT internal_recorder::BeginRecording(std::wstring path) {
-	if (m_IsRecording) {
-		if (m_IsPaused) {
-			m_IsPaused = false;
-			if (RecordingStatusChangedCallback != NULL)
-				RecordingStatusChangedCallback(STATUS_RECORDING);
-		}
-		return S_FALSE;
-	}
-	m_FrameDelays.clear();
+
+HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 	m_OutputFullPath = path;
 	wstring dir = path;
 	LPWSTR directory = (LPWSTR)dir.c_str();
@@ -221,8 +227,32 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 			m_OutputFullPath = m_OutputFolder + L"\\" + utilities::s2ws(NowToString()) + ext;
 		}
 	}
+	return S_OK;
+}
+HRESULT internal_recorder::BeginRecording(IStream *stream) {
+	return BeginRecording(L"", stream);
+}
+HRESULT internal_recorder::BeginRecording(std::wstring path) {
+	return BeginRecording(path, NULL);
+}
+HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
+	if (m_IsRecording) {
+		if (m_IsPaused) {
+			m_IsPaused = false;
+			if (RecordingStatusChangedCallback != NULL)
+				RecordingStatusChangedCallback(STATUS_RECORDING);
+		}
+		return S_FALSE;
+	}
+	m_FrameDelays.clear();
+	if (!path.empty()) {
+		HRESULT hr = ConfigureOutputDir(path);
+		if (FAILED(hr)) {
+			return hr;
+		}
+	}
 	cancellation_token token = m_RecordTaskCts.get_token();
-	concurrency::create_task([this, token]() {
+	concurrency::create_task([this, token, stream]() {
 		HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 		hr = MFStartup(MF_VERSION);
 		m_InputAudioSamplesPerSecond = AUDIO_SAMPLES_PER_SECOND;
@@ -295,7 +325,12 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 			}
 
 			if (m_RecorderMode == MODE_VIDEO) {
-				hr = InitializeVideoSinkWriter(m_OutputFullPath, pDevice, SourceRect, DestRect, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex);
+				CComPtr<IMFByteStream> outputStream = nullptr;
+				if (stream != NULL) {
+					hr = MFCreateMFByteStreamOnStream(stream, &outputStream);
+					RETURN_ON_BAD_HR(hr);
+				}
+				hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, pDevice, SourceRect, DestRect, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex);
 				RETURN_ON_BAD_HR(hr);
 			}
 			m_IsRecording = true;
@@ -754,7 +789,7 @@ void internal_recorder::SetViewPort(ID3D11DeviceContext *deviceContext, UINT Wid
 	deviceContext->RSSetViewports(1, &VP);
 }
 
-HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, ID3D11Device* pDevice, RECT sourceRect, RECT destRect, IMFSinkWriter **ppWriter, DWORD *pVideoStreamIndex, DWORD *pAudioStreamIndex)
+HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteStream *pOutStream, ID3D11Device* pDevice, RECT sourceRect, RECT destRect, IMFSinkWriter **ppWriter, DWORD *pVideoStreamIndex, DWORD *pAudioStreamIndex)
 {
 	*ppWriter = NULL;
 	*pVideoStreamIndex = NULL;
@@ -767,33 +802,34 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, ID3D11De
 	CComPtr<IMFMediaType>         pAudioMediaTypeOut = NULL;
 	CComPtr<IMFMediaType>         pVideoMediaTypeIn = NULL;
 	CComPtr<IMFMediaType>         pAudioMediaTypeIn = NULL;
-
 	CComPtr<IMFAttributes>        pAttributes = NULL;
-	CComPtr<IMFSinkWriterEx>      pSinkWriterEx = NULL;
 
 	DWORD audioStreamIndex;
 	DWORD videoStreamIndex;
 	RETURN_ON_BAD_HR(MFCreateDXGIDeviceManager(&pResetToken, &pDeviceManager));
 	RETURN_ON_BAD_HR(pDeviceManager->ResetDevice(pDevice, pResetToken));
-	// Passing 4 as the argument because we're adding 4 attributes immediately, saves re-allocations
-	RETURN_ON_BAD_HR(MFCreateAttributes(&pAttributes, 4));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, TRUE));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, FALSE));
+	const wchar_t *pathString = nullptr;
+	if (!path.empty()) {
+		pathString = path.c_str();
+	}
+
+	// Passing 6 as the argument to save re-allocations
+	RETURN_ON_BAD_HR(MFCreateAttributes(&pAttributes, 6));
+	RETURN_ON_BAD_HR(pAttributes->SetGUID(MF_TRANSCODE_CONTAINERTYPE, MFTranscodeContainerType_MPEG4));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, m_IsHardwareEncodingEnabled));
+	if (pOutStream != NULL) {
+		RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_MPEG4SINK_MOOV_BEFORE_MDAT, m_IsMp4FastStartEnabled));
+	}
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, m_IsLowLatencyModeEnabled));
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, m_IsThrottlingDisabled));
 	// Add device manager to attributes. This enables hardware encoding.
 	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_D3D_MANAGER, pDeviceManager));
-
-	//Creates the sink writer with our custom attributes
-	RETURN_ON_BAD_HR(MFCreateSinkWriterFromURL(path.c_str(), NULL, pAttributes, &pSinkWriter));
-
-	RETURN_ON_BAD_HR(pSinkWriter->QueryInterface(&pSinkWriterEx));
 
 	UINT sourceWidth = max(0, sourceRect.right - sourceRect.left);
 	UINT sourceHeight = max(0, sourceRect.bottom - sourceRect.top);
 
 	UINT destWidth = max(0, destRect.right - destRect.left);
 	UINT destHeight = max(0, destRect.bottom - destRect.top);
-
 
 	// Set the output video type.
 	RETURN_ON_BAD_HR(MFCreateMediaType(&pVideoMediaTypeOut));
@@ -805,8 +841,6 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, ID3D11De
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeOut, MF_MT_FRAME_SIZE, destWidth, destHeight));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeOut, MF_MT_FRAME_RATE, m_VideoFps, 1));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeOut, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
-	RETURN_ON_BAD_HR(pSinkWriter->AddStream(pVideoMediaTypeOut, &videoStreamIndex));
-	pVideoMediaTypeOut.Release();
 
 	// Set the input video type.
 	RETURN_ON_BAD_HR(MFCreateMediaType(&pVideoMediaTypeIn));
@@ -816,7 +850,6 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, ID3D11De
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeIn, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeIn, MF_MT_FRAME_RATE, m_VideoFps, 1));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeIn, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
-	RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(videoStreamIndex, pVideoMediaTypeIn, NULL));
 
 	if (m_IsAudioEnabled) {
 		// Set the output audio type.
@@ -827,8 +860,6 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, ID3D11De
 		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, AUDIO_BITS_PER_SAMPLE));
 		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, AUDIO_SAMPLES_PER_SECOND));
 		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, m_AudioBitrate));
-		RETURN_ON_BAD_HR(pSinkWriter->AddStream(pAudioMediaTypeOut, &audioStreamIndex));
-		pAudioMediaTypeOut.Release();
 
 		// Set the input audio type.
 		RETURN_ON_BAD_HR(MFCreateMediaType(&pAudioMediaTypeIn));
@@ -837,14 +868,44 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, ID3D11De
 		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, AUDIO_BITS_PER_SAMPLE));
 		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, m_InputAudioSamplesPerSecond));
 		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, m_AudioChannels));
-		HRESULT hr = pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, NULL);
-		RETURN_ON_BAD_HR(hr);
+	}
 
+	if (pOutStream == NULL)
+	{
+		//Creates the file sink writer with our custom attributes
+		RETURN_ON_BAD_HR(MFCreateSinkWriterFromURL(pathString, nullptr, pAttributes, &pSinkWriter));
+
+		RETURN_ON_BAD_HR(pSinkWriter->AddStream(pVideoMediaTypeOut, &videoStreamIndex));
+		pVideoMediaTypeOut.Release();
+
+		if (m_IsAudioEnabled) {
+			RETURN_ON_BAD_HR(pSinkWriter->AddStream(pAudioMediaTypeOut, &audioStreamIndex));
+			pAudioMediaTypeOut.Release();
+		}
+	}
+	else {
+		//Creates a streaming writer
+		CComPtr<IMFMediaSink> pMp4StreamSink;
+		RETURN_ON_BAD_HR(MFCreateFMPEG4MediaSink(pOutStream, pVideoMediaTypeOut, pAudioMediaTypeOut, &pMp4StreamSink));
+		pAudioMediaTypeOut.Release();
+		pVideoMediaTypeOut.Release();
+		RETURN_ON_BAD_HR(MFCreateSinkWriterFromMediaSink(pMp4StreamSink, pAttributes, &pSinkWriter));
+		videoStreamIndex = 0;
+		audioStreamIndex = 1;
+	}
+	RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(videoStreamIndex, pVideoMediaTypeIn, NULL));
+	pVideoMediaTypeIn.Release();
+
+	if (m_IsAudioEnabled) {
+		RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, NULL));
+		pAudioMediaTypeIn.Release();
 	}
 	if (destWidth != sourceWidth || destHeight != sourceHeight) {
 		GUID transformType;
 		DWORD transformIndex = 0;
 		CComPtr<IMFVideoProcessorControl> videoProcessor;
+		CComPtr<IMFSinkWriterEx>      pSinkWriterEx = NULL;
+		RETURN_ON_BAD_HR(pSinkWriter->QueryInterface(&pSinkWriterEx));
 		while (true) {
 			CComPtr<IMFTransform> transform;
 			const HRESULT hr = pSinkWriterEx->GetTransformForStream(videoStreamIndex, transformIndex, &transformType, &transform);
@@ -872,8 +933,6 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, ID3D11De
 	*pAudioStreamIndex = audioStreamIndex;
 	return S_OK;
 }
-
-
 
 void internal_recorder::EnqueueFrame(FrameWriteModel *model) {
 	m_WriteQueue.push(model);
@@ -929,7 +988,7 @@ void internal_recorder::EnqueueFrame(FrameWriteModel *model) {
 				if (m_IsAudioEnabled && model->Audio.size() == 0) {
 					int frameCount = ceil(m_InputAudioSamplesPerSecond * ((double)model->Duration / 10 / 1000 / 1000));
 					LONGLONG byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
-						model->Audio.insert(model->Audio.end(), byteCount, 0);
+					model->Audio.insert(model->Audio.end(), byteCount, 0);
 					LOG("Inserted %zd bytes of silence", model->Audio.size());
 				}
 				if (model->Audio.size() > 0) {

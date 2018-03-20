@@ -6,6 +6,7 @@
 #include <vector>
 #include "fifo_map.h"
 #include "internal_recorder.h"
+#include "ManagedIStream.h"
 using namespace System;
 using namespace System::Runtime::InteropServices;
 using namespace System::Collections::Generic;
@@ -43,9 +44,9 @@ namespace ScreenRecorderLib {
 	};
 	public enum class H264Profile
 	{
-		Baseline=66,
-		Main=77,
-		High=100
+		Baseline = 66,
+		Main = 77,
+		High = 100
 	};
 	public ref class FrameData {
 	public:
@@ -88,11 +89,22 @@ namespace ScreenRecorderLib {
 			IsMousePointerEnabled = true;
 			EncoderProfile = H264Profile::Baseline;
 		}
-		property H264Profile EncoderProfile;
+		property H264Profile EncoderProfile;	
+		/// <summary>
+		///Framerate in frames per second.
+		/// </summary>
 		property int Framerate;
-		//Bitrate in bits per second
+		/// <summary>
+		///Bitrate in bits per second
+		/// </summary>
 		property int Bitrate;
+		/// <summary>
+		///Display the mouse cursor on the recording
+		/// </summary>
 		property bool IsMousePointerEnabled;
+		/// <summary>
+		///Send data to the video encoder every frame, even if it means duplicating the previous frame(s). Can fix stutter issues in fringe cases, but uses more resources.
+		/// </summary>
 		property bool IsFixedFramerate;
 	};
 	public ref class AudioOptions {
@@ -108,8 +120,29 @@ namespace ScreenRecorderLib {
 	};
 	public ref class RecorderOptions {
 	public:
+		RecorderOptions() {
+			IsThrottlingDisabled = false;
+			IsLowLatencyEnabled = false;
+			IsHardwareEncodingEnabled = true;
+			IsMp4FastStartEnabled = true;
+		}
 		property RecorderMode RecorderMode;
+		/// <summary>
+		///Disable throttling of video renderer. If this is disabled, all frames are sent to renderer as fast as they come. Can cause out of memory crashes.
+		/// </summary>
 		property bool IsThrottlingDisabled;
+		/// <summary>
+		///Faster rendering, but can affect quality. Use when speed is more important than quality.
+		/// </summary>
+		property bool IsLowLatencyEnabled;
+		/// <summary>
+		///Enable hardware encoding if available. This is enabled by default.
+		/// </summary>
+		property bool IsHardwareEncodingEnabled;
+		/// <summary>
+		/// Place the mp4 header at the start of the file. This makes the playback start faster when streaming. This option is only available when recording to a stream.
+		/// </summary>
+		property bool IsMp4FastStartEnabled;
 		property VideoOptions^ VideoOptions;
 		property DisplayOptions^ DisplayOptions;
 		property AudioOptions^ AudioOptions;
@@ -163,7 +196,10 @@ namespace ScreenRecorderLib {
 			_status = value;
 		}
 		}
+
 		void Record(System::String^ path);
+		void Record(System::Runtime::InteropServices::ComTypes::IStream^ stream);
+		void Record(System::IO::Stream^ stream);
 		void Pause();
 		void Resume();
 		void Stop();
@@ -172,5 +208,6 @@ namespace ScreenRecorderLib {
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;
+		ManagedIStream *m_ManagedStream;
 	};
 }

@@ -10,8 +10,10 @@
         mc:Ignorable="d"
         Title="ScreenRecorderLib Demo"
         Height="525"
-        Width="525">
+        Width="525"
+        SizeToContent="Height">
     <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <ObjectDataProvider x:Key="RecorderModeData"
                             MethodName="GetValues"
                             ObjectType="{x:Type System:Enum}">
@@ -28,6 +30,10 @@
         </ObjectDataProvider>
     </Window.Resources>
     <Grid x:Name="LayoutRoot">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
         <StackPanel HorizontalAlignment="Center"
                     VerticalAlignment="Center">
             <ComboBox x:Name="ScreenComboBox"
@@ -66,6 +72,9 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <StackPanel Margin="5">
+                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsHardwareEncodingEnabled}"
+                              Content="Enable hardware encoding"
+                              ToolTip="" />
                     <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsAudioEnabled}"
                               VerticalAlignment="Center"
                               Content="Record audio" />
@@ -76,6 +85,9 @@
                     <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsThrottlingDisabled}"
                               Content="Disable Throttling"
                               ToolTip="Video samples are sent to encoder as fast as they are generated. Encoding is faster, but may result in out of memory errors on long recordings." />
+                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsLowLatencyEnabled}"
+                              Content="Enable low latency mode."
+                              ToolTip="Provides faster encoding, but quality may suffer." />
                     <StackPanel Orientation="Horizontal">
                         <Label Content="Mode"
                                Width="75"
@@ -110,7 +122,7 @@
                     </Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal">
                         <Label Content="Framerate"
-                               Width="65"/>
+                               Width="65" />
                         <TextBox x:Name="FpsTextBox"
                                  Width="30"
                                  Text="{Binding ElementName=MainWin,Path=VideoFramerate}"
@@ -121,7 +133,7 @@
                     <StackPanel Orientation="Horizontal"
                                 Grid.Row="1">
                         <Label Content="Bitrate"
-                               Width="65"/>
+                               Width="65" />
                         <TextBox x:Name="BitrateTextBox"
                                  MinWidth="30"
                                  Text="{Binding ElementName=MainWin,Path=VideoBitrate}"
@@ -132,11 +144,20 @@
                     <Grid Grid.Row="2">
                         <Button Content="Delete temp files"
                                 Click="DeleteTempFilesButton_Click"
-                                VerticalAlignment="Center" />
+                                VerticalAlignment="Top" />
                     </Grid>
                 </Grid>
-            </Grid>
 
+            </Grid>
+            <CheckBox Content="Record to stream"
+                      x:Name="CheckBoxRecordToStream"
+                      IsChecked="{Binding ElementName=MainWin,Path=RecordToStream}"
+                      Margin="5" />
+            <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsMp4FastStartEnabled}"
+                      Content="Enable MP4 fast start"
+                      IsEnabled="{Binding ElementName=CheckBoxRecordToStream,Path=IsChecked}"
+                      Margin="15,0"
+                      ToolTip="MP4 header is writter at the start of the file. This makes the file better suited to streaming." />
             <TextBlock FontSize="72"
                        Text="00:00:00"
                        HorizontalAlignment="Center"
@@ -164,13 +185,14 @@
                     FontSize="28"
                     Visibility="Hidden"
                     Click="PauseButton_Click" />
-
-            <TextBlock>
-    <Hyperlink Click="Hyperlink_Click">
-        <TextBlock Text=""
-                    x:Name="OutputResultTextBlock" />
-    </Hyperlink>
-</TextBlock>
         </StackPanel>
+        <TextBlock Margin="5"
+                   TextWrapping="Wrap"
+                   Grid.Row="1">
+            <Hyperlink Click="Hyperlink_Click">
+                <Run Text=""
+                           x:Name="OutputResultTextBlock" />
+            </Hyperlink>
+        </TextBlock>
     </Grid>
 </Window>

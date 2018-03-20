@@ -4,7 +4,7 @@
 #include <memory>
 #include <msclr\marshal.h>
 #include <msclr\marshal_cppstd.h>
-
+#include "ManagedIStream.h"
 #include "internal_recorder.h"
 using namespace ScreenRecorderLib;
 using namespace nlohmann;
@@ -60,6 +60,9 @@ Recorder::Recorder(RecorderOptions^ options)
 			break;
 		}
 		lRec->SetIsThrottlingDisabled(options->IsThrottlingDisabled);
+		lRec->SetIsLowLatencyModeEnabled(options->IsLowLatencyEnabled);
+		lRec->SetIsFastStartEnabled(options->IsMp4FastStartEnabled);
+		lRec->SetIsHardwareEncodingEnabled(options->IsHardwareEncodingEnabled);
 	}
 	createErrorCallback();
 	createCompletionCallback();
@@ -94,9 +97,13 @@ Recorder::~Recorder()
 }
 
 Recorder::!Recorder() {
-	if (lRec != nullptr) {
+	if (lRec) {
 		delete lRec;
 		lRec = nullptr;
+	}
+	if (m_ManagedStream) {
+		delete m_ManagedStream;
+		m_ManagedStream = nullptr;
 	}
 	_statusChangedDelegateGcHandler.Free();
 	_errorDelegateGcHandler.Free();
@@ -110,11 +117,19 @@ void Recorder::EventComplete(std::wstring str, fifo_map<std::wstring, int> delay
 	for (auto x : delays) {
 		frameInfos->Add(gcnew FrameData(gcnew String(x.first.c_str()), x.second));
 	}
+	if (m_ManagedStream) {
+		delete m_ManagedStream;
+		m_ManagedStream = nullptr;
+	}
 	RecordingCompleteEventArgs^ args = gcnew RecordingCompleteEventArgs(gcnew String(str.c_str()), frameInfos);
 	OnRecordingComplete(this, args);
 }
 void Recorder::EventFailed(std::wstring str)
 {
+	if (m_ManagedStream) {
+		delete m_ManagedStream;
+		m_ManagedStream = nullptr;
+	}
 	OnRecordingFailed(this, gcnew RecordingFailedEventArgs(gcnew String(str.c_str())));
 }
 void Recorder::EventStatusChanged(int status)
@@ -132,7 +147,14 @@ Recorder^ Recorder::CreateRecorder(RecorderOptions ^ options)
 	Recorder^ rec = gcnew Recorder(options);
 	return rec;
 }
-
+void Recorder::Record(System::Runtime::InteropServices::ComTypes::IStream^ stream) {
+	IStream *pNativeStream = (IStream*)Marshal::GetComInterfaceForObject(stream, System::Runtime::InteropServices::ComTypes::IStream::typeid).ToPointer();
+	lRec->BeginRecording(pNativeStream);
+}
+void Recorder::Record(System::IO::Stream^ stream) {
+	m_ManagedStream = new ManagedIStream(stream);
+	lRec->BeginRecording(m_ManagedStream);
+}
 void Recorder::Record(System::String^ path) {
 	std::wstring stdPathString = msclr::interop::marshal_as<std::wstring>(path);
 	lRec->BeginRecording(stdPathString);
