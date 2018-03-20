@@ -65,9 +65,13 @@ To change the options, pass a RecorderOptions when creating the Recorder:
                 //If throttling is disabled, out of memory exceptions may eventually crash the program,
                 //depending on encoder settings and system specifications.
                 IsThrottlingDisabled = false,
-                IsHardwareEncodingEnabled = true, //Enabled by default.
-                IsLowLatencyEnabled = false, //Provides faster encoding, but can reduce quality.
-                IsMp4FastStartEnabled = false, //Fast start writes the mp4 header at the beginning of the file, to facilitate streaming.
+		//Hardware encoding is enabled by default.
+                IsHardwareEncodingEnabled = true,
+		//Low latency mode provides faster encoding, but can reduce quality.
+                IsLowLatencyEnabled = false,
+		//Fast start writes the mp4 header at the beginning of the file, to facilitate streaming.
+		//This only works when recording to a stream for now.
+                IsMp4FastStartEnabled = false,
                 AudioOptions = new AudioOptions
                 {
                     Bitrate = AudioBitrate.bitrate_128kbps,
