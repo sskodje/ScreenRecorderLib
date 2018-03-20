@@ -35,6 +35,7 @@ public:
 	void ClearRecordedBytes();
 	void Cleanup();
 	std::vector<BYTE> loopback_capture::GetRecordedBytes();
+	UINT32 GetInputSampleRate();
 private:
 
 };

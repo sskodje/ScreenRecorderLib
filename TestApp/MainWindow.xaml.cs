@@ -1,11 +1,8 @@
 ﻿using ScreenRecorderLib;
 using System;
-using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -15,11 +12,12 @@ namespace TestApp
     /// <summary>
     /// Interaction logic for MainWindow.xaml
     /// </summary>
-    public partial class MainWindow : Window
+    public partial class MainWindow : Window, INotifyPropertyChanged
     {
         private Recorder _rec;
         private DispatcherTimer _progressTimer;
         private int _secondsElapsed;
+        private Stream _outputStream;
         private bool _isRecording;
 
         public bool IsRecording
@@ -37,8 +35,50 @@ namespace TestApp
         public bool IsMousePointerEnabled { get; set; } = true;
         public bool IsFixedFramerate { get; set; } = false;
         public bool IsThrottlingDisabled { get; set; } = false;
-        public RecorderMode CurrentRecordingMode { get; set; }
-        public H264Profile CurrentH264Profile { get; set; } = H264Profile.Baseline;
+        public bool IsHardwareEncodingEnabled { get; set; } = true;
+        public bool IsLowLatencyEnabled { get; set; } = false;
+        public bool IsMp4FastStartEnabled { get; set; } = false;
+
+        private bool _recordToStream;
+        public bool RecordToStream
+        {
+            get { return _recordToStream; }
+            set
+            {
+                if (_recordToStream != value)
+                {
+                    _recordToStream = value;
+                    RaisePropertyChanged("RecordToStream");
+                    if (value)
+                    {
+                        CurrentRecordingMode = RecorderMode.Video;
+                        this.RecordingModeComboBox.IsEnabled = false;
+                    }
+                    else
+                    {
+                        this.RecordingModeComboBox.IsEnabled = true;
+                    }
+                }
+            }
+        }
+
+
+        //public RecorderMode CurrentRecordingMode { get; set; }
+        private RecorderMode _currentRecordingMode;
+        public RecorderMode CurrentRecordingMode
+        {
+            get { return _currentRecordingMode; }
+            set
+            {
+                if (_currentRecordingMode != value)
+                {
+                    _currentRecordingMode = value;
+                    RaisePropertyChanged("CurrentRecordingMode");
+                }
+            }
+        }
+
+        public H264Profile CurrentH264Profile { get; set; } = H264Profile.Main;
         public MainWindow()
         {
             InitializeComponent();
@@ -46,10 +86,15 @@ namespace TestApp
             {
                 this.ScreenComboBox.Items.Add(String.Format("{0} ({1})", target.FriendlyName, target.ConnectorInstance));
             }
-            this.ScreenComboBox.SelectedIndex = 0;         
+            this.ScreenComboBox.SelectedIndex = 0;
         }
 
-
+        protected void RaisePropertyChanged(string propertyName)
+        {
+            PropertyChangedEventHandler handler = PropertyChanged;
+            if (handler != null) handler(this, new PropertyChangedEventArgs(propertyName));
+        }
+        public event PropertyChangedEventHandler PropertyChanged;
 
         private void RecordButton_Click(object sender, RoutedEventArgs e)
         {
@@ -70,7 +115,7 @@ namespace TestApp
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
                 videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + ".mp4");
             }
-            if (CurrentRecordingMode == RecorderMode.Slideshow)
+            else if (CurrentRecordingMode == RecorderMode.Slideshow)
             {
                 //For slideshow just give a folder path as input.
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
@@ -98,6 +143,9 @@ namespace TestApp
             {
                 RecorderMode = CurrentRecordingMode,
                 IsThrottlingDisabled = this.IsThrottlingDisabled,
+                IsHardwareEncodingEnabled = this.IsHardwareEncodingEnabled,
+                IsLowLatencyEnabled = this.IsLowLatencyEnabled,
+                IsMp4FastStartEnabled = this.IsMp4FastStartEnabled,
                 AudioOptions = new AudioOptions
                 {
                     Bitrate = AudioBitrate.bitrate_96kbps,
@@ -119,11 +167,21 @@ namespace TestApp
             _rec.OnRecordingComplete += Rec_OnRecordingComplete;
             _rec.OnRecordingFailed += Rec_OnRecordingFailed;
             _rec.OnStatusChanged += _rec_OnStatusChanged;
-            _rec.Record(videoPath);
 
+            if (RecordToStream)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(videoPath));
+                _outputStream = new FileStream(videoPath, FileMode.Create);
+                _rec.Record(_outputStream);
+            }
+            else
+            {
+                _rec.Record(videoPath);
+            }
             _secondsElapsed = 0;
             IsRecording = true;
         }
+
         private void Rec_OnRecordingFailed(object sender, RecordingFailedEventArgs e)
         {
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
@@ -133,6 +191,7 @@ namespace TestApp
                 StatusTextBlock.Text = "Error:";
                 ErrorTextBlock.Visibility = Visibility.Visible;
                 ErrorTextBlock.Text = e.Error;
+                _outputStream?.Dispose();
                 _progressTimer?.Stop();
                 _progressTimer = null;
                 _secondsElapsed = 0;
@@ -144,12 +203,19 @@ namespace TestApp
                 _rec = null;
             }));
         }
-
         private void Rec_OnRecordingComplete(object sender, RecordingCompleteEventArgs e)
         {
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
             {
-                OutputResultTextBlock.Text = e.FilePath;
+                string filePath = e.FilePath;
+                if (RecordToStream)
+                {
+                    filePath = ((FileStream)_outputStream)?.Name;
+                    _outputStream?.Flush();
+                    _outputStream?.Dispose();
+                }
+
+                OutputResultTextBlock.Text = filePath;
                 PauseButton.Visibility = Visibility.Hidden;
                 RecordButton.Content = "Record";
                 this.StatusTextBlock.Text = "Completed";

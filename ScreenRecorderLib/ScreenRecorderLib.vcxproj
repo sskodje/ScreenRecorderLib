@@ -91,6 +91,7 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories>$(OutDir)</AdditionalIncludeDirectories>
+      <GenerateXMLDocumentationFiles>true</GenerateXMLDocumentationFiles>
     </ClCompile>
     <Link>
       <AdditionalDependencies>D3D11.lib;dxgi.lib;Mfuuid.lib;Mfplat.lib;evr.lib;mfreadwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -154,6 +155,7 @@
     <ClInclude Include="log.h" />
     <ClInclude Include="internal_recorder.h" />
     <ClInclude Include="loopback_capture.h" />
+    <ClInclude Include="ManagedIStream.h" />
     <ClInclude Include="mouse_pointer.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Recorder.h" />
