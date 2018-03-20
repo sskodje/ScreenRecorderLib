@@ -12,10 +12,13 @@ This will start a video recording using the default settings:
 * no audio
 * mouse pointer enabled
 
+**For audio recording to work, system audio must be set to 16 bit, 44100hz or 48000hz**
+
 ```csharp
         using ScreenRecorderLib;
         
         Recorder _rec;
+        Stream _outStream;
         void CreateRecording()
         {
             string videoPath = Path.Combine(Path.GetTempPath(), "test.mp4");
@@ -23,7 +26,12 @@ This will start a video recording using the default settings:
             _rec.OnRecordingComplete += Rec_OnRecordingComplete;
             _rec.OnRecordingFailed += Rec_OnRecordingFailed;
             _rec.OnStatusChanged += Rec_OnStatusChanged;
+	    //Record to a file
+	    string videoPath = Path.Combine(Path.GetTempPath(), "test.mp4");
             _rec.Record(videoPath);
+	    //..Or to a stream
+	    //_outStream = new MemoryStream();
+            //_rec.Record(_outStream);
         }
         void EndRecording()
         {
@@ -31,11 +39,16 @@ This will start a video recording using the default settings:
         }
         private void Rec_OnRecordingComplete(object sender, RecordingCompleteEventArgs e)
         {
-            string path = e.FilePath;
+	    //Get the file path if recorded to a file
+            string path = e.FilePath;	
+            //or do something with your stream
+	    //... something ...
+	    _outStream?.Dispose();
         }
         private void Rec_OnRecordingFailed(object sender, RecordingFailedEventArgs e)
         {
             string error = e.Error;
+            _outStream?.Dispose()
         }
         private void Rec_OnStatusChanged(object sender, RecordingStatusEventArgs e)
         {
@@ -49,9 +62,12 @@ To change the options, pass a RecorderOptions when creating the Recorder:
             RecorderOptions options = new RecorderOptions
             {
                 RecorderMode = RecorderMode.Video,
-                //If throttling is disabled, out of memory exceptions may eventually crash the program, 
+                //If throttling is disabled, out of memory exceptions may eventually crash the program,
                 //depending on encoder settings and system specifications.
                 IsThrottlingDisabled = false,
+                IsHardwareEncodingEnabled = true, //Enabled by default.
+                IsLowLatencyEnabled = false, //Provides faster encoding, but can reduce quality.
+                IsMp4FastStartEnabled = false, //Fast start writes the mp4 header at the beginning of the file, to facilitate streaming.
                 AudioOptions = new AudioOptions
                 {
                     Bitrate = AudioBitrate.bitrate_128kbps,
