@@ -337,11 +337,13 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			if (RecordingStatusChangedCallback != NULL)
 				RecordingStatusChangedCallback(STATUS_RECORDING);
 
-			ULONGLONG lastFrameStartPos = 0;
-
 			hr = pMousePointer->Initialize(pImmediateContext, pDevice);
 			SetViewPort(pImmediateContext, OutputDuplDesc.ModeDesc.Width, OutputDuplDesc.ModeDesc.Height);
 			RETURN_ON_BAD_HR(hr);
+
+
+			ULONGLONG lastFrameStartPos = 0;
+			pLoopbackCapture->ClearRecordedBytes();
 
 			UINT64 VideoFrameDurationMillis = 1000 / m_VideoFps;
 			UINT64 VideoFrameDuration100Nanos = VideoFrameDurationMillis * 10 * 1000;
