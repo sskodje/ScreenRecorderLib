@@ -991,7 +991,7 @@ void internal_recorder::EnqueueFrame(FrameWriteModel *model) {
 					int frameCount = ceil(m_InputAudioSamplesPerSecond * ((double)model->Duration / 10 / 1000 / 1000));
 					LONGLONG byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
 					model->Audio.insert(model->Audio.end(), byteCount, 0);
-					LOG("Inserted %zd bytes of silence", model->Audio.size());
+					LOG(L"Inserted %zd bytes of silence", model->Audio.size());
 				}
 				if (model->Audio.size() > 0) {
 					data = new BYTE[model->Audio.size()];
