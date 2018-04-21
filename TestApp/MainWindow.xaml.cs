@@ -246,6 +246,7 @@ namespace TestApp
                         if (_progressTimer != null)
                             _progressTimer.IsEnabled = true;
                         RecordButton.Content = "Stop";
+                        PauseButton.Content = "Pause";
                         this.StatusTextBlock.Text = "Recording";
                         break;
                     case RecorderStatus.Paused:
