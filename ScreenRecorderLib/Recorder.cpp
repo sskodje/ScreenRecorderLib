@@ -18,7 +18,6 @@ template <class T> void SafeRelease(T **ppT)
 	}
 }
 
-internal_recorder *lRec;
 Recorder::Recorder(RecorderOptions^ options)
 {
 	lRec = new internal_recorder();

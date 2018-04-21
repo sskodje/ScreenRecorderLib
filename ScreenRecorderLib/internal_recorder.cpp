@@ -1,18 +1,12 @@
 #include <ppltasks.h>
-#include <chrono>
 #include <ctime>   // localtime
 #include <sstream> // stringstream
 #include <iomanip> // put_time
 #include <string>
 #include <comdef.h>
-#include <queue>
-#include <atlbase.h>
 #include <wrl.h>
 #include <ScreenGrab.h>
-#include <winnt.h>
 #include <concrt.h>
-#include <wincodec.h>
-#include <Codecapi.h>
 #include <mfidl.h>
 #include "mouse_pointer.h"
 #include "loopback_capture.h"
@@ -72,69 +66,25 @@ D3D_FEATURE_LEVEL m_FeatureLevels[] =
 	D3D_FEATURE_LEVEL_10_0,
 	D3D_FEATURE_LEVEL_9_1
 };
-#if _DEBUG 
-CComPtr<ID3D11Debug> m_Debug;
-#endif
-CComPtr<ID3D11DeviceContext> pImmediateContext;
-CComPtr<IMFSinkWriter> m_SinkWriter;
-queue<FrameWriteModel*> m_WriteQueue;
-task<void> m_FrameWriteTask;
-high_resolution_clock::time_point m_LastFrame;
-cancellation_token_source m_RecordTaskCts;
-cancellation_token_source m_RenderTaskCts;
-
-bool m_IsDestructed;
-UINT32 m_RecorderMode;
-bool m_IsRecording;
-bool m_IsPaused;
 UINT m_NumFeatureLevels = ARRAYSIZE(m_FeatureLevels);
-
-DWORD m_VideoStreamIndex;
-DWORD m_AudioStreamIndex;
-UINT m_DisplayOutput = 0; //Display output, where 0 is primary display.
-RECT m_DestRect;
-wstring m_OutputFolder;
-wstring m_OutputFullPath;
-nlohmann::fifo_map<wstring, int> m_FrameDelays;
-
-UINT32 m_VideoFps = 30;
-UINT32 m_VideoBitrate = 4000 * 1000;//Bitrate in bits per second
-UINT32 m_H264Profile = eAVEncH264VProfile_Main; //Supported H264 profiles for the encoder are Baseline, Main and High.
-UINT32 m_AudioBitrate = (96 / 8) * 1000; //Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
-UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
-bool m_IsMousePointerEnabled = true;
-bool m_IsAudioEnabled = false;
-bool m_IsFixedFramerate = false;
-bool m_IsThrottlingDisabled = false;
-bool m_IsLowLatencyModeEnabled = false;
-bool m_IsMp4FastStartEnabled = true;
-bool m_IsHardwareEncodingEnabled = true;
-
-// Format constants
-const GUID   VIDEO_ENCODING_FORMAT = MFVideoFormat_H264;
-const GUID	 AUDIO_ENCODING_FORMAT = MFAudioFormat_AAC;
-const UINT32 AUDIO_BITS_PER_SAMPLE = 16; //Audio bits per sample must be 16.
-const UINT32 AUDIO_SAMPLES_PER_SECOND = 44100;//Audio samples per seconds must be 44100.
-const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_ARGB32;
-const GUID   IMAGE_ENCODER_FORMAT = GUID_ContainerFormatPng;
+Concurrency::task<void> m_RenderTask;
+Concurrency::cancellation_token_source m_RecordTaskCts;
+Concurrency::cancellation_token_source m_RenderTaskCts;
 
 internal_recorder::internal_recorder()
 {
-	m_FrameWriteTask = concurrency::create_task([]() {});
+	m_RenderTask = concurrency::create_task([]() {});
 	m_IsDestructed = false;
 }
-
 
 internal_recorder::~internal_recorder()
 {
 	if (m_IsRecording) {
-		//m_IsRecording = false;
 		if (RecordingStatusChangedCallback != NULL)
 			RecordingStatusChangedCallback(STATUS_IDLE);
 		m_RecordTaskCts.cancel();
 	}
 	m_IsDestructed = true;
-	//m_RenderTaskCts.cancel();
 }
 void internal_recorder::SetVideoFps(UINT32 fps)
 {
@@ -255,7 +205,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 	concurrency::create_task([this, token, stream]() {
 		HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED);
 		hr = MFStartup(MF_VERSION);
-		m_InputAudioSamplesPerSecond = AUDIO_SAMPLES_PER_SECOND;
 		RETURN_ON_BAD_HR(hr);
 		{
 			DXGI_OUTDUPL_DESC OutputDuplDesc;
@@ -579,8 +528,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			m_RenderTaskCts.cancel();
 		}
 		else {
-			if (!m_FrameWriteTask.is_done())
-				m_FrameWriteTask.wait();
+			if (!m_RenderTask.is_done())
+				m_RenderTask.wait();
 			LOG(L"Recording completed!");
 		}
 		if (m_SinkWriter) {
@@ -636,6 +585,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 void internal_recorder::EndRecording() {
 	if (m_IsRecording) {
+		m_IsPaused = false;
 		m_IsRecording = false;
 	}
 }
@@ -938,10 +888,10 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 
 void internal_recorder::EnqueueFrame(FrameWriteModel *model) {
 	m_WriteQueue.push(model);
-	if (m_FrameWriteTask.is_done() && m_IsRecording)
+	if (m_RenderTask.is_done() && m_IsRecording)
 	{
 		cancellation_token token = m_RenderTaskCts.get_token();
-		m_FrameWriteTask = concurrency::create_task([this, token]() {
+		m_RenderTask = concurrency::create_task([this, token]() {
 			while (true) {
 				if (!m_IsRecording && m_WriteQueue.size() == 0) {
 					break;
@@ -1034,11 +984,12 @@ HRESULT internal_recorder::WriteFrameToVideo(ULONGLONG frameStartPos, ULONGLONG 
 {
 	CComPtr<IMFMediaBuffer> pMediaBuffer;
 	HRESULT hr = MFCreateDXGISurfaceBuffer(__uuidof(ID3D11Texture2D), pAcquiredDesktopImage, 0, FALSE, &pMediaBuffer);
-
 	CComPtr<IMF2DBuffer> p2DBuffer;
+	if (SUCCEEDED(hr))
+	{
+		hr = pMediaBuffer->QueryInterface(__uuidof(IMF2DBuffer), reinterpret_cast<void **>(&p2DBuffer));
+	}
 	DWORD length;
-
-	hr = pMediaBuffer->QueryInterface(__uuidof(IMF2DBuffer), reinterpret_cast<void **>(&p2DBuffer));
 	if (SUCCEEDED(hr))
 	{
 		hr = p2DBuffer->GetContiguousLength(&length);
