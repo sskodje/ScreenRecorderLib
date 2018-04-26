@@ -306,12 +306,13 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			m_LastFrame = std::chrono::high_resolution_clock::now();
 			while (m_IsRecording)
 			{
-				if (token.is_canceled()) {
-					break;
-				}
 				IDXGIResource *pDesktopResource = nullptr;
 				DXGI_OUTDUPL_FRAME_INFO FrameInfo;
 				RtlZeroMemory(&FrameInfo, sizeof(FrameInfo));
+				pDeskDupl->ReleaseFrame();
+				if (token.is_canceled()) {
+					break;
+				}
 				// Get new frame
 				hr = pDeskDupl->AcquireNextFrame(
 					FrameTimeout,
@@ -499,7 +500,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 
 					lastFrameStartPos += durationSinceLastFrame100Nanos;
-					pDeskDupl->ReleaseFrame();
 					SafeRelease(&pDesktopResource);
 
 					if (m_IsFixedFramerate)
