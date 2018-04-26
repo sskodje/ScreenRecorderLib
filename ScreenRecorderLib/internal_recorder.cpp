@@ -313,6 +313,13 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				if (token.is_canceled()) {
 					break;
 				}
+				if (m_IsPaused) {
+					wait(10);
+					m_LastFrame = high_resolution_clock::now();
+					pLoopbackCapture->ClearRecordedBytes();
+					SafeRelease(&pDesktopResource);
+					continue;
+				}
 				// Get new frame
 				hr = pDeskDupl->AcquireNextFrame(
 					FrameTimeout,
@@ -362,14 +369,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					SafeRelease(&pDesktopResource);
 					break;
 				}
-				if (m_IsPaused) {
-					pDeskDupl->ReleaseFrame();
-					wait(1);
-					m_LastFrame = high_resolution_clock::now();
-					pLoopbackCapture->ClearRecordedBytes();
-					SafeRelease(&pDesktopResource);
-					continue;
-				}
+
 				UINT64 durationSinceLastFrame100Nanos = duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - m_LastFrame).count() / 100;
 				if (frameNr > 0 //always draw first frame 
 					&& !m_IsFixedFramerate
