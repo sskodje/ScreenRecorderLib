@@ -42,14 +42,6 @@ using namespace DirectX;
 	} \
 }
 
-template <class T> void SafeRelease(T **ppT)
-{
-	if (*ppT)
-	{
-		(*ppT)->Release();
-		*ppT = NULL;
-	}
-}
 
 // Driver types supported
 D3D_DRIVER_TYPE gDriverTypes[] =
@@ -70,7 +62,6 @@ UINT m_NumFeatureLevels = ARRAYSIZE(m_FeatureLevels);
 Concurrency::task<void> m_RenderTask;
 Concurrency::cancellation_token_source m_RecordTaskCts;
 Concurrency::cancellation_token_source m_RenderTaskCts;
-
 internal_recorder::internal_recorder()
 {
 	m_RenderTask = concurrency::create_task([]() {});
@@ -294,24 +285,42 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			ULONGLONG lastFrameStartPos = 0;
 			pLoopbackCapture->ClearRecordedBytes();
 
-			UINT64 VideoFrameDurationMillis = 1000 / m_VideoFps;
-			UINT64 VideoFrameDuration100Nanos = VideoFrameDurationMillis * 10 * 1000;
-			UINT FrameTimeout = 99;
+			UINT64 videoFrameDurationMillis = 1000 / m_VideoFps;
+			UINT64 videoFrameDuration100Nanos = videoFrameDurationMillis * 10 * 1000;
+			UINT frameTimeout = 0;
 			int frameNr = 0;
 			CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
-			if (m_IsFixedFramerate) {
-				FrameTimeout = 0;
-			}
+
+			D3D11_TEXTURE2D_DESC desc;
+			desc.Width = OutputDuplDesc.ModeDesc.Width;
+			desc.Height = OutputDuplDesc.ModeDesc.Height;
+			desc.Format = OutputDuplDesc.ModeDesc.Format;
+			desc.ArraySize = 1;
+			desc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
+			desc.MiscFlags = D3D11_RESOURCE_MISC_GDI_COMPATIBLE;
+			desc.SampleDesc.Count = 1;
+			desc.SampleDesc.Quality = 0;
+			desc.MipLevels = 1;
+			desc.CPUAccessFlags = 0;
+			desc.Usage = D3D11_USAGE_DEFAULT;
 
 			m_LastFrame = std::chrono::high_resolution_clock::now();
-			while (m_IsRecording)
+			while (true)
 			{
 				IDXGIResource *pDesktopResource = nullptr;
 				DXGI_OUTDUPL_FRAME_INFO FrameInfo;
 				RtlZeroMemory(&FrameInfo, sizeof(FrameInfo));
 				pDeskDupl->ReleaseFrame();
-				if (token.is_canceled()) {
+
+				if (!m_IsRecording)
+				{
+					hr = S_OK;
+					SafeRelease(&pDesktopResource);
 					break;
+				}
+				if (token.is_canceled()) {
+					SafeRelease(&pDesktopResource);
+					return E_ABORT;
 				}
 				if (m_IsPaused) {
 					wait(10);
@@ -322,15 +331,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				}
 				// Get new frame
 				hr = pDeskDupl->AcquireNextFrame(
-					FrameTimeout,
+					frameTimeout,
 					&FrameInfo,
 					&pDesktopResource);
 
-				if (token.is_canceled()) {
-					pDeskDupl->ReleaseFrame();
-					SafeRelease(&pDesktopResource);
-					break;
-				}
 				if (hr == DXGI_ERROR_ACCESS_LOST
 					|| hr == DXGI_ERROR_INVALID_CALL) {
 					pDeskDupl->ReleaseFrame();
@@ -357,33 +361,28 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					|| m_RecorderMode == MODE_SNAPSHOT) {
 
 					if (frameNr == 0 && FrameInfo.AccumulatedFrames == 0) {
-						pDeskDupl->ReleaseFrame();
 						SafeRelease(&pDesktopResource);
 						continue;
 					}
 				}
 
-				if (!m_IsRecording)
-				{
-					pDeskDupl->ReleaseFrame();
-					SafeRelease(&pDesktopResource);
-					break;
-				}
+
 
 				UINT64 durationSinceLastFrame100Nanos = duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - m_LastFrame).count() / 100;
 				if (frameNr > 0 //always draw first frame 
 					&& !m_IsFixedFramerate
 					&& (!m_IsMousePointerEnabled || FrameInfo.PointerShapeBufferSize == 0)//always redraw when pointer changes if we draw pointer
-					&& (hr == DXGI_ERROR_WAIT_TIMEOUT || (durationSinceLastFrame100Nanos) < VideoFrameDuration100Nanos)) //skip if frame timeouted or duration is under our chosen framerate
+					&& (hr == DXGI_ERROR_WAIT_TIMEOUT || (durationSinceLastFrame100Nanos) < videoFrameDuration100Nanos)) //skip if frame timeouted or duration is under our chosen framerate
 				{
 					if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-						LOG(L"Skipped frame");
+						//	LOG(L"Skipped frame");
 					}
-					pDeskDupl->ReleaseFrame();
+
 					SafeRelease(&pDesktopResource);
+					wait(1);
 					continue;
 				}
-				if (m_IsFixedFramerate && hr == DXGI_ERROR_WAIT_TIMEOUT) {
+				if (pPreviousFrameCopy && hr == DXGI_ERROR_WAIT_TIMEOUT) {
 					hr = S_OK;
 				}
 				else {
@@ -405,24 +404,9 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 
 					CComPtr<ID3D11Texture2D> pFrameCopy;
-					D3D11_TEXTURE2D_DESC desc;
-
-					desc.Width = OutputDuplDesc.ModeDesc.Width;
-					desc.Height = OutputDuplDesc.ModeDesc.Height;
-					desc.Format = OutputDuplDesc.ModeDesc.Format;
-					desc.ArraySize = 1;
-					desc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
-					desc.MiscFlags = D3D11_RESOURCE_MISC_GDI_COMPATIBLE;
-					desc.SampleDesc.Count = 1;
-					desc.SampleDesc.Quality = 0;
-					desc.MipLevels = 1;
-					desc.CPUAccessFlags = 0;
-					desc.Usage = D3D11_USAGE_DEFAULT;
-
 					hr = pDevice->CreateTexture2D(&desc, NULL, &pFrameCopy);
 					if (FAILED(hr))
 					{
-						pDeskDupl->ReleaseFrame();
 						SafeRelease(&pDesktopResource);
 						return hr;
 					}
@@ -434,7 +418,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
 						hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage));
 						if (FAILED(hr)) {
-							pDeskDupl->ReleaseFrame();
 							SafeRelease(&pDesktopResource);
 							return hr;
 						}
@@ -447,7 +430,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						hr = pDevice->CreateTexture2D(&desc, NULL, &pPreviousFrameCopy);
 						if (FAILED(hr))
 						{
-							pDeskDupl->ReleaseFrame();
 							SafeRelease(&pDesktopResource);
 							return hr;
 						}
@@ -458,7 +440,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					if (m_IsMousePointerEnabled) {
 						hr = pMousePointer->DrawMousePointer(pImmediateContext, pDevice, FrameInfo, SourceRect, desc, pDeskDupl, pFrameCopy);
 						if (hr == DXGI_ERROR_ACCESS_LOST) {
-							pDeskDupl->ReleaseFrame();
 							hr = InitializeDesktopDupl(pDevice, &pDeskDupl, &OutputDuplDesc);
 							{
 								_com_error err(hr);
@@ -471,14 +452,13 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 							}
 						}
 						if (FAILED(hr)) {
-							pDeskDupl->ReleaseFrame();
 							SafeRelease(&pDesktopResource);
 							return hr;
 						}
 					}
 
 					if (token.is_canceled()) {
-						return S_FALSE;
+						return E_ABORT;
 					}
 					if (m_IsRecording) {
 						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
@@ -501,13 +481,13 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 					lastFrameStartPos += durationSinceLastFrame100Nanos;
 					SafeRelease(&pDesktopResource);
-
 					if (m_IsFixedFramerate)
 					{
-						wait(VideoFrameDurationMillis);
+						wait(videoFrameDurationMillis);
 					}
 				}
 			}
+
 			SetEvent(hStopEvent);
 			m_IsRecording = false;
 			if (!m_IsDestructed) {
@@ -515,6 +495,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					RecordingStatusChangedCallback(STATUS_FINALIZING);
 			}
 
+			pDeskDupl->ReleaseFrame();
 			if (pPreviousFrameCopy)
 				pPreviousFrameCopy.Release();
 			if (pMousePointer) {
@@ -532,11 +513,12 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				m_RenderTask.wait();
 			LOG(L"Recording completed!");
 		}
-		if (m_SinkWriter) {
+		if (SUCCEEDED(hr) && m_SinkWriter) {
 			hr = m_SinkWriter->Finalize();
-			if (m_SinkWriter)
-				m_SinkWriter.Release();
 		}
+		if (m_SinkWriter)
+			m_SinkWriter.Release();
+
 		if (pImmediateContext) {
 			pImmediateContext.Release();
 		}
@@ -890,6 +872,7 @@ void internal_recorder::EnqueueFrame(FrameWriteModel *model) {
 	m_WriteQueue.push(model);
 	if (m_RenderTask.is_done() && m_IsRecording)
 	{
+		m_LastEncodedSampleCount = 0;
 		cancellation_token token = m_RenderTaskCts.get_token();
 		m_RenderTask = concurrency::create_task([this, token]() {
 			while (true) {
@@ -953,6 +936,22 @@ void internal_recorder::EnqueueFrame(FrameWriteModel *model) {
 					delete[] data;
 					model->Audio.clear();
 					vector<BYTE>().swap(model->Audio);
+				}
+				if (model->FrameNumber % 10 == 0) {
+					MF_SINK_WRITER_STATISTICS stats;
+					stats.cb = sizeof(stats);
+					m_SinkWriter->GetStatistics(MF_SINK_WRITER_ALL_STREAMS, &stats);
+					//LOG("Outstanding requests: %d", stats.dwNumOutstandingSinkSampleRequests);
+					if (stats.qwNumSamplesEncoded == m_LastEncodedSampleCount && m_LastEncodedSampleCount > 0) {
+						m_RecordTaskCts.cancel();
+						while (m_WriteQueue.size() > 0) {
+							FrameWriteModel *model = m_WriteQueue.front();
+							delete model;
+							m_WriteQueue.pop();
+						}
+						ERR("Video encoder is stalled");
+					}
+					m_LastEncodedSampleCount = stats.qwNumSamplesEncoded;
 				}
 				delete model;
 				model = nullptr;
@@ -1023,7 +1022,10 @@ HRESULT internal_recorder::WriteFrameToVideo(ULONGLONG frameStartPos, ULONGLONG 
 			LOG(L"Wrote frame with start pos %lld ms and with duration %lld ms", (frameStartPos / 10 / 1000), (frameDuration / 10 / 1000));
 		}
 	}
-
+	if (pMediaBuffer)
+		pMediaBuffer.Release();
+	if (pSample)
+		pSample.Release();
 	return hr;
 }
 HRESULT internal_recorder::WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULONGLONG frameDuration, DWORD streamIndex, BYTE *pSrc, DWORD cbData)

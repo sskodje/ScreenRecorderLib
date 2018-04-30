@@ -78,8 +78,6 @@ private:
 	const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_ARGB32;
 	const GUID   IMAGE_ENCODER_FORMAT = GUID_ContainerFormatPng;
 
-
-
 #if _DEBUG 
 	ATL::CComPtr<ID3D11Debug> m_Debug;
 #endif
@@ -87,21 +85,21 @@ private:
 	ATL::CComPtr<IMFSinkWriter> m_SinkWriter;
 	std::queue<FrameWriteModel*> m_WriteQueue;
 	std::chrono::high_resolution_clock::time_point m_LastFrame;
-	bool m_IsDestructed;
-	UINT32 m_RecorderMode;
-	DWORD m_VideoStreamIndex;
-	DWORD m_AudioStreamIndex;
+	bool m_IsDestructed = false;
+	UINT32 m_RecorderMode = MODE_VIDEO;
+	DWORD m_VideoStreamIndex = 0;
+	DWORD m_AudioStreamIndex = 0;
 	UINT m_DisplayOutput = 0; //Display output, where 0 is primary display.
-	RECT m_DestRect;
-	std::wstring m_OutputFolder;
-	std::wstring m_OutputFullPath;
+	RECT m_DestRect = { 0,0,0,0 };
+	std::wstring m_OutputFolder = L"";
+	std::wstring m_OutputFullPath = L"";
 	nlohmann::fifo_map<std::wstring, int> m_FrameDelays;
 	UINT32 m_VideoFps = 30;
 	UINT32 m_VideoBitrate = 4000 * 1000;//Bitrate in bits per second
 	UINT32 m_H264Profile = eAVEncH264VProfile_Main; //Supported H264 profiles for the encoder are Baseline, Main and High.
 	UINT32 m_AudioBitrate = (96 / 8) * 1000; //Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
 	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
-	UINT32 m_InputAudioSamplesPerSecond= AUDIO_SAMPLES_PER_SECOND;
+	UINT32 m_InputAudioSamplesPerSecond = AUDIO_SAMPLES_PER_SECOND;
 	bool m_IsMousePointerEnabled = true;
 	bool m_IsAudioEnabled = false;
 	bool m_IsFixedFramerate = false;
@@ -111,6 +109,7 @@ private:
 	bool m_IsHardwareEncodingEnabled = true;
 	bool m_IsPaused = false;
 	bool m_IsRecording = false;
+	UINT64 m_LastEncodedSampleCount = 0;
 	HRESULT BeginRecording(std::wstring path, IStream *stream);
 	std::string NowToString();
 	HRESULT ConfigureOutputDir(std::wstring path);

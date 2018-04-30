@@ -1,5 +1,14 @@
 // cleanup.h
 #include <audioclient.h>
+#include <dxgi1_2.h>
+template <class T> void SafeRelease(T **ppT)
+{
+	if (*ppT)
+	{
+		(*ppT)->Release();
+		*ppT = NULL;
+	}
+}
 class AudioClientStopOnExit {
 public:
 	AudioClientStopOnExit(IAudioClient *p) : m_p(p) {}
