@@ -5,24 +5,24 @@
 #include "loopback_capture.h"
 #include "log.h"
 #include "cleanup.h"
-std::vector<BYTE> m_RecordedBytes;
-UINT32 m_SamplesPerSec;
-std::mutex mtx;           // mutex for critical section
-using namespace std;
 
+using namespace std;
 loopback_capture::loopback_capture()
 {
+	std::mutex(mtx);
 }
 
 loopback_capture::~loopback_capture()
 {
+	m_IsDestructed = true;
 	Cleanup();
 }
 DWORD WINAPI LoopbackCaptureThreadFunction(LPVOID pContext) {
 	LoopbackCaptureThreadFunctionArguments *pArgs =
 		(LoopbackCaptureThreadFunctionArguments*)pContext;
 
-	pArgs->hr = LoopbackCapture(
+	loopback_capture *capture = (loopback_capture*)pArgs->pCaptureInstance;
+	pArgs->hr = capture->LoopbackCapture(
 		pArgs->pMMDevice,
 		pArgs->hFile,
 		pArgs->bInt16,
@@ -34,7 +34,7 @@ DWORD WINAPI LoopbackCaptureThreadFunction(LPVOID pContext) {
 	return 0;
 }
 
-HRESULT LoopbackCapture(
+HRESULT loopback_capture::LoopbackCapture(
 	IMMDevice *pMMDevice,
 	HMMIO hFile,
 	bool bInt16,
@@ -43,7 +43,6 @@ HRESULT LoopbackCapture(
 	PUINT32 pnFrames
 ) {
 	HRESULT hr;
-
 	// activate an IAudioClient
 	IAudioClient *pAudioClient;
 	hr = pMMDevice->Activate(
@@ -111,7 +110,7 @@ HRESULT LoopbackCapture(
 	}
 
 	m_SamplesPerSec = pwfx->nSamplesPerSec;
-	
+
 	// create a periodic waitable timer
 	HANDLE hWakeUp = CreateWaitableTimer(NULL, FALSE, NULL);
 	if (NULL == hWakeUp) {
@@ -193,7 +192,7 @@ HRESULT LoopbackCapture(
 	DWORD dwWaitResult;
 
 	bool bDone = false;
-	bool bFirstPacket = true; 
+	bool bFirstPacket = true;
 	bool bIsSilence = false;
 	for (UINT32 nPasses = 0; !bDone; nPasses++) {
 		// drain data while it is available
@@ -236,7 +235,7 @@ HRESULT LoopbackCapture(
 
 			if (0 == nNumFramesToRead) {
 				ERR(L"IAudioCaptureClient::GetBuffer said to read 0 frames on pass %u after %u frames", nPasses, *pnFrames);
-				hr= E_UNEXPECTED;
+				hr = E_UNEXPECTED;
 				bDone = true;
 				continue; // exits loop
 			}
@@ -244,12 +243,13 @@ HRESULT LoopbackCapture(
 			LONG lBytesToWrite = nNumFramesToRead * nBlockAlign;
 #pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
 			//if (!bIsSilence) {
-				mtx.lock();
-				int size = lBytesToWrite;
-				if (m_RecordedBytes.size() == 0)
-					m_RecordedBytes.reserve(size);
-				m_RecordedBytes.insert(m_RecordedBytes.end(), &pData[0], &pData[size]);
-				mtx.unlock();
+			if (m_IsDestructed) { return E_ABORT; }
+			mtx.lock();
+			int size = lBytesToWrite;
+			if (m_RecordedBytes.size() == 0)
+				m_RecordedBytes.reserve(size);
+			m_RecordedBytes.insert(m_RecordedBytes.end(), &pData[0], &pData[size]);
+			mtx.unlock();
 			//}
 			*pnFrames += nNumFramesToRead;
 
@@ -282,7 +282,7 @@ HRESULT LoopbackCapture(
 
 		if (WAIT_OBJECT_0 + 1 != dwWaitResult) {
 			ERR(L"Unexpected WaitForMultipleObjects return value %u on pass %u after %u frames", dwWaitResult, nPasses, *pnFrames);
-			hr= E_UNEXPECTED;
+			hr = E_UNEXPECTED;
 			bDone = true;
 			continue; // exits loop
 		}

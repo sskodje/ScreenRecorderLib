@@ -5,6 +5,7 @@
 #include <dxgi1_2.h>
 #include <mfapi.h>
 #include <atlbase.h>
+#include "utilities.h"
 #include "PixelShader.h"
 #include "VertexShader.h"
 class mouse_pointer
@@ -39,6 +40,19 @@ public:
 	HRESULT DrawMousePointer(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device, DXGI_OUTDUPL_FRAME_INFO FrameInfo, RECT screenRect, D3D11_TEXTURE2D_DESC DESC, IDXGIOutputDuplication *DeskDupl, ID3D11Texture2D *Frame);
 	void CleanupResources();
 private:
+
+#pragma region Mouse Drawing
+	//monitor that last updated mouse pointer
+	UINT m_OutputNumber = 0;
+	ATL::CComPtr<ID3D11SamplerState> m_SamplerLinear;
+	ATL::CComPtr<ID3D11BlendState> m_BlendState;
+	ATL::CComPtr<ID3D11VertexShader> m_VertexShader;
+	ATL::CComPtr<ID3D11PixelShader> m_PixelShader;
+	ATL::CComPtr<ID3D11InputLayout> m_InputLayout;
+	PTR_INFO PtrInfo;
+
+#pragma endregion
+
 	HRESULT DrawMouse(_In_ PTR_INFO* PtrInfo, ID3D11DeviceContext* DeviceContext, ID3D11Device* Device, D3D11_TEXTURE2D_DESC FullDesc, ID3D11Texture2D* bgTexture);
 
 	HRESULT GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO* FrameInfo, INT OffsetX, INT OffsetY, RECT screenRect, IDXGIOutputDuplication* DeskDupl);

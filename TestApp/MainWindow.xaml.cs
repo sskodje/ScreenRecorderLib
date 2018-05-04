@@ -30,7 +30,7 @@ namespace TestApp
         }
 
         public int VideoBitrate { get; set; } = 7000;
-        public int VideoFramerate { get; set; } = 30;
+        public int VideoFramerate { get; set; } = 60;
         public bool IsAudioEnabled { get; set; } = true;
         public bool IsMousePointerEnabled { get; set; } = true;
         public bool IsFixedFramerate { get; set; } = false;
@@ -200,6 +200,7 @@ namespace TestApp
                 ((Recorder)sender).OnRecordingComplete -= Rec_OnRecordingComplete;
                 ((Recorder)sender).OnRecordingFailed -= Rec_OnRecordingFailed;
                 ((Recorder)sender).OnStatusChanged -= _rec_OnStatusChanged;
+                _rec?.Dispose();
                 _rec = null;
             }));
         }
@@ -226,9 +227,8 @@ namespace TestApp
                 ((Recorder)sender).OnRecordingComplete -= Rec_OnRecordingComplete;
                 ((Recorder)sender).OnRecordingFailed -= Rec_OnRecordingFailed;
                 ((Recorder)sender).OnStatusChanged -= _rec_OnStatusChanged;
-                _rec.Dispose();
+                _rec?.Dispose();
                 _rec = null;
-                GC.Collect();
             }));
         }
         private void _rec_OnStatusChanged(object sender, RecordingStatusEventArgs e)

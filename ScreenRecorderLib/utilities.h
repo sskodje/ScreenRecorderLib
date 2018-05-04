@@ -2,6 +2,18 @@
 #include <winnt.h>
 #include <locale>
 #include <codecvt>
+#include "log.h"
+#define RETURN_ON_BAD_HR(expr) \
+{ \
+    HRESULT _hr_ = (expr); \
+    if (FAILED(_hr_)) { \
+	{\
+		_com_error err(_hr_);\
+		ERR(L"RETURN_ON_BAD_HR: %ls", err.ErrorMessage());\
+	}\
+		return _hr_; \
+	} \
+}
 
 class utilities
 {
@@ -38,6 +50,38 @@ public:
 			}
 		} while (pos != std::string::npos);
 		return true;
+	}
+	// Create a string with last error message
+	static std::wstring GetLastErrorStdWstr() {
+		return s2ws(GetLastErrorStdStr());
+	}
+	// Create a string with last error message
+	static std::string GetLastErrorStdStr()
+	{
+		DWORD error = GetLastError();
+		if (error)
+		{
+			LPVOID lpMsgBuf;
+			DWORD bufLen = FormatMessage(
+				FORMAT_MESSAGE_ALLOCATE_BUFFER |
+				FORMAT_MESSAGE_FROM_SYSTEM |
+				FORMAT_MESSAGE_IGNORE_INSERTS,
+				NULL,
+				error,
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				(LPTSTR)&lpMsgBuf,
+				0, NULL);
+			if (bufLen)
+			{
+				LPCSTR lpMsgStr = (LPCSTR)lpMsgBuf;
+				std::string result(lpMsgStr, lpMsgStr + bufLen);
+
+				LocalFree(lpMsgBuf);
+
+				return result;
+			}
+		}
+		return std::string();
 	}
 };
 

@@ -73,7 +73,7 @@ namespace TestConsoleApp
             switch (e.Status)
             {
                 case RecorderStatus.Idle:
-                    Console.WriteLine("Recorder is idle");
+                    //Console.WriteLine("Recorder is idle");
                     break;
                 case RecorderStatus.Recording:
                     _stopWatch = new Stopwatch();

@@ -88,6 +88,10 @@
                     <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsLowLatencyEnabled}"
                               Content="Enable low latency mode."
                               ToolTip="Provides faster encoding, but quality may suffer." />
+                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsMp4FastStartEnabled}"
+                              Content="Enable MP4 fast start"
+                              Margin="0"
+                              ToolTip="MP4 header is writter at the start of the file. This makes the file better suited to streaming." />
                     <StackPanel Orientation="Horizontal">
                         <Label Content="Mode"
                                Width="75"
@@ -153,11 +157,6 @@
                       x:Name="CheckBoxRecordToStream"
                       IsChecked="{Binding ElementName=MainWin,Path=RecordToStream}"
                       Margin="5" />
-            <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsMp4FastStartEnabled}"
-                      Content="Enable MP4 fast start"
-                      IsEnabled="{Binding ElementName=CheckBoxRecordToStream,Path=IsChecked}"
-                      Margin="15,0"
-                      ToolTip="MP4 header is writter at the start of the file. This makes the file better suited to streaming." />
             <TextBlock FontSize="72"
                        Text="00:00:00"
                        HorizontalAlignment="Center"

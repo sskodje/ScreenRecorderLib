@@ -1,22 +1,13 @@
 // This is the main DLL file.
-
 #include "Recorder.h"
 #include <memory>
 #include <msclr\marshal.h>
 #include <msclr\marshal_cppstd.h>
+#include "cleanup.h"
 #include "ManagedIStream.h"
 #include "internal_recorder.h"
 using namespace ScreenRecorderLib;
 using namespace nlohmann;
-
-template <class T> void SafeRelease(T **ppT)
-{
-	if (*ppT)
-	{
-		(*ppT)->Release();
-		*ppT = NULL;
-	}
-}
 
 Recorder::Recorder(RecorderOptions^ options)
 {

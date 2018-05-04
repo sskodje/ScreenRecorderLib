@@ -1,6 +1,7 @@
 // cleanup.h
 #include <audioclient.h>
 #include <dxgi1_2.h>
+#include "log.h"
 template <class T> void SafeRelease(T **ppT)
 {
 	if (*ppT)

@@ -2,27 +2,7 @@
 #include "log.h"
 #include <comdef.h>
 
-
-#pragma region Mouse Drawing
-//monitor that last updated mouse pointer
-UINT m_OutputNumber = 0;
-CComPtr<ID3D11SamplerState> m_SamplerLinear;
-CComPtr<ID3D11BlendState> m_BlendState;
-CComPtr<ID3D11VertexShader> m_VertexShader;
-CComPtr<ID3D11PixelShader> m_PixelShader;
-CComPtr<ID3D11InputLayout> m_InputLayout;
-mouse_pointer::PTR_INFO PtrInfo;
-
-#pragma endregion
-
 using namespace DirectX;
-#define RETURN_ON_BAD_HR(expr) \
-{ \
-    HRESULT _hr_ = (expr); \
-    if (FAILED(_hr_)) { \
-		return _hr_; \
-	} \
-}
 mouse_pointer::mouse_pointer()
 {
 
