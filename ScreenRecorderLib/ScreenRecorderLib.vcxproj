@@ -92,6 +92,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories>$(OutDir)</AdditionalIncludeDirectories>
       <GenerateXMLDocumentationFiles>true</GenerateXMLDocumentationFiles>
+      <CompileAsManaged>true</CompileAsManaged>
     </ClCompile>
     <Link>
       <AdditionalDependencies>D3D11.lib;dxgi.lib;Mfuuid.lib;Mfplat.lib;evr.lib;mfreadwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -111,6 +112,7 @@
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories>$(OutDir)</AdditionalIncludeDirectories>
+      <CompileAsManaged>Safe</CompileAsManaged>
     </ClCompile>
     <Link>
       <AdditionalDependencies>D3D11.lib;dxgi.lib;Mfuuid.lib;Mfplat.lib;evr.lib;mfreadwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -126,6 +128,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <AdditionalIncludeDirectories>$(OutDir)</AdditionalIncludeDirectories>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
+      <CompileAsManaged>true</CompileAsManaged>
     </ClCompile>
     <Link />
     <Link>
