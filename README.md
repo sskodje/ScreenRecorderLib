@@ -70,7 +70,6 @@ To change the options, pass a RecorderOptions when creating the Recorder:
 		//Low latency mode provides faster encoding, but can reduce quality.
                 IsLowLatencyEnabled = false,
 		//Fast start writes the mp4 header at the beginning of the file, to facilitate streaming.
-		//This only works when recording to a stream for now.
                 IsMp4FastStartEnabled = false,
                 AudioOptions = new AudioOptions
                 {
