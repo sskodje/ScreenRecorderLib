@@ -548,20 +548,14 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		}
 #endif
 		if (!m_IsDestructed) {
-			if (SUCCEEDED(hr)) {
-				if (RecordingStatusChangedCallback != NULL)
-					RecordingStatusChangedCallback(STATUS_IDLE);
-				RecordingStatusChangedCallback = NULL;
-
+			if (RecordingStatusChangedCallback != NULL)
+				RecordingStatusChangedCallback(STATUS_IDLE);
+			if (SUCCEEDED(hr)) {				
 				if (RecordingCompleteCallback != NULL)
-					RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);
-				RecordingCompleteCallback = NULL;
-				RecordingStatusChangedCallback = NULL;
-			}
+					RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);							}
 			else {
-				if (RecordingStatusChangedCallback != NULL)
-					RecordingStatusChangedCallback(STATUS_IDLE);
 				RecordingStatusChangedCallback = NULL;
+				RecordingCompleteCallback = NULL;
 				if (RecordingFailedCallback != NULL) {
 
 					std::wstring errMsg;
