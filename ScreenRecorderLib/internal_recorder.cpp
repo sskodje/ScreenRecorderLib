@@ -554,8 +554,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				if (RecordingCompleteCallback != NULL)
 					RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);							}
 			else {
-				RecordingStatusChangedCallback = NULL;
-				RecordingCompleteCallback = NULL;
 				if (RecordingFailedCallback != NULL) {
 
 					std::wstring errMsg;
@@ -570,7 +568,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						errMsg = err.ErrorMessage();
 					}
 					RecordingFailedCallback(errMsg);
-					RecordingFailedCallback = NULL;
 				}
 			}
 		}
@@ -593,7 +590,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		if (!success) {
 			if (RecordingFailedCallback != NULL) {
 				RecordingFailedCallback(utilities::GetLastErrorStdWstr());
-				RecordingFailedCallback = NULL;
 			}
 		}
 	});
