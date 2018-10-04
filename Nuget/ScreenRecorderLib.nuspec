@@ -2,19 +2,14 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
     <metadata>
         <id>ScreenRecorderLib</id>
-        <version>1.1.1</version>
+        <version>1.1.2</version>
         <authors>Sverre Kristoffer Skodje</authors>
         <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
         <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
         <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to h264 video or PNG images.</description>
         <summary />
-        <releaseNotes>- Improved smoothness of 60fps+ recordings.
-		- Fixed excessive cpu usaged when pausing a recording.
-		- Fixed an issue that could cause video encoder to throttle.
-		- Mp4 "fast start" can now be used both when recording to file and stream.
-		- Fixed some uninitialized variables that could cause unpredictable behavior.
-		- Added better error handling.</releaseNotes>
+        <releaseNotes>- Removed unnecessary unregistering of events that prevented reuse of recorder instance.</releaseNotes>
         <copyright>Copyright © Sverre Kristoffer Skodje 2017</copyright>
         <language>en-GB</language>
         <tags>Screen Recording Windows .NET</tags>

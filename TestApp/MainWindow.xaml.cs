@@ -162,12 +162,13 @@ namespace TestApp
                 },
                 DisplayOptions = new DisplayOptions(this.ScreenComboBox.SelectedIndex, left, top, right, bottom)
             };
-
-            _rec = Recorder.CreateRecorder(options);
-            _rec.OnRecordingComplete += Rec_OnRecordingComplete;
-            _rec.OnRecordingFailed += Rec_OnRecordingFailed;
-            _rec.OnStatusChanged += _rec_OnStatusChanged;
-
+            if (_rec == null)
+            {
+                _rec = Recorder.CreateRecorder(options);
+                _rec.OnRecordingComplete += Rec_OnRecordingComplete;
+                _rec.OnRecordingFailed += Rec_OnRecordingFailed;
+                _rec.OnStatusChanged += _rec_OnStatusChanged;
+            }
             if (RecordToStream)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(videoPath));
@@ -196,12 +197,6 @@ namespace TestApp
                 _progressTimer = null;
                 _secondsElapsed = 0;
                 IsRecording = false;
-
-                ((Recorder)sender).OnRecordingComplete -= Rec_OnRecordingComplete;
-                ((Recorder)sender).OnRecordingFailed -= Rec_OnRecordingFailed;
-                ((Recorder)sender).OnStatusChanged -= _rec_OnStatusChanged;
-                _rec?.Dispose();
-                _rec = null;
             }));
         }
         private void Rec_OnRecordingComplete(object sender, RecordingCompleteEventArgs e)
@@ -224,11 +219,6 @@ namespace TestApp
                 _progressTimer = null;
                 _secondsElapsed = 0;
                 IsRecording = false;
-                ((Recorder)sender).OnRecordingComplete -= Rec_OnRecordingComplete;
-                ((Recorder)sender).OnRecordingFailed -= Rec_OnRecordingFailed;
-                ((Recorder)sender).OnStatusChanged -= _rec_OnStatusChanged;
-                _rec?.Dispose();
-                _rec = null;
             }));
         }
         private void _rec_OnStatusChanged(object sender, RecordingStatusEventArgs e)
