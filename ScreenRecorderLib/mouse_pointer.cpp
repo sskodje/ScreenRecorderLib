@@ -5,17 +5,16 @@
 using namespace DirectX;
 mouse_pointer::mouse_pointer()
 {
-
+	RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
 }
 mouse_pointer::~mouse_pointer()
 {
-	delete PtrInfo.PtrShapeBuffer;
+    if (PtrInfo.PtrShapeBuffer)
+		delete PtrInfo.PtrShapeBuffer;
 	PtrInfo.PtrShapeBuffer = nullptr;
 }
 HRESULT mouse_pointer::DrawMousePointer(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device, DXGI_OUTDUPL_FRAME_INFO FrameInfo, RECT screenRect, D3D11_TEXTURE2D_DESC DESC, IDXGIOutputDuplication *DeskDupl, ID3D11Texture2D *Frame)
 {
-
-
 	int left = min(screenRect.left, INT_MAX);
 	int top = min(screenRect.top, INT_MAX);
 	// Get mouse info

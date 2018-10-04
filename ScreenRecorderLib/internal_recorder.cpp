@@ -683,6 +683,7 @@ HRESULT internal_recorder::InitializeDx(ID3D11DeviceContext **ppContext, ID3D11D
 	if (pDevice == nullptr)
 		return S_FALSE;
 	hr = InitializeDesktopDupl(pDevice, &pDeskDupl, &OutputDuplDesc);
+	RETURN_ON_BAD_HR(hr);
 
 	// Return the pointer to the caller.
 	*ppContext = m_ImmediateContext;
