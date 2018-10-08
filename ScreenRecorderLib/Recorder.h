@@ -60,7 +60,7 @@ namespace ScreenRecorderLib {
 	};
 	public ref class DisplayOptions {
 	public:
-		property int Monitor;
+		property String^ MonitorDeviceName;
 		property int Left;
 		property int Top;
 		property int Right;
@@ -68,11 +68,25 @@ namespace ScreenRecorderLib {
 		DisplayOptions() {
 
 		}
-		DisplayOptions(int monitor) {
-			Monitor = monitor;
+		DisplayOptions(int left, int top, int right, int bottom) {
+			Left = left;
+			Top = top;
+			Right = right;
+			Bottom = bottom;
 		}
-		DisplayOptions(int monitor, int left, int top, int right, int bottom) {
-			Monitor = monitor;
+
+		/// <summary>
+		///Select monitor to record via device name, e.g.\\.\DISPLAY1
+		/// </summary>
+		DisplayOptions(String^ monitorDeviceName) {
+			MonitorDeviceName = monitorDeviceName;
+		}
+
+		/// <summary>
+		///Select monitor to record via device name, e.g.\\.\DISPLAY1, and the rectangle to record on that monitor.
+		/// </summary>
+		DisplayOptions(String^ monitorDeviceName, int left, int top, int right, int bottom) {
+			MonitorDeviceName = monitorDeviceName;
 			Left = left;
 			Top = top;
 			Right = right;
@@ -203,6 +217,7 @@ namespace ScreenRecorderLib {
 		void Pause();
 		void Resume();
 		void Stop();
+		void SetOptions(RecorderOptions^ options);
 		static Recorder^ CreateRecorder();
 		static Recorder^ CreateRecorder(RecorderOptions^ options);
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;

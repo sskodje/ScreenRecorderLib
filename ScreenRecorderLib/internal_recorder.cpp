@@ -40,7 +40,6 @@ D3D_DRIVER_TYPE gDriverTypes[] =
 	D3D_DRIVER_TYPE_WARP,
 	D3D_DRIVER_TYPE_REFERENCE,
 };
-UINT m_NumDriverTypes = ARRAYSIZE(gDriverTypes);
 
 // Feature levels supported
 D3D_FEATURE_LEVEL m_FeatureLevels[] =
@@ -126,6 +125,10 @@ void internal_recorder::SetDisplayOutput(UINT32 output)
 {
 	m_DisplayOutput = output;
 }
+void internal_recorder::SetDisplayOutput(std::wstring output)
+{
+	m_DisplayOutputName = output;
+}
 void internal_recorder::SetRecorderMode(UINT32 mode)
 {
 	m_RecorderMode = mode;
@@ -170,12 +173,15 @@ HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 	}
 	return S_OK;
 }
+
 HRESULT internal_recorder::BeginRecording(IStream *stream) {
 	return BeginRecording(L"", stream);
 }
+
 HRESULT internal_recorder::BeginRecording(std::wstring path) {
 	return BeginRecording(path, NULL);
 }
+
 HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 	if (m_IsRecording) {
 		if (m_IsPaused) {
@@ -203,8 +209,9 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			CComPtr<IDXGIOutputDuplication> pDeskDupl;
 			std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
 			std::unique_ptr<loopback_capture> pLoopbackCapture = make_unique<loopback_capture>();
-
-			hr = InitializeDx(&m_ImmediateContext, &pDevice, &pDeskDupl, &outputDuplDesc);
+			CComPtr<IDXGIOutput> pSelectedOutput;
+			hr = GetOutputForDeviceName(m_DisplayOutputName, &pSelectedOutput);
+			hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &pDevice, &pDeskDupl, &outputDuplDesc);
 			RETURN_ON_BAD_HR(hr);
 
 			D3D11_TEXTURE2D_DESC frameDesc;
@@ -345,7 +352,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 					if (pDeskDupl)
 						pDeskDupl.Release();
-					hr = InitializeDesktopDupl(pDevice, &pDeskDupl, &outputDuplDesc);
+					hr = InitializeDesktopDupl(pDevice, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
 					if (FAILED(hr))
 					{
 						_com_error err(hr);
@@ -452,7 +459,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 								_com_error err(hr);
 								ERR(L"DrawMousePointer error: %s\n", err.ErrorMessage());
 							}
-							hr = InitializeDesktopDupl(pDevice, &pDeskDupl, &outputDuplDesc);
+							hr = InitializeDesktopDupl(pDevice, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
 							if (FAILED(hr))
 							{
 								_com_error err(hr);
@@ -550,9 +557,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		if (!m_IsDestructed) {
 			if (RecordingStatusChangedCallback != NULL)
 				RecordingStatusChangedCallback(STATUS_IDLE);
-			if (SUCCEEDED(hr)) {				
+			if (SUCCEEDED(hr)) {
 				if (RecordingCompleteCallback != NULL)
-					RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);							}
+					RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);
+			}
 			else {
 				if (RecordingFailedCallback != NULL) {
 
@@ -620,7 +628,7 @@ void internal_recorder::ResumeRecording() {
 	}
 }
 
-HRESULT internal_recorder::InitializeDx(ID3D11DeviceContext **ppContext, ID3D11Device **ppDevice, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc) {
+HRESULT internal_recorder::InitializeDx(IDXGIOutput *pDxgiOutput, ID3D11DeviceContext **ppContext, ID3D11Device **ppDevice, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc) {
 	*ppContext = NULL;
 	*ppDevice = NULL;
 	*ppDesktopDupl = NULL;
@@ -634,12 +642,30 @@ HRESULT internal_recorder::InitializeDx(ID3D11DeviceContext **ppContext, ID3D11D
 	int lresult(-1);
 	D3D_FEATURE_LEVEL featureLevel;
 
-	// Create device
-	for (UINT DriverTypeIndex = 0; DriverTypeIndex < m_NumDriverTypes; ++DriverTypeIndex)
+	// Get DXGI adapter
+	CComPtr<IDXGIAdapter> pDxgiAdapter;
+	hr = pDxgiOutput->GetParent(
+		__uuidof(IDXGIAdapter),
+		reinterpret_cast<void**>(&pDxgiAdapter));
+
+	std::vector<D3D_DRIVER_TYPE> driverTypes;
+	if (pDxgiAdapter) {
+		driverTypes.push_back(D3D_DRIVER_TYPE_UNKNOWN);
+	}
+	else
+	{
+		for each (D3D_DRIVER_TYPE type in gDriverTypes)
+		{
+			driverTypes.push_back(type);
+		}
+	}
+	int numDriverTypes = driverTypes.size();
+	// Create devices
+	for (UINT DriverTypeIndex = 0; DriverTypeIndex < numDriverTypes; ++DriverTypeIndex)
 	{
 		hr = D3D11CreateDevice(
-			nullptr,
-			gDriverTypes[DriverTypeIndex],
+			pDxgiAdapter,
+			driverTypes[DriverTypeIndex],
 			nullptr,
 #if _DEBUG 
 			D3D11_CREATE_DEVICE_DEBUG,
@@ -672,7 +698,7 @@ HRESULT internal_recorder::InitializeDx(ID3D11DeviceContext **ppContext, ID3D11D
 	pMulti.Release();
 	if (pDevice == nullptr)
 		return S_FALSE;
-	hr = InitializeDesktopDupl(pDevice, &pDeskDupl, &OutputDuplDesc);
+	hr = InitializeDesktopDupl(pDevice, pDxgiOutput, &pDeskDupl, &OutputDuplDesc);
 	RETURN_ON_BAD_HR(hr);
 
 	// Return the pointer to the caller.
@@ -687,7 +713,7 @@ HRESULT internal_recorder::InitializeDx(ID3D11DeviceContext **ppContext, ID3D11D
 	return hr;
 }
 
-HRESULT internal_recorder::InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc) {
+HRESULT internal_recorder::InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOutput *pDxgiOutput, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc) {
 	*ppDesktopDupl = NULL;
 	*pOutputDuplDesc;
 
@@ -695,33 +721,36 @@ HRESULT internal_recorder::InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOut
 	CComPtr<IDXGIDevice> pDxgiDevice;
 	CComPtr<IDXGIOutputDuplication> pDeskDupl = NULL;
 	DXGI_OUTDUPL_DESC OutputDuplDesc;
+	HRESULT hr = S_OK;
+	if (!pDxgiOutput) {
+		hr = pDevice->QueryInterface(IID_PPV_ARGS(&pDxgiDevice));
+		RETURN_ON_BAD_HR(hr);
+		// Get DXGI adapter
+		CComPtr<IDXGIAdapter> pDxgiAdapter;
+		hr = pDxgiDevice->GetParent(
+			__uuidof(IDXGIAdapter),
+			reinterpret_cast<void**>(&pDxgiAdapter));
+		pDxgiDevice.Release();
+		RETURN_ON_BAD_HR(hr);
 
-	HRESULT	hr = pDevice->QueryInterface(IID_PPV_ARGS(&pDxgiDevice));
 
-	RETURN_ON_BAD_HR(hr);
-	// Get DXGI adapter
-	CComPtr<IDXGIAdapter> pDxgiAdapter;
-	hr = pDxgiDevice->GetParent(
-		__uuidof(IDXGIAdapter),
-		reinterpret_cast<void**>(&pDxgiAdapter));
-	pDxgiDevice.Release();
-	RETURN_ON_BAD_HR(hr);
+		// Get pDxgiOutput
+		hr = pDxgiAdapter->EnumOutputs(
+			m_DisplayOutput,
+			&pDxgiOutput);
 
-	// Get output
-	CComPtr<IDXGIOutput> pDxgiOutput;
-	hr = pDxgiAdapter->EnumOutputs(
-		m_DisplayOutput,
-		&pDxgiOutput);
+		RETURN_ON_BAD_HR(hr);
+		pDxgiAdapter.Release();
+	}
 
-	RETURN_ON_BAD_HR(hr);
-	pDxgiAdapter.Release();
+
 
 	RETURN_ON_BAD_HR(hr);
 	CComPtr<IDXGIOutput1> pDxgiOutput1;
 
 	hr = pDxgiOutput->QueryInterface(IID_PPV_ARGS(&pDxgiOutput1));
 	RETURN_ON_BAD_HR(hr);
-	pDxgiOutput.Release();
+	//pDxgiOutput.Release();
 
 	// Create desktop duplication
 	hr = pDxgiOutput1->DuplicateOutput(
@@ -754,6 +783,56 @@ void internal_recorder::SetViewPort(ID3D11DeviceContext *deviceContext, UINT Wid
 	VP.TopLeftX = 0;
 	VP.TopLeftY = 0;
 	deviceContext->RSSetViewports(1, &VP);
+}
+
+HRESULT internal_recorder::GetOutputForDeviceName(std::wstring deviceName, IDXGIOutput **ppOutput) {
+	HRESULT hr = S_OK;
+	*ppOutput = NULL;
+	if (deviceName != L"") {
+		std::vector<CComPtr<IDXGIAdapter>> adapters = EnumDisplayAdapters();
+		for each (CComPtr<IDXGIAdapter> adapter in adapters)
+		{
+			IDXGIOutput *pOutput;
+			int i = 0;
+			while (adapter->EnumOutputs(i, &pOutput) != DXGI_ERROR_NOT_FOUND)
+			{
+				DXGI_OUTPUT_DESC desc;
+				RETURN_ON_BAD_HR(pOutput->GetDesc(&desc));
+
+				if (desc.DeviceName == deviceName) {
+					// Return the pointer to the caller.
+					*ppOutput = pOutput;
+					(*ppOutput)->AddRef();
+					break;
+				}
+				SafeRelease(&pOutput);
+				i++;
+			}
+			if (ppOutput) {
+				break;
+			}
+		}
+	}
+	return hr;
+}
+
+std::vector<CComPtr<IDXGIAdapter>> internal_recorder::EnumDisplayAdapters()
+{
+	std::vector<CComPtr<IDXGIAdapter>> vAdapters;
+	IDXGIFactory1 * pFactory;
+	HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory), (void**)(&pFactory));
+	if (SUCCEEDED(hr)) {
+		UINT i = 0;
+		IDXGIAdapter *pAdapter;
+		while (pFactory->EnumAdapters(i, &pAdapter) != DXGI_ERROR_NOT_FOUND)
+		{
+			vAdapters.push_back(CComPtr<IDXGIAdapter>(pAdapter));
+			SafeRelease(&pAdapter);
+			++i;
+		}
+	}
+	SafeRelease(&pFactory);
+	return vAdapters;
 }
 
 HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteStream *pOutStream, ID3D11Device* pDevice, RECT sourceRect, RECT destRect, IMFSinkWriter **ppWriter, DWORD *pVideoStreamIndex, DWORD *pAudioStreamIndex)
@@ -800,7 +879,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	UINT destWidth = max(0, destRect.right - destRect.left);
 	UINT destHeight = max(0, destRect.bottom - destRect.top);
 
-	// Set the output video type.
+	// Set the pDxgiOutput video type.
 	RETURN_ON_BAD_HR(MFCreateMediaType(&pVideoMediaTypeOut));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetGUID(MF_MT_SUBTYPE, VIDEO_ENCODING_FORMAT));
@@ -821,7 +900,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeIn, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
 
 	if (m_IsAudioEnabled) {
-		// Set the output audio type.
+		// Set the pDxgiOutput audio type.
 		RETURN_ON_BAD_HR(MFCreateMediaType(&pAudioMediaTypeOut));
 		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
 		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetGUID(MF_MT_SUBTYPE, AUDIO_ENCODING_FORMAT));
@@ -1125,7 +1204,6 @@ HRESULT internal_recorder::WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULO
 	SafeRelease(&pBuffer);
 	return hr;
 }
-
 
 void internal_recorder::SetDebugName(ID3D11DeviceChild* child, const std::string& name)
 {

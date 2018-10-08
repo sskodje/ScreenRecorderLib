@@ -36,141 +36,155 @@
         </Grid.RowDefinitions>
         <StackPanel HorizontalAlignment="Center"
                     VerticalAlignment="Center">
-            <ComboBox x:Name="ScreenComboBox"
-                      Margin="5"
-                      SelectionChanged="ScreenComboBox_SelectionChanged" />
-            <StackPanel Orientation="Horizontal"
-                        Margin="5,0">
+            <StackPanel x:Name="SettingsPanel">
 
-                <Label Content="left" />
-                <TextBox x:Name="RecordingAreaLeftTextBox"
-                         VerticalContentAlignment="Center"
-                         GotFocus="TextBox_GotFocus"
-                         MinWidth="
-                         30" />
-                <Label Content="top" />
-                <TextBox x:Name="RecordingAreaTopTextBox"
-                         VerticalContentAlignment="Center"
-                         GotFocus="TextBox_GotFocus"
-                         MinWidth="30" />
-                <Label Content="right" />
-                <TextBox x:Name="RecordingAreaRightTextBox"
-                         VerticalContentAlignment="Center"
-                         GotFocus="TextBox_GotFocus"
-                         MinWidth="
-                         30" />
-                <Label Content="bottom" />
-                <TextBox x:Name="RecordingAreaBottomTextBox"
-                         VerticalContentAlignment="Center"
-                         GotFocus="TextBox_GotFocus"
-                         MinWidth="30" />
+                <ComboBox x:Name="ScreenComboBox"
+                          Margin="5"
+                          SelectionChanged="ScreenComboBox_SelectionChanged">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding DisplayName}" />
+                                <TextBlock Text=" (" />
+                                <TextBlock Text="{Binding DeviceName}" />
+                                <TextBlock Text=")" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <StackPanel Orientation="Horizontal"
+                            Margin="5,0">
 
-            </StackPanel>
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Margin="5">
-                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsHardwareEncodingEnabled}"
-                              Content="Enable hardware encoding"
-                              ToolTip="" />
-                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsAudioEnabled}"
-                              VerticalAlignment="Center"
-                              Content="Record audio" />
-                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsMousePointerEnabled}"
-                              Content="Show mouse pointer" />
-                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsFixedFramerate}"
-                              Content="Fixed framerate" />
-                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsThrottlingDisabled}"
-                              Content="Disable Throttling"
-                              ToolTip="Video samples are sent to encoder as fast as they are generated. Encoding is faster, but may result in out of memory errors on long recordings." />
-                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsLowLatencyEnabled}"
-                              Content="Enable low latency mode."
-                              ToolTip="Provides faster encoding, but quality may suffer." />
-                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsMp4FastStartEnabled}"
-                              Content="Enable MP4 fast start"
-                              Margin="0"
-                              ToolTip="MP4 header is writter at the start of the file. This makes the file better suited to streaming." />
-                    <StackPanel Orientation="Horizontal">
-                        <Label Content="Mode"
-                               Width="75"
-                               VerticalAlignment="Center" />
-                        <ComboBox x:Name="RecordingModeComboBox"
-                                  MinWidth="100"
-                                  Margin="0,5,5,5"
-                                  ItemsSource="{Binding Source={StaticResource RecorderModeData}}"
-                                  SelectedItem="{Binding ElementName=MainWin,Path=CurrentRecordingMode}"
-                                  VerticalAlignment="Top" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <Label Content="H264 profile"
-                               Width="75"
-                               VerticalAlignment="Center" />
-                        <ComboBox x:Name="VideoProfileComboBox"
-                                  MinWidth="100"
-                                  Margin="0,5,5,5"
-                                  ItemsSource="{Binding Source={StaticResource VideoProfileData}}"
-                                  SelectedItem="{Binding ElementName=MainWin,Path=CurrentH264Profile}"
-                                  VerticalAlignment="Top" />
-                    </StackPanel>
+                    <Label Content="left" />
+                    <TextBox x:Name="RecordingAreaLeftTextBox"
+                             VerticalContentAlignment="Center"
+                             GotFocus="TextBox_GotFocus"
+                             MinWidth="
+                         30" />
+                    <Label Content="top" />
+                    <TextBox x:Name="RecordingAreaTopTextBox"
+                             VerticalContentAlignment="Center"
+                             GotFocus="TextBox_GotFocus"
+                             MinWidth="30" />
+                    <Label Content="right" />
+                    <TextBox x:Name="RecordingAreaRightTextBox"
+                             VerticalContentAlignment="Center"
+                             GotFocus="TextBox_GotFocus"
+                             MinWidth="
+                         30" />
+                    <Label Content="bottom" />
+                    <TextBox x:Name="RecordingAreaBottomTextBox"
+                             VerticalContentAlignment="Center"
+                             GotFocus="TextBox_GotFocus"
+                             MinWidth="30" />
+
                 </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="5">
+                        <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsHardwareEncodingEnabled}"
+                                  Content="Enable hardware encoding"
+                                  ToolTip="" />
+                        <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsAudioEnabled}"
+                                  VerticalAlignment="Center"
+                                  Content="Record audio" />
+                        <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsMousePointerEnabled}"
+                                  Content="Show mouse pointer" />
+                        <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsFixedFramerate}"
+                                  Content="Fixed framerate" />
+                        <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsThrottlingDisabled}"
+                                  Content="Disable Throttling"
+                                  ToolTip="Video samples are sent to encoder as fast as they are generated. Encoding is faster, but may result in out of memory errors on long recordings." />
+                        <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsLowLatencyEnabled}"
+                                  Content="Enable low latency mode."
+                                  ToolTip="Provides faster encoding, but quality may suffer." />
+                        <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsMp4FastStartEnabled}"
+                                  Content="Enable MP4 fast start"
+                                  Margin="0"
+                                  ToolTip="MP4 header is writter at the start of the file. This makes the file better suited to streaming." />
+                        <StackPanel Orientation="Horizontal">
+                            <Label Content="Mode"
+                                   Width="75"
+                                   VerticalAlignment="Center" />
+                            <ComboBox x:Name="RecordingModeComboBox"
+                                      MinWidth="100"
+                                      Margin="0,5,5,5"
+                                      ItemsSource="{Binding Source={StaticResource RecorderModeData}}"
+                                      SelectedItem="{Binding ElementName=MainWin,Path=CurrentRecordingMode}"
+                                      VerticalAlignment="Top" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Label Content="H264 profile"
+                                   Width="75"
+                                   VerticalAlignment="Center" />
+                            <ComboBox x:Name="VideoProfileComboBox"
+                                      MinWidth="100"
+                                      Margin="0,5,5,5"
+                                      ItemsSource="{Binding Source={StaticResource VideoProfileData}}"
+                                      SelectedItem="{Binding ElementName=MainWin,Path=CurrentH264Profile}"
+                                      VerticalAlignment="Top" />
+                        </StackPanel>
+                    </StackPanel>
 
 
-                <Grid Margin="5"
-                      Grid.Column="1">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <StackPanel Orientation="Horizontal">
-                        <Label Content="Framerate"
-                               Width="65" />
-                        <TextBox x:Name="FpsTextBox"
-                                 Width="30"
-                                 Text="{Binding ElementName=MainWin,Path=VideoFramerate}"
-                                 HorizontalAlignment="Left"
-                                 VerticalAlignment="Center" />
-                        <Label Content="fps" />
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal"
-                                Grid.Row="1">
-                        <Label Content="Bitrate"
-                               Width="65" />
-                        <TextBox x:Name="BitrateTextBox"
-                                 MinWidth="30"
-                                 Text="{Binding ElementName=MainWin,Path=VideoBitrate}"
-                                 HorizontalAlignment="Left"
-                                 VerticalAlignment="Center" />
-                        <Label Content="kbps" />
-                    </StackPanel>
-                    <Grid Grid.Row="2">
-                        <Button Content="Delete temp files"
-                                Click="DeleteTempFilesButton_Click"
-                                VerticalAlignment="Top" />
+                    <Grid Margin="5"
+                          Grid.Column="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Orientation="Horizontal">
+                            <Label Content="Framerate"
+                                   Width="65" />
+                            <TextBox x:Name="FpsTextBox"
+                                     Width="30"
+                                     Text="{Binding ElementName=MainWin,Path=VideoFramerate}"
+                                     HorizontalAlignment="Left"
+                                     VerticalAlignment="Center" />
+                            <Label Content="fps" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Grid.Row="1">
+                            <Label Content="Bitrate"
+                                   Width="65" />
+                            <TextBox x:Name="BitrateTextBox"
+                                     MinWidth="30"
+                                     Text="{Binding ElementName=MainWin,Path=VideoBitrate}"
+                                     HorizontalAlignment="Left"
+                                     VerticalAlignment="Center" />
+                            <Label Content="kbps" />
+                        </StackPanel>
+                        <Grid Grid.Row="2">
+                            <Button Content="Delete temp files"
+                                    Click="DeleteTempFilesButton_Click"
+                                    VerticalAlignment="Top" />
+                        </Grid>
                     </Grid>
-                </Grid>
 
-            </Grid>
-            <CheckBox Content="Record to stream"
-                      x:Name="CheckBoxRecordToStream"
-                      IsChecked="{Binding ElementName=MainWin,Path=RecordToStream}"
-                      Margin="5" />
-            <TextBlock FontSize="72"
-                       Text="00:00:00"
-                       HorizontalAlignment="Center"
-                       x:Name="TimeStampTextBlock" />
-            <TextBlock FontSize="42"
-                       Text="Idle"
-                       HorizontalAlignment="Center"
-                       x:Name="StatusTextBlock" />
-            <TextBlock FontSize="12"
-                       Text=""
-                       Margin="10,0"
-                       TextWrapping="Wrap"
-                       HorizontalAlignment="Center"
-                       x:Name="ErrorTextBlock" />
+                </Grid>
+                <CheckBox Content="Record to stream"
+                          x:Name="CheckBoxRecordToStream"
+                          IsChecked="{Binding ElementName=MainWin,Path=RecordToStream}"
+                          Margin="5" />
+                <TextBlock FontSize="72"
+                           Text="00:00:00"
+                           HorizontalAlignment="Center"
+                           x:Name="TimeStampTextBlock" />
+                <TextBlock FontSize="42"
+                           Text="Idle"
+                           HorizontalAlignment="Center"
+                           x:Name="StatusTextBlock" />
+                <TextBlock FontSize="12"
+                           Text=""
+                           Margin="10,0"
+                           TextWrapping="Wrap"
+                           HorizontalAlignment="Center"
+                           x:Name="ErrorTextBlock" />
+            </StackPanel>
             <Button Height="50"
                     Width="150"
                     x:Name="RecordButton"
@@ -190,7 +204,7 @@
                    Grid.Row="1">
             <Hyperlink Click="Hyperlink_Click">
                 <Run Text=""
-                           x:Name="OutputResultTextBlock" />
+                     x:Name="OutputResultTextBlock" />
             </Hyperlink>
         </TextBlock>
     </Grid>

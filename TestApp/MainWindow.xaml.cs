@@ -6,6 +6,8 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using WindowsDisplayAPI;
+using WindowsDisplayAPI.DisplayConfig;
 
 namespace TestApp
 {
@@ -62,8 +64,6 @@ namespace TestApp
             }
         }
 
-
-        //public RecorderMode CurrentRecordingMode { get; set; }
         private RecorderMode _currentRecordingMode;
         public RecorderMode CurrentRecordingMode
         {
@@ -82,9 +82,9 @@ namespace TestApp
         public MainWindow()
         {
             InitializeComponent();
-            foreach (var target in WindowsDisplayAPI.DisplayConfig.PathDisplayTarget.GetDisplayTargets())
+            foreach (var target in WindowsDisplayAPI.Display.GetDisplays())
             {
-                this.ScreenComboBox.Items.Add(String.Format("{0} ({1})", target.FriendlyName, target.ConnectorInstance));
+                this.ScreenComboBox.Items.Add(target);
             }
             this.ScreenComboBox.SelectedIndex = 0;
         }
@@ -139,6 +139,9 @@ namespace TestApp
             Int32.TryParse(this.RecordingAreaLeftTextBox.Text, out left);
             int top = 0;
             Int32.TryParse(this.RecordingAreaTopTextBox.Text, out top);
+
+            Display selectedDisplay = (Display)this.ScreenComboBox.SelectedItem;
+
             RecorderOptions options = new RecorderOptions
             {
                 RecorderMode = CurrentRecordingMode,
@@ -160,14 +163,19 @@ namespace TestApp
                     IsFixedFramerate = this.IsFixedFramerate,
                     EncoderProfile = this.CurrentH264Profile
                 },
-                DisplayOptions = new DisplayOptions(this.ScreenComboBox.SelectedIndex, left, top, right, bottom)
+                DisplayOptions = new DisplayOptions(selectedDisplay.DisplayName, left, top, right, bottom)
             };
+
             if (_rec == null)
             {
                 _rec = Recorder.CreateRecorder(options);
                 _rec.OnRecordingComplete += Rec_OnRecordingComplete;
                 _rec.OnRecordingFailed += Rec_OnRecordingFailed;
                 _rec.OnStatusChanged += _rec_OnStatusChanged;
+            }
+            else
+            {
+                _rec.SetOptions(options);
             }
             if (RecordToStream)
             {
@@ -219,7 +227,7 @@ namespace TestApp
                 _progressTimer = null;
                 _secondsElapsed = 0;
                 IsRecording = false;
-            }));
+            })); 
         }
         private void _rec_OnStatusChanged(object sender, RecordingStatusEventArgs e)
         {
@@ -230,6 +238,7 @@ namespace TestApp
                 {
                     case RecorderStatus.Idle:
                         this.StatusTextBlock.Text = "Idle";
+                        this.SettingsPanel.IsEnabled = true;
                         break;
                     case RecorderStatus.Recording:
                         PauseButton.Visibility = Visibility.Visible;
@@ -238,6 +247,7 @@ namespace TestApp
                         RecordButton.Content = "Stop";
                         PauseButton.Content = "Pause";
                         this.StatusTextBlock.Text = "Recording";
+                        this.SettingsPanel.IsEnabled = false;
                         break;
                     case RecorderStatus.Paused:
                         if (_progressTimer != null)
@@ -284,7 +294,6 @@ namespace TestApp
         {
             Process.Start(this.OutputResultTextBlock.Text);
         }
-
 
         private void TextBox_GotFocus(object sender, RoutedEventArgs e)
         {

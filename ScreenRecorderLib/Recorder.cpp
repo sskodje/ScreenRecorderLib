@@ -12,7 +12,14 @@ using namespace nlohmann;
 Recorder::Recorder(RecorderOptions^ options)
 {
 	lRec = new internal_recorder();
-	if (options) {
+	SetOptions(options);
+	createErrorCallback();
+	createCompletionCallback();
+	createStatusCallback();
+}
+
+void Recorder::SetOptions(RecorderOptions^ options) {
+	if (options && lRec) {
 		if (options->VideoOptions) {
 			lRec->SetVideoBitrate(options->VideoOptions->Bitrate);
 			lRec->SetVideoFps(options->VideoOptions->Framerate);
@@ -27,7 +34,7 @@ Recorder::Recorder(RecorderOptions^ options)
 			rect.right = options->DisplayOptions->Right;
 			rect.bottom = options->DisplayOptions->Bottom;
 			lRec->SetDestRectangle(rect);
-			lRec->SetDisplayOutput(options->DisplayOptions->Monitor);
+			lRec->SetDisplayOutput(msclr::interop::marshal_as<std::wstring>(options->DisplayOptions->MonitorDeviceName));
 		}
 
 		if (options->AudioOptions) {
@@ -54,10 +61,8 @@ Recorder::Recorder(RecorderOptions^ options)
 		lRec->SetIsFastStartEnabled(options->IsMp4FastStartEnabled);
 		lRec->SetIsHardwareEncodingEnabled(options->IsHardwareEncodingEnabled);
 	}
-	createErrorCallback();
-	createCompletionCallback();
-	createStatusCallback();
 }
+
 void Recorder::createErrorCallback() {
 	InternalErrorCallbackDelegate^ fp = gcnew InternalErrorCallbackDelegate(this, &Recorder::EventFailed);
 	_errorDelegateGcHandler = GCHandle::Alloc(fp);
