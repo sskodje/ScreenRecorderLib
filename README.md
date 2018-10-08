@@ -3,6 +3,10 @@ A .NET library for screen recording in Windows, using native Microsoft Media Fou
 
 Available on [NuGet](https://www.nuget.org/packages/ScreenRecorderLib/).
 
+**Breaking change in version 1.1.3:**
+
+From 1.1.3, the option to select monitor by index is removed. Monitor is now selected by Device Name, e.g. \\.\DISPLAY1
+
 **Basic usage:**
 
 This will start a video recording using the default settings:
@@ -96,10 +100,11 @@ To only record a portion of the screen, or a different monitor than the main mon
             int top = 400;
             int right = 800;
             int bottom=800;
-            int monitorIndex= 0;//0 is always primary monitor.
+			//DeviceName in the form \\.\DISPLAY1. Typically you would enumerate system monitors and select one. Default monitor is used if no valid input is given.
+            string monitorDeviceName= System.Windows.Forms.Screen.PrimaryScreen.DeviceName; 
             RecorderOptions options = new RecorderOptions
             {
-               DisplayOptions = new DisplayOptions(monitorIndex, left, top, right, bottom)
+               DisplayOptions = new DisplayOptions(monitorDeviceName, left, top, right, bottom)
             }
 ```
 
