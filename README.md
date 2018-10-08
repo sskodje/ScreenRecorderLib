@@ -100,7 +100,7 @@ To only record a portion of the screen, or a different monitor than the main mon
             int top = 400;
             int right = 800;
             int bottom=800;
-			//DeviceName in the form \\.\DISPLAY1. Typically you would enumerate system monitors and select one. Default monitor is used if no valid input is given.
+	    //DeviceName in the form \\.\DISPLAY1. Typically you would enumerate system monitors and select one. Default monitor is used if no valid input is given.
             string monitorDeviceName= System.Windows.Forms.Screen.PrimaryScreen.DeviceName; 
             RecorderOptions options = new RecorderOptions
             {
