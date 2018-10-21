@@ -97,7 +97,7 @@ namespace TestConsoleApp
         {
             Console.WriteLine("Recording completed");
             _isRecording = false;
-            _stopWatch.Stop();
+            _stopWatch?.Stop();
             Console.WriteLine(String.Format("File: {0}", e.FilePath));
             Console.WriteLine();
             Console.WriteLine("Press any key to exit");
@@ -107,7 +107,7 @@ namespace TestConsoleApp
         {
             Console.WriteLine("Recording failed");
             _isRecording = false;
-            _stopWatch.Stop();
+            _stopWatch?.Stop();
             Console.WriteLine();
             Console.WriteLine("Press any key to exit");
         }

@@ -642,12 +642,13 @@ HRESULT internal_recorder::InitializeDx(IDXGIOutput *pDxgiOutput, ID3D11DeviceCo
 	int lresult(-1);
 	D3D_FEATURE_LEVEL featureLevel;
 
-	// Get DXGI adapter
 	CComPtr<IDXGIAdapter> pDxgiAdapter;
-	hr = pDxgiOutput->GetParent(
-		__uuidof(IDXGIAdapter),
-		reinterpret_cast<void**>(&pDxgiAdapter));
-
+	if (pDxgiOutput) {
+		// Get DXGI adapter
+		hr = pDxgiOutput->GetParent(
+			__uuidof(IDXGIAdapter),
+			reinterpret_cast<void**>(&pDxgiAdapter));
+	}
 	std::vector<D3D_DRIVER_TYPE> driverTypes;
 	if (pDxgiAdapter) {
 		driverTypes.push_back(D3D_DRIVER_TYPE_UNKNOWN);
