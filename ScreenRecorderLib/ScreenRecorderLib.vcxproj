@@ -165,6 +165,7 @@
     <ClInclude Include="mouse_pointer.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Recorder.h" />
+    <ClInclude Include="ManagedStreamWrapper.h" />
     <ClInclude Include="utilities.h" />
   </ItemGroup>
   <ItemGroup>

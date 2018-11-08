@@ -2,16 +2,28 @@
 #include <Windows.h>
 #include <msclr/marshal.h>
 #include <msclr/marshal_cppstd.h>
+#include "ManagedStreamWrapper.h"
 
 namespace ScreenRecorderLib {
 	private class ManagedIStream : public IStream
 	{
 	public:
-		ManagedIStream(System::IO::Stream ^ baseStream)
+		ManagedIStream(System::IO::Stream^ stream)
 			: refCount(1)
 		{
-			this->baseStream = baseStream;
-			tempBytes = gcnew array<byte, 1>(4194304);
+			this->baseStream = gcnew ManagedStreamWrapper(stream);
+
+		   /* https://stackoverflow.com/a/39712297/2129964
+			* We need to call all functions on the managed stream through delegates,
+			* or we get errors if the code is running in a non-default AppDomain.*/
+			m_pSeekFnc = baseStream->GetSeekFunctionPointer();
+			m_pWriteFnc = baseStream->GetWriteFunctionPointer();
+			m_pReadFnc = baseStream->GetReadFunctionPointer();
+			m_pCanWriteFnc = baseStream->GetCanWriteFunctionPointer();
+			m_pCanReadFnc = baseStream->GetCanReadFunctionPointer();
+			m_pCanSeekFnc = baseStream->GetCanSeekFunctionPointer();
+			m_pSetLengthFnc = baseStream->GetSetLengthFunctionPointer();
+			m_pGetLengthFnc = baseStream->GetLengthFunctionPointer();
 		}
 
 	public:
@@ -32,32 +44,25 @@ namespace ScreenRecorderLib {
 		// IStream
 		virtual HRESULT STDMETHODCALLTYPE Read(void *pv, _In_  ULONG cb, _Out_opt_ ULONG *pcbRead)override
 		{
-			if (!baseStream->CanRead)
+			if (!m_pCanReadFnc())
 				return E_ACCESSDENIED;
-			if (((int)cb) >= tempBytes->Length) {
-				tempBytes = gcnew array<byte, 1>(cb + 1);
-			}
-			int bytesRead = baseStream->Read(tempBytes, 0, cb);
-			System::Runtime::InteropServices::Marshal::Copy(tempBytes, 0, System::IntPtr(pv), bytesRead);
 
+			int bytesRead = m_pReadFnc(System::IntPtr(pv), 0, cb);
 			if (pcbRead != nullptr) *pcbRead = bytesRead;
 			return S_OK;
 		}
 		virtual HRESULT STDMETHODCALLTYPE Write(const void *pv, ULONG cb, ULONG *pcbWritten) override
 		{
-			if (!baseStream->CanWrite)
+			if (!m_pCanWriteFnc())
 				return E_ACCESSDENIED;
-			if (((int)cb) >= tempBytes->Length) {
-				tempBytes = gcnew array<byte, 1>(cb + 1);
-			}
-			System::Runtime::InteropServices::Marshal::Copy(System::IntPtr((void *)pv), tempBytes, 0, cb);
-			baseStream->Write(tempBytes, 0, cb);
+
+			m_pWriteFnc(System::IntPtr((void *)pv), 0, cb);
 			if (pcbWritten != nullptr) *pcbWritten = cb;
 			return S_OK;
 		}
 		virtual HRESULT STDMETHODCALLTYPE Seek(LARGE_INTEGER dlibMove, DWORD dwOrigin, _Out_opt_  ULARGE_INTEGER *plibNewPosition) override
 		{
-			if (!baseStream->CanSeek)
+			if (!m_pCanSeekFnc())
 				return E_ACCESSDENIED;
 			System::IO::SeekOrigin seekOrigin;
 
@@ -69,14 +74,14 @@ namespace ScreenRecorderLib {
 			default: throw gcnew System::ArgumentOutOfRangeException("dwOrigin");
 			}
 
-			long long position = baseStream->Seek(dlibMove.QuadPart, seekOrigin);
+			long long position = m_pSeekFnc(dlibMove.QuadPart, seekOrigin);
 			if (plibNewPosition != nullptr)
 				plibNewPosition->QuadPart = position;
 			return S_OK;
 		}
 		virtual HRESULT STDMETHODCALLTYPE SetSize(ULARGE_INTEGER libNewSize)
 		{
-			baseStream->SetLength(libNewSize.QuadPart);
+			m_pSetLengthFnc(libNewSize.QuadPart);
 			return S_OK;
 		}
 		virtual HRESULT STDMETHODCALLTYPE CopyTo(IStream *pstm, ULARGE_INTEGER cb, ULARGE_INTEGER *pcbRead, ULARGE_INTEGER *pcbWritten) override
@@ -92,13 +97,13 @@ namespace ScreenRecorderLib {
 		{
 			memset(pstatstg, 0, sizeof(STATSTG));
 			pstatstg->type = STGTY_STREAM;
-			pstatstg->cbSize.QuadPart = baseStream->Length;
+			pstatstg->cbSize.QuadPart = m_pGetLengthFnc();
 
-			if (baseStream->CanRead && baseStream->CanWrite)
+			if (m_pCanReadFnc() && m_pCanWriteFnc())
 				pstatstg->grfMode |= STGM_READWRITE;
-			else if (baseStream->CanRead)
+			else if (m_pCanReadFnc())
 				pstatstg->grfMode |= STGM_READ;
-			else if (baseStream->CanWrite)
+			else if (m_pCanWriteFnc())
 				pstatstg->grfMode |= STGM_WRITE;
 			else throw gcnew System::IO::IOException();
 			return S_OK;
@@ -107,7 +112,15 @@ namespace ScreenRecorderLib {
 
 	private:
 		ULONG refCount;
-		gcroot<System::IO::Stream^> baseStream;
-		gcroot<array<byte, 1>^> tempBytes;
+		gcroot<ManagedStreamWrapper^> baseStream;
+
+		SeekFnc *m_pSeekFnc;
+		ReadFnc *m_pReadFnc;
+		WriteFnc *m_pWriteFnc;
+		CanReadFnc *m_pCanReadFnc;
+		CanWriteFnc *m_pCanWriteFnc;
+		CanSeekFnc *m_pCanSeekFnc;
+		SetLengthFnc *m_pSetLengthFnc;
+		GetLengthFnc *m_pGetLengthFnc;
 	};
 }
