@@ -57,6 +57,7 @@ public:
 	void ResumeRecording();
 	void SetVideoFps(UINT32 fps);
 	void SetVideoBitrate(UINT32 bitrate);
+	void SetVideoBitrateMode(UINT32 mode);
 	void SetAudioBitrate(UINT32 bitrate);
 	void SetAudioChannels(UINT32 channels);
 	void SetAudioEnabled(bool value);
@@ -108,6 +109,7 @@ private:
 	UINT32 m_AudioBitrate = (96 / 8) * 1000; //Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
 	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
 	UINT32 m_InputAudioSamplesPerSecond = AUDIO_SAMPLES_PER_SECOND;
+	UINT32 m_VideoBitrateControlMode = eAVEncCommonRateControlMode_UnconstrainedVBR;
 	bool m_IsMousePointerEnabled = true;
 	bool m_IsAudioEnabled = false;
 	bool m_IsFixedFramerate = false;
@@ -131,4 +133,5 @@ private:
 	HRESULT WriteFrameToImage(ID3D11Texture2D* pAcquiredDesktopImage, LPCWSTR filePath);
 	HRESULT WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULONGLONG frameDuration, DWORD streamIndex, BYTE *pSrc, DWORD cbData);
 	HRESULT GetOutputForDeviceName(std::wstring deviceName, IDXGIOutput **adapter);
+	HRESULT SetAttributeU32(ATL::CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value);
 };

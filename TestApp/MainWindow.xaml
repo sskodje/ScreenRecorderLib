@@ -28,6 +28,13 @@
                 <x:Type TypeName="rec:H264Profile" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
+        <ObjectDataProvider x:Key="VideoBitrateModeData"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type System:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="rec:BitrateControlMode" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
     </Window.Resources>
     <Grid x:Name="LayoutRoot">
         <Grid.RowDefinitions>
@@ -107,7 +114,7 @@
                                   ToolTip="MP4 header is writter at the start of the file. This makes the file better suited to streaming." />
                         <StackPanel Orientation="Horizontal">
                             <Label Content="Mode"
-                                   Width="75"
+                                   Width="85"
                                    VerticalAlignment="Center" />
                             <ComboBox x:Name="RecordingModeComboBox"
                                       MinWidth="100"
@@ -117,8 +124,19 @@
                                       VerticalAlignment="Top" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal">
+                            <Label Content="Bitrate Mode"
+                                   Width="85"
+                                   VerticalAlignment="Center" />
+                            <ComboBox x:Name="RecordingBitrateModeComboBox"
+                                      MinWidth="100"
+                                      Margin="0,5,5,5"
+                                      ItemsSource="{Binding Source={StaticResource VideoBitrateModeData}}"
+                                      SelectedItem="{Binding ElementName=MainWin,Path=CurrentVideoBitrateMode}"
+                                      VerticalAlignment="Top" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
                             <Label Content="H264 profile"
-                                   Width="75"
+                                   Width="85"
                                    VerticalAlignment="Center" />
                             <ComboBox x:Name="VideoProfileComboBox"
                                       MinWidth="100"

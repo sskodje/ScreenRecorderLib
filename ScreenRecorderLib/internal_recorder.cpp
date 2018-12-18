@@ -9,6 +9,7 @@
 #include <ScreenGrab.h>
 #include <concrt.h>
 #include <mfidl.h>
+#include <VersionHelpers.h>
 #include "mouse_pointer.h"
 #include "loopback_capture.h"
 #include "internal_recorder.h"
@@ -16,6 +17,7 @@
 #include "log.h"
 #include "utilities.h"
 #include "cleanup.h"
+
 
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "D3D11.lib")
@@ -83,6 +85,9 @@ void internal_recorder::SetVideoFps(UINT32 fps)
 void internal_recorder::SetVideoBitrate(UINT32 bitrate)
 {
 	m_VideoBitrate = bitrate;
+}
+void internal_recorder::SetVideoBitrateMode(UINT32 mode) {
+	m_VideoBitrateControlMode = mode;
 }
 void internal_recorder::SetAudioBitrate(UINT32 bitrate)
 {
@@ -885,6 +890,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetGUID(MF_MT_SUBTYPE, VIDEO_ENCODING_FORMAT));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_AVG_BITRATE, m_VideoBitrate));
+	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(CODECAPI_AVEncCommonMeanBitRate, m_VideoBitrate));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_MPEG2_PROFILE, m_H264Profile));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeOut, MF_MT_FRAME_SIZE, destWidth, destHeight));
@@ -918,6 +924,8 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, m_InputAudioSamplesPerSecond));
 		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, m_AudioChannels));
 	}
+
+
 	//Creates a streaming writer
 	CComPtr<IMFMediaSink> pMp4StreamSink;
 	RETURN_ON_BAD_HR(MFCreateMPEG4MediaSink(pOutStream, pVideoMediaTypeOut, pAudioMediaTypeOut, &pMp4StreamSink));
@@ -934,10 +942,33 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 		RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, NULL));
 		pAudioMediaTypeIn.Release();
 	}
+
+	CComPtr<ICodecAPI> encoder;
+	pSinkWriter->GetServiceForStream(videoStreamIndex, GUID_NULL, IID_PPV_ARGS(&encoder));
+	if (encoder) {
+		if (IsWindows8OrGreater()) {
+			RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncAdaptiveMode, eAVEncAdaptiveMode_FrameRate));
+
+			switch (m_VideoBitrateControlMode) {
+			case eAVEncCommonRateControlMode_CBR:
+				RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_CBR));
+				RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonMeanBitRate, m_VideoBitrate));
+				break;
+			case eAVEncCommonRateControlMode_PeakConstrainedVBR:
+				RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_PeakConstrainedVBR));
+				RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonMaxBitRate, m_VideoBitrate));
+				break;
+			case eAVEncCommonRateControlMode_UnconstrainedVBR:
+				RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_UnconstrainedVBR));
+				break;
+			}
+		}
+	}
+
 	if (destWidth != sourceWidth || destHeight != sourceHeight) {
 		GUID transformType;
 		DWORD transformIndex = 0;
-		CComPtr<IMFVideoProcessorControl> videoProcessor;
+		CComPtr<IMFVideoProcessorControl> videoProcessor = NULL;;
 		CComPtr<IMFSinkWriterEx>      pSinkWriterEx = NULL;
 		RETURN_ON_BAD_HR(pSinkWriter->QueryInterface(&pSinkWriterEx));
 		while (true) {
@@ -948,7 +979,6 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 				RETURN_ON_BAD_HR(transform->QueryInterface(&videoProcessor));
 				break;
 			}
-
 			transformIndex++;
 		}
 		SIZE constrictionSize;
@@ -966,6 +996,14 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	*pVideoStreamIndex = videoStreamIndex;
 	*pAudioStreamIndex = audioStreamIndex;
 	return S_OK;
+}
+
+ HRESULT internal_recorder::SetAttributeU32(CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value)
+{
+	VARIANT val;
+	val.vt = VT_UI4;
+	val.uintVal = value;
+	return codec->SetValue(&guid, &val);
 }
 
 void internal_recorder::EnqueueFrame(FrameWriteModel model) {

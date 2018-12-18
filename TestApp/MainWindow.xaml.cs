@@ -78,6 +78,21 @@ namespace TestApp
             }
         }
 
+        private BitrateControlMode _currentVideoBitrateMode = BitrateControlMode.UnconstrainedVBR;
+        public BitrateControlMode CurrentVideoBitrateMode
+        {
+            get { return _currentVideoBitrateMode; }
+            set
+            {
+                if (_currentVideoBitrateMode != value)
+                {
+                    _currentVideoBitrateMode = value;
+                    RaisePropertyChanged("CurrentVideoBitrateMode");
+                }
+            }
+        }
+
+
         public H264Profile CurrentH264Profile { get; set; } = H264Profile.Main;
         public MainWindow()
         {
@@ -157,6 +172,7 @@ namespace TestApp
                 },
                 VideoOptions = new VideoOptions
                 {
+                    BitrateMode = this.CurrentVideoBitrateMode,
                     Bitrate = VideoBitrate * 1000,
                     Framerate = this.VideoFramerate,
                     IsMousePointerEnabled = this.IsMousePointerEnabled,
@@ -227,7 +243,7 @@ namespace TestApp
                 _progressTimer = null;
                 _secondsElapsed = 0;
                 IsRecording = false;
-            })); 
+            }));
         }
         private void _rec_OnStatusChanged(object sender, RecordingStatusEventArgs e)
         {

@@ -38,8 +38,11 @@ namespace ScreenRecorderLib {
 	};
 
 	public enum class RecorderMode {
+		///<summary>Record as mp4 video in h264 format. </summary>
 		Video,
+		///<summary>Record one PNG picture for each frame. </summary>
 		Slideshow,
+		///<summary>Make a snapshot of the screen. </summary>
 		Snapshot
 	};
 	public enum class H264Profile
@@ -47,6 +50,12 @@ namespace ScreenRecorderLib {
 		Baseline = 66,
 		Main = 77,
 		High = 100
+	};
+	public enum class BitrateControlMode {
+		///<summary>Constant bitrate. Faster encoding than VBR, but produces larger files with consistent size. This setting might not work on software encoding. </summary>
+		CBR = 0,
+		///<summary>Default is unconstrained variable bitrate. Overall bitrate will average towards the Bitrate property, but can fluctuate greatly over and under it.</summary>
+		UnconstrainedVBR = 2
 	};
 	public ref class FrameData {
 	public:
@@ -102,8 +111,13 @@ namespace ScreenRecorderLib {
 			IsFixedFramerate = false;
 			IsMousePointerEnabled = true;
 			EncoderProfile = H264Profile::Baseline;
+			BitrateMode = BitrateControlMode::UnconstrainedVBR;
 		}
-		property H264Profile EncoderProfile;	
+		property H264Profile EncoderProfile;
+		/// <summary>
+		///The bitrate control mode of the video encoder. Default is CBR.
+		/// </summary>
+		property BitrateControlMode BitrateMode;
 		/// <summary>
 		///Framerate in frames per second.
 		/// </summary>

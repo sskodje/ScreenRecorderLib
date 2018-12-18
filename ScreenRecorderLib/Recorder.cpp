@@ -26,6 +26,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			lRec->SetFixedFramerate(options->VideoOptions->IsFixedFramerate);
 			lRec->SetMousePointerEnabled(options->VideoOptions->IsMousePointerEnabled);
 			lRec->SetH264EncoderProfile((UINT32)options->VideoOptions->EncoderProfile);
+			lRec->SetVideoBitrateMode((UINT32)options->VideoOptions->BitrateMode);
 		}
 		if (options->DisplayOptions) {
 			RECT rect;
