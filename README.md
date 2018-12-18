@@ -83,6 +83,7 @@ To change the options, pass a RecorderOptions when creating the Recorder:
                 },
                 VideoOptions = new VideoOptions
                 {
+		    BitrateMode = BitrateControlMode.UnconstrainedVBR,
                     Bitrate = 8000 * 1000,
                     Framerate = 60,
                     IsMousePointerEnabled = true,
