@@ -7,7 +7,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using WindowsDisplayAPI;
-using WindowsDisplayAPI.DisplayConfig;
 
 namespace TestApp
 {
@@ -33,6 +32,7 @@ namespace TestApp
 
         public int VideoBitrate { get; set; } = 7000;
         public int VideoFramerate { get; set; } = 60;
+        public int VideoQuality { get; set; } = 70;
         public bool IsAudioEnabled { get; set; } = true;
         public bool IsMousePointerEnabled { get; set; } = true;
         public bool IsFixedFramerate { get; set; } = false;
@@ -175,6 +175,7 @@ namespace TestApp
                     BitrateMode = this.CurrentVideoBitrateMode,
                     Bitrate = VideoBitrate * 1000,
                     Framerate = this.VideoFramerate,
+                    Quality= this.VideoQuality,
                     IsMousePointerEnabled = this.IsMousePointerEnabled,
                     IsFixedFramerate = this.IsFixedFramerate,
                     EncoderProfile = this.CurrentH264Profile
@@ -326,6 +327,15 @@ namespace TestApp
             catch (Exception ex)
             {
                 MessageBox.Show("An error occured while deleting files: " + ex.Message);
+            }
+        }
+
+        private void RecordingBitrateModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (VideoQualityPanel != null)
+            {
+                VideoQualityPanel.Visibility = CurrentVideoBitrateMode == BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
+                VideoBitratePanel.Visibility = CurrentVideoBitrateMode == BitrateControlMode.Quality ? Visibility.Collapsed : Visibility.Visible;
             }
         }
     }

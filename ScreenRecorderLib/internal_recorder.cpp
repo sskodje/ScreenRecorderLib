@@ -1,4 +1,4 @@
-#include <ppltasks.h>
+#include <ppltasks.h> 
 #include <ctime>   // localtime
 #include <sstream> // stringstream
 #include <iomanip> // put_time
@@ -85,6 +85,10 @@ void internal_recorder::SetVideoFps(UINT32 fps)
 void internal_recorder::SetVideoBitrate(UINT32 bitrate)
 {
 	m_VideoBitrate = bitrate;
+}
+void internal_recorder::SetVideoQuality(UINT32 quality)
+{
+	m_VideoQuality = quality;
 }
 void internal_recorder::SetVideoBitrateMode(UINT32 mode) {
 	m_VideoBitrateControlMode = mode;
@@ -188,6 +192,14 @@ HRESULT internal_recorder::BeginRecording(std::wstring path) {
 }
 
 HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
+
+	if (!IsWindows8OrGreater()) {
+		wstring errorText = L"Windows 8 or higher is required";
+		ERR(L"%ls", errorText);
+		RecordingFailedCallback(errorText);
+		return S_FALSE;
+	}
+
 	if (m_IsRecording) {
 		if (m_IsPaused) {
 			m_IsPaused = false;
@@ -525,41 +537,42 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		return hr;
 	}).then([this, token](HRESULT hr) {
 		m_IsRecording = false;
-		if (token.is_canceled()) {
-			m_TaskWrapperImpl->m_RenderTaskCts.cancel();
-		}
-		else {
-			if (!m_TaskWrapperImpl->m_RenderTask.is_done())
-				m_TaskWrapperImpl->m_RenderTask.wait();
-			LOG(L"Recording completed!");
-		}
-		if (m_SinkWriter) {
-			if (SUCCEEDED(hr)) {
-				hr = m_SinkWriter->Finalize();
-			}
-			//Dispose of MPEG4MediaSink 
-			IMFMediaSink *pSink;
-			if (SUCCEEDED(m_SinkWriter->GetServiceForStream(MF_SINK_WRITER_MEDIASINK, GUID_NULL, IID_PPV_ARGS(&pSink)))) {
-				pSink->Shutdown();
-				SafeRelease(&pSink);
-			}
-			m_SinkWriter.Release();
-		}
-
-		if (m_ImmediateContext) {
-			m_ImmediateContext.Release();
-		}
-		LOG(L"Finalized!");
-		MFShutdown();
-		CoUninitialize();
-		LOG(L"MF shut down!");
-#if _DEBUG
-		if (m_Debug) {
-			m_Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
-			m_Debug.Release();
-		}
-#endif
 		if (!m_IsDestructed) {
+			if (token.is_canceled()) {
+				m_TaskWrapperImpl->m_RenderTaskCts.cancel();
+			}
+			else {
+				if (!m_TaskWrapperImpl->m_RenderTask.is_done())
+					m_TaskWrapperImpl->m_RenderTask.wait();
+				LOG(L"Recording completed!");
+			}
+			if (m_SinkWriter) {
+				if (SUCCEEDED(hr)) {
+					hr = m_SinkWriter->Finalize();
+				}
+				//Dispose of MPEG4MediaSink 
+				IMFMediaSink *pSink;
+				if (SUCCEEDED(m_SinkWriter->GetServiceForStream(MF_SINK_WRITER_MEDIASINK, GUID_NULL, IID_PPV_ARGS(&pSink)))) {
+					pSink->Shutdown();
+					SafeRelease(&pSink);
+				}
+				m_SinkWriter.Release();
+			}
+
+			if (m_ImmediateContext) {
+				m_ImmediateContext.Release();
+			}
+			LOG(L"Finalized!");
+			MFShutdown();
+			CoUninitialize();
+			LOG(L"MF shut down!");
+#if _DEBUG
+			if (m_Debug) {
+				m_Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
+				m_Debug.Release();
+			}
+#endif
+
 			if (RecordingStatusChangedCallback != NULL)
 				RecordingStatusChangedCallback(STATUS_IDLE);
 			if (SUCCEEDED(hr)) {
@@ -573,7 +586,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					if (m_IsEncoderFailure) {
 						errMsg = L"Write error in video encoder.";
 						if (m_IsHardwareEncodingEnabled) {
-							errMsg += L" If problem persists, disabling hardware encoding may improve stability.";
+							errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
 						}
 					}
 					else {
@@ -582,6 +595,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 					RecordingFailedCallback(errMsg);
 				}
+			}
+			while (m_WriteQueue.size() > 0) {
+				FrameWriteModel model = m_WriteQueue.front();
+				m_WriteQueue.pop();
 			}
 		}
 		return hr;
@@ -890,7 +907,6 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetGUID(MF_MT_SUBTYPE, VIDEO_ENCODING_FORMAT));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_AVG_BITRATE, m_VideoBitrate));
-	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(CODECAPI_AVEncCommonMeanBitRate, m_VideoBitrate));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_MPEG2_PROFILE, m_H264Profile));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeOut, MF_MT_FRAME_SIZE, destWidth, destHeight));
@@ -946,35 +962,25 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	CComPtr<ICodecAPI> encoder;
 	pSinkWriter->GetServiceForStream(videoStreamIndex, GUID_NULL, IID_PPV_ARGS(&encoder));
 	if (encoder) {
-		if (IsWindows8OrGreater()) {
-			RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncAdaptiveMode, eAVEncAdaptiveMode_FrameRate));
-
-			switch (m_VideoBitrateControlMode) {
-			case eAVEncCommonRateControlMode_CBR:
-				RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_CBR));
-				RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonMeanBitRate, m_VideoBitrate));
-				break;
-			case eAVEncCommonRateControlMode_PeakConstrainedVBR:
-				RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_PeakConstrainedVBR));
-				RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonMaxBitRate, m_VideoBitrate));
-				break;
-			case eAVEncCommonRateControlMode_UnconstrainedVBR:
-				RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, eAVEncCommonRateControlMode_UnconstrainedVBR));
-				break;
-			}
+		RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, m_VideoBitrateControlMode));
+		switch (m_VideoBitrateControlMode) {
+		case eAVEncCommonRateControlMode_Quality:
+			RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonQuality, m_VideoQuality));
+			break;
+		default:
+			break;
 		}
 	}
 
 	if (destWidth != sourceWidth || destHeight != sourceHeight) {
 		GUID transformType;
 		DWORD transformIndex = 0;
-		CComPtr<IMFVideoProcessorControl> videoProcessor = NULL;;
+		CComPtr<IMFVideoProcessorControl> videoProcessor = NULL;
 		CComPtr<IMFSinkWriterEx>      pSinkWriterEx = NULL;
 		RETURN_ON_BAD_HR(pSinkWriter->QueryInterface(&pSinkWriterEx));
 		while (true) {
 			CComPtr<IMFTransform> transform;
-			const HRESULT hr = pSinkWriterEx->GetTransformForStream(videoStreamIndex, transformIndex, &transformType, &transform);
-			RETURN_ON_BAD_HR(hr);
+			RETURN_ON_BAD_HR(pSinkWriterEx->GetTransformForStream(videoStreamIndex, transformIndex, &transformType, &transform));
 			if (transformType == MFT_CATEGORY_VIDEO_PROCESSOR) {
 				RETURN_ON_BAD_HR(transform->QueryInterface(&videoProcessor));
 				break;
@@ -998,7 +1004,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	return S_OK;
 }
 
- HRESULT internal_recorder::SetAttributeU32(CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value)
+HRESULT internal_recorder::SetAttributeU32(CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value)
 {
 	VARIANT val;
 	val.vt = VT_UI4;
@@ -1104,10 +1110,7 @@ void internal_recorder::EnqueueFrame(FrameWriteModel model) {
 			catch (...) {
 				ERR(L"Exception in RenderTask");
 			}
-			while (m_WriteQueue.size() > 0) {
-				FrameWriteModel model = m_WriteQueue.front();
-				m_WriteQueue.pop();
-			}
+
 		});
 	}
 }

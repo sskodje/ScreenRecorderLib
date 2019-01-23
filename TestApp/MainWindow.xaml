@@ -132,6 +132,7 @@
                                       Margin="0,5,5,5"
                                       ItemsSource="{Binding Source={StaticResource VideoBitrateModeData}}"
                                       SelectedItem="{Binding ElementName=MainWin,Path=CurrentVideoBitrateMode}"
+                                      SelectionChanged="RecordingBitrateModeComboBox_SelectionChanged"
                                       VerticalAlignment="Top" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal">
@@ -153,6 +154,7 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <StackPanel Orientation="Horizontal">
@@ -166,6 +168,7 @@
                             <Label Content="fps" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal"
+                                    x:Name="VideoBitratePanel"
                                     Grid.Row="1">
                             <Label Content="Bitrate"
                                    Width="65" />
@@ -176,7 +179,19 @@
                                      VerticalAlignment="Center" />
                             <Label Content="kbps" />
                         </StackPanel>
-                        <Grid Grid.Row="2">
+                        <StackPanel Orientation="Horizontal"
+                                    x:Name="VideoQualityPanel"
+                                    Visibility="Collapsed"
+                                    Grid.Row="2">
+                            <Label Content="Quality"
+                                   Width="65" />
+                            <TextBox x:Name="QualityTextBox"
+                                     MinWidth="30"
+                                     Text="{Binding ElementName=MainWin,Path=VideoQuality}"
+                                     HorizontalAlignment="Left"
+                                     VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Grid Grid.Row="3">
                             <Button Content="Delete temp files"
                                     Click="DeleteTempFilesButton_Click"
                                     VerticalAlignment="Top" />

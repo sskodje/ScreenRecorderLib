@@ -22,6 +22,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 	if (options && lRec) {
 		if (options->VideoOptions) {
 			lRec->SetVideoBitrate(options->VideoOptions->Bitrate);
+			lRec->SetVideoQuality(options->VideoOptions->Quality);
 			lRec->SetVideoFps(options->VideoOptions->Framerate);
 			lRec->SetFixedFramerate(options->VideoOptions->IsFixedFramerate);
 			lRec->SetMousePointerEnabled(options->VideoOptions->IsMousePointerEnabled);

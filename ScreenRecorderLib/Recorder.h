@@ -55,7 +55,9 @@ namespace ScreenRecorderLib {
 		///<summary>Constant bitrate. Faster encoding than VBR, but produces larger files with consistent size. This setting might not work on software encoding. </summary>
 		CBR = 0,
 		///<summary>Default is unconstrained variable bitrate. Overall bitrate will average towards the Bitrate property, but can fluctuate greatly over and under it.</summary>
-		UnconstrainedVBR = 2
+		UnconstrainedVBR = 2,
+		///<summary>Quality-based VBR encoding. The encoder selects the bit rate to match a specified quality level. Set Quality level in VideoOptions from 1-100. Default is 70. </summary>
+		Quality
 	};
 	public ref class FrameData {
 	public:
@@ -107,6 +109,7 @@ namespace ScreenRecorderLib {
 	public:
 		VideoOptions() {
 			Framerate = 30;
+			Quality = 70;
 			Bitrate = 4000 * 1000;
 			IsFixedFramerate = false;
 			IsMousePointerEnabled = true;
@@ -126,6 +129,10 @@ namespace ScreenRecorderLib {
 		///Bitrate in bits per second
 		/// </summary>
 		property int Bitrate;
+		/// <summary>
+		///Video quality. This is only used when BitrateMode is set to Quality.
+		/// </summary>
+		property int Quality;
 		/// <summary>
 		///Display the mouse cursor on the recording
 		/// </summary>
@@ -168,7 +175,7 @@ namespace ScreenRecorderLib {
 		/// </summary>
 		property bool IsHardwareEncodingEnabled;
 		/// <summary>
-		/// Place the mp4 header at the start of the file. This makes the playback start faster when streaming. This option is only available when recording to a stream.
+		/// Place the mp4 header at the start of the file. This makes the playback start faster when streaming.
 		/// </summary>
 		property bool IsMp4FastStartEnabled;
 		property VideoOptions^ VideoOptions;

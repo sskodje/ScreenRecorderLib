@@ -3,6 +3,7 @@
 #include <locale>
 #include <codecvt>
 #include "log.h"
+
 #define RETURN_ON_BAD_HR(expr) \
 { \
     HRESULT _hr_ = (expr); \
@@ -15,6 +16,16 @@
 	} \
 }
 
+#define LOG_ON_BAD_HR(expr) \
+{ \
+    HRESULT _hr_ = (expr); \
+    if (FAILED(_hr_)) { \
+	{\
+		_com_error err(_hr_);\
+		ERR(L"BAD HR: %ls", err.ErrorMessage());\
+	}\
+	} \
+}
 class utilities
 {
 public:
