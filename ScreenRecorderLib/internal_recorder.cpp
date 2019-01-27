@@ -831,7 +831,7 @@ HRESULT internal_recorder::GetOutputForDeviceName(std::wstring deviceName, IDXGI
 				SafeRelease(&pOutput);
 				i++;
 			}
-			if (ppOutput) {
+			if (*ppOutput) {
 				break;
 			}
 		}
