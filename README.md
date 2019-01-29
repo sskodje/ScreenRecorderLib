@@ -1,5 +1,5 @@
 # ScreenRecorderLib
-A .NET library for screen recording in Windows, using native Microsoft Media Foundation for realtime encoding to h264 video or PNG images. This library requires Windows 8 or higher to function, as well as [Visual C++ Redistributable 2015](https://www.microsoft.com/en-us/download/details.aspx?id=48145) installed. This library also requires Media Foundation to work, which have to be installed from Server Manager if run on Windows Server.
+A .NET library for screen recording in Windows, using native Microsoft Media Foundation for realtime encoding to h264 video or PNG images. This library requires Windows 8 or higher to function, as well as [Visual C++ Redistributable 2015](https://www.microsoft.com/en-us/download/details.aspx?id=48145) installed. This library also requires Media Foundation to work, which have to be installed from Server Manager if run on Windows Server, or from the respective "Media Feature Pack" if run on a Windows N or KN version.
 
 Available on [NuGet](https://www.nuget.org/packages/ScreenRecorderLib/).
 
