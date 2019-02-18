@@ -2,14 +2,15 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
     <metadata>
         <id>ScreenRecorderLib</id>
-        <version>1.1.7</version>
+        <version>1.1.8</version>
         <authors>Sverre Kristoffer Skodje</authors>
         <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
         <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
         <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to h264 video or PNG images.</description>
         <summary />
-        <releaseNotes>- Added configuration for Quality encoding mode.
+        <releaseNotes>- Changed default recording mode to Quality - 70.
+- Changed video input format from ARGB32 to YUY2 for better compatibility with some encoders.	
 - Bugfixes.</releaseNotes>
         <copyright>Copyright © Sverre Kristoffer Skodje 2017</copyright>
         <language>en-GB</language>

@@ -81,17 +81,17 @@ private:
 	const GUID	 AUDIO_ENCODING_FORMAT = MFAudioFormat_AAC;
 	const UINT32 AUDIO_BITS_PER_SAMPLE = 16; //Audio bits per sample must be 16.
 	const UINT32 AUDIO_SAMPLES_PER_SECOND = 44100;//Audio samples per seconds must be 44100.
-	const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_ARGB32;
+	const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_YUY2;
 	const GUID   IMAGE_ENCODER_FORMAT = GUID_ContainerFormatPng;
 
 	struct TaskWrapper;
 	std::unique_ptr<TaskWrapper> m_TaskWrapperImpl;
 
 #if _DEBUG 
-	ATL::CComPtr<ID3D11Debug> m_Debug;
+	ID3D11Debug *m_Debug;
 #endif
-	ATL::CComPtr<ID3D11DeviceContext> m_ImmediateContext;
-	ATL::CComPtr<IMFSinkWriter> m_SinkWriter;
+	ID3D11DeviceContext *m_ImmediateContext;
+	IMFSinkWriter *m_SinkWriter;
 	std::queue<FrameWriteModel> m_WriteQueue;
 	std::chrono::high_resolution_clock::time_point m_LastFrame;
 	bool m_IsDestructed = false;
@@ -111,7 +111,7 @@ private:
 	UINT32 m_AudioBitrate = (96 / 8) * 1000; //Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
 	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
 	UINT32 m_InputAudioSamplesPerSecond = AUDIO_SAMPLES_PER_SECOND;
-	UINT32 m_VideoBitrateControlMode = eAVEncCommonRateControlMode_UnconstrainedVBR;
+	UINT32 m_VideoBitrateControlMode = eAVEncCommonRateControlMode_Quality;
 	bool m_IsMousePointerEnabled = true;
 	bool m_IsAudioEnabled = false;
 	bool m_IsFixedFramerate = false;

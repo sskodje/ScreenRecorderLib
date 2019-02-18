@@ -78,7 +78,7 @@ namespace TestApp
             }
         }
 
-        private BitrateControlMode _currentVideoBitrateMode = BitrateControlMode.UnconstrainedVBR;
+        private BitrateControlMode _currentVideoBitrateMode = BitrateControlMode.Quality;
         public BitrateControlMode CurrentVideoBitrateMode
         {
             get { return _currentVideoBitrateMode; }

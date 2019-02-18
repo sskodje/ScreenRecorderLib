@@ -169,6 +169,7 @@
                         </StackPanel>
                         <StackPanel Orientation="Horizontal"
                                     x:Name="VideoBitratePanel"
+                                    Visibility="Collapsed"
                                     Grid.Row="1">
                             <Label Content="Bitrate"
                                    Width="65" />
@@ -181,7 +182,7 @@
                         </StackPanel>
                         <StackPanel Orientation="Horizontal"
                                     x:Name="VideoQualityPanel"
-                                    Visibility="Collapsed"
+                                    Visibility="Visible"
                                     Grid.Row="2">
                             <Label Content="Quality"
                                    Width="65" />

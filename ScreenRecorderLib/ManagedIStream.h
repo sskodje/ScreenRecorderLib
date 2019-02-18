@@ -93,9 +93,9 @@ namespace ScreenRecorderLib {
 		virtual HRESULT STDMETHODCALLTYPE LockRegion(ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType) override { return E_NOTIMPL; }
 		virtual HRESULT STDMETHODCALLTYPE UnlockRegion(ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType) override { return E_NOTIMPL; }
 
-		virtual HRESULT STDMETHODCALLTYPE Stat(STATSTG * pstatstg, DWORD grfStatFlag) override
+		virtual HRESULT STDMETHODCALLTYPE Stat(::STATSTG * pstatstg, DWORD grfStatFlag) override
 		{
-			memset(pstatstg, 0, sizeof(STATSTG));
+			memset(pstatstg, 0, sizeof(::STATSTG));
 			pstatstg->type = STGTY_STREAM;
 			pstatstg->cbSize.QuadPart = m_pGetLengthFnc();
 

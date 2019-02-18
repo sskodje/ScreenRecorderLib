@@ -114,11 +114,11 @@ namespace ScreenRecorderLib {
 			IsFixedFramerate = false;
 			IsMousePointerEnabled = true;
 			EncoderProfile = H264Profile::Baseline;
-			BitrateMode = BitrateControlMode::UnconstrainedVBR;
+			BitrateMode = BitrateControlMode::Quality;
 		}
 		property H264Profile EncoderProfile;
 		/// <summary>
-		///The bitrate control mode of the video encoder. Default is CBR.
+		///The bitrate control mode of the video encoder. Default is Quality.
 		/// </summary>
 		property BitrateControlMode BitrateMode;
 		/// <summary>

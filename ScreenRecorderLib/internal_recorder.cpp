@@ -222,6 +222,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		RETURN_ON_BAD_HR(hr);
 		{
 			DXGI_OUTDUPL_DESC outputDuplDesc;
+			RtlZeroMemory(&outputDuplDesc, sizeof(outputDuplDesc));
 			CComPtr<ID3D11Device> pDevice;
 			CComPtr<IDXGIOutputDuplication> pDeskDupl;
 			std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
@@ -408,18 +409,13 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 					if (hr == S_OK || pPreviousFrameCopy == nullptr || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
 						UINT32 delay = 1;
-						if (durationSinceLastFrame100Nanos + 10000 < videoFrameDuration100Nanos) {
-							double d = (videoFrameDuration100Nanos - (durationSinceLastFrame100Nanos + 10000)) / 10 / 1000;
+						if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
+							double d = (videoFrameDuration100Nanos - (durationSinceLastFrame100Nanos)) / 10 / 1000;
 							delay = round(d);
-							if (delay == 0)
-								delay = 1;
 						}
-						//LOG(L"Waiting for %d ms", delay);
+
 						wait(delay);
 						continue;
-					}
-					else {
-						//LOG(L"Timeouted waiting for updated frame after framerate delay. Writing cached info.");
 					}
 				}
 				if (pPreviousFrameCopy && hr == DXGI_ERROR_WAIT_TIMEOUT) {
@@ -547,21 +543,21 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				LOG(L"Recording completed!");
 			}
 			if (m_SinkWriter) {
-				if (SUCCEEDED(hr)) {
-					hr = m_SinkWriter->Finalize();
-				}
+				m_SinkWriter->Finalize();
+
 				//Dispose of MPEG4MediaSink 
 				IMFMediaSink *pSink;
 				if (SUCCEEDED(m_SinkWriter->GetServiceForStream(MF_SINK_WRITER_MEDIASINK, GUID_NULL, IID_PPV_ARGS(&pSink)))) {
 					pSink->Shutdown();
 					SafeRelease(&pSink);
-				}
-				m_SinkWriter.Release();
+				};
+				m_SinkWriter->Release();
+				m_SinkWriter = NULL;
 			}
 
-			if (m_ImmediateContext) {
-				m_ImmediateContext.Release();
-			}
+
+			SafeRelease(&m_ImmediateContext);
+
 			LOG(L"Finalized!");
 			MFShutdown();
 			CoUninitialize();
@@ -569,18 +565,18 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 #if _DEBUG
 			if (m_Debug) {
 				m_Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
-				m_Debug.Release();
+				SafeRelease(&m_Debug);
 			}
 #endif
 
-			if (RecordingStatusChangedCallback != NULL)
+			if (RecordingStatusChangedCallback)
 				RecordingStatusChangedCallback(STATUS_IDLE);
 			if (SUCCEEDED(hr)) {
-				if (RecordingCompleteCallback != NULL)
+				if (RecordingCompleteCallback)
 					RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);
 			}
 			else {
-				if (RecordingFailedCallback != NULL) {
+				if (RecordingFailedCallback) {
 
 					std::wstring errMsg;
 					if (m_IsEncoderFailure) {
@@ -1083,18 +1079,6 @@ void internal_recorder::EnqueueFrame(FrameWriteModel model) {
 						m_IsEncoderFailure = true;
 						m_IsRecording = false; //Stop recording if we fail
 					}
-				}
-				if (model.FrameNumber % 5 == 0) {
-					MF_SINK_WRITER_STATISTICS stats;
-					stats.cb = sizeof(stats);
-					m_SinkWriter->GetStatistics(MF_SINK_WRITER_ALL_STREAMS, &stats);
-					//LOG("Outstanding requests: %d", stats.dwNumOutstandingSinkSampleRequests);
-					if (stats.qwNumSamplesEncoded == m_LastEncodedSampleCount && m_LastEncodedSampleCount > 0) {
-						m_IsEncoderFailure = true;
-						m_TaskWrapperImpl->m_RecordTaskCts.cancel();
-						ERR("Video encoder is stalled");
-					}
-					m_LastEncodedSampleCount = stats.qwNumSamplesEncoded;
 				}
 			}
 		}).then([this](concurrency::task<void> t)
