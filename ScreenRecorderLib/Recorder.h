@@ -175,9 +175,13 @@ namespace ScreenRecorderLib {
 		/// </summary>
 		property bool IsHardwareEncodingEnabled;
 		/// <summary>
-		/// Place the mp4 header at the start of the file. This makes the playback start faster when streaming.
+		/// Place the mp4 header at the start of the file instead of the end. This allows streaming to start before entire file is downloaded.
 		/// </summary>
 		property bool IsMp4FastStartEnabled;
+		/// <summary>
+		/// Fragments the video into a list of individually playable blocks. This allows playback of video segments that has no end, i.e. live streaming.
+		/// </summary>
+		property bool IsFragmentedMp4Enabled;
 		property VideoOptions^ VideoOptions;
 		property DisplayOptions^ DisplayOptions;
 		property AudioOptions^ AudioOptions;

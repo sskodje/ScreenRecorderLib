@@ -72,6 +72,7 @@ public:
 	void SetIsThrottlingDisabled(bool value);
 	void SetH264EncoderProfile(UINT32 value);
 	void SetIsFastStartEnabled(bool value);
+	void SetIsFragmentedMp4Enabled(bool value);
 	void SetIsHardwareEncodingEnabled(bool value);
 	void SetIsLowLatencyModeEnabled(bool value);
 
@@ -118,6 +119,7 @@ private:
 	bool m_IsThrottlingDisabled = false;
 	bool m_IsLowLatencyModeEnabled = false;
 	bool m_IsMp4FastStartEnabled = true;
+	bool m_IsFragmentedMp4Enabled = false;
 	bool m_IsHardwareEncodingEnabled = true;
 	bool m_IsPaused = false;
 	bool m_IsRecording = false;

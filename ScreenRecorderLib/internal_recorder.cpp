@@ -112,6 +112,9 @@ void internal_recorder::SetMousePointerEnabled(bool enabled)
 void internal_recorder::SetIsFastStartEnabled(bool enabled) {
 	m_IsMp4FastStartEnabled = enabled;
 }
+void internal_recorder::SetIsFragmentedMp4Enabled(bool enabled) {
+	m_IsFragmentedMp4Enabled = enabled;
+}
 void internal_recorder::SetIsHardwareEncodingEnabled(bool enabled) {
 	m_IsHardwareEncodingEnabled = enabled;
 }
@@ -940,7 +943,12 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 
 	//Creates a streaming writer
 	CComPtr<IMFMediaSink> pMp4StreamSink;
-	RETURN_ON_BAD_HR(MFCreateMPEG4MediaSink(pOutStream, pVideoMediaTypeOut, pAudioMediaTypeOut, &pMp4StreamSink));
+	if (m_IsFragmentedMp4Enabled) {
+		RETURN_ON_BAD_HR(MFCreateFMPEG4MediaSink(pOutStream, pVideoMediaTypeOut, pAudioMediaTypeOut, &pMp4StreamSink));
+	}
+	else {
+		RETURN_ON_BAD_HR(MFCreateMPEG4MediaSink(pOutStream, pVideoMediaTypeOut, pAudioMediaTypeOut, &pMp4StreamSink));
+	}
 	pAudioMediaTypeOut.Release();
 	pVideoMediaTypeOut.Release();
 	RETURN_ON_BAD_HR(MFCreateSinkWriterFromMediaSink(pMp4StreamSink, pAttributes, &pSinkWriter));

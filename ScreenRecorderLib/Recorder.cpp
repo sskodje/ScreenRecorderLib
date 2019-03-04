@@ -62,6 +62,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		lRec->SetIsLowLatencyModeEnabled(options->IsLowLatencyEnabled);
 		lRec->SetIsFastStartEnabled(options->IsMp4FastStartEnabled);
 		lRec->SetIsHardwareEncodingEnabled(options->IsHardwareEncodingEnabled);
+		lRec->SetIsFragmentedMp4Enabled(options->IsFragmentedMp4Enabled);
 	}
 }
 
