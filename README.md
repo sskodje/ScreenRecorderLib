@@ -10,7 +10,7 @@ From 1.1.3, the option to select monitor by index is removed. Monitor is now sel
 **Basic usage:**
 
 This will start a video recording using the default settings:
-* 4000kbps video bitrate
+* "Quality" encoding mode with quality 70.
 * H.264 video encoder with baseline profile.
 * 30fps
 * no audio
