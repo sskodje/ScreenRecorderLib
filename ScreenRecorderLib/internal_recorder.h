@@ -82,7 +82,8 @@ private:
 	const GUID	 AUDIO_ENCODING_FORMAT = MFAudioFormat_AAC;
 	const UINT32 AUDIO_BITS_PER_SAMPLE = 16; //Audio bits per sample must be 16.
 	const UINT32 AUDIO_SAMPLES_PER_SECOND = 44100;//Audio samples per seconds must be 44100.
-	const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_YUY2;
+	const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_ARGB32;
+	const GUID   VIDEO_INPUT_FORMAT_CONVERTED = MFVideoFormat_NV12;
 	const GUID   IMAGE_ENCODER_FORMAT = GUID_ContainerFormatPng;
 
 	struct TaskWrapper;
@@ -130,6 +131,7 @@ private:
 	void SetDebugName(ID3D11DeviceChild* child, const std::string& name);
 	void SetViewPort(ID3D11DeviceContext *deviceContext, UINT Width, UINT Height);
 	void EnqueueFrame(FrameWriteModel model);
+	void PrintCodec(LPWSTR subtype, GUID inputTypeGuid);
 	HRESULT InitializeDx(IDXGIOutput *pOutput,ID3D11DeviceContext **ppContext, ID3D11Device **ppDevice, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc);
 	HRESULT InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOutput *pOutput, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc);
 	HRESULT InitializeVideoSinkWriter(std::wstring path, IMFByteStream *outStream, ID3D11Device* pDevice, RECT sourceRect, RECT destRect, IMFSinkWriter **ppWriter, DWORD *pVideoStreamIndex, DWORD *pAudioStreamIndex);
