@@ -82,7 +82,7 @@ private:
 	const GUID	 AUDIO_ENCODING_FORMAT = MFAudioFormat_AAC;
 	const UINT32 AUDIO_BITS_PER_SAMPLE = 16; //Audio bits per sample must be 16.
 	const UINT32 AUDIO_SAMPLES_PER_SECOND = 44100;//Audio samples per seconds must be 44100.
-	const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_YUY2;
+	const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_RGB32;
 	const GUID   IMAGE_ENCODER_FORMAT = GUID_ContainerFormatPng;
 
 	struct TaskWrapper;
