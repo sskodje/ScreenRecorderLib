@@ -910,9 +910,6 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_AVG_BITRATE, m_VideoBitrate));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_MPEG2_PROFILE, m_H264Profile));
-	//RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_VIDEO_CHROMA_SITING, MFVideoChromaSubsampling_ProgressiveChroma));
-	//RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_TRANSFER_FUNCTION, MFVideoTransFunc_sRGB));
-	//RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_VIDEO_PRIMARIES, MFVideoPrimaries_BT709));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT601));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeOut, MF_MT_FRAME_SIZE, destWidth, destHeight));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeOut, MF_MT_FRAME_RATE, m_VideoFps, 1));
