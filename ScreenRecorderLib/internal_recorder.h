@@ -83,7 +83,6 @@ private:
 	const UINT32 AUDIO_BITS_PER_SAMPLE = 16; //Audio bits per sample must be 16.
 	const UINT32 AUDIO_SAMPLES_PER_SECOND = 44100;//Audio samples per seconds must be 44100.
 	const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_ARGB32;
-	const GUID   VIDEO_INPUT_FORMAT_CONVERTED = MFVideoFormat_NV12;
 	const GUID   IMAGE_ENCODER_FORMAT = GUID_ContainerFormatPng;
 
 	struct TaskWrapper;
@@ -140,4 +139,5 @@ private:
 	HRESULT WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULONGLONG frameDuration, DWORD streamIndex, BYTE *pSrc, DWORD cbData);
 	HRESULT GetOutputForDeviceName(std::wstring deviceName, IDXGIOutput **adapter);
 	HRESULT SetAttributeU32(ATL::CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value);
+	HRESULT CreateInputMediaTypeFromOutput(IMFMediaType *pType,	const GUID& subtype, IMFMediaType **ppType);
 };

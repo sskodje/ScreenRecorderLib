@@ -871,7 +871,6 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	CComPtr<IMFMediaType>         pVideoMediaTypeOut = NULL;
 	CComPtr<IMFMediaType>         pAudioMediaTypeOut = NULL;
 	CComPtr<IMFMediaType>         pVideoMediaTypeIn = NULL;
-	CComPtr<IMFMediaType>         pVideoMediaTypeConverted = NULL;
 	CComPtr<IMFMediaType>         pAudioMediaTypeIn = NULL;
 	CComPtr<IMFAttributes>        pAttributes = NULL;
 
@@ -911,36 +910,16 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_AVG_BITRATE, m_VideoBitrate));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_MPEG2_PROFILE, m_H264Profile));
-	//RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_VIDEO_CHROMA_SITING, MFVideoChromaSubsampling_MPEG2));
-	//RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_TRANSFER_FUNCTION, MFVideoTransFunc_10));
+	//RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_VIDEO_CHROMA_SITING, MFVideoChromaSubsampling_ProgressiveChroma));
+	//RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_TRANSFER_FUNCTION, MFVideoTransFunc_sRGB));
 	//RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_VIDEO_PRIMARIES, MFVideoPrimaries_BT709));
-	//RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709));
-	//RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_Normal));
+	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT601));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeOut, MF_MT_FRAME_SIZE, destWidth, destHeight));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeOut, MF_MT_FRAME_RATE, m_VideoFps, 1));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeOut, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
 
 	// Set the input video type.
-	RETURN_ON_BAD_HR(MFCreateMediaType(&pVideoMediaTypeIn));
-	RETURN_ON_BAD_HR(pVideoMediaTypeIn->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
-	RETURN_ON_BAD_HR(pVideoMediaTypeIn->SetGUID(MF_MT_SUBTYPE, VIDEO_INPUT_FORMAT));
-	RETURN_ON_BAD_HR(pVideoMediaTypeIn->SetUINT32(MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_Normal));
-	RETURN_ON_BAD_HR(pVideoMediaTypeIn->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
-	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeIn, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
-	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeIn, MF_MT_FRAME_RATE, m_VideoFps, 1));
-	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeIn, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
-
-	// Set the converted input video type.
-	RETURN_ON_BAD_HR(MFCreateMediaType(&pVideoMediaTypeConverted));
-	RETURN_ON_BAD_HR(pVideoMediaTypeConverted->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
-	RETURN_ON_BAD_HR(pVideoMediaTypeConverted->SetGUID(MF_MT_SUBTYPE, VIDEO_INPUT_FORMAT_CONVERTED));
-	RETURN_ON_BAD_HR(pVideoMediaTypeConverted->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
-	RETURN_ON_BAD_HR(pVideoMediaTypeConverted->SetUINT32(MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_Wide));
-	RETURN_ON_BAD_HR(pVideoMediaTypeConverted->SetUINT32(MF_MT_VIDEO_PRIMARIES, MFVideoPrimaries_BT709));
-	RETURN_ON_BAD_HR(pVideoMediaTypeConverted->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709));
-	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeConverted, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
-	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeConverted, MF_MT_FRAME_RATE, m_VideoFps, 1));
-	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeConverted, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
+	CreateInputMediaTypeFromOutput(pVideoMediaTypeOut, VIDEO_INPUT_FORMAT, &pVideoMediaTypeIn);
 
 	if (m_IsAudioEnabled) {
 		// Set the output audio type.
@@ -961,29 +940,6 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, m_AudioChannels));
 	}
 
-
-	//IUnknown *spColorConvertUnk = NULL;
-	//IMFTransform *mpColorConverter = NULL;
-	//RETURN_ON_BAD_HR(MFTRegisterLocalByCLSID(
-	//	__uuidof(CColorConvertDMO),
-	//	MFT_CATEGORY_VIDEO_PROCESSOR,
-	//	L"",
-	//	MFT_ENUM_FLAG_SYNCMFT,
-	//	0,
-	//	NULL,
-	//	0,
-	//	NULL
-	//));
-
-	//// Create Color Convert
-	//RETURN_ON_BAD_HR(CoCreateInstance(CLSID_CColorConvertDMO, NULL, CLSCTX_INPROC_SERVER,
-	//	IID_IUnknown, (void**)&spColorConvertUnk));
-
-	//RETURN_ON_BAD_HR(spColorConvertUnk->QueryInterface(IID_PPV_ARGS(&mpColorConverter)));
-	//RETURN_ON_BAD_HR(mpColorConverter->SetOutputType(0, pVideoMediaTypeConverted, 0));
-	//RETURN_ON_BAD_HR(mpColorConverter->SetInputType(0, pVideoMediaTypeIn, 0));
-
-
 	//Creates a streaming writer
 	CComPtr<IMFMediaSink> pMp4StreamSink;
 	if (m_IsFragmentedMp4Enabled) {
@@ -999,8 +955,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	videoStreamIndex = 0;
 	audioStreamIndex = 1;
 	RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(videoStreamIndex, pVideoMediaTypeIn, NULL));
-	//pVideoMediaTypeConverted.Release();
-	//pVideoMediaTypeIn.Release();
+	pVideoMediaTypeIn.Release();
 	if (m_IsAudioEnabled) {
 		RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, NULL));
 		pAudioMediaTypeIn.Release();
@@ -1019,63 +974,28 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 		}
 	}
 
-
-	GUID transformType;
-	DWORD transformIndex = 0;
-	CComPtr<IMFVideoProcessorControl> videoProcessor = NULL;
-	CComPtr<IMFSinkWriterEx>      pSinkWriterEx = NULL;
-	RETURN_ON_BAD_HR(pSinkWriter->QueryInterface(&pSinkWriterEx));
-	while (true) {
-		CComPtr<IMFTransform> transform;
-		HRESULT hr = pSinkWriterEx->GetTransformForStream(videoStreamIndex, transformIndex, &transformType, &transform);
-		if (FAILED(hr))
-			break;
-		if (transformType == MFT_CATEGORY_VIDEO_PROCESSOR) {
-			//	transform->SetOutputType(0, pVideoMediaTypeConverted, 0);
-				//transform->SetInputType(0, pVideoMediaTypeIn, 0);
-			if (SUCCEEDED(transform->QueryInterface(&videoProcessor))) {
-				int i = 0;
-				IMFMediaType *type;
-				while (SUCCEEDED(transform->GetInputAvailableType(0, i, &type))) {
-					i++;
-					GUID typeGuid;
-					type->GetGUID(MF_MT_SUBTYPE, &typeGuid);
-					PrintCodec(L"input available type", typeGuid);
-					type->Release();
-				}
-				i = 0;
-				while (SUCCEEDED(transform->GetOutputAvailableType(0, i, &type))) {
-					i++;
-					GUID typeGuid;
-					type->GetGUID(MF_MT_SUBTYPE, &typeGuid);
-					PrintCodec(L"output available type", typeGuid);
-					type->Release();
-				}
-			}
-			//break;
-		}
-		CComPtr<IMFMediaType> inputType;
-		CComPtr<IMFMediaType> outputType;
-
-		transform->GetOutputCurrentType(videoStreamIndex, &outputType);
-		transform->GetInputCurrentType(videoStreamIndex, &inputType);
-		GUID inputTypeGuid;
-		inputType->GetGUID(MF_MT_SUBTYPE, &inputTypeGuid);
-		PrintCodec(L"input", inputTypeGuid);
-
-		GUID outputTypeGuid;
-		outputType->GetGUID(MF_MT_SUBTYPE, &outputTypeGuid);
-		PrintCodec(L"output", outputTypeGuid);
-
-		transformIndex++;
-	}
 	if (destWidth != sourceWidth || destHeight != sourceHeight) {
+		GUID transformType;
+		DWORD transformIndex = 0;
+		CComPtr<IMFVideoProcessorControl> videoProcessor = NULL;
+		CComPtr<IMFSinkWriterEx>      pSinkWriterEx = NULL;
+		RETURN_ON_BAD_HR(pSinkWriter->QueryInterface(&pSinkWriterEx));
+		while (true) {
+			CComPtr<IMFTransform> transform;
+			RETURN_ON_BAD_HR(pSinkWriterEx->GetTransformForStream(videoStreamIndex, transformIndex, &transformType, &transform));
+			if (transformType == MFT_CATEGORY_VIDEO_PROCESSOR) {
+				RETURN_ON_BAD_HR(transform->QueryInterface(&videoProcessor));
+				break;
+			}
+			transformIndex++;
+		}
 		SIZE constrictionSize;
 		constrictionSize.cx = sourceWidth;
 		constrictionSize.cy = sourceHeight;
 		videoProcessor->SetSourceRectangle(&destRect);
 		videoProcessor->SetConstrictionSize(NULL);
 	}
+
 	// Tell the sink writer to start accepting data.
 	RETURN_ON_BAD_HR(pSinkWriter->BeginWriting());
 
@@ -1087,32 +1007,62 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	return S_OK;
 }
 
-void internal_recorder::PrintCodec(LPWSTR subtype, GUID typeGuid) {
+HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
+	IMFMediaType *pType,    // Pointer to an encoded video type.
+	const GUID& subtype,    // Uncompressed subtype (eg, RGB-32, AYUV)
+	IMFMediaType **ppType   // Receives a matching uncompressed video type.
+)
+{
+	CComPtr<IMFMediaType> pTypeUncomp = NULL;
 
+	HRESULT hr = S_OK;
+	GUID majortype = { 0 };
+	MFRatio par = { 0 };
 
-	if (typeGuid == MFVideoFormat_YUY2)
-		LOG(L"%s: MFVideoFormat_YUY2", subtype);
-	else if (typeGuid == MFVideoFormat_ARGB32)
-		LOG(L"%s: MFVideoFormat_ARGB32", subtype);
-	else if (typeGuid == MFVideoFormat_RGB32)
-		LOG(L"%s: MFVideoFormat_RGB32", subtype);
-	else if (typeGuid == MFVideoFormat_NV12)
-		LOG(L"%s: MFVideoFormat_NV12", subtype);
-	else if (typeGuid == MFVideoFormat_YV12)
-		LOG(L"%s: MFVideoFormat_YV12", subtype);
-	else if (typeGuid == MFVideoFormat_IYUV)
-		LOG(L"%s: MFVideoFormat_IYUV", subtype);
-	else if (typeGuid == MFVideoFormat_I420)
-		LOG(L"%s: MFVideoFormat_I420", subtype);
-	else if (typeGuid == MFVideoFormat_H264)
-		LOG(L"%s: MFVideoFormat_H264", subtype);
-	else {
-		LPOLESTR majorGuidString = NULL;
-		HRESULT hr = StringFromCLSID(typeGuid, &majorGuidString);
-		LOG(L"%s: %s", subtype, majorGuidString);
+	hr = pType->GetMajorType(&majortype);
+	if (majortype != MFMediaType_Video)
+	{
+		return MF_E_INVALIDMEDIATYPE;
+	}
+	// Create a new media type and copy over all of the items.
+	// This ensures that extended color information is retained.
+	RETURN_ON_BAD_HR(hr = MFCreateMediaType(&pTypeUncomp));
+	RETURN_ON_BAD_HR(hr = pType->CopyAllItems(pTypeUncomp));
+	// Set the subtype.
+	RETURN_ON_BAD_HR(hr = pTypeUncomp->SetGUID(MF_MT_SUBTYPE, subtype));
+	// Uncompressed means all samples are independent.
+	RETURN_ON_BAD_HR(hr = pTypeUncomp->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE));
+	// Fix up PAR if not set on the original type.
+	if (SUCCEEDED(hr))
+	{
+		hr = MFGetAttributeRatio(
+			pTypeUncomp,
+			MF_MT_PIXEL_ASPECT_RATIO,
+			(UINT32*)&par.Numerator,
+			(UINT32*)&par.Denominator
+		);
+
+		// Default to square pixels.
+		if (FAILED(hr))
+		{
+			hr = MFSetAttributeRatio(
+				pTypeUncomp,
+				MF_MT_PIXEL_ASPECT_RATIO,
+				1, 1
+			);
+		}
 	}
 
+	if (SUCCEEDED(hr))
+	{
+		*ppType = pTypeUncomp;
+		(*ppType)->AddRef();
+	}
+
+	return hr;
 }
+
+
 HRESULT internal_recorder::SetAttributeU32(CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value)
 {
 	VARIANT val;
@@ -1177,7 +1127,7 @@ void internal_recorder::EnqueueFrame(FrameWriteModel model) {
 					int frameCount = ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000));
 					LONGLONG byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
 					model.Audio.insert(model.Audio.end(), byteCount, 0);
-					//LOG(L"Inserted %zd bytes of silence", model.Audio.size());
+					LOG(L"Inserted %zd bytes of silence", model.Audio.size());
 				}
 				if (model.Audio.size() > 0) {
 					data = new BYTE[model.Audio.size()];
@@ -1271,7 +1221,7 @@ HRESULT internal_recorder::WriteFrameToVideo(ULONGLONG frameStartPos, ULONGLONG 
 		// Send the sample to the Sink Writer.
 		hr = m_SinkWriter->WriteSample(streamIndex, pSample);
 		if (SUCCEEDED(hr)) {
-			//LOG(L"Wrote frame with start pos %lld ms and with duration %lld ms", (frameStartPos / 10 / 1000), (frameDuration / 10 / 1000));
+			LOG(L"Wrote frame with start pos %lld ms and with duration %lld ms", (frameStartPos / 10 / 1000), (frameDuration / 10 / 1000));
 		}
 	}
 	SafeRelease(&pSample);
@@ -1336,7 +1286,7 @@ HRESULT internal_recorder::WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULO
 		// Send the sample to the Sink Writer.
 		hr = m_SinkWriter->WriteSample(streamIndex, pSample);
 		if (SUCCEEDED(hr)) {
-			//LOG(L"Wrote audio sample with start pos %lld ms and with duration %lld ms", frameStartPos / 10 / 1000, (frameDuration / 10 / 1000));
+			LOG(L"Wrote audio sample with start pos %lld ms and with duration %lld ms", frameStartPos / 10 / 1000, (frameDuration / 10 / 1000));
 		}
 	}
 	SafeRelease(&pSample);
