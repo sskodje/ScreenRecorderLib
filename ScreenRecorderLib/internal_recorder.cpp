@@ -265,6 +265,15 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				destRect = m_DestRect;
 			}
 
+	
+			if (m_RecorderMode == MODE_VIDEO) {
+				CComPtr<IMFByteStream> outputStream = nullptr;
+				if (stream != NULL) {
+					RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(stream, &outputStream));
+
+				}
+				RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, pDevice, sourceRect, destRect, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+			}
 			// create a "loopback capture has started" event
 			HANDLE hStartedEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 			if (NULL == hStartedEvent) {
@@ -309,14 +318,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				m_InputAudioSamplesPerSecond = pLoopbackCapture->GetInputSampleRate();
 			}
 
-			if (m_RecorderMode == MODE_VIDEO) {
-				CComPtr<IMFByteStream> outputStream = nullptr;
-				if (stream != NULL) {
-					RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(stream, &outputStream));
 
-				}
-				RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, pDevice, sourceRect, destRect, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
-			}
 			m_IsRecording = true;
 			if (RecordingStatusChangedCallback != NULL)
 				RecordingStatusChangedCallback(STATUS_RECORDING);
@@ -917,6 +919,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 
 	// Set the input video type.
 	CreateInputMediaTypeFromOutput(pVideoMediaTypeOut, VIDEO_INPUT_FORMAT, &pVideoMediaTypeIn);
+	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeIn, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
 
 	if (m_IsAudioEnabled) {
 		// Set the output audio type.
@@ -986,11 +989,8 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 			}
 			transformIndex++;
 		}
-		SIZE constrictionSize;
-		constrictionSize.cx = sourceWidth;
-		constrictionSize.cy = sourceHeight;
-		videoProcessor->SetSourceRectangle(&destRect);
-		videoProcessor->SetConstrictionSize(NULL);
+		if (videoProcessor)
+			videoProcessor->SetSourceRectangle(&destRect);
 	}
 
 	// Tell the sink writer to start accepting data.
@@ -1235,7 +1235,14 @@ HRESULT internal_recorder::WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULO
 		cbData,   // Amount of memory to allocate, in bytes.
 		&pBuffer
 	);
+	//once in awhile, things get behind and we get an out of memory error when trying to create the buffer
+	//so, just check, wait and try again if necessary
+	int counter = 0;
+	while (!SUCCEEDED(hr) && counter++ < 100) {
+		Sleep(100);
+		hr = MFCreateMemoryBuffer(cbData, &pBuffer);
 
+	}
 	// Lock the buffer to get a pointer to the memory.
 	if (SUCCEEDED(hr))
 	{
