@@ -160,6 +160,7 @@ namespace ScreenRecorderLib {
 			IsLowLatencyEnabled = false;
 			IsHardwareEncodingEnabled = true;
 			IsMp4FastStartEnabled = true;
+			IsMouseClicksDetected = false;
 		}
 		property RecorderMode RecorderMode;
 		/// <summary>
@@ -182,6 +183,10 @@ namespace ScreenRecorderLib {
 		/// Fragments the video into a list of individually playable blocks. This allows playback of video segments that has no end, i.e. live streaming.
 		/// </summary>
 		property bool IsFragmentedMp4Enabled;
+		/// <summary>
+		/// Display a colored dot where the left mouse button is pressed.
+		/// </summary>
+		property bool IsMouseClicksDetected;
 		property VideoOptions^ VideoOptions;
 		property DisplayOptions^ DisplayOptions;
 		property AudioOptions^ AudioOptions;

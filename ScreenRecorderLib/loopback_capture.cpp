@@ -20,17 +20,19 @@ loopback_capture::~loopback_capture()
 DWORD WINAPI LoopbackCaptureThreadFunction(LPVOID pContext) {
 	LoopbackCaptureThreadFunctionArguments *pArgs =
 		(LoopbackCaptureThreadFunctionArguments*)pContext;
-
-	loopback_capture *capture = (loopback_capture*)pArgs->pCaptureInstance;
-	pArgs->hr = capture->LoopbackCapture(
-		pArgs->pMMDevice,
-		pArgs->hFile,
-		pArgs->bInt16,
-		pArgs->hStartedEvent,
-		pArgs->hStopEvent,
-		&pArgs->nFrames
-	);
-
+	if (pArgs) {
+		loopback_capture *capture = (loopback_capture*)pArgs->pCaptureInstance;
+		if (capture) {
+			pArgs->hr = capture->LoopbackCapture(
+				pArgs->pMMDevice,
+				pArgs->hFile,
+				pArgs->bInt16,
+				pArgs->hStartedEvent,
+				pArgs->hStopEvent,
+				&pArgs->nFrames
+			);
+		}
+	}
 	return 0;
 }
 

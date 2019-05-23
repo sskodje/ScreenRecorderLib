@@ -9,7 +9,7 @@
         xmlns:rec="clr-namespace:ScreenRecorderLib;assembly=ScreenRecorderLib"
         mc:Ignorable="d"
         Title="ScreenRecorderLib Demo"
-        Height="525"
+        Height="600"
         Width="525"
         SizeToContent="Height">
     <Window.Resources>
@@ -44,16 +44,16 @@
         <StackPanel HorizontalAlignment="Center"
                     VerticalAlignment="Center">
             <StackPanel x:Name="SettingsPanel">
-
+ 
                 <ComboBox x:Name="ScreenComboBox"
                           Margin="5"
                           SelectionChanged="ScreenComboBox_SelectionChanged">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding DisplayName}" />
+                                <TextBlock Text="{Binding DisplayName, Mode=OneTime}" />
                                 <TextBlock Text=" (" />
-                                <TextBlock Text="{Binding DeviceName}" />
+                                <TextBlock Text="{Binding DeviceName, Mode=OneTime}" />
                                 <TextBlock Text=")" />
                             </StackPanel>
                         </DataTemplate>
@@ -112,6 +112,10 @@
                                   Content="Enable MP4 fast start"
                                   Margin="0"
                                   ToolTip="MP4 header is writter at the start of the file. This makes the file better suited to streaming." />
+                        <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsMouseClicksDetected}"
+                                  Content="Detect mouse clicks"
+                                  Margin="0"
+                                  ToolTip="Display a colored dot where the left mouse button is pressed." />
                         <StackPanel Orientation="Horizontal">
                             <Label Content="Mode"
                                    Width="85"

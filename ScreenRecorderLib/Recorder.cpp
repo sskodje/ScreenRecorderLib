@@ -63,6 +63,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		lRec->SetIsFastStartEnabled(options->IsMp4FastStartEnabled);
 		lRec->SetIsHardwareEncodingEnabled(options->IsHardwareEncodingEnabled);
 		lRec->SetIsFragmentedMp4Enabled(options->IsFragmentedMp4Enabled);
+		lRec->SetDetectMouseClicks(options->IsMouseClicksDetected);
 	}
 }
 

@@ -1,6 +1,9 @@
 #include "mouse_pointer.h"
 #include "log.h"
 #include <comdef.h>
+#include <Dxgiformat.h>
+
+
 
 using namespace DirectX;
 mouse_pointer::mouse_pointer()
@@ -9,7 +12,7 @@ mouse_pointer::mouse_pointer()
 }
 mouse_pointer::~mouse_pointer()
 {
-    if (PtrInfo.PtrShapeBuffer)
+	if (PtrInfo.PtrShapeBuffer)
 		delete PtrInfo.PtrShapeBuffer;
 	PtrInfo.PtrShapeBuffer = nullptr;
 }
@@ -24,6 +27,18 @@ HRESULT mouse_pointer::DrawMousePointer(ID3D11DeviceContext *ImmediateContext, I
 		hr = DrawMouse(&PtrInfo, ImmediateContext, Device, DESC, Frame);
 		RETURN_ON_BAD_HR(hr);
 	}
+	return hr;
+}
+
+HRESULT mouse_pointer::DrawMouseClick(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device, DXGI_OUTDUPL_FRAME_INFO FrameInfo, RECT screenRect, D3D11_TEXTURE2D_DESC DESC, IDXGIOutputDuplication *DeskDupl, ID3D11Texture2D *Frame)
+{
+	int left = min(screenRect.left, INT_MAX);
+	int top = min(screenRect.top, INT_MAX);
+	// Get mouse info
+	HRESULT hr = GetMouse(&PtrInfo, &(FrameInfo), left, top, screenRect, DeskDupl);
+	RETURN_ON_BAD_HR(hr);
+	hr = DrawMouseClick(&PtrInfo, ImmediateContext, Device, DESC, Frame);
+	RETURN_ON_BAD_HR(hr);
 	return hr;
 }
 
@@ -75,9 +90,58 @@ HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *ImmediateContext, ID3D11D
 
 	// Initialize shaders
 	hr = InitShaders(ImmediateContext, Device);
-
+	hr = InitMouseClickTexture(ImmediateContext, Device);
 
 	return hr;
+}
+
+HRESULT mouse_pointer::InitMouseClickTexture(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device) {
+	HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), (void**)&m_D2DFactory);
+	return hr;
+}
+
+//
+// Draw mouse click
+//
+HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, ID3D11DeviceContext* DeviceContext, ID3D11Device* Device, D3D11_TEXTURE2D_DESC FullDesc, ID3D11Texture2D* bgTexture)
+{
+	ATL::CComPtr<IDXGISurface> pSharedSurface;
+	HRESULT hr = bgTexture->QueryInterface(__uuidof(IDXGISurface), (void**)&pSharedSurface);
+
+	// Create the DXGI Surface Render Target.
+	FLOAT dpiX;
+	FLOAT dpiY;
+	m_D2DFactory->GetDesktopDpi(&dpiX, &dpiY);
+	/* RenderTargetProperties contains the description for render target */
+	D2D1_RENDER_TARGET_PROPERTIES RenderTargetProperties =
+		D2D1::RenderTargetProperties(
+			D2D1_RENDER_TARGET_TYPE_DEFAULT,
+			D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, D2D1_ALPHA_MODE_PREMULTIPLIED),
+			dpiX,
+			dpiY
+		);
+
+	ATL::CComPtr<ID2D1RenderTarget> pRenderTarget;
+	hr = m_D2DFactory->CreateDxgiSurfaceRenderTarget(pSharedSurface, RenderTargetProperties, &pRenderTarget);
+
+	ATL::CComPtr<ID2D1SolidColorBrush> color;
+	pRenderTarget->CreateSolidColorBrush(
+		D2D1::ColorF(D2D1::ColorF::Yellow, 0.7f), &color);
+
+	D2D1_ELLIPSE ellipse;
+	D2D1_POINT_2F mousePoint;
+	mousePoint.x = PtrInfo->Position.x;
+	mousePoint.y = PtrInfo->Position.y;
+
+	ellipse.point = mousePoint;
+	ellipse.radiusX = MOUSE_CLICK_CIRCLE_RADIUS;
+	ellipse.radiusY = MOUSE_CLICK_CIRCLE_RADIUS;
+	pRenderTarget->BeginDraw();
+
+	pRenderTarget->FillEllipse(ellipse, color);
+	pRenderTarget->EndDraw();
+
+	return S_OK;
 }
 
 //
@@ -209,7 +273,6 @@ HRESULT mouse_pointer::DrawMouse(_In_ PTR_INFO* PtrInfo, ID3D11DeviceContext* De
 		ERR(L"Failed to create shader resource from mouse pointer texture: %ls", err.ErrorMessage());
 		return hr;
 	}
-
 
 	D3D11_BUFFER_DESC BDesc;
 	ZeroMemory(&BDesc, sizeof(D3D11_BUFFER_DESC));
@@ -471,7 +534,6 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ D3D11_TEXTURE2D_DESC FullDesc, _In_ 
 		ERR(L"Failed to allocate memory for new mouse shape buffer: %lls", err.ErrorMessage());
 		return false;
 	}
-
 	return hr;
 }
 
@@ -513,7 +575,6 @@ HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Dev
 		_com_error err(hr);
 		ERR(L"Failed to create pixel shader: %lls", err.ErrorMessage());
 	}
-
 	return hr;
 }
 

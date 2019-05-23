@@ -40,6 +40,7 @@ namespace TestApp
         public bool IsHardwareEncodingEnabled { get; set; } = true;
         public bool IsLowLatencyEnabled { get; set; } = false;
         public bool IsMp4FastStartEnabled { get; set; } = false;
+        public bool IsMouseClicksDetected { get; set; } = false;
 
         private bool _recordToStream;
         public bool RecordToStream
@@ -119,11 +120,11 @@ namespace TestApp
                 _progressTimer?.Stop();
                 _progressTimer = null;
                 _secondsElapsed = 0;
-                IsRecording = false;
+                RecordButton.IsEnabled = false;
                 return;
             }
             OutputResultTextBlock.Text = "";
-
+            UpdateProgress();
             string videoPath = "";
             if (CurrentRecordingMode == RecorderMode.Video)
             {
@@ -164,6 +165,7 @@ namespace TestApp
                 IsHardwareEncodingEnabled = this.IsHardwareEncodingEnabled,
                 IsLowLatencyEnabled = this.IsLowLatencyEnabled,
                 IsMp4FastStartEnabled = this.IsMp4FastStartEnabled,
+                IsMouseClicksDetected = this.IsMouseClicksDetected,
                 AudioOptions = new AudioOptions
                 {
                     Bitrate = AudioBitrate.bitrate_96kbps,
@@ -214,14 +216,12 @@ namespace TestApp
             {
                 PauseButton.Visibility = Visibility.Hidden;
                 RecordButton.Content = "Record";
+                RecordButton.IsEnabled = true;
                 StatusTextBlock.Text = "Error:";
                 ErrorTextBlock.Visibility = Visibility.Visible;
                 ErrorTextBlock.Text = e.Error;
-                _outputStream?.Dispose();
-                _progressTimer?.Stop();
-                _progressTimer = null;
-                _secondsElapsed = 0;
                 IsRecording = false;
+                CleanupResources();
             }));
         }
         private void Rec_OnRecordingComplete(object sender, RecordingCompleteEventArgs e)
@@ -232,20 +232,32 @@ namespace TestApp
                 if (RecordToStream)
                 {
                     filePath = ((FileStream)_outputStream)?.Name;
-                    _outputStream?.Flush();
-                    _outputStream?.Dispose();
                 }
 
                 OutputResultTextBlock.Text = filePath;
                 PauseButton.Visibility = Visibility.Hidden;
                 RecordButton.Content = "Record";
+                RecordButton.IsEnabled = true;
                 this.StatusTextBlock.Text = "Completed";
-                _progressTimer?.Stop();
-                _progressTimer = null;
-                _secondsElapsed = 0;
                 IsRecording = false;
+                CleanupResources();
             }));
         }
+
+        private void CleanupResources()
+        {
+            _outputStream?.Flush();
+            _outputStream?.Dispose();
+            _outputStream = null;
+
+            _progressTimer?.Stop();
+            _progressTimer = null;
+            _secondsElapsed = 0;
+
+            _rec?.Dispose();
+            _rec = null;
+        }
+
         private void _rec_OnStatusChanged(object sender, RecordingStatusEventArgs e)
         {
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
@@ -285,9 +297,12 @@ namespace TestApp
         private void _progressTimer_Tick(object sender, EventArgs e)
         {
             _secondsElapsed++;
+            UpdateProgress();
+        }
+        private void UpdateProgress()
+        {
             TimeStampTextBlock.Text = TimeSpan.FromSeconds(_secondsElapsed).ToString();
         }
-
         private void PauseButton_Click(object sender, RoutedEventArgs e)
         {
             if (_rec.Status == RecorderStatus.Paused)

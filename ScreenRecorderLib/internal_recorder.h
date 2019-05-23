@@ -20,6 +20,7 @@
 typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_map<std::wstring, int>);
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
 typedef void(__stdcall *CallbackErrorFunction)(std::wstring);
+
 #define MODE_VIDEO 0
 #define MODE_SLIDESHOW 1
 #define MODE_SNAPSHOT 2
@@ -29,6 +30,8 @@ typedef void(__stdcall *CallbackErrorFunction)(std::wstring);
 #define STATUS_PAUSED 2
 #define STATUS_FINALIZING 3
 
+#define MOUSE_CLICK_DETECTION_DURATION_MILLIS 150
+
 typedef struct
 {
 	UINT FrameNumber;
@@ -37,6 +40,8 @@ typedef struct
 	std::vector<BYTE> Audio;
 	CComPtr<ID3D11Texture2D> Frame;
 }FrameWriteModel;
+
+LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
 
 class internal_recorder
 {
@@ -75,7 +80,7 @@ public:
 	void SetIsFragmentedMp4Enabled(bool value);
 	void SetIsHardwareEncodingEnabled(bool value);
 	void SetIsLowLatencyModeEnabled(bool value);
-
+	void SetDetectMouseClicks(bool value);
 private:
 	// Format constants
 	const GUID   VIDEO_ENCODING_FORMAT = MFVideoFormat_H264;
@@ -85,16 +90,16 @@ private:
 	const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_ARGB32;
 	const GUID   IMAGE_ENCODER_FORMAT = GUID_ContainerFormatPng;
 
+
 	struct TaskWrapper;
 	std::unique_ptr<TaskWrapper> m_TaskWrapperImpl;
 
 #if _DEBUG 
-	ID3D11Debug *m_Debug;
+	ID3D11Debug *m_Debug = nullptr;
 #endif
-	ID3D11DeviceContext *m_ImmediateContext;
-	IMFSinkWriter *m_SinkWriter;
-	std::queue<FrameWriteModel> m_WriteQueue;
-	std::chrono::high_resolution_clock::time_point m_LastFrame;
+	ID3D11DeviceContext *m_ImmediateContext = nullptr;
+	IMFSinkWriter *m_SinkWriter = nullptr;
+
 	bool m_IsDestructed = false;
 	UINT32 m_RecorderMode = MODE_VIDEO;
 	DWORD m_VideoStreamIndex = 0;
@@ -124,14 +129,17 @@ private:
 	bool m_IsPaused = false;
 	bool m_IsRecording = false;
 	bool m_IsEncoderFailure = false;
+	bool m_IsMouseClicksDetected = false;
 	UINT64 m_LastEncodedSampleCount = 0;
 	std::string NowToString();
-	HRESULT ConfigureOutputDir(std::wstring path);
+	HHOOK m_Mousehook;
+
 	void SetDebugName(ID3D11DeviceChild* child, const std::string& name);
 	void SetViewPort(ID3D11DeviceContext *deviceContext, UINT Width, UINT Height);
-	void EnqueueFrame(FrameWriteModel model);
-	void PrintCodec(LPWSTR subtype, GUID inputTypeGuid);
-	HRESULT InitializeDx(IDXGIOutput *pOutput,ID3D11DeviceContext **ppContext, ID3D11Device **ppDevice, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc);
+
+	HRESULT EnqueueFrame(FrameWriteModel model);
+	HRESULT ConfigureOutputDir(std::wstring path);
+	HRESULT InitializeDx(IDXGIOutput *pOutput, ID3D11DeviceContext **ppContext, ID3D11Device **ppDevice, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc);
 	HRESULT InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOutput *pOutput, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc);
 	HRESULT InitializeVideoSinkWriter(std::wstring path, IMFByteStream *outStream, ID3D11Device* pDevice, RECT sourceRect, RECT destRect, IMFSinkWriter **ppWriter, DWORD *pVideoStreamIndex, DWORD *pAudioStreamIndex);
 	HRESULT WriteFrameToVideo(ULONGLONG frameStartPos, ULONGLONG frameDuration, DWORD streamIndex, ID3D11Texture2D* pAcquiredDesktopImage);
@@ -139,5 +147,7 @@ private:
 	HRESULT WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULONGLONG frameDuration, DWORD streamIndex, BYTE *pSrc, DWORD cbData);
 	HRESULT GetOutputForDeviceName(std::wstring deviceName, IDXGIOutput **adapter);
 	HRESULT SetAttributeU32(ATL::CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value);
-	HRESULT CreateInputMediaTypeFromOutput(IMFMediaType *pType,	const GUID& subtype, IMFMediaType **ppType);
+	HRESULT CreateInputMediaTypeFromOutput(IMFMediaType *pType, const GUID& subtype, IMFMediaType **ppType);
+
+
 };
