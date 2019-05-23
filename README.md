@@ -75,6 +75,8 @@ To change the options, pass a RecorderOptions when creating the Recorder:
                 IsLowLatencyEnabled = false,
 		//Fast start writes the mp4 header at the beginning of the file, to facilitate streaming.
                 IsMp4FastStartEnabled = false,
+		//Displays a colored dot under the mouse cursor when the left mouse button is pressed.		
+		IsMouseClicksDetected = true,
                 AudioOptions = new AudioOptions
                 {
                     Bitrate = AudioBitrate.bitrate_128kbps,
