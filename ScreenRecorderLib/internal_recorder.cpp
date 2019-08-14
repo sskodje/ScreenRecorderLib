@@ -61,8 +61,6 @@ struct internal_recorder::TaskWrapper {
 
 internal_recorder::internal_recorder() :m_TaskWrapperImpl(new TaskWrapper())
 {
-	//if (m_IsMouseClicksDetected)
-	m_Mousehook = SetWindowsHookEx(WH_MOUSE_LL, MouseHookProc, NULL, 0);
 	m_IsDestructed = false;
 }
 
@@ -230,7 +228,9 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			return hr;
 		}
 	}
-
+	if (m_IsMouseClicksDetected) {
+		m_Mousehook = SetWindowsHookEx(WH_MOUSE, MouseHookProc, nullptr, 0);
+	}
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
 	concurrency::create_task([this, token, stream]() {
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
@@ -642,6 +642,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				RecordingFailedCallback(errMsg);
 			}
 		}
+
+		UnhookWindowsHookEx(m_Mousehook);
 	});
 
 	return S_OK;
