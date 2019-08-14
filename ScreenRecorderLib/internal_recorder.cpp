@@ -70,7 +70,7 @@ internal_recorder::~internal_recorder()
 {
 	UnhookWindowsHookEx(m_Mousehook);
 	if (m_IsRecording) {
-		if (RecordingStatusChangedCallback != NULL)
+		if (RecordingStatusChangedCallback != nullptr)
 			RecordingStatusChangedCallback(STATUS_IDLE);
 	}
 	m_IsDestructed = true;
@@ -183,14 +183,14 @@ HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 	{
 		// Failed to create directory.
 		ERR(L"failed to create output folder");
-		if (RecordingFailedCallback != NULL)
+		if (RecordingFailedCallback != nullptr)
 			RecordingFailedCallback(L"failed to create output folder");
 		return S_FALSE;
 	}
 	if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SNAPSHOT) {
 		wstring ext = m_RecorderMode == MODE_VIDEO ? L".mp4" : L".png";
 		LPWSTR pStrExtension = PathFindExtension(path.c_str());
-		if (pStrExtension == NULL || pStrExtension[0] == 0)
+		if (pStrExtension == nullptr || pStrExtension[0] == 0)
 		{
 			m_OutputFullPath = m_OutputFolder + L"\\" + utilities::s2ws(NowToString()) + ext;
 		}
@@ -203,7 +203,7 @@ HRESULT internal_recorder::BeginRecording(IStream *stream) {
 }
 
 HRESULT internal_recorder::BeginRecording(std::wstring path) {
-	return BeginRecording(path, NULL);
+	return BeginRecording(path, nullptr);
 }
 
 HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
@@ -218,7 +218,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 	if (m_IsRecording) {
 		if (m_IsPaused) {
 			m_IsPaused = false;
-			if (RecordingStatusChangedCallback != NULL)
+			if (RecordingStatusChangedCallback != nullptr)
 				RecordingStatusChangedCallback(STATUS_RECORDING);
 		}
 		return S_FALSE;
@@ -230,19 +230,20 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			return hr;
 		}
 	}
+
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
 	concurrency::create_task([this, token, stream]() {
-		HRESULT hr = CoInitializeEx(NULL, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
+		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 		hr = MFStartup(MF_VERSION, MFSTARTUP_LITE);
 		RETURN_ON_BAD_HR(hr);
 		{
 			DXGI_OUTDUPL_DESC outputDuplDesc;
 			RtlZeroMemory(&outputDuplDesc, sizeof(outputDuplDesc));
-			CComPtr<ID3D11Device> pDevice;
-			CComPtr<IDXGIOutputDuplication> pDeskDupl;
+			CComPtr<ID3D11Device> pDevice = nullptr;
+			CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
 			std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
 			std::unique_ptr<loopback_capture> pLoopbackCapture = make_unique<loopback_capture>();
-			CComPtr<IDXGIOutput> pSelectedOutput;
+			CComPtr<IDXGIOutput> pSelectedOutput= nullptr;
 			hr = GetOutputForDeviceName(m_DisplayOutputName, &pSelectedOutput);
 			hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &pDevice, &pDeskDupl, &outputDuplDesc);
 			RETURN_ON_BAD_HR(hr);
@@ -278,23 +279,23 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 			if (m_RecorderMode == MODE_VIDEO) {
 				CComPtr<IMFByteStream> outputStream = nullptr;
-				if (stream != NULL) {
+				if (stream != nullptr) {
 					RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(stream, &outputStream));
 
 				}
 				RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, pDevice, sourceRect, destRect, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 			}
 			// create a "loopback capture has started" event
-			HANDLE hStartedEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-			if (NULL == hStartedEvent) {
+			HANDLE hStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (nullptr == hStartedEvent) {
 				ERR(L"CreateEvent failed: last error is %u", GetLastError());
 				return S_FALSE;
 			}
 			CloseHandleOnExit closeStartedEvent(hStartedEvent);
 
 			// create a "stop capturing now" event
-			HANDLE hStopEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-			if (NULL == hStopEvent) {
+			HANDLE hStopEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (nullptr == hStopEvent) {
 				ERR(L"CreateEvent failed: last error is %u", GetLastError());
 				return S_FALSE;
 			}
@@ -302,7 +303,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			bool recordAudio = m_RecorderMode == MODE_VIDEO && m_IsAudioEnabled;
 			if (recordAudio)
 			{
-				CPrefs prefs(1, NULL, hr);
+				CPrefs prefs(1, nullptr, hr);
 				prefs.m_bInt16 = true;
 				// create arguments for loopback capture thread
 				LoopbackCaptureThreadFunctionArguments threadArgs;
@@ -316,10 +317,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				threadArgs.nFrames = 0;
 
 				HANDLE hThread = CreateThread(
-					NULL, 0,
-					LoopbackCaptureThreadFunction, &threadArgs, 0, NULL
+					nullptr, 0,
+					LoopbackCaptureThreadFunction, &threadArgs, 0, nullptr
 				);
-				if (NULL == hThread) {
+				if (nullptr == hThread) {
 					ERR(L"CreateThread failed: last error is %u", GetLastError());
 					return S_FALSE;
 				}
@@ -330,7 +331,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 
 			m_IsRecording = true;
-			if (RecordingStatusChangedCallback != NULL)
+			if (RecordingStatusChangedCallback != nullptr)
 				RecordingStatusChangedCallback(STATUS_RECORDING);
 
 			RETURN_ON_BAD_HR(hr = pMousePointer->Initialize(m_ImmediateContext, pDevice));
@@ -381,7 +382,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						&FrameInfo,
 						&pDesktopResource);
 				}
-				if (pDeskDupl == NULL
+
+				if (pDeskDupl == nullptr
 					|| hr == DXGI_ERROR_ACCESS_LOST
 					|| hr == DXGI_ERROR_INVALID_CALL) {
 					if (pDeskDupl) {
@@ -393,8 +395,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						_com_error err(hr);
 						ERR(L"AcquireNextFrame error: %s\n", err.ErrorMessage());
 					}
-					if (pDeskDupl)
-						pDeskDupl.Release();
+
 					hr = InitializeDesktopDupl(pDevice, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
 					if (FAILED(hr))
 					{
@@ -427,7 +428,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					if (hr == S_OK) {
 						//we got a frame, but it's too soon, so we cache it and see if there are more changes.
 						if (pPreviousFrameCopy == nullptr) {
-							RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, NULL, &pPreviousFrameCopy));
+							RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, nullptr, &pPreviousFrameCopy));
 						}
 						CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
 						RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
@@ -457,8 +458,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						audioData = pLoopbackCapture->GetRecordedBytes();
 					}
 
-					CComPtr<ID3D11Texture2D> pFrameCopy;
-					RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, NULL, &pFrameCopy));
+					CComPtr<ID3D11Texture2D> pFrameCopy= nullptr;
+					RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, nullptr, &pFrameCopy));
 
 					if (pPreviousFrameCopy) {
 						m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
@@ -472,7 +473,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					SetDebugName(pFrameCopy, "FrameCopy");
 
 					if (m_IsFixedFramerate && pPreviousFrameCopy == nullptr) {
-						RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, NULL, &pPreviousFrameCopy));
+						RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, nullptr, &pPreviousFrameCopy));
 						m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
 						SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
 					}
@@ -552,7 +553,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 			SetEvent(hStopEvent);
 			if (!m_IsDestructed) {
-				if (RecordingStatusChangedCallback != NULL)
+				if (RecordingStatusChangedCallback != nullptr)
 					RecordingStatusChangedCallback(STATUS_FINALIZING);
 			}
 
@@ -590,60 +591,60 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			if (m_Debug) {
 				m_Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
 				SafeRelease(&m_Debug);
-		}
+			}
 #endif
-	}
+		}
 		return hr;
-}).then([this](concurrency::task<HRESULT> t)
-{
-	std::wstring errMsg = L"";
-	bool success = false;
-	try {
-		HRESULT hr = t.get();
-		// .get() didn't throw, so we succeeded.
-		success = SUCCEEDED(hr);
-		if (!success) {
-			_com_error err(hr);
-			errMsg = err.ErrorMessage();
-		}
-	}
-	catch (const exception& e) {
-		// handle error
-		ERR(L"Exception in RecordTask: %s", e.what());
-	}
-	catch (...) {
-		ERR(L"Exception in RecordTask");
-	}
-
-	if (RecordingStatusChangedCallback)
-		RecordingStatusChangedCallback(STATUS_IDLE);
-
-
-	if (success) {
-		if (RecordingCompleteCallback)
-			RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);
-	}
-	else {
-		if (RecordingFailedCallback) {
-
-
-			if (m_IsEncoderFailure) {
-				errMsg = L"Write error in video encoder.";
-				if (m_IsHardwareEncodingEnabled) {
-					errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
-				}
+	}).then([this](concurrency::task<HRESULT> t)
+	{
+		std::wstring errMsg = L"";
+		bool success = false;
+		try {
+			HRESULT hr = t.get();
+			// .get() didn't throw, so we succeeded.
+			success = SUCCEEDED(hr);
+			if (!success) {
+				_com_error err(hr);
+				errMsg = err.ErrorMessage();
 			}
-			else {
-				if (errMsg.empty()) {
-					errMsg = utilities::GetLastErrorStdWstr();
-				}
-			}
-			RecordingFailedCallback(errMsg);
 		}
-	}
-});
+		catch (const exception& e) {
+			// handle error
+			ERR(L"Exception in RecordTask: %s", e.what());
+		}
+		catch (...) {
+			ERR(L"Exception in RecordTask");
+		}
 
-return S_OK;
+		if (RecordingStatusChangedCallback)
+			RecordingStatusChangedCallback(STATUS_IDLE);
+
+
+		if (success) {
+			if (RecordingCompleteCallback)
+				RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);
+		}
+		else {
+			if (RecordingFailedCallback) {
+
+
+				if (m_IsEncoderFailure) {
+					errMsg = L"Write error in video encoder.";
+					if (m_IsHardwareEncodingEnabled) {
+						errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
+					}
+				}
+				else {
+					if (errMsg.empty()) {
+						errMsg = utilities::GetLastErrorStdWstr();
+					}
+				}
+				RecordingFailedCallback(errMsg);
+			}
+		}
+	});
+
+	return S_OK;
 }
 
 void internal_recorder::EndRecording() {
@@ -655,7 +656,7 @@ void internal_recorder::EndRecording() {
 void internal_recorder::PauseRecording() {
 	if (m_IsRecording) {
 		m_IsPaused = true;
-		if (RecordingStatusChangedCallback != NULL)
+		if (RecordingStatusChangedCallback != nullptr)
 			RecordingStatusChangedCallback(STATUS_PAUSED);
 	}
 }
@@ -663,27 +664,28 @@ void internal_recorder::ResumeRecording() {
 	if (m_IsRecording) {
 		if (m_IsPaused) {
 			m_IsPaused = false;
-			if (RecordingStatusChangedCallback != NULL)
+			if (RecordingStatusChangedCallback != nullptr)
 				RecordingStatusChangedCallback(STATUS_RECORDING);
 		}
 	}
 }
 
 HRESULT internal_recorder::InitializeDx(IDXGIOutput *pDxgiOutput, ID3D11DeviceContext **ppContext, ID3D11Device **ppDevice, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc) {
-	*ppContext = NULL;
-	*ppDevice = NULL;
-	*ppDesktopDupl = NULL;
+	*ppContext = nullptr;
+	*ppDevice = nullptr;
+	*ppDesktopDupl = nullptr;
 	*pOutputDuplDesc;
 
 	HRESULT hr(S_OK);
 	DXGI_OUTDUPL_DESC OutputDuplDesc;
-	CComPtr<ID3D11DeviceContext> m_ImmediateContext = NULL;
-	CComPtr<ID3D11Device> pDevice = NULL;
-	CComPtr<IDXGIOutputDuplication> pDeskDupl = NULL;
+	RtlZeroMemory(&OutputDuplDesc, sizeof(OutputDuplDesc));
+	CComPtr<ID3D11DeviceContext> m_ImmediateContext = nullptr;
+	CComPtr<ID3D11Device> pDevice = nullptr;
+	CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
 	int lresult(-1);
 	D3D_FEATURE_LEVEL featureLevel;
 
-	CComPtr<IDXGIAdapter> pDxgiAdapter;
+	CComPtr<IDXGIAdapter> pDxgiAdapter= nullptr;
 	if (pDxgiOutput) {
 		// Get DXGI adapter
 		hr = pDxgiOutput->GetParent(
@@ -758,19 +760,20 @@ HRESULT internal_recorder::InitializeDx(IDXGIOutput *pDxgiOutput, ID3D11DeviceCo
 }
 
 HRESULT internal_recorder::InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOutput *pDxgiOutput, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc) {
-	*ppDesktopDupl = NULL;
+	*ppDesktopDupl = nullptr;
 	*pOutputDuplDesc;
 
 	// Get DXGI device
-	CComPtr<IDXGIDevice> pDxgiDevice;
-	CComPtr<IDXGIOutputDuplication> pDeskDupl = NULL;
+	CComPtr<IDXGIDevice> pDxgiDevice= nullptr;
+	CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
 	DXGI_OUTDUPL_DESC OutputDuplDesc;
+	RtlZeroMemory(&OutputDuplDesc, sizeof(OutputDuplDesc));
 	HRESULT hr = S_OK;
 	if (!pDxgiOutput) {
 		hr = pDevice->QueryInterface(IID_PPV_ARGS(&pDxgiDevice));
 		RETURN_ON_BAD_HR(hr);
 		// Get DXGI adapter
-		CComPtr<IDXGIAdapter> pDxgiAdapter;
+		CComPtr<IDXGIAdapter> pDxgiAdapter= nullptr;
 		hr = pDxgiDevice->GetParent(
 			__uuidof(IDXGIAdapter),
 			reinterpret_cast<void**>(&pDxgiAdapter));
@@ -787,10 +790,8 @@ HRESULT internal_recorder::InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOut
 		pDxgiAdapter.Release();
 	}
 
-
-
 	RETURN_ON_BAD_HR(hr);
-	CComPtr<IDXGIOutput1> pDxgiOutput1;
+	CComPtr<IDXGIOutput1> pDxgiOutput1 = nullptr;
 
 	hr = pDxgiOutput->QueryInterface(IID_PPV_ARGS(&pDxgiOutput1));
 	RETURN_ON_BAD_HR(hr);
@@ -805,8 +806,6 @@ HRESULT internal_recorder::InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOut
 
 	// Create GUI drawing texture
 	pDeskDupl->GetDesc(&OutputDuplDesc);
-
-	pDxgiOutput1.Release();
 
 	*ppDesktopDupl = pDeskDupl;
 	(*ppDesktopDupl)->AddRef();
@@ -831,7 +830,7 @@ void internal_recorder::SetViewPort(ID3D11DeviceContext *deviceContext, UINT Wid
 
 HRESULT internal_recorder::GetOutputForDeviceName(std::wstring deviceName, IDXGIOutput **ppOutput) {
 	HRESULT hr = S_OK;
-	*ppOutput = NULL;
+	*ppOutput = nullptr;
 	if (deviceName != L"") {
 		std::vector<CComPtr<IDXGIAdapter>> adapters = EnumDisplayAdapters();
 		for each (CComPtr<IDXGIAdapter> adapter in adapters)
@@ -881,18 +880,18 @@ std::vector<CComPtr<IDXGIAdapter>> internal_recorder::EnumDisplayAdapters()
 
 HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteStream *pOutStream, ID3D11Device* pDevice, RECT sourceRect, RECT destRect, IMFSinkWriter **ppWriter, DWORD *pVideoStreamIndex, DWORD *pAudioStreamIndex)
 {
-	*ppWriter = NULL;
-	*pVideoStreamIndex = NULL;
-	*pAudioStreamIndex = NULL;
+	*ppWriter = nullptr;
+	*pVideoStreamIndex=0;
+	*pAudioStreamIndex=0;
 
 	UINT pResetToken;
-	CComPtr<IMFDXGIDeviceManager> pDeviceManager = NULL;
-	CComPtr<IMFSinkWriter>        pSinkWriter = NULL;
-	CComPtr<IMFMediaType>         pVideoMediaTypeOut = NULL;
-	CComPtr<IMFMediaType>         pAudioMediaTypeOut = NULL;
-	CComPtr<IMFMediaType>         pVideoMediaTypeIn = NULL;
-	CComPtr<IMFMediaType>         pAudioMediaTypeIn = NULL;
-	CComPtr<IMFAttributes>        pAttributes = NULL;
+	CComPtr<IMFDXGIDeviceManager> pDeviceManager = nullptr;
+	CComPtr<IMFSinkWriter>        pSinkWriter = nullptr;
+	CComPtr<IMFMediaType>         pVideoMediaTypeOut = nullptr;
+	CComPtr<IMFMediaType>         pAudioMediaTypeOut = nullptr;
+	CComPtr<IMFMediaType>         pVideoMediaTypeIn = nullptr;
+	CComPtr<IMFMediaType>         pAudioMediaTypeIn = nullptr;
+	CComPtr<IMFAttributes>        pAttributes = nullptr;
 
 	DWORD audioStreamIndex;
 	DWORD videoStreamIndex;
@@ -903,7 +902,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 		pathString = path.c_str();
 	}
 
-	if (pOutStream == NULL)
+	if (pOutStream == nullptr)
 	{
 		RETURN_ON_BAD_HR(MFCreateFile(MF_ACCESSMODE_READWRITE, MF_OPENMODE_FAIL_IF_EXIST, MF_FILEFLAGS_NONE, pathString, &pOutStream));
 	};
@@ -959,7 +958,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	}
 
 	//Creates a streaming writer
-	CComPtr<IMFMediaSink> pMp4StreamSink;
+	CComPtr<IMFMediaSink> pMp4StreamSink= nullptr;
 	if (m_IsFragmentedMp4Enabled) {
 		RETURN_ON_BAD_HR(MFCreateFMPEG4MediaSink(pOutStream, pVideoMediaTypeOut, pAudioMediaTypeOut, &pMp4StreamSink));
 	}
@@ -972,14 +971,14 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	pMp4StreamSink.Release();
 	videoStreamIndex = 0;
 	audioStreamIndex = 1;
-	RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(videoStreamIndex, pVideoMediaTypeIn, NULL));
+	RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(videoStreamIndex, pVideoMediaTypeIn, nullptr));
 	pVideoMediaTypeIn.Release();
 	if (m_IsAudioEnabled) {
-		RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, NULL));
+		RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, nullptr));
 		pAudioMediaTypeIn.Release();
 	}
 
-	CComPtr<ICodecAPI> encoder;
+	CComPtr<ICodecAPI> encoder = nullptr;
 	pSinkWriter->GetServiceForStream(videoStreamIndex, GUID_NULL, IID_PPV_ARGS(&encoder));
 	if (encoder) {
 		RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, m_VideoBitrateControlMode));
@@ -995,11 +994,11 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	if (destWidth != sourceWidth || destHeight != sourceHeight) {
 		GUID transformType;
 		DWORD transformIndex = 0;
-		CComPtr<IMFVideoProcessorControl> videoProcessor = NULL;
-		CComPtr<IMFSinkWriterEx>      pSinkWriterEx = NULL;
+		CComPtr<IMFVideoProcessorControl> videoProcessor = nullptr;
+		CComPtr<IMFSinkWriterEx>      pSinkWriterEx = nullptr;
 		RETURN_ON_BAD_HR(pSinkWriter->QueryInterface(&pSinkWriterEx));
 		while (true) {
-			CComPtr<IMFTransform> transform;
+			CComPtr<IMFTransform> transform = nullptr;
 			RETURN_ON_BAD_HR(pSinkWriterEx->GetTransformForStream(videoStreamIndex, transformIndex, &transformType, &transform));
 			if (transformType == MFT_CATEGORY_VIDEO_PROCESSOR) {
 				RETURN_ON_BAD_HR(transform->QueryInterface(&videoProcessor));
@@ -1028,7 +1027,7 @@ HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
 	IMFMediaType **ppType   // Receives a matching uncompressed video type.
 )
 {
-	CComPtr<IMFMediaType> pTypeUncomp = NULL;
+	CComPtr<IMFMediaType> pTypeUncomp = nullptr;
 
 	HRESULT hr = S_OK;
 	GUID majortype = { 0 };
@@ -1179,7 +1178,7 @@ HRESULT internal_recorder::WriteFrameToVideo(ULONGLONG frameStartPos, ULONGLONG 
 	IMFSample *pSample;
 	if (SUCCEEDED(hr))
 	{
-		hr = MFCreateVideoSampleFromSurface(NULL, &pSample);
+		hr = MFCreateVideoSampleFromSurface(nullptr, &pSample);
 	}
 	if (SUCCEEDED(hr))
 	{
@@ -1208,8 +1207,8 @@ HRESULT internal_recorder::WriteFrameToVideo(ULONGLONG frameStartPos, ULONGLONG 
 }
 HRESULT internal_recorder::WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULONGLONG frameDuration, DWORD streamIndex, BYTE *pSrc, DWORD cbData)
 {
-	IMFMediaBuffer *pBuffer = NULL;
-	BYTE *pData = NULL;
+	IMFMediaBuffer *pBuffer = nullptr;
+	BYTE *pData = nullptr;
 	// Create the media buffer.
 	HRESULT hr = MFCreateMemoryBuffer(
 		cbData,   // Amount of memory to allocate, in bytes.
@@ -1226,7 +1225,7 @@ HRESULT internal_recorder::WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULO
 	// Lock the buffer to get a pointer to the memory.
 	if (SUCCEEDED(hr))
 	{
-		hr = pBuffer->Lock(&pData, NULL, NULL);
+		hr = pBuffer->Lock(&pData, nullptr, nullptr);
 	}
 
 	if (SUCCEEDED(hr))
@@ -1249,7 +1248,7 @@ HRESULT internal_recorder::WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULO
 	IMFSample *pSample;
 	if (SUCCEEDED(hr))
 	{
-		hr = MFCreateVideoSampleFromSurface(NULL, &pSample);
+		hr = MFCreateVideoSampleFromSurface(nullptr, &pSample);
 	}
 	if (SUCCEEDED(hr))
 	{

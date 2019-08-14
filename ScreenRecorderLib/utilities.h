@@ -52,7 +52,7 @@ public:
 		do
 		{
 			pos = path.find_first_of(L"\\/", pos + 1);
-			BOOL result = CreateDirectory(path.substr(0, pos).c_str(), NULL);
+			BOOL result = CreateDirectory(path.substr(0, pos).c_str(), nullptr);
 			if (!result) {
 				DWORD error = GetLastError();
 				if (ERROR_ALREADY_EXISTS != error){
@@ -77,11 +77,11 @@ public:
 				FORMAT_MESSAGE_ALLOCATE_BUFFER |
 				FORMAT_MESSAGE_FROM_SYSTEM |
 				FORMAT_MESSAGE_IGNORE_INSERTS,
-				NULL,
+				nullptr,
 				error,
 				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 				(LPTSTR)&lpMsgBuf,
-				0, NULL);
+				0, nullptr);
 			if (bufLen)
 			{
 				LPCSTR lpMsgStr = (LPCSTR)lpMsgBuf;
