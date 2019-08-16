@@ -4,6 +4,7 @@ A .NET library for screen recording in Windows, using native Microsoft Media Fou
 Available on [NuGet](https://www.nuget.org/packages/ScreenRecorderLib/).
 
 **Breaking changes in version 1.2.0:**
+
 IsMouseClicksDetected and IsMousePointerEnabled is moved to the new MouseOptions, along with several new mouse related properties.
 
 **Breaking changes in version 1.1.3:**
