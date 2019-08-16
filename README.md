@@ -87,15 +87,15 @@ To change the options, pass a RecorderOptions when creating the Recorder:
                 },
                 VideoOptions = new VideoOptions
                 {
-					BitrateMode = BitrateControlMode.UnconstrainedVBR,
+		    BitrateMode = BitrateControlMode.UnconstrainedVBR,
                     Bitrate = 8000 * 1000,
                     Framerate = 60,
                     IsFixedFramerate = true,
                     EncoderProfile = H264Profile.Main
                 },
-				MouseOptions = new MouseOptions
+		MouseOptions = new MouseOptions
                 {
-					//Displays a colored dot under the mouse cursor when the left mouse button is pressed.	
+		    //Displays a colored dot under the mouse cursor when the left mouse button is pressed.	
                     IsMouseClicksDetected = true,
                     IsMousePointerEnabled = true,
                     MouseClickDetectionColor = "#FFFF00",
@@ -113,7 +113,7 @@ To only record a portion of the screen, or a different monitor than the main mon
             int top = 400;
             int right = 800;
             int bottom=800;
-			//DeviceName in the form \\.\DISPLAY1. Typically you would enumerate system monitors and select one. Default monitor is used if no valid input is given.
+	    //DeviceName in the form \\.\DISPLAY1. Typically you would enumerate system monitors and select one. Default monitor is used if no valid input is given.
             string monitorDeviceName= System.Windows.Forms.Screen.PrimaryScreen.DeviceName; 
             RecorderOptions options = new RecorderOptions
             {
