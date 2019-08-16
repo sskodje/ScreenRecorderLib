@@ -2,14 +2,15 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
     <metadata>
         <id>ScreenRecorderLib</id>
-        <version>1.1.13</version>
+        <version>1.2.0</version>
         <authors>Sverre Kristoffer Skodje</authors>
         <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
         <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
         <requireLicenseAcceptance>false</requireLicenseAcceptance>
         <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to h264 video or PNG images.</description>
         <summary />
-        <releaseNotes>- Added option to detect mouse clicks.</releaseNotes>
+        <releaseNotes>- Fixed bug that caused stuck or duplicate mouse cursors on low framerates.
+- Added support for configuring mouse click detection color, radius and duration.</releaseNotes>
         <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
         <language>en-GB</language>
         <tags>Screen Recording Windows .NET</tags>

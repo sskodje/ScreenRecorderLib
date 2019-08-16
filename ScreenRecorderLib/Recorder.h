@@ -112,7 +112,6 @@ namespace ScreenRecorderLib {
 			Quality = 70;
 			Bitrate = 4000 * 1000;
 			IsFixedFramerate = false;
-			IsMousePointerEnabled = true;
 			EncoderProfile = H264Profile::Baseline;
 			BitrateMode = BitrateControlMode::Quality;
 		}
@@ -134,10 +133,6 @@ namespace ScreenRecorderLib {
 		/// </summary>
 		property int Quality;
 		/// <summary>
-		///Display the mouse cursor on the recording
-		/// </summary>
-		property bool IsMousePointerEnabled;
-		/// <summary>
 		///Send data to the video encoder every frame, even if it means duplicating the previous frame(s). Can fix stutter issues in fringe cases, but uses more resources.
 		/// </summary>
 		property bool IsFixedFramerate;
@@ -153,6 +148,37 @@ namespace ScreenRecorderLib {
 		property AudioBitrate Bitrate;
 		property AudioChannels Channels;
 	};
+	public ref class MouseOptions {
+	public:
+		MouseOptions() {
+			IsMousePointerEnabled = true;
+			IsMouseClicksDetected = false;
+			MouseClickDetectionColor = "#FFFF00";
+			MouseClickDetectionRadius = 20;
+			MouseClickDetectionDuration = 150;
+		}
+		/// <summary>
+		///Display the mouse cursor on the recording
+		/// </summary>
+		property bool IsMousePointerEnabled;
+		/// <summary>
+		/// Display a colored dot where the left mouse button is pressed.
+		/// </summary>
+		property bool IsMouseClicksDetected;
+		/// <summary>
+		/// The color of the dot where the left mouse button is pressed, in hex format. Default is Yellow (#FFFF00).
+		/// </summary>
+		property String^ MouseClickDetectionColor;
+		/// <summary>
+		/// The radius of the dot where the left mouse button is pressed. Default is 20.
+		/// </summary>
+		property int MouseClickDetectionRadius;
+		/// <summary>
+		/// The duration of the dot shown where the left mouse button is pressed, in milliseconds. Default is 150.
+		/// </summary>
+		property int MouseClickDetectionDuration;
+
+	};
 	public ref class RecorderOptions {
 	public:
 		RecorderOptions() {
@@ -160,7 +186,6 @@ namespace ScreenRecorderLib {
 			IsLowLatencyEnabled = false;
 			IsHardwareEncodingEnabled = true;
 			IsMp4FastStartEnabled = true;
-			IsMouseClicksDetected = false;
 		}
 		property RecorderMode RecorderMode;
 		/// <summary>
@@ -183,13 +208,12 @@ namespace ScreenRecorderLib {
 		/// Fragments the video into a list of individually playable blocks. This allows playback of video segments that has no end, i.e. live streaming.
 		/// </summary>
 		property bool IsFragmentedMp4Enabled;
-		/// <summary>
-		/// Display a colored dot where the left mouse button is pressed.
-		/// </summary>
-		property bool IsMouseClicksDetected;
+
+
 		property VideoOptions^ VideoOptions;
 		property DisplayOptions^ DisplayOptions;
 		property AudioOptions^ AudioOptions;
+		property MouseOptions^ MouseOptions;
 	};
 
 	public ref class RecordingStatusEventArgs :System::EventArgs {

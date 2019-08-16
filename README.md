@@ -3,7 +3,10 @@ A .NET library for screen recording in Windows, using native Microsoft Media Fou
 
 Available on [NuGet](https://www.nuget.org/packages/ScreenRecorderLib/).
 
-**Breaking change in version 1.1.3:**
+**Breaking changes in version 1.2.0:**
+IsMouseClicksDetected and IsMousePointerEnabled is moved to the new MouseOptions, along with several new mouse related properties.
+
+**Breaking changes in version 1.1.3:**
 
 From 1.1.3, the option to select monitor by index is removed. Monitor is now selected by Device Name, e.g. \\.\DISPLAY1
 
@@ -74,7 +77,7 @@ To change the options, pass a RecorderOptions when creating the Recorder:
 		//Low latency mode provides faster encoding, but can reduce quality.
                 IsLowLatencyEnabled = false,
 		//Fast start writes the mp4 header at the beginning of the file, to facilitate streaming.
-                IsMp4FastStartEnabled = false,
+                IsMp4FastStartEnabled = false,		
                 AudioOptions = new AudioOptions
                 {
                     Bitrate = AudioBitrate.bitrate_128kbps,
@@ -83,12 +86,20 @@ To change the options, pass a RecorderOptions when creating the Recorder:
                 },
                 VideoOptions = new VideoOptions
                 {
-		    BitrateMode = BitrateControlMode.UnconstrainedVBR,
+					BitrateMode = BitrateControlMode.UnconstrainedVBR,
                     Bitrate = 8000 * 1000,
                     Framerate = 60,
-                    IsMousePointerEnabled = true,
                     IsFixedFramerate = true,
                     EncoderProfile = H264Profile.Main
+                },
+				MouseOptions = new MouseOptions
+                {
+					//Displays a colored dot under the mouse cursor when the left mouse button is pressed.	
+                    IsMouseClicksDetected = true,
+                    IsMousePointerEnabled = true,
+                    MouseClickDetectionColor = "#FFFF00",
+                    MouseClickDetectionRadius = 30,
+                    MouseClickDetectionDuration = 100
                 }
             };
             _rec = Recorder.CreateRecorder(options);
@@ -101,7 +112,7 @@ To only record a portion of the screen, or a different monitor than the main mon
             int top = 400;
             int right = 800;
             int bottom=800;
-	    //DeviceName in the form \\.\DISPLAY1. Typically you would enumerate system monitors and select one. Default monitor is used if no valid input is given.
+			//DeviceName in the form \\.\DISPLAY1. Typically you would enumerate system monitors and select one. Default monitor is used if no valid input is given.
             string monitorDeviceName= System.Windows.Forms.Screen.PrimaryScreen.DeviceName; 
             RecorderOptions options = new RecorderOptions
             {

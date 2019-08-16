@@ -159,11 +159,14 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <StackPanel Orientation="Horizontal">
                             <Label Content="Framerate"
-                                   Width="65" />
+                                   Width="85" />
                             <TextBox x:Name="FpsTextBox"
                                      Width="30"
                                      Text="{Binding ElementName=MainWin,Path=VideoFramerate}"
@@ -176,7 +179,7 @@
                                     Visibility="Collapsed"
                                     Grid.Row="1">
                             <Label Content="Bitrate"
-                                   Width="65" />
+                                   Width="85" />
                             <TextBox x:Name="BitrateTextBox"
                                      MinWidth="30"
                                      Text="{Binding ElementName=MainWin,Path=VideoBitrate}"
@@ -189,14 +192,52 @@
                                     Visibility="Visible"
                                     Grid.Row="2">
                             <Label Content="Quality"
-                                   Width="65" />
+                                   Width="85" />
                             <TextBox x:Name="QualityTextBox"
                                      MinWidth="30"
                                      Text="{Binding ElementName=MainWin,Path=VideoQuality}"
                                      HorizontalAlignment="Left"
                                      VerticalAlignment="Center" />
                         </StackPanel>
-                        <Grid Grid.Row="3">
+                        <StackPanel Orientation="Horizontal"
+                                    x:Name="MouseClickColorPanel"
+                                    Visibility="Visible"
+                                    Grid.Row="3">
+                            <Label Content="Click color"
+                                   Width="85" />
+                            <TextBox x:Name="ColorTextBox"
+                                     MinWidth="60"
+                                     Text="{Binding ElementName=MainWin,Path=MouseClickColor}"
+                                     TextChanged="ColorTextBox_TextChanged"
+                                     HorizontalAlignment="Stretch"
+                                     VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    x:Name="MouseClickRadiusPanel"
+                                    Visibility="Visible"
+                                    Grid.Row="4">
+                            <Label Content="Click radius"
+                                   Width="85" />
+                            <TextBox x:Name="RadiusTextBox"
+                                     MinWidth="30"
+                                     Text="{Binding ElementName=MainWin,Path=MouseClickRadius}"
+                                     HorizontalAlignment="Left"
+                                     VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    x:Name="MouseClickDurationPanel"
+                                    Visibility="Visible"
+                                    Grid.Row="5">
+                            <Label Content="Click duration"
+                                   Width="85" />
+                            <TextBox x:Name="DurationTextBox"
+                                     MinWidth="30"
+                                     Text="{Binding ElementName=MainWin,Path=MouseClickDuration}"
+                                     HorizontalAlignment="Left"
+                                     VerticalAlignment="Center" />
+                            <Label Content="ms" />
+                        </StackPanel>
+                        <Grid Grid.Row="6">
                             <Button Content="Delete temp files"
                                     Click="DeleteTempFilesButton_Click"
                                     VerticalAlignment="Top" />

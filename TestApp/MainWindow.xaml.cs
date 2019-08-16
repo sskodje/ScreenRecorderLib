@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Threading;
 using WindowsDisplayAPI;
 
@@ -41,6 +42,9 @@ namespace TestApp
         public bool IsLowLatencyEnabled { get; set; } = false;
         public bool IsMp4FastStartEnabled { get; set; } = false;
         public bool IsMouseClicksDetected { get; set; } = false;
+        public string MouseClickColor { get; set; } = "#ffff00";
+        public int MouseClickRadius { get; set; } = 20;
+        public int MouseClickDuration { get; set; } = 150;
 
         private bool _recordToStream;
         public bool RecordToStream
@@ -165,7 +169,6 @@ namespace TestApp
                 IsHardwareEncodingEnabled = this.IsHardwareEncodingEnabled,
                 IsLowLatencyEnabled = this.IsLowLatencyEnabled,
                 IsMp4FastStartEnabled = this.IsMp4FastStartEnabled,
-                IsMouseClicksDetected = this.IsMouseClicksDetected,
                 AudioOptions = new AudioOptions
                 {
                     Bitrate = AudioBitrate.bitrate_96kbps,
@@ -177,12 +180,19 @@ namespace TestApp
                     BitrateMode = this.CurrentVideoBitrateMode,
                     Bitrate = VideoBitrate * 1000,
                     Framerate = this.VideoFramerate,
-                    Quality= this.VideoQuality,
-                    IsMousePointerEnabled = this.IsMousePointerEnabled,
+                    Quality = this.VideoQuality,
                     IsFixedFramerate = this.IsFixedFramerate,
                     EncoderProfile = this.CurrentH264Profile
                 },
-                DisplayOptions = new DisplayOptions(selectedDisplay.DisplayName, left, top, right, bottom)
+                DisplayOptions = new DisplayOptions(selectedDisplay.DisplayName, left, top, right, bottom),
+                MouseOptions = new MouseOptions
+                {
+                    IsMouseClicksDetected = this.IsMouseClicksDetected,
+                    IsMousePointerEnabled = this.IsMousePointerEnabled,
+                    MouseClickDetectionColor = this.MouseClickColor,
+                    MouseClickDetectionRadius = this.MouseClickRadius,
+                    MouseClickDetectionDuration = this.MouseClickDuration
+                }
             };
 
             if (_rec == null)
@@ -351,6 +361,18 @@ namespace TestApp
             {
                 VideoQualityPanel.Visibility = CurrentVideoBitrateMode == BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
                 VideoBitratePanel.Visibility = CurrentVideoBitrateMode == BitrateControlMode.Quality ? Visibility.Collapsed : Visibility.Visible;
+            }
+        }
+
+        private void ColorTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            try
+            {
+                ((TextBox)sender).BorderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(((TextBox)sender).Text));
+            }
+            catch
+            {
+                ((TextBox)sender).ClearValue(TextBox.BorderBrushProperty);
             }
         }
     }

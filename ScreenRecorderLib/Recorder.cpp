@@ -25,7 +25,6 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			lRec->SetVideoQuality(options->VideoOptions->Quality);
 			lRec->SetVideoFps(options->VideoOptions->Framerate);
 			lRec->SetFixedFramerate(options->VideoOptions->IsFixedFramerate);
-			lRec->SetMousePointerEnabled(options->VideoOptions->IsMousePointerEnabled);
 			lRec->SetH264EncoderProfile((UINT32)options->VideoOptions->EncoderProfile);
 			lRec->SetVideoBitrateMode((UINT32)options->VideoOptions->BitrateMode);
 		}
@@ -43,6 +42,13 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			lRec->SetAudioEnabled(options->AudioOptions->IsAudioEnabled);
 			lRec->SetAudioBitrate((UINT32)options->AudioOptions->Bitrate);
 			lRec->SetAudioChannels((UINT32)options->AudioOptions->Channels);
+		}
+		if (options->MouseOptions) {
+			lRec->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled);
+			lRec->SetDetectMouseClicks(options->MouseOptions->IsMouseClicksDetected);
+			lRec->SetMouseClickDetectionColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionColor));
+			lRec->SetMouseClickDetectionRadius(options->MouseOptions->MouseClickDetectionRadius);
+			lRec->SetMouseClickDetectionDuration(options->MouseOptions->MouseClickDetectionDuration);
 		}
 		switch (options->RecorderMode)
 		{
@@ -63,7 +69,6 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		lRec->SetIsFastStartEnabled(options->IsMp4FastStartEnabled);
 		lRec->SetIsHardwareEncodingEnabled(options->IsHardwareEncodingEnabled);
 		lRec->SetIsFragmentedMp4Enabled(options->IsFragmentedMp4Enabled);
-		lRec->SetDetectMouseClicks(options->IsMouseClicksDetected);
 	}
 }
 
