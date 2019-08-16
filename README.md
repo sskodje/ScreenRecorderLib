@@ -97,10 +97,10 @@ To change the options, pass a RecorderOptions when creating the Recorder:
                 {
 		    //Displays a colored dot under the mouse cursor when the left mouse button is pressed.	
                     IsMouseClicksDetected = true,
-                    IsMousePointerEnabled = true,
                     MouseClickDetectionColor = "#FFFF00",
                     MouseClickDetectionRadius = 30,
                     MouseClickDetectionDuration = 100
+		    IsMousePointerEnabled = true,
                 }
             };
             _rec = Recorder.CreateRecorder(options);
