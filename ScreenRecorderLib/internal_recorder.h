@@ -30,7 +30,6 @@ typedef void(__stdcall *CallbackErrorFunction)(std::wstring);
 #define STATUS_PAUSED 2
 #define STATUS_FINALIZING 3
 
-#define MOUSE_CLICK_DETECTION_DURATION_MILLIS 150
 
 typedef struct
 {
@@ -45,9 +44,7 @@ LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
 
 class internal_recorder
 {
-
 public:
-
 	internal_recorder();
 	~internal_recorder();
 	CallbackErrorFunction RecordingFailedCallback;
@@ -81,6 +78,10 @@ public:
 	void SetIsHardwareEncodingEnabled(bool value);
 	void SetIsLowLatencyModeEnabled(bool value);
 	void SetDetectMouseClicks(bool value);
+	void SetMouseClickDetectionColor(std::string value);
+	void SetMouseClickDetectionRadius(int value);
+	void SetMouseClickDetectionDuration(int value);
+
 private:
 	// Format constants
 	const GUID   VIDEO_ENCODING_FORMAT = MFVideoFormat_H264;
@@ -130,6 +131,8 @@ private:
 	bool m_IsRecording = false;
 	bool m_IsEncoderFailure = false;
 	bool m_IsMouseClicksDetected = false;
+	std::string m_MouseClickDetectionColor = "#FFFF00";
+	int m_MouseClickDetectionRadius = 20;
 	UINT64 m_LastEncodedSampleCount = 0;
 	std::string NowToString();
 	HHOOK m_Mousehook;

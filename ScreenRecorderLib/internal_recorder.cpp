@@ -36,6 +36,7 @@ using namespace concurrency;
 using namespace DirectX;
 
 INT32 g_LastMouseClickDurationRemaining;
+INT32 g_MouseClickDetectionDurationMillis=150;
 
 // Driver types supported
 D3D_DRIVER_TYPE gDriverTypes[] =
@@ -79,7 +80,7 @@ LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
 	// MB1 click
 	if (wParam == WM_LBUTTONDOWN)
 	{
-		g_LastMouseClickDurationRemaining = MOUSE_CLICK_DETECTION_DURATION_MILLIS;
+		g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
 	}
 	return CallNextHookEx(0, nCode, wParam, lParam);
 }
@@ -164,7 +165,15 @@ void internal_recorder::SetH264EncoderProfile(UINT32 value) {
 void internal_recorder::SetDetectMouseClicks(bool value) {
 	m_IsMouseClicksDetected = value;
 }
-
+void internal_recorder::SetMouseClickDetectionColor(std::string value) {
+	m_MouseClickDetectionColor = value;
+}
+void internal_recorder::SetMouseClickDetectionRadius(int value) {
+	m_MouseClickDetectionRadius = value;
+}
+void internal_recorder::SetMouseClickDetectionDuration(int value) {
+	g_MouseClickDetectionDurationMillis = value;
+}
 
 HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 	m_OutputFullPath = path;
@@ -243,7 +252,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
 			std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
 			std::unique_ptr<loopback_capture> pLoopbackCapture = make_unique<loopback_capture>();
-			CComPtr<IDXGIOutput> pSelectedOutput= nullptr;
+			CComPtr<IDXGIOutput> pSelectedOutput = nullptr;
 			hr = GetOutputForDeviceName(m_DisplayOutputName, &pSelectedOutput);
 			hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &pDevice, &pDeskDupl, &outputDuplDesc);
 			RETURN_ON_BAD_HR(hr);
@@ -348,12 +357,14 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			int frameNr = 0;
 			CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 			std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
+			mouse_pointer::PTR_INFO PtrInfo;
+			RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
 			while (true)
 			{
+				bool gotMousePointer = false;
 				CComPtr<IDXGIResource> pDesktopResource = nullptr;
 				DXGI_OUTDUPL_FRAME_INFO FrameInfo;
 				RtlZeroMemory(&FrameInfo, sizeof(FrameInfo));
-
 				if (!m_IsRecording)
 				{
 					hr = S_OK;
@@ -366,7 +377,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				if (m_IsMouseClicksDetected && GetKeyState(VK_LBUTTON) < 0)
 				{
 					//If left mouse button is held, reset the duration of click duration
-					g_LastMouseClickDurationRemaining = MOUSE_CLICK_DETECTION_DURATION_MILLIS;
+					g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
 				}
 				if (m_IsPaused) {
 					wait(10);
@@ -381,6 +392,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						frameTimeout,
 						&FrameInfo,
 						&pDesktopResource);
+
+					// Get mouse info
+					if (SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, &(FrameInfo), sourceRect, pDeskDupl))) {
+						gotMousePointer = true;
+					}
 				}
 
 				if (pDeskDupl == nullptr
@@ -458,7 +474,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						audioData = pLoopbackCapture->GetRecordedBytes();
 					}
 
-					CComPtr<ID3D11Texture2D> pFrameCopy= nullptr;
+					CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
 					RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, nullptr, &pFrameCopy));
 
 					if (pPreviousFrameCopy) {
@@ -482,16 +498,17 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 
 					if (g_LastMouseClickDurationRemaining > 0
-						&& m_IsMouseClicksDetected)
+						&& m_IsMouseClicksDetected
+						&& gotMousePointer)
 					{
-						hr = pMousePointer->DrawMouseClick(m_ImmediateContext, pDevice, FrameInfo, sourceRect, frameDesc, pDeskDupl, pFrameCopy);
+						hr = pMousePointer->DrawMouseClick(PtrInfo, pFrameCopy, m_MouseClickDetectionColor, m_MouseClickDetectionRadius);
 						INT32 millis = max(durationSinceLastFrame100Nanos / 10 / 1000, 0);
 						g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millis, 0);
 						LOG("Drawing mouse click, duration remaining on click is %u ms", g_LastMouseClickDurationRemaining);
 					}
 
-					if (m_IsMousePointerEnabled) {
-						hr = pMousePointer->DrawMousePointer(m_ImmediateContext, pDevice, FrameInfo, sourceRect, frameDesc, pDeskDupl, pFrameCopy);
+					if (m_IsMousePointerEnabled && gotMousePointer) {
+						hr = pMousePointer->DrawMousePointer(m_ImmediateContext, pDevice, PtrInfo, FrameInfo, sourceRect, frameDesc, pDeskDupl, pFrameCopy);
 						if (hr == DXGI_ERROR_ACCESS_LOST
 							|| hr == DXGI_ERROR_INVALID_CALL) {
 							if (pDeskDupl) {
@@ -563,6 +580,9 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			if (pMousePointer) {
 				pMousePointer->CleanupResources();
 			}
+			if (PtrInfo.PtrShapeBuffer)
+				delete PtrInfo.PtrShapeBuffer;
+			PtrInfo.PtrShapeBuffer = nullptr;
 		}
 		return hr;
 	}).then([this, token](HRESULT hr) {
@@ -687,7 +707,7 @@ HRESULT internal_recorder::InitializeDx(IDXGIOutput *pDxgiOutput, ID3D11DeviceCo
 	int lresult(-1);
 	D3D_FEATURE_LEVEL featureLevel;
 
-	CComPtr<IDXGIAdapter> pDxgiAdapter= nullptr;
+	CComPtr<IDXGIAdapter> pDxgiAdapter = nullptr;
 	if (pDxgiOutput) {
 		// Get DXGI adapter
 		hr = pDxgiOutput->GetParent(
@@ -766,7 +786,7 @@ HRESULT internal_recorder::InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOut
 	*pOutputDuplDesc;
 
 	// Get DXGI device
-	CComPtr<IDXGIDevice> pDxgiDevice= nullptr;
+	CComPtr<IDXGIDevice> pDxgiDevice = nullptr;
 	CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
 	DXGI_OUTDUPL_DESC OutputDuplDesc;
 	RtlZeroMemory(&OutputDuplDesc, sizeof(OutputDuplDesc));
@@ -775,7 +795,7 @@ HRESULT internal_recorder::InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOut
 		hr = pDevice->QueryInterface(IID_PPV_ARGS(&pDxgiDevice));
 		RETURN_ON_BAD_HR(hr);
 		// Get DXGI adapter
-		CComPtr<IDXGIAdapter> pDxgiAdapter= nullptr;
+		CComPtr<IDXGIAdapter> pDxgiAdapter = nullptr;
 		hr = pDxgiDevice->GetParent(
 			__uuidof(IDXGIAdapter),
 			reinterpret_cast<void**>(&pDxgiAdapter));
@@ -883,8 +903,8 @@ std::vector<CComPtr<IDXGIAdapter>> internal_recorder::EnumDisplayAdapters()
 HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteStream *pOutStream, ID3D11Device* pDevice, RECT sourceRect, RECT destRect, IMFSinkWriter **ppWriter, DWORD *pVideoStreamIndex, DWORD *pAudioStreamIndex)
 {
 	*ppWriter = nullptr;
-	*pVideoStreamIndex=0;
-	*pAudioStreamIndex=0;
+	*pVideoStreamIndex = 0;
+	*pAudioStreamIndex = 0;
 
 	UINT pResetToken;
 	CComPtr<IMFDXGIDeviceManager> pDeviceManager = nullptr;
@@ -960,7 +980,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 	}
 
 	//Creates a streaming writer
-	CComPtr<IMFMediaSink> pMp4StreamSink= nullptr;
+	CComPtr<IMFMediaSink> pMp4StreamSink = nullptr;
 	if (m_IsFragmentedMp4Enabled) {
 		RETURN_ON_BAD_HR(MFCreateFMPEG4MediaSink(pOutStream, pVideoMediaTypeOut, pAudioMediaTypeOut, &pMp4StreamSink));
 	}

@@ -6,39 +6,19 @@
 
 
 using namespace DirectX;
-mouse_pointer::mouse_pointer()
+
+HRESULT mouse_pointer::DrawMousePointer(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device, PTR_INFO PtrInfo, DXGI_OUTDUPL_FRAME_INFO FrameInfo, RECT screenRect, D3D11_TEXTURE2D_DESC DESC, IDXGIOutputDuplication *DeskDupl, ID3D11Texture2D *Frame)
 {
-	RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
-}
-mouse_pointer::~mouse_pointer()
-{
-	if (PtrInfo.PtrShapeBuffer)
-		delete PtrInfo.PtrShapeBuffer;
-	PtrInfo.PtrShapeBuffer = nullptr;
-}
-HRESULT mouse_pointer::DrawMousePointer(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device, DXGI_OUTDUPL_FRAME_INFO FrameInfo, RECT screenRect, D3D11_TEXTURE2D_DESC DESC, IDXGIOutputDuplication *DeskDupl, ID3D11Texture2D *Frame)
-{
-	int left = min(screenRect.left, INT_MAX);
-	int top = min(screenRect.top, INT_MAX);
-	// Get mouse info
-	HRESULT hr = GetMouse(&PtrInfo, &(FrameInfo), left, top, screenRect, DeskDupl);
-	RETURN_ON_BAD_HR(hr);
+	HRESULT hr = S_FALSE;
 	if (PtrInfo.Visible && PtrInfo.PtrShapeBuffer != nullptr) {
 		hr = DrawMouse(&PtrInfo, ImmediateContext, Device, DESC, Frame);
-		RETURN_ON_BAD_HR(hr);
 	}
 	return hr;
 }
 
-HRESULT mouse_pointer::DrawMouseClick(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device, DXGI_OUTDUPL_FRAME_INFO FrameInfo, RECT screenRect, D3D11_TEXTURE2D_DESC DESC, IDXGIOutputDuplication *DeskDupl, ID3D11Texture2D *Frame)
+HRESULT mouse_pointer::DrawMouseClick(PTR_INFO PtrInfo, ID3D11Texture2D *Frame, std::string color, int radius)
 {
-	int left = min(screenRect.left, INT_MAX);
-	int top = min(screenRect.top, INT_MAX);
-	// Get mouse info
-	HRESULT hr = GetMouse(&PtrInfo, &(FrameInfo), left, top, screenRect, DeskDupl);
-	RETURN_ON_BAD_HR(hr);
-	hr = DrawMouseClick(&PtrInfo, ImmediateContext, Device, DESC, Frame);
-	RETURN_ON_BAD_HR(hr);
+	HRESULT hr = DrawMouseClick(&PtrInfo, Frame,color,radius);
 	return hr;
 }
 
@@ -58,7 +38,6 @@ void mouse_pointer::CleanupResources()
 
 HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device)
 {
-	RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
 	// Create the sample state
 	D3D11_SAMPLER_DESC SampDesc;
 	RtlZeroMemory(&SampDesc, sizeof(SampDesc));
@@ -103,7 +82,7 @@ HRESULT mouse_pointer::InitMouseClickTexture(ID3D11DeviceContext *ImmediateConte
 //
 // Draw mouse click
 //
-HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, ID3D11DeviceContext* DeviceContext, ID3D11Device* Device, D3D11_TEXTURE2D_DESC FullDesc, ID3D11Texture2D* bgTexture)
+HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, ID3D11Texture2D* bgTexture, std::string colorStr,int radius)
 {
 	ATL::CComPtr<IDXGISurface> pSharedSurface;
 	HRESULT hr = bgTexture->QueryInterface(__uuidof(IDXGISurface), (void**)&pSharedSurface);
@@ -124,9 +103,17 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, ID3D11DeviceContex
 	ATL::CComPtr<ID2D1RenderTarget> pRenderTarget;
 	hr = m_D2DFactory->CreateDxgiSurfaceRenderTarget(pSharedSurface, RenderTargetProperties, &pRenderTarget);
 
+	long colorValue = ParseColorString(colorStr);
+
 	ATL::CComPtr<ID2D1SolidColorBrush> color;
-	pRenderTarget->CreateSolidColorBrush(
-		D2D1::ColorF(D2D1::ColorF::Yellow, 0.7f), &color);
+	
+	if (FAILED(pRenderTarget->CreateSolidColorBrush(
+		D2D1::ColorF(colorValue, 0.7f), &color))) {
+
+		pRenderTarget->CreateSolidColorBrush(
+			D2D1::ColorF(D2D1::ColorF::Yellow, 0.7f), &color);
+	}
+	
 
 	D2D1_ELLIPSE ellipse;
 	D2D1_POINT_2F mousePoint;
@@ -134,14 +121,24 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, ID3D11DeviceContex
 	mousePoint.y = PtrInfo->Position.y;
 
 	ellipse.point = mousePoint;
-	ellipse.radiusX = MOUSE_CLICK_CIRCLE_RADIUS;
-	ellipse.radiusY = MOUSE_CLICK_CIRCLE_RADIUS;
+	ellipse.radiusX = radius;
+	ellipse.radiusY = radius;
 	pRenderTarget->BeginDraw();
 
 	pRenderTarget->FillEllipse(ellipse, color);
 	pRenderTarget->EndDraw();
 
 	return S_OK;
+}
+
+long mouse_pointer::ParseColorString(std::string color)
+{
+	if (color.length() == 0)
+		return D2D1::ColorF::Yellow;
+	if (color.front() == '#') {
+		color.replace(0, 1, "0x");
+	}
+	return std::strtoul(color.data(), 0, 16);
 }
 
 //
@@ -581,8 +578,10 @@ HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Dev
 //
 // Retrieves mouse info and write it into PtrInfo
 //
-HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO* FrameInfo, INT OffsetX, INT OffsetY, RECT screenRect, IDXGIOutputDuplication* DeskDupl)
+HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO* FrameInfo, RECT screenRect, IDXGIOutputDuplication* DeskDupl)
 {
+	int offsetX = min(screenRect.left, INT_MAX);
+	int offsetY = min(screenRect.top, INT_MAX);
 	// A non-zero mouse update timestamp indicates that there is a mouse position update and optionally a shape change
 	if (FrameInfo->LastMouseUpdateTime.QuadPart == 0)
 	{
@@ -608,8 +607,8 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 	// Update position
 	if (UpdatePosition)
 	{
-		PtrInfo->Position.x = FrameInfo->PointerPosition.Position.x + screenRect.left - OffsetX;
-		PtrInfo->Position.y = FrameInfo->PointerPosition.Position.y + screenRect.top - OffsetY;
+		PtrInfo->Position.x = FrameInfo->PointerPosition.Position.x + screenRect.left - offsetX;
+		PtrInfo->Position.y = FrameInfo->PointerPosition.Position.y + screenRect.top - offsetY;
 		PtrInfo->WhoUpdatedPositionLast = m_OutputNumber;
 		PtrInfo->LastTimeStamp = FrameInfo->LastMouseUpdateTime;
 		PtrInfo->Visible = FrameInfo->PointerPosition.Visible != 0;
@@ -618,7 +617,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 	// No new shape
 	if (FrameInfo->PointerShapeBufferSize == 0)
 	{
-		return S_OK;;
+		return S_OK;
 	}
 
 	// Old buffer too small
