@@ -4,6 +4,7 @@
 #include <avrt.h>
 #include <mutex>
 #include <mmdeviceapi.h>
+//#include "..\r8brain\CDSPResampler.h"
 
 #pragma comment(lib, "avrt.lib")
 #pragma comment(lib, "ole32.lib")
@@ -18,6 +19,8 @@ struct LoopbackCaptureThreadFunctionArguments {
 	HANDLE hStopEvent;
 	UINT32 nFrames;
 	HRESULT hr;
+	EDataFlow flow;
+	double samplerate;
 };
 
 DWORD WINAPI LoopbackCaptureThreadFunction(LPVOID pContext);
@@ -34,7 +37,9 @@ public:
 		bool bInt16,
 		HANDLE hStartedEvent,
 		HANDLE hStopEvent,
-		PUINT32 pnFrames
+		PUINT32 pnFrames,
+		EDataFlow flow,
+		double samplerate = 0
 	);
 
 	std::vector<BYTE> loopback_capture::GetRecordedBytes();
@@ -44,5 +49,7 @@ private:
 	std::vector<BYTE> m_RecordedBytes = {};
 	UINT32 m_SamplesPerSec = 0;
 	std::mutex mtx;           // mutex for critical section
+	double OutSampleRate;
+	//r8b::CDSPResampler16* Resampler;
 };
 

@@ -1,5 +1,6 @@
 ﻿using ScreenRecorderLib;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -42,9 +43,12 @@ namespace TestApp
         public bool IsLowLatencyEnabled { get; set; } = false;
         public bool IsMp4FastStartEnabled { get; set; } = false;
         public bool IsMouseClicksDetected { get; set; } = false;
-        public string MouseClickColor { get; set; } = "#ffff00";
+        public string MouseLeftClickColor { get; set; } = "#ffff00";
+        public string MouseRightClickColor { get; set; } = "#ffff00";
         public int MouseClickRadius { get; set; } = 20;
         public int MouseClickDuration { get; set; } = 150;
+        public List<string> AudioInputsList { get; set; } = new List<string>();
+        public List<string> AudioOutputsList { get; set; } = new List<string>();
 
         private bool _recordToStream;
         public bool RecordToStream
@@ -107,6 +111,12 @@ namespace TestApp
                 this.ScreenComboBox.Items.Add(target);
             }
             this.ScreenComboBox.SelectedIndex = 0;
+            AudioOutputsList.Add("No Audio");
+            AudioOutputsComboBox.SelectedIndex = 0;
+            AudioInputsList.Add("No Audio");
+            AudioInputsComboBox.SelectedIndex = 0;
+            Recorder.GetDevices(0, AudioOutputsList);
+            Recorder.GetDevices(1, AudioInputsList);
         }
 
         protected void RaisePropertyChanged(string propertyName)
@@ -162,6 +172,13 @@ namespace TestApp
 
             Display selectedDisplay = (Display)this.ScreenComboBox.SelectedItem;
 
+            var isOutputDeviceEnabled = AudioOutputsComboBox.SelectedIndex > 0;
+            var isInputDeviceEnabled = AudioInputsComboBox.SelectedIndex > 0;
+
+            var audioOutputDevice = isOutputDeviceEnabled ? AudioOutputsComboBox.SelectedItem.ToString() : string.Empty;
+            var audioInputDevice = isInputDeviceEnabled ? AudioInputsComboBox.SelectedItem.ToString() : string.Empty;
+            
+
             RecorderOptions options = new RecorderOptions
             {
                 RecorderMode = CurrentRecordingMode,
@@ -173,7 +190,11 @@ namespace TestApp
                 {
                     Bitrate = AudioBitrate.bitrate_96kbps,
                     Channels = AudioChannels.Stereo,
-                    IsAudioEnabled = this.IsAudioEnabled
+                    IsAudioEnabled = this.IsAudioEnabled,
+                    IsOutputDeviceEnabled = isOutputDeviceEnabled,
+                    IsInputDeviceEnabled = isInputDeviceEnabled,
+                    AudioOutputDevice = audioOutputDevice,
+                    AudioInputDevice = audioInputDevice
                 },
                 VideoOptions = new VideoOptions
                 {
@@ -189,7 +210,8 @@ namespace TestApp
                 {
                     IsMouseClicksDetected = this.IsMouseClicksDetected,
                     IsMousePointerEnabled = this.IsMousePointerEnabled,
-                    MouseClickDetectionColor = this.MouseClickColor,
+                    MouseClickDetectionLMBColor = this.MouseLeftClickColor,
+                    MouseClickDetectionRMBColor = this.MouseRightClickColor,
                     MouseClickDetectionRadius = this.MouseClickRadius,
                     MouseClickDetectionDuration = this.MouseClickDuration
                 }

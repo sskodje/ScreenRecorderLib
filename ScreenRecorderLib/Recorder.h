@@ -141,19 +141,26 @@ namespace ScreenRecorderLib {
 	public:
 		AudioOptions() {
 			IsAudioEnabled = false;
+			IsOutputDeviceEnabled = false;
+			IsInputDeviceEnabled = false;
 			Bitrate = AudioBitrate::bitrate_96kbps;
 			Channels = AudioChannels::Stereo;
 		}
 		property bool IsAudioEnabled;
+		property bool IsOutputDeviceEnabled;
+		property bool IsInputDeviceEnabled;
 		property AudioBitrate Bitrate;
 		property AudioChannels Channels;
+		property String^ AudioOutputDevice;
+		property String^ AudioInputDevice;
 	};
 	public ref class MouseOptions {
 	public:
 		MouseOptions() {
 			IsMousePointerEnabled = true;
 			IsMouseClicksDetected = false;
-			MouseClickDetectionColor = "#FFFF00";
+			MouseClickDetectionLMBColor = "#0F61C3";
+			MouseClickDetectionRMBColor = "#0F61C3";
 			MouseClickDetectionRadius = 20;
 			MouseClickDetectionDuration = 150;
 		}
@@ -168,7 +175,11 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// The color of the dot where the left mouse button is pressed, in hex format. Default is Yellow (#FFFF00).
 		/// </summary>
-		property String^ MouseClickDetectionColor;
+		property String^ MouseClickDetectionLMBColor;
+		/// <summary>
+		/// The color of the dot where the right mouse button is pressed, in hex format. Default is Yellow (#FFFF00).
+		/// </summary>
+		property String^ MouseClickDetectionRMBColor;
 		/// <summary>
 		/// The radius of the dot where the left mouse button is pressed. Default is 20.
 		/// </summary>
@@ -274,6 +285,10 @@ namespace ScreenRecorderLib {
 		void SetOptions(RecorderOptions^ options);
 		static Recorder^ CreateRecorder();
 		static Recorder^ CreateRecorder(RecorderOptions^ options);
+		/// <summary>
+		///0 - Render devices, 1 - Capture devices, 2 - All devices
+		/// </summary>
+		static void GetDevices(int flow, List<String^>^ arraystr);
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;

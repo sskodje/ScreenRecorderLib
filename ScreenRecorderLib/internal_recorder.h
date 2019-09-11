@@ -16,6 +16,7 @@
 #include <DirectXMath.h>
 #include <mfreadwrite.h>
 #include "fifo_map.h"
+#include "audio_prefs.h"
 
 typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_map<std::wstring, int>);
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
@@ -63,7 +64,11 @@ public:
 	void SetVideoBitrateMode(UINT32 mode);
 	void SetAudioBitrate(UINT32 bitrate);
 	void SetAudioChannels(UINT32 channels);
+	void SetOutputDevice(std::wstring& string);
+	void SetInputDevice(std::wstring& string);
 	void SetAudioEnabled(bool value);
+	void SetOutputDeviceEnabled(bool value);
+	void SetInputDeviceEnabled(bool value);
 	void SetMousePointerEnabled(bool value);
 	void SetDestRectangle(RECT rect);
 	[[deprecated]]
@@ -78,7 +83,8 @@ public:
 	void SetIsHardwareEncodingEnabled(bool value);
 	void SetIsLowLatencyModeEnabled(bool value);
 	void SetDetectMouseClicks(bool value);
-	void SetMouseClickDetectionColor(std::string value);
+	void SetMouseClickDetectionLMBColor(std::string value);
+	void SetMouseClickDetectionRMBColor(std::string value);
 	void SetMouseClickDetectionRadius(int value);
 	void SetMouseClickDetectionDuration(int value);
 
@@ -111,6 +117,8 @@ private:
 	std::wstring m_OutputFolder = L"";
 	std::wstring m_OutputFullPath = L"";
 	nlohmann::fifo_map<std::wstring, int> m_FrameDelays;
+	std::wstring m_AudioOutputDevice = L"";
+	std::wstring m_AudioInputDevice = L"";
 	UINT32 m_VideoFps = 30;
 	UINT32 m_VideoBitrate = 4000 * 1000;//Bitrate in bits per second
 	UINT32 m_VideoQuality = 70;//Video quality from 1 to 100. Is only used with eAVEncCommonRateControlMode_Quality.
@@ -121,6 +129,8 @@ private:
 	UINT32 m_VideoBitrateControlMode = eAVEncCommonRateControlMode_Quality;
 	bool m_IsMousePointerEnabled = true;
 	bool m_IsAudioEnabled = false;
+	bool m_IsOutputDeviceEnabled = false;
+	bool m_IsInputDeviceEnabled = false;
 	bool m_IsFixedFramerate = false;
 	bool m_IsThrottlingDisabled = false;
 	bool m_IsLowLatencyModeEnabled = false;
@@ -131,10 +141,13 @@ private:
 	bool m_IsRecording = false;
 	bool m_IsEncoderFailure = false;
 	bool m_IsMouseClicksDetected = false;
-	std::string m_MouseClickDetectionColor = "#FFFF00";
+	std::string m_ClickName = "";
+	std::string m_MouseClickDetectionLMBColor = "#FFFF00";
+	std::string m_MouseClickDetectionRMBColor = "#FFFF00";
 	int m_MouseClickDetectionRadius = 20;
 	UINT64 m_LastEncodedSampleCount = 0;
 	std::string NowToString();
+	std::vector<BYTE> MixAudio(std::vector<BYTE> &first, std::vector<BYTE> &second);
 	HHOOK m_Mousehook;
 
 	void SetDebugName(ID3D11DeviceChild* child, const std::string& name);

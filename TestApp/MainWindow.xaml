@@ -9,7 +9,7 @@
         xmlns:rec="clr-namespace:ScreenRecorderLib;assembly=ScreenRecorderLib"
         mc:Ignorable="d"
         Title="ScreenRecorderLib Demo"
-        Height="600"
+        Height="640"
         Width="525"
         SizeToContent="Height">
     <Window.Resources>
@@ -150,12 +150,35 @@
                                       SelectedItem="{Binding ElementName=MainWin,Path=CurrentH264Profile}"
                                       VerticalAlignment="Top" />
                         </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Label Content="AudioOutputs"
+                                   Width="85"
+                                   VerticalAlignment="Center" />
+                            <ComboBox x:Name="AudioOutputsComboBox"
+                                      MinWidth="100"
+                                      Margin="0,5,5,5"
+                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioOutputsList}"
+                                      SelectedIndex="0"
+                                      VerticalAlignment="Top" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Label Content="AudioInputs"
+                                   Width="85"
+                                   VerticalAlignment="Center" />
+                            <ComboBox x:Name="AudioInputsComboBox"
+                                      MinWidth="100"
+                                      Margin="0,5,5,5"
+                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioInputsList}"
+                                      SelectedIndex="0"
+                                      VerticalAlignment="Top" />
+                        </StackPanel>
                     </StackPanel>
 
 
                     <Grid Margin="5"
                           Grid.Column="1">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -200,14 +223,27 @@
                                      VerticalAlignment="Center" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal"
-                                    x:Name="MouseClickColorPanel"
+                                    x:Name="MouseLeftClickColorPanel"
                                     Visibility="Visible"
                                     Grid.Row="3">
-                            <Label Content="Click color"
+                            <Label Content="Left click color"
                                    Width="85" />
-                            <TextBox x:Name="ColorTextBox"
+                            <TextBox x:Name="LeftMouseColorTextBox"
                                      MinWidth="60"
-                                     Text="{Binding ElementName=MainWin,Path=MouseClickColor}"
+                                     Text="{Binding ElementName=MainWin,Path=MouseLeftClickColor}"
+                                     TextChanged="ColorTextBox_TextChanged"
+                                     HorizontalAlignment="Stretch"
+                                     VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    x:Name="MouseRightClickColorPanel"
+                                    Visibility="Visible"
+                                    Grid.Row="4">
+                            <Label Content="Right click col"
+                                   Width="85" />
+                            <TextBox x:Name="RightMouseColorTextBox"
+                                     MinWidth="60"
+                                     Text="{Binding ElementName=MainWin,Path=MouseRightClickColor}"
                                      TextChanged="ColorTextBox_TextChanged"
                                      HorizontalAlignment="Stretch"
                                      VerticalAlignment="Center" />
@@ -215,7 +251,7 @@
                         <StackPanel Orientation="Horizontal"
                                     x:Name="MouseClickRadiusPanel"
                                     Visibility="Visible"
-                                    Grid.Row="4">
+                                    Grid.Row="5">
                             <Label Content="Click radius"
                                    Width="85" />
                             <TextBox x:Name="RadiusTextBox"
@@ -227,7 +263,7 @@
                         <StackPanel Orientation="Horizontal"
                                     x:Name="MouseClickDurationPanel"
                                     Visibility="Visible"
-                                    Grid.Row="5">
+                                    Grid.Row="6">
                             <Label Content="Click duration"
                                    Width="85" />
                             <TextBox x:Name="DurationTextBox"
@@ -237,7 +273,7 @@
                                      VerticalAlignment="Center" />
                             <Label Content="ms" />
                         </StackPanel>
-                        <Grid Grid.Row="6">
+                        <Grid Grid.Row="7">
                             <Button Content="Delete temp files"
                                     Click="DeleteTempFilesButton_Click"
                                     VerticalAlignment="Top" />

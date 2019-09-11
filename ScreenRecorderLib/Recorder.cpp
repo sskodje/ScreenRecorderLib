@@ -40,13 +40,18 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 
 		if (options->AudioOptions) {
 			lRec->SetAudioEnabled(options->AudioOptions->IsAudioEnabled);
+			lRec->SetOutputDeviceEnabled(options->AudioOptions->IsOutputDeviceEnabled);
+			lRec->SetInputDeviceEnabled(options->AudioOptions->IsInputDeviceEnabled);
 			lRec->SetAudioBitrate((UINT32)options->AudioOptions->Bitrate);
 			lRec->SetAudioChannels((UINT32)options->AudioOptions->Channels);
+			lRec->SetOutputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioOutputDevice));
+			lRec->SetInputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioInputDevice));
 		}
 		if (options->MouseOptions) {
 			lRec->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled);
 			lRec->SetDetectMouseClicks(options->MouseOptions->IsMouseClicksDetected);
-			lRec->SetMouseClickDetectionColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionColor));
+			lRec->SetMouseClickDetectionLMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionLMBColor));
+			lRec->SetMouseClickDetectionRMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionRMBColor));
 			lRec->SetMouseClickDetectionRadius(options->MouseOptions->MouseClickDetectionRadius);
 			lRec->SetMouseClickDetectionDuration(options->MouseOptions->MouseClickDetectionDuration);
 		}
@@ -69,6 +74,40 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		lRec->SetIsFastStartEnabled(options->IsMp4FastStartEnabled);
 		lRec->SetIsHardwareEncodingEnabled(options->IsHardwareEncodingEnabled);
 		lRec->SetIsFragmentedMp4Enabled(options->IsFragmentedMp4Enabled);
+	}
+}
+
+void Recorder::GetDevices(int flow, List<String^>^ arraystr)
+{
+	std::vector<std::wstring> vector;
+	EDataFlow dFlow;
+
+	switch (flow)
+	{
+	case 0:
+		dFlow = eRender;
+		break;
+	case 1:
+		dFlow = eCapture;
+		break;
+	case 2:
+		dFlow = eAll;
+		break;
+	default:
+		break;
+	}
+
+	HRESULT hr = CPrefs::list_devices(dFlow, &vector);
+
+	if (hr == S_OK)
+	{
+		if (vector.size() != 0)
+		{
+			for (int i = 0; i < vector.size(); ++i)
+			{
+				arraystr->Add(gcnew String(vector[i].c_str()));
+			}
+		}
 	}
 }
 

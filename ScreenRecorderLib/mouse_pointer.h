@@ -62,6 +62,7 @@ private:
 	HRESULT DrawMouseClick(_In_ PTR_INFO* PtrInfo,  ID3D11Texture2D* bgTexture, std::string color, int radius);
 
 	long ParseColorString(std::string color);
+	float GetCurrentDpi();
 
 	HRESULT ProcessMonoMask(_In_ D3D11_TEXTURE2D_DESC FullDesc, _In_ ID3D11Texture2D* bgTexture, ID3D11DeviceContext* DeviceContext, ID3D11Device* Device, bool IsMono, _Inout_ PTR_INFO* PtrInfo, _Out_ INT* PtrWidth, _Out_ INT* PtrHeight, _Out_ INT* PtrLeft, _Out_ INT* PtrTop, _Outptr_result_bytebuffer_(*PtrHeight * *PtrWidth * BPP) BYTE** InitBuffer, _Out_ D3D11_BOX* Box);
 	HRESULT InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Device* Device);

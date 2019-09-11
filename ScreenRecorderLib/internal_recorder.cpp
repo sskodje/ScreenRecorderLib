@@ -108,9 +108,25 @@ void internal_recorder::SetAudioChannels(UINT32 channels)
 {
 	m_AudioChannels = channels;
 }
+void internal_recorder::SetOutputDevice(std::wstring& string)
+{
+	m_AudioOutputDevice = string;
+}
+void internal_recorder::SetInputDevice(std::wstring& string)
+{
+	m_AudioInputDevice = string;
+}
 void internal_recorder::SetAudioEnabled(bool enabled)
 {
 	m_IsAudioEnabled = enabled;
+}
+void internal_recorder::SetOutputDeviceEnabled(bool enabled)
+{
+	m_IsOutputDeviceEnabled = enabled;
+}
+void internal_recorder::SetInputDeviceEnabled(bool enabled)
+{
+	m_IsInputDeviceEnabled = enabled;
 }
 void internal_recorder::SetMousePointerEnabled(bool enabled)
 {
@@ -165,14 +181,49 @@ void internal_recorder::SetH264EncoderProfile(UINT32 value) {
 void internal_recorder::SetDetectMouseClicks(bool value) {
 	m_IsMouseClicksDetected = value;
 }
-void internal_recorder::SetMouseClickDetectionColor(std::string value) {
-	m_MouseClickDetectionColor = value;
+void internal_recorder::SetMouseClickDetectionLMBColor(std::string value) {
+	m_MouseClickDetectionLMBColor = value;
+}
+void internal_recorder::SetMouseClickDetectionRMBColor(std::string value) {
+	m_MouseClickDetectionRMBColor = value;
 }
 void internal_recorder::SetMouseClickDetectionRadius(int value) {
 	m_MouseClickDetectionRadius = value;
 }
 void internal_recorder::SetMouseClickDetectionDuration(int value) {
 	g_MouseClickDetectionDurationMillis = value;
+}
+
+std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vector<BYTE> &second)
+{
+	std::vector<BYTE> newvector;
+
+	if (first.size() >= second.size())
+	{
+		newvector.insert(newvector.end(), first.begin(), first.end());
+
+		for (int i = 0; i < second.size(); i++)
+		{
+			newvector[i] += second[i];
+		}
+	}
+	else
+	{
+		newvector.insert(newvector.end(), second.begin(), second.end());
+
+		for (size_t i = 0; i < first.size(); i++)
+		{
+			newvector[i] += first[i];
+		}
+	}
+
+	for (int i = 0; i < newvector.size(); ++i)
+		if (newvector[i] > 0x7fff)
+			newvector[i] = 0x7fff;
+		else if (newvector[i] < -0x7fff)
+			newvector[i] = -0x7fff;
+
+	return newvector;
 }
 
 HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
@@ -251,7 +302,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			CComPtr<ID3D11Device> pDevice = nullptr;
 			CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
 			std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
-			std::unique_ptr<loopback_capture> pLoopbackCapture = make_unique<loopback_capture>();
+			std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = make_unique<loopback_capture>();
+			std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = make_unique<loopback_capture>();
 			CComPtr<IDXGIOutput> pSelectedOutput = nullptr;
 			hr = GetOutputForDeviceName(m_DisplayOutputName, &pSelectedOutput);
 			hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &pDevice, &pDeskDupl, &outputDuplDesc);
@@ -284,16 +336,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			{
 				destRect = m_DestRect;
 			}
-
-
-			if (m_RecorderMode == MODE_VIDEO) {
-				CComPtr<IMFByteStream> outputStream = nullptr;
-				if (stream != nullptr) {
-					RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(stream, &outputStream));
-
-				}
-				RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, pDevice, sourceRect, destRect, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
-			}
+					   
 			// create a "loopback capture has started" event
 			HANDLE hStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 			if (nullptr == hStartedEvent) {
@@ -310,20 +353,24 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			}
 			CloseHandleOnExit closeStopEvent(hStopEvent);
 			bool recordAudio = m_RecorderMode == MODE_VIDEO && m_IsAudioEnabled;
-			if (recordAudio)
+			if (recordAudio && m_IsOutputDeviceEnabled)
 			{
-				CPrefs prefs(1, nullptr, hr);
+				LPCWSTR argv[3] = { L"", L"--device", m_AudioOutputDevice.c_str() };
+
+				CPrefs prefs(3, argv, hr, eRender);
 				prefs.m_bInt16 = true;
 				// create arguments for loopback capture thread
 				LoopbackCaptureThreadFunctionArguments threadArgs;
 				threadArgs.hr = E_UNEXPECTED; // thread will overwrite this
 				threadArgs.pMMDevice = prefs.m_pMMDevice;
-				threadArgs.pCaptureInstance = pLoopbackCapture.get();
+				threadArgs.pCaptureInstance = pLoopbackCaptureOutputDevice.get();
 				threadArgs.bInt16 = prefs.m_bInt16;
 				threadArgs.hFile = prefs.m_hFile;
 				threadArgs.hStartedEvent = hStartedEvent;
 				threadArgs.hStopEvent = hStopEvent;
 				threadArgs.nFrames = 0;
+				threadArgs.flow = eRender;
+				threadArgs.samplerate = 0.0;
 
 				HANDLE hThread = CreateThread(
 					nullptr, 0,
@@ -335,9 +382,60 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				}
 				CloseHandleOnExit closeThread(hThread);
 				WaitForSingleObjectEx(hStartedEvent, 1000, false);
-				m_InputAudioSamplesPerSecond = pLoopbackCapture->GetInputSampleRate();
+				m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
 			}
 
+			if (recordAudio && m_IsInputDeviceEnabled)
+			{
+				LPCWSTR argv[3] = { L"", L"--device", m_AudioInputDevice.c_str() };
+
+				CPrefs prefs(3, argv, hr, eCapture);
+				prefs.m_bInt16 = true;
+				// create arguments for loopback capture thread
+				LoopbackCaptureThreadFunctionArguments threadArgs;
+				threadArgs.hr = E_UNEXPECTED; // thread will overwrite this
+				threadArgs.pMMDevice = prefs.m_pMMDevice;
+				threadArgs.pCaptureInstance = pLoopbackCaptureInputDevice.get();
+				threadArgs.bInt16 = prefs.m_bInt16;
+				threadArgs.hFile = prefs.m_hFile;
+				threadArgs.hStartedEvent = hStartedEvent;
+				threadArgs.hStopEvent = hStopEvent;
+				threadArgs.nFrames = 0;
+				threadArgs.flow = eCapture;
+				threadArgs.samplerate = 0.0;
+
+				if (m_IsOutputDeviceEnabled)
+				{
+					threadArgs.samplerate = m_InputAudioSamplesPerSecond;
+				}
+
+				HANDLE hThread = CreateThread(
+					nullptr, 0,
+					LoopbackCaptureThreadFunction, &threadArgs, 0, nullptr
+				);
+				if (nullptr == hThread) {
+					ERR(L"CreateThread failed: last error is %u", GetLastError());
+					return S_FALSE;
+				}
+				CloseHandleOnExit closeThread(hThread);
+				WaitForSingleObjectEx(hStartedEvent, 1000, false);
+				m_InputAudioSamplesPerSecond = pLoopbackCaptureInputDevice->GetInputSampleRate();
+			}
+
+			if (recordAudio && m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
+			{
+				m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
+			}
+
+			// moved this section after sound initialization to get right m_InputAudioSamplesPerSecond from pLoopbackCapture before InitializeVideoSinkWriter
+			if (m_RecorderMode == MODE_VIDEO) {
+				CComPtr<IMFByteStream> outputStream = nullptr;
+				if (stream != nullptr) {
+					RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(stream, &outputStream));
+
+				}
+				RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, pDevice, sourceRect, destRect, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+			}
 
 			m_IsRecording = true;
 			if (RecordingStatusChangedCallback != nullptr)
@@ -349,7 +447,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			g_LastMouseClickDurationRemaining = 0;
 
 			ULONGLONG lastFrameStartPos = 0;
-			pLoopbackCapture->ClearRecordedBytes();
+			pLoopbackCaptureOutputDevice->ClearRecordedBytes();
+			pLoopbackCaptureInputDevice->ClearRecordedBytes();
 
 			UINT64 videoFrameDurationMillis = 1000 / m_VideoFps;
 			UINT64 videoFrameDuration100Nanos = videoFrameDurationMillis * 10 * 1000;
@@ -377,12 +476,20 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				if (m_IsMouseClicksDetected && GetKeyState(VK_LBUTTON) < 0)
 				{
 					//If left mouse button is held, reset the duration of click duration
+					m_ClickName = "left";
+					g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
+				}
+				if (m_IsMouseClicksDetected && GetKeyState(VK_RBUTTON) < 0)
+				{
+					//If right mouse button is held, reset the duration of click duration
+					m_ClickName = "right";
 					g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
 				}
 				if (m_IsPaused) {
 					wait(10);
 					lastFrame = high_resolution_clock::now();
-					pLoopbackCapture->ClearRecordedBytes();
+					pLoopbackCaptureOutputDevice->ClearRecordedBytes();
+					pLoopbackCaptureInputDevice->ClearRecordedBytes();
 					continue;
 				}
 				if (pDeskDupl) {
@@ -471,7 +578,19 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				{
 					std::vector<BYTE> audioData;
 					if (recordAudio) {
-						audioData = pLoopbackCapture->GetRecordedBytes();
+						if (m_IsOutputDeviceEnabled && !m_IsInputDeviceEnabled)
+						{
+							audioData = pLoopbackCaptureOutputDevice->GetRecordedBytes();
+						}
+						if (!m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
+						{
+							audioData = pLoopbackCaptureInputDevice->GetRecordedBytes();
+						}
+						if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
+						{
+							// mix our audio buffers from output device and input device to get one audio buffer since VideoSinkWriter works only with one Audio sink
+							audioData = MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), pLoopbackCaptureInputDevice->GetRecordedBytes());
+						}
 					}
 
 					CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
@@ -501,7 +620,14 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						&& m_IsMouseClicksDetected
 						&& gotMousePointer)
 					{
-						hr = pMousePointer->DrawMouseClick(PtrInfo, pFrameCopy, m_MouseClickDetectionColor, m_MouseClickDetectionRadius);
+						if (m_ClickName == "left")
+						{
+							hr = pMousePointer->DrawMouseClick(PtrInfo, pFrameCopy, m_MouseClickDetectionLMBColor, m_MouseClickDetectionRadius);
+						}
+						if (m_ClickName == "right")
+						{
+							hr = pMousePointer->DrawMouseClick(PtrInfo, pFrameCopy, m_MouseClickDetectionRMBColor, m_MouseClickDetectionRadius);
+						}
 						INT32 millis = max(durationSinceLastFrame100Nanos / 10 / 1000, 0);
 						g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millis, 0);
 						LOG("Drawing mouse click, duration remaining on click is %u ms", g_LastMouseClickDurationRemaining);
@@ -967,7 +1093,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, IMFByteS
 		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetGUID(MF_MT_SUBTYPE, AUDIO_ENCODING_FORMAT));
 		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, m_AudioChannels));
 		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, AUDIO_BITS_PER_SAMPLE));
-		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, AUDIO_SAMPLES_PER_SECOND));
+		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, m_InputAudioSamplesPerSecond));
 		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, m_AudioBitrate));
 
 		// Set the input audio type.

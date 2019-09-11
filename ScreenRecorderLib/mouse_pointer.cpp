@@ -117,8 +117,9 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, ID3D11Texture2D* b
 
 	D2D1_ELLIPSE ellipse;
 	D2D1_POINT_2F mousePoint;
-	mousePoint.x = PtrInfo->Position.x;
-	mousePoint.y = PtrInfo->Position.y;
+	float dpi = GetCurrentDpi();
+	mousePoint.x = PtrInfo->Position.x / dpi;
+	mousePoint.y = PtrInfo->Position.y / dpi;
 
 	ellipse.point = mousePoint;
 	ellipse.radiusX = radius;
@@ -139,6 +140,14 @@ long mouse_pointer::ParseColorString(std::string color)
 		color.replace(0, 1, "0x");
 	}
 	return std::strtoul(color.data(), 0, 16);
+}
+float mouse_pointer::GetCurrentDpi()
+{
+	int newDpiX(0);
+	auto hDC = GetDC(NULL);
+	newDpiX = GetDeviceCaps(hDC, LOGPIXELSX);
+	ReleaseDC(NULL, hDC);
+	return (float)newDpiX / 96.0f;
 }
 
 //
