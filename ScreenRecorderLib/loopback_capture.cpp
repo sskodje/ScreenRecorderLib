@@ -222,7 +222,7 @@ HRESULT loopback_capture::LoopbackCapture(
 
 	bool bDone = false;
 	bool bFirstPacket = true;
-	//bool bIsSilence = false;
+
 	for (UINT32 nPasses = 0; !bDone; nPasses++) {
 		// drain data while it is available
 		UINT32 nNextPacketSize;
@@ -235,7 +235,7 @@ HRESULT loopback_capture::LoopbackCapture(
 			BYTE *pData;
 			UINT32 nNumFramesToRead;
 			DWORD dwFlags;
-			//bIsSilence = false;
+
 			hr = pAudioCaptureClient->GetBuffer(
 				&pData,
 				&nNumFramesToRead,
@@ -255,11 +255,9 @@ HRESULT loopback_capture::LoopbackCapture(
 			}
 			else if (AUDCLNT_BUFFERFLAGS_SILENT == dwFlags) {
 				//LOG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames", dwFlags, nPasses, *pnFrames);
-				//bIsSilence = true;
 			}
 			else if (0 != dwFlags) {
 				LOG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames", dwFlags, nPasses, *pnFrames);
-				//return E_UNEXPECTED;
 			}
 
 			if (0 == nNumFramesToRead) {
@@ -271,7 +269,7 @@ HRESULT loopback_capture::LoopbackCapture(
 
 			LONG lBytesToWrite = nNumFramesToRead * nBlockAlign;
 #pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
-			//if (!bIsSilence) {
+
 			if (m_IsDestructed) { return E_ABORT; }
 			// Convert audio
 			//if (pwfx->nSamplesPerSec != OutSampleRate) {
@@ -325,7 +323,7 @@ HRESULT loopback_capture::LoopbackCapture(
 				m_RecordedBytes.insert(m_RecordedBytes.end(), &pData[0], &pData[size]);
 				mtx.unlock();
 			//}
-			//}
+
 			*pnFrames += nNumFramesToRead;
 
 			hr = pAudioCaptureClient->ReleaseBuffer(nNumFramesToRead);

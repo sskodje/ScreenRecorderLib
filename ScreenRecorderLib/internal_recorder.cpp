@@ -943,7 +943,6 @@ HRESULT internal_recorder::InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOut
 
 	hr = pDxgiOutput->QueryInterface(IID_PPV_ARGS(&pDxgiOutput1));
 	RETURN_ON_BAD_HR(hr);
-	//pDxgiOutput.Release();
 
 	// Create desktop duplication
 	hr = pDxgiOutput1->DuplicateOutput(
