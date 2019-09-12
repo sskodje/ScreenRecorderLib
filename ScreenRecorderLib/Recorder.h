@@ -159,8 +159,8 @@ namespace ScreenRecorderLib {
 		MouseOptions() {
 			IsMousePointerEnabled = true;
 			IsMouseClicksDetected = false;
-			MouseClickDetectionLMBColor = "#0F61C3";
-			MouseClickDetectionRMBColor = "#0F61C3";
+			MouseClickDetectionColor = "#0F61C3";
+			MouseRightClickDetectionColor = "#0F61C3";
 			MouseClickDetectionRadius = 20;
 			MouseClickDetectionDuration = 150;
 		}
@@ -175,11 +175,11 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// The color of the dot where the left mouse button is pressed, in hex format. Default is Yellow (#FFFF00).
 		/// </summary>
-		property String^ MouseClickDetectionLMBColor;
+		property String^ MouseClickDetectionColor;
 		/// <summary>
 		/// The color of the dot where the right mouse button is pressed, in hex format. Default is Yellow (#FFFF00).
 		/// </summary>
-		property String^ MouseClickDetectionRMBColor;
+		property String^ MouseRightClickDetectionColor;
 		/// <summary>
 		/// The radius of the dot where the left mouse button is pressed. Default is 20.
 		/// </summary>

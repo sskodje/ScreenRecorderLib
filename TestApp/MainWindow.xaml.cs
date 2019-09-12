@@ -210,8 +210,8 @@ namespace TestApp
                 {
                     IsMouseClicksDetected = this.IsMouseClicksDetected,
                     IsMousePointerEnabled = this.IsMousePointerEnabled,
-                    MouseClickDetectionLMBColor = this.MouseLeftClickColor,
-                    MouseClickDetectionRMBColor = this.MouseRightClickColor,
+                    MouseClickDetectionColor = this.MouseLeftClickColor,
+                    MouseRightClickDetectionColor = this.MouseRightClickColor,
                     MouseClickDetectionRadius = this.MouseClickRadius,
                     MouseClickDetectionDuration = this.MouseClickDuration
                 }

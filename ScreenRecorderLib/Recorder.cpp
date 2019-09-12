@@ -50,8 +50,8 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		if (options->MouseOptions) {
 			lRec->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled);
 			lRec->SetDetectMouseClicks(options->MouseOptions->IsMouseClicksDetected);
-			lRec->SetMouseClickDetectionLMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionLMBColor));
-			lRec->SetMouseClickDetectionRMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionRMBColor));
+			lRec->SetMouseClickDetectionLMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionColor));
+			lRec->SetMouseClickDetectionRMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseRightClickDetectionColor));
 			lRec->SetMouseClickDetectionRadius(options->MouseOptions->MouseClickDetectionRadius);
 			lRec->SetMouseClickDetectionDuration(options->MouseOptions->MouseClickDetectionDuration);
 		}
