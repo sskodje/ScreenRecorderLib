@@ -115,8 +115,8 @@ namespace TestApp
             AudioOutputsComboBox.SelectedIndex = 0;
             AudioInputsList.Add("No Audio");
             AudioInputsComboBox.SelectedIndex = 0;
-            Recorder.GetDevices(0, AudioOutputsList);
-            Recorder.GetDevices(1, AudioInputsList);
+            AudioOutputsList.AddRange(Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices));
+            AudioInputsList.AddRange(Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices));
         }
 
         protected void RaisePropertyChanged(string propertyName)

@@ -18,6 +18,12 @@ delegate void InternalErrorCallbackDelegate(std::wstring path);
 
 namespace ScreenRecorderLib {
 
+	public enum class AudioDeviceSource
+	{
+		OutputDevices,
+		InputDevices,
+		All
+	};
 	public enum class RecorderStatus {
 		Idle,
 		Recording,
@@ -285,10 +291,7 @@ namespace ScreenRecorderLib {
 		void SetOptions(RecorderOptions^ options);
 		static Recorder^ CreateRecorder();
 		static Recorder^ CreateRecorder(RecorderOptions^ options);
-		/// <summary>
-		///0 - Render devices, 1 - Capture devices, 2 - All devices
-		/// </summary>
-		static void GetDevices(int flow, List<String^>^ arraystr);
+		static List<String^>^ GetSystemAudioDevices(AudioDeviceSource source);
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;

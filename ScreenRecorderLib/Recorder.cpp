@@ -77,25 +77,27 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 	}
 }
 
-void Recorder::GetDevices(int flow, List<String^>^ arraystr)
+List<String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
 {
 	std::vector<std::wstring> vector;
 	EDataFlow dFlow;
 
-	switch (flow)
+	switch (source)
 	{
-	case 0:
+	case  AudioDeviceSource::OutputDevices:
 		dFlow = eRender;
 		break;
-	case 1:
+	case AudioDeviceSource::InputDevices:
 		dFlow = eCapture;
 		break;
-	case 2:
+	case AudioDeviceSource::All:
 		dFlow = eAll;
 		break;
 	default:
 		break;
 	}
+
+	List<String^>^ devices = gcnew List<String^> ();
 
 	HRESULT hr = CPrefs::list_devices(dFlow, &vector);
 
@@ -105,10 +107,11 @@ void Recorder::GetDevices(int flow, List<String^>^ arraystr)
 		{
 			for (int i = 0; i < vector.size(); ++i)
 			{
-				arraystr->Add(gcnew String(vector[i].c_str()));
+				devices->Add(gcnew String(vector[i].c_str()));
 			}
 		}
 	}
+	return devices;
 }
 
 void Recorder::createErrorCallback() {
