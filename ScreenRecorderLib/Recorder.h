@@ -159,8 +159,8 @@ namespace ScreenRecorderLib {
 		MouseOptions() {
 			IsMousePointerEnabled = true;
 			IsMouseClicksDetected = false;
-			MouseClickDetectionColor = "#0F61C3";
-			MouseRightClickDetectionColor = "#0F61C3";
+			MouseClickDetectionColor = "#FFFF00";
+			MouseRightClickDetectionColor = "#FFFF00";
 			MouseClickDetectionRadius = 20;
 			MouseClickDetectionDuration = 150;
 		}
