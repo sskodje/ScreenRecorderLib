@@ -153,11 +153,23 @@ namespace ScreenRecorderLib {
 			Channels = AudioChannels::Stereo;
 		}
 		property bool IsAudioEnabled;
+		/// <summary>
+		///Enable to record system audio output.
+		/// </summary>
 		property bool IsOutputDeviceEnabled;
+		/// <summary>
+		///Enable to record system audio input (e.g. microphone)
+		/// </summary>
 		property bool IsInputDeviceEnabled;
 		property AudioBitrate Bitrate;
 		property AudioChannels Channels;
+		/// <summary>
+		///Audio playback device to capture audio from. Pass null or empty string to select system default.
+		/// </summary>
 		property String^ AudioOutputDevice;
+		/// <summary>
+		///Audio input device to capture audio from. Pass null or empty string to select system default.
+		/// </summary>
 		property String^ AudioInputDevice;
 	};
 	public ref class MouseOptions {
