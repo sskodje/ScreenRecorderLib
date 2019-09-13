@@ -49,6 +49,8 @@ namespace TestApp
         public int MouseClickDuration { get; set; } = 150;
         public List<string> AudioInputsList { get; set; } = new List<string>();
         public List<string> AudioOutputsList { get; set; } = new List<string>();
+        public bool IsAudioInEnabled { get; set; } = false;
+        public bool IsAudioOutEnabled { get; set; } = true;
 
         private bool _recordToStream;
         public bool RecordToStream
@@ -110,13 +112,15 @@ namespace TestApp
             {
                 this.ScreenComboBox.Items.Add(target);
             }
-            this.ScreenComboBox.SelectedIndex = 0;
-            AudioOutputsList.Add("No Audio");
-            AudioOutputsComboBox.SelectedIndex = 0;
-            AudioInputsList.Add("No Audio");
-            AudioInputsComboBox.SelectedIndex = 0;
+
+            AudioOutputsList.Add("Default playback device");
+            AudioInputsList.Add("Default recording device");
             AudioOutputsList.AddRange(Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices));
             AudioInputsList.AddRange(Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices));
+
+            ScreenComboBox.SelectedIndex = 0;
+            AudioOutputsComboBox.SelectedIndex = 0;
+            AudioInputsComboBox.SelectedIndex = 0;
         }
 
         protected void RaisePropertyChanged(string propertyName)
@@ -172,12 +176,9 @@ namespace TestApp
 
             Display selectedDisplay = (Display)this.ScreenComboBox.SelectedItem;
 
-            var isOutputDeviceEnabled = AudioOutputsComboBox.SelectedIndex > 0;
-            var isInputDeviceEnabled = AudioInputsComboBox.SelectedIndex > 0;
+            var audioOutputDevice = IsAudioOutEnabled && AudioOutputsComboBox.SelectedIndex > 0 ? AudioOutputsComboBox.SelectedItem.ToString() : string.Empty;
+            var audioInputDevice = IsAudioInEnabled && AudioInputsComboBox.SelectedIndex > 0 ? AudioInputsComboBox.SelectedItem.ToString() : string.Empty;
 
-            var audioOutputDevice = isOutputDeviceEnabled ? AudioOutputsComboBox.SelectedItem.ToString() : string.Empty;
-            var audioInputDevice = isInputDeviceEnabled ? AudioInputsComboBox.SelectedItem.ToString() : string.Empty;
-            
 
             RecorderOptions options = new RecorderOptions
             {
@@ -191,8 +192,8 @@ namespace TestApp
                     Bitrate = AudioBitrate.bitrate_96kbps,
                     Channels = AudioChannels.Stereo,
                     IsAudioEnabled = this.IsAudioEnabled,
-                    IsOutputDeviceEnabled = isOutputDeviceEnabled,
-                    IsInputDeviceEnabled = isInputDeviceEnabled,
+                    IsOutputDeviceEnabled = IsAudioOutEnabled,
+                    IsInputDeviceEnabled = IsAudioInEnabled,
                     AudioOutputDevice = audioOutputDevice,
                     AudioInputDevice = audioInputDevice
                 },

@@ -151,22 +151,26 @@
                                       VerticalAlignment="Top" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal">
-                            <Label Content="AudioOutputs"
+                            <CheckBox Content="Audio out"
                                    Width="85"
+                                      IsChecked="{Binding ElementName=MainWin,Path=IsAudioOutEnabled,Mode=TwoWay}"
                                    VerticalAlignment="Center" />
                             <ComboBox x:Name="AudioOutputsComboBox"
                                       MinWidth="100"
+                                      MaxWidth="155"
                                       Margin="0,5,5,5"
                                       ItemsSource="{Binding ElementName=MainWin,Path=AudioOutputsList}"
                                       SelectedIndex="0"
                                       VerticalAlignment="Top" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal">
-                            <Label Content="AudioInputs"
+                            <CheckBox Content="Audio in"
+                                      IsChecked="{Binding ElementName=MainWin,Path=IsAudioInEnabled,Mode=TwoWay}"
                                    Width="85"
                                    VerticalAlignment="Center" />
                             <ComboBox x:Name="AudioInputsComboBox"
                                       MinWidth="100"
+                                      MaxWidth="155"
                                       Margin="0,5,5,5"
                                       ItemsSource="{Binding ElementName=MainWin,Path=AudioInputsList}"
                                       SelectedIndex="0"
