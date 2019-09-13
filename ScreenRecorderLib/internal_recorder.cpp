@@ -36,7 +36,7 @@ using namespace concurrency;
 using namespace DirectX;
 
 INT32 g_LastMouseClickDurationRemaining;
-INT32 g_MouseClickDetectionDurationMillis=150;
+INT32 g_MouseClickDetectionDurationMillis = 150;
 
 // Driver types supported
 D3D_DRIVER_TYPE gDriverTypes[] =
@@ -336,7 +336,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			{
 				destRect = m_DestRect;
 			}
-					   
+
 			// create a "loopback capture has started" event
 			HANDLE hStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 			if (nullptr == hStartedEvent) {
@@ -355,9 +355,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			bool recordAudio = m_RecorderMode == MODE_VIDEO && m_IsAudioEnabled;
 			if (recordAudio && m_IsOutputDeviceEnabled)
 			{
+				bool isDeviceEmpty = m_AudioOutputDevice.empty();
 				LPCWSTR argv[3] = { L"", L"--device", m_AudioOutputDevice.c_str() };
-
-				CPrefs prefs(3, argv, hr, eRender);
+				int argc = isDeviceEmpty ? 1 : sizeof(argv);
+				CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, eRender);
 				prefs.m_bInt16 = true;
 				// create arguments for loopback capture thread
 				LoopbackCaptureThreadFunctionArguments threadArgs;
@@ -387,9 +388,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 			if (recordAudio && m_IsInputDeviceEnabled)
 			{
+				bool isDeviceEmpty = m_AudioInputDevice.empty();
 				LPCWSTR argv[3] = { L"", L"--device", m_AudioInputDevice.c_str() };
-
-				CPrefs prefs(3, argv, hr, eCapture);
+				int argc = isDeviceEmpty ? 1 : sizeof(argv);
+				CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, eCapture);
 				prefs.m_bInt16 = true;
 				// create arguments for loopback capture thread
 				LoopbackCaptureThreadFunctionArguments threadArgs;

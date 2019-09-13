@@ -129,8 +129,8 @@ private:
 	UINT32 m_VideoBitrateControlMode = eAVEncCommonRateControlMode_Quality;
 	bool m_IsMousePointerEnabled = true;
 	bool m_IsAudioEnabled = false;
-	bool m_IsOutputDeviceEnabled = false;
-	bool m_IsInputDeviceEnabled = false;
+	bool m_IsOutputDeviceEnabled = true;
+	bool m_IsInputDeviceEnabled = true;
 	bool m_IsFixedFramerate = false;
 	bool m_IsThrottlingDisabled = false;
 	bool m_IsLowLatencyModeEnabled = false;
