@@ -337,21 +337,35 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				destRect = m_DestRect;
 			}
 
-			// create a "loopback capture has started" event
-			HANDLE hStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-			if (nullptr == hStartedEvent) {
+			// create "loopback audio capture has started" events
+			HANDLE hOutputCaptureStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (nullptr == hOutputCaptureStartedEvent) {
 				ERR(L"CreateEvent failed: last error is %u", GetLastError());
 				return S_FALSE;
 			}
-			CloseHandleOnExit closeStartedEvent(hStartedEvent);
+			HANDLE hInputCaptureStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (nullptr == hInputCaptureStartedEvent) {
+				ERR(L"CreateEvent failed: last error is %u", GetLastError());
+				return S_FALSE;
+			}
+			CloseHandleOnExit closeOutputCaptureStartedEvent(hOutputCaptureStartedEvent);
+			CloseHandleOnExit closeInputCaptureStartedEvent(hInputCaptureStartedEvent);
 
-			// create a "stop capturing now" event
-			HANDLE hStopEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-			if (nullptr == hStopEvent) {
+			// create "stop capturing audio now" events
+			HANDLE hOutputCaptureStopEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (nullptr == hOutputCaptureStopEvent) {
 				ERR(L"CreateEvent failed: last error is %u", GetLastError());
 				return S_FALSE;
 			}
-			CloseHandleOnExit closeStopEvent(hStopEvent);
+			HANDLE hInputCaptureStopEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (nullptr == hInputCaptureStopEvent) {
+				ERR(L"CreateEvent failed: last error is %u", GetLastError());
+				return S_FALSE;
+			}
+
+			CloseHandleOnExit closeOutputCaptureStopEvent(hOutputCaptureStopEvent);
+			CloseHandleOnExit closeInputCaptureStopEvent(hInputCaptureStopEvent);
+
 			bool recordAudio = m_RecorderMode == MODE_VIDEO && m_IsAudioEnabled;
 			if (recordAudio && m_IsOutputDeviceEnabled)
 			{
@@ -367,8 +381,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				threadArgs.pCaptureInstance = pLoopbackCaptureOutputDevice.get();
 				threadArgs.bInt16 = prefs.m_bInt16;
 				threadArgs.hFile = prefs.m_hFile;
-				threadArgs.hStartedEvent = hStartedEvent;
-				threadArgs.hStopEvent = hStopEvent;
+				threadArgs.hStartedEvent = hOutputCaptureStartedEvent;
+				threadArgs.hStopEvent = hOutputCaptureStopEvent;
 				threadArgs.nFrames = 0;
 				threadArgs.flow = eRender;
 				threadArgs.samplerate = 0.0;
@@ -382,7 +396,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					return S_FALSE;
 				}
 				CloseHandleOnExit closeThread(hThread);
-				WaitForSingleObjectEx(hStartedEvent, 1000, false);
+				WaitForSingleObjectEx(hOutputCaptureStartedEvent, 1000, false);
 				m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
 			}
 
@@ -400,8 +414,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				threadArgs.pCaptureInstance = pLoopbackCaptureInputDevice.get();
 				threadArgs.bInt16 = prefs.m_bInt16;
 				threadArgs.hFile = prefs.m_hFile;
-				threadArgs.hStartedEvent = hStartedEvent;
-				threadArgs.hStopEvent = hStopEvent;
+				threadArgs.hStartedEvent = hInputCaptureStartedEvent;
+				threadArgs.hStopEvent = hInputCaptureStopEvent;
 				threadArgs.nFrames = 0;
 				threadArgs.flow = eCapture;
 				threadArgs.samplerate = 0.0;
@@ -420,7 +434,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					return S_FALSE;
 				}
 				CloseHandleOnExit closeThread(hThread);
-				WaitForSingleObjectEx(hStartedEvent, 1000, false);
+				WaitForSingleObjectEx(hInputCaptureStartedEvent, 1000, false);
 				m_InputAudioSamplesPerSecond = pLoopbackCaptureInputDevice->GetInputSampleRate();
 			}
 
@@ -696,7 +710,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				}
 			}
 
-			SetEvent(hStopEvent);
+			SetEvent(hOutputCaptureStopEvent);
+			SetEvent(hInputCaptureStopEvent);
 			if (!m_IsDestructed) {
 				if (RecordingStatusChangedCallback != nullptr)
 					RecordingStatusChangedCallback(STATUS_FINALIZING);
