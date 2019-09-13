@@ -357,7 +357,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			{
 				bool isDeviceEmpty = m_AudioOutputDevice.empty();
 				LPCWSTR argv[3] = { L"", L"--device", m_AudioOutputDevice.c_str() };
-				int argc = isDeviceEmpty ? 1 : sizeof(argv);
+				int argc = isDeviceEmpty ? 1 : SIZEOF_ARRAY(argv);
 				CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, eRender);
 				prefs.m_bInt16 = true;
 				// create arguments for loopback capture thread
@@ -390,7 +390,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			{
 				bool isDeviceEmpty = m_AudioInputDevice.empty();
 				LPCWSTR argv[3] = { L"", L"--device", m_AudioInputDevice.c_str() };
-				int argc = isDeviceEmpty ? 1 : sizeof(argv);
+				int argc = isDeviceEmpty ? 1 : SIZEOF_ARRAY(argv);
 				CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, eCapture);
 				prefs.m_bInt16 = true;
 				// create arguments for loopback capture thread
