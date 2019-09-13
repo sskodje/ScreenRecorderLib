@@ -219,9 +219,9 @@ std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vec
 
 	for (int i = 0; i < newvector.size(); ++i)
 		if (newvector[i] > 0x7fff)
-			newvector[i] = 0x7fff;
+			newvector[i] = newvector[i] / 2; // divide by the number of channels being mixed
 		else if (newvector[i] < -0x7fff)
-			newvector[i] = -0x7fff;
+			newvector[i] = newvector[i] / 2;
 
 	return newvector;
 }
