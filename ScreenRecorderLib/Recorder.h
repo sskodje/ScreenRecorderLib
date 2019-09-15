@@ -147,7 +147,7 @@ namespace ScreenRecorderLib {
 	public:
 		AudioOptions() {
 			IsAudioEnabled = false;
-			IsOutputDeviceEnabled = false;
+			IsOutputDeviceEnabled = true;
 			IsInputDeviceEnabled = false;
 			Bitrate = AudioBitrate::bitrate_96kbps;
 			Channels = AudioChannels::Stereo;

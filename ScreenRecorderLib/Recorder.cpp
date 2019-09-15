@@ -44,8 +44,12 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			lRec->SetInputDeviceEnabled(options->AudioOptions->IsInputDeviceEnabled);
 			lRec->SetAudioBitrate((UINT32)options->AudioOptions->Bitrate);
 			lRec->SetAudioChannels((UINT32)options->AudioOptions->Channels);
-			lRec->SetOutputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioOutputDevice));
-			lRec->SetInputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioInputDevice));
+			if (options->AudioOptions->AudioOutputDevice != nullptr) {
+				lRec->SetOutputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioOutputDevice));
+			}
+			if (options->AudioOptions->AudioInputDevice != nullptr) {
+				lRec->SetInputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioInputDevice));
+			}
 		}
 		if (options->MouseOptions) {
 			lRec->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled);
@@ -97,7 +101,7 @@ List<String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
 		break;
 	}
 
-	List<String^>^ devices = gcnew List<String^> ();
+	List<String^>^ devices = gcnew List<String^>();
 
 	HRESULT hr = CPrefs::list_devices(dFlow, &vector);
 
