@@ -98,12 +98,28 @@ To change the options, pass a RecorderOptions when creating the Recorder:
 		    //Displays a colored dot under the mouse cursor when the left mouse button is pressed.	
                     IsMouseClicksDetected = true,
                     MouseClickDetectionColor = "#FFFF00",
+		    MouseRightClickDetectionColor = "#FFFF00",
                     MouseClickDetectionRadius = 30,
                     MouseClickDetectionDuration = 100
 		    IsMousePointerEnabled = true,
                 }
             };
             _rec = Recorder.CreateRecorder(options);
+```
+To select audio device to record, query from Recorder and use as input in AudioOptions:
+```csharp
+            List<string> inputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices);
+	    List<string> outputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices);
+	    string selectedOutputDevice = //select one of the devices.. Passing empty string or null uses system default playback device.
+	    string selectedInputDevice = //select one of the devices.. Passing empty string or null uses system default recording device.
+	    AudioOptions = new AudioOptions
+            {
+                 IsAudioEnabled = true,
+		 IsOutputDeviceEnabled = true,
+                 IsInputDeviceEnabled = true,
+                 AudioOutputDevice = selectedOutputDevice,
+                 AudioInputDevice = selectedInputDevice
+            }	   	    
 ```
 
 To only record a portion of the screen, or a different monitor than the main monitor, you can also set DisplayOptions:
