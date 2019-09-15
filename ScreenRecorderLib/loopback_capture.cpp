@@ -29,7 +29,9 @@ DWORD WINAPI LoopbackCaptureThreadFunction(LPVOID pContext) {
 				pArgs->bInt16,
 				pArgs->hStartedEvent,
 				pArgs->hStopEvent,
-				&pArgs->nFrames
+				&pArgs->nFrames,
+				pArgs->flow,
+				pArgs->samplerate
 			);
 		}
 	}
@@ -42,7 +44,9 @@ HRESULT loopback_capture::LoopbackCapture(
 	bool bInt16,
 	HANDLE hStartedEvent,
 	HANDLE hStopEvent,
-	PUINT32 pnFrames
+	PUINT32 pnFrames,
+	EDataFlow flow,
+	double samplerate
 ) {
 	HRESULT hr;
 	// activate an IAudioClient
@@ -111,7 +115,23 @@ HRESULT loopback_capture::LoopbackCapture(
 		}
 	}
 
-	m_SamplesPerSec = pwfx->nSamplesPerSec;
+	if (samplerate != 0.0)
+	{
+		OutSampleRate = samplerate;
+	}
+	else
+	{
+		if (pwfx->nSamplesPerSec >= 48000)
+		{
+			OutSampleRate = 48000.0;
+		}
+		else
+		{
+			OutSampleRate = 44100.0;
+		}
+	}
+
+	m_SamplesPerSec = OutSampleRate;
 
 	// create a periodic waitable timer
 	HANDLE hWakeUp = CreateWaitableTimer(NULL, FALSE, NULL);
@@ -130,11 +150,18 @@ HRESULT loopback_capture::LoopbackCapture(
 	// do not work together...
 	// the "data ready" event never gets set
 	// so we're going to do a timer-driven loop
-	hr = pAudioClient->Initialize(
-		AUDCLNT_SHAREMODE_SHARED,
-		AUDCLNT_STREAMFLAGS_LOOPBACK,
-		audioClientBuffer, 0, pwfx, 0
-	);
+	switch (flow)
+	{
+	case eRender:
+		hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, audioClientBuffer, 0, pwfx, 0);
+		break;
+	case eCapture:
+		hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, audioClientBuffer, 0, pwfx, 0);
+		break;
+	default:
+		hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, audioClientBuffer, 0, pwfx, 0);
+		break;
+	}
 	if (FAILED(hr)) {
 		ERR(L"IAudioClient::Initialize failed: hr = 0x%08x", hr);
 		return hr;
@@ -195,7 +222,7 @@ HRESULT loopback_capture::LoopbackCapture(
 
 	bool bDone = false;
 	bool bFirstPacket = true;
-	bool bIsSilence = false;
+
 	for (UINT32 nPasses = 0; !bDone; nPasses++) {
 		// drain data while it is available
 		UINT32 nNextPacketSize;
@@ -208,7 +235,7 @@ HRESULT loopback_capture::LoopbackCapture(
 			BYTE *pData;
 			UINT32 nNumFramesToRead;
 			DWORD dwFlags;
-			bIsSilence = false;
+
 			hr = pAudioCaptureClient->GetBuffer(
 				&pData,
 				&nNumFramesToRead,
@@ -228,11 +255,9 @@ HRESULT loopback_capture::LoopbackCapture(
 			}
 			else if (AUDCLNT_BUFFERFLAGS_SILENT == dwFlags) {
 				//LOG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames", dwFlags, nPasses, *pnFrames);
-				bIsSilence = true;
 			}
 			else if (0 != dwFlags) {
 				LOG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames", dwFlags, nPasses, *pnFrames);
-				//return E_UNEXPECTED;
 			}
 
 			if (0 == nNumFramesToRead) {
@@ -244,15 +269,61 @@ HRESULT loopback_capture::LoopbackCapture(
 
 			LONG lBytesToWrite = nNumFramesToRead * nBlockAlign;
 #pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
-			//if (!bIsSilence) {
+
 			if (m_IsDestructed) { return E_ABORT; }
-			mtx.lock();
-			int size = lBytesToWrite;
-			if (m_RecordedBytes.size() == 0)
-				m_RecordedBytes.reserve(size);
-			m_RecordedBytes.insert(m_RecordedBytes.end(), &pData[0], &pData[size]);
-			mtx.unlock();
+			// Convert audio
+			//if (pwfx->nSamplesPerSec != OutSampleRate) {
+				/*
+				 * In this section or in loopback_capture::GetRecordedBytes() 
+				 * we should resample our audio if pwfx->nSamplesPerSec != 48000 or 44100.
+				 * For this task I tried to use WWMFResampler (example can be found here https://github.com/openhome/ohPlayer/blob/master/Win32/WWMFResampler.cpp)
+				 * but with this resampler I have sound distortion. So my suggestion is to use https://github.com/avaneev/r8brain-free-src.
+				 * Unfortunately I can't get it work right yet.	
+				 *
+				 */
+
+				//double* opp = nullptr;
+				//double* InBufs = new double[lBytesToWrite];
+				
+				//// Convert the buffer to doubles (before resampling)
+				//const double div = (1.0f / 32768.0f);
+				//for (int i = 0; i < lBytesToWrite; i++) {
+				//	InBufs[i] = div * (double)pData[i];
+				//}
+				
+				//int bytesToWrite = 0;
+				
+				//bytesToWrite = Resampler->process(InBufs, lBytesToWrite, opp);
+				
+				//mtx.lock();
+				//BYTE* convertedBytes = new BYTE[bytesToWrite];
+				
+				//// Convert back to byte
+				//const double mul = (32768.0f);
+				//for (int i = 0; i < bytesToWrite; i++) {
+				//	double tmp = mul * InBufs[i];
+				//	tmp = std::fmax(tmp, -32768); // CLIP < 32768
+				//	tmp = std::fmin(tmp, 32767); // CLIP > 32767 
+				//	convertedBytes[i] = (BYTE)(tmp);
+				//}
+				
+				//if (m_RecordedBytes.size() == 0)
+				//	m_RecordedBytes.reserve(bytesToWrite);
+				//m_RecordedBytes.insert(m_RecordedBytes.end(), &convertedBytes[0], &convertedBytes[bytesToWrite]);
+				
+				//delete[] convertedBytes;
+				//delete[] InBufs;
+				//mtx.unlock();
 			//}
+			//else {
+				mtx.lock();
+				int size = lBytesToWrite;
+				if (m_RecordedBytes.size() == 0)
+					m_RecordedBytes.reserve(size);
+				m_RecordedBytes.insert(m_RecordedBytes.end(), &pData[0], &pData[size]);
+				mtx.unlock();
+			//}
+
 			*pnFrames += nNumFramesToRead;
 
 			hr = pAudioCaptureClient->ReleaseBuffer(nNumFramesToRead);

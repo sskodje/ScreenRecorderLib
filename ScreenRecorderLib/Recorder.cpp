@@ -40,13 +40,22 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 
 		if (options->AudioOptions) {
 			lRec->SetAudioEnabled(options->AudioOptions->IsAudioEnabled);
+			lRec->SetOutputDeviceEnabled(options->AudioOptions->IsOutputDeviceEnabled);
+			lRec->SetInputDeviceEnabled(options->AudioOptions->IsInputDeviceEnabled);
 			lRec->SetAudioBitrate((UINT32)options->AudioOptions->Bitrate);
 			lRec->SetAudioChannels((UINT32)options->AudioOptions->Channels);
+			if (options->AudioOptions->AudioOutputDevice != nullptr) {
+				lRec->SetOutputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioOutputDevice));
+			}
+			if (options->AudioOptions->AudioInputDevice != nullptr) {
+				lRec->SetInputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioInputDevice));
+			}
 		}
 		if (options->MouseOptions) {
 			lRec->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled);
 			lRec->SetDetectMouseClicks(options->MouseOptions->IsMouseClicksDetected);
-			lRec->SetMouseClickDetectionColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionColor));
+			lRec->SetMouseClickDetectionLMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionColor));
+			lRec->SetMouseClickDetectionRMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseRightClickDetectionColor));
 			lRec->SetMouseClickDetectionRadius(options->MouseOptions->MouseClickDetectionRadius);
 			lRec->SetMouseClickDetectionDuration(options->MouseOptions->MouseClickDetectionDuration);
 		}
@@ -70,6 +79,43 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		lRec->SetIsHardwareEncodingEnabled(options->IsHardwareEncodingEnabled);
 		lRec->SetIsFragmentedMp4Enabled(options->IsFragmentedMp4Enabled);
 	}
+}
+
+List<String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
+{
+	std::vector<std::wstring> vector;
+	EDataFlow dFlow;
+
+	switch (source)
+	{
+	case  AudioDeviceSource::OutputDevices:
+		dFlow = eRender;
+		break;
+	case AudioDeviceSource::InputDevices:
+		dFlow = eCapture;
+		break;
+	case AudioDeviceSource::All:
+		dFlow = eAll;
+		break;
+	default:
+		break;
+	}
+
+	List<String^>^ devices = gcnew List<String^>();
+
+	HRESULT hr = CPrefs::list_devices(dFlow, &vector);
+
+	if (hr == S_OK)
+	{
+		if (vector.size() != 0)
+		{
+			for (int i = 0; i < vector.size(); ++i)
+			{
+				devices->Add(gcnew String(vector[i].c_str()));
+			}
+		}
+	}
+	return devices;
 }
 
 void Recorder::createErrorCallback() {

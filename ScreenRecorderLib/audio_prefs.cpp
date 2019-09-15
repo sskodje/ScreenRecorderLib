@@ -14,13 +14,12 @@
 
 
 
-HRESULT get_default_device(IMMDevice **ppMMDevice);
-HRESULT list_devices();
+HRESULT get_default_device(IMMDevice **ppMMDevice, EDataFlow flow);
 HRESULT get_specific_device(LPCWSTR szLongName, IMMDevice **ppMMDevice);
 HRESULT open_file(LPCWSTR szFileName, HMMIO *phFile);
 
 
-CPrefs::CPrefs(int argc, LPCWSTR argv[], HRESULT &hr)
+CPrefs::CPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow)
 	: m_pMMDevice(NULL)
 	, m_hFile(NULL)
 	, m_bInt16(false)
@@ -72,7 +71,7 @@ CPrefs::CPrefs(int argc, LPCWSTR argv[], HRESULT &hr)
 
 		// open default device if not specified
 		if (NULL == m_pMMDevice) {
-			hr = get_default_device(&m_pMMDevice);
+			hr = get_default_device(&m_pMMDevice, flow);
 			if (FAILED(hr)) {
 				return;
 			}
@@ -94,7 +93,7 @@ CPrefs::~CPrefs() {
 	}
 }
 
-HRESULT get_default_device(IMMDevice **ppMMDevice) {
+HRESULT get_default_device(IMMDevice **ppMMDevice, EDataFlow flow) {
 	HRESULT hr = S_OK;
 	IMMDeviceEnumerator *pMMDeviceEnumerator;
 
@@ -110,8 +109,8 @@ HRESULT get_default_device(IMMDevice **ppMMDevice) {
 	}
 	ReleaseOnExit releaseMMDeviceEnumerator(pMMDeviceEnumerator);
 
-	// get the default render endpoint
-	hr = pMMDeviceEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, ppMMDevice);
+	// get the default endpoint for chosen flow (should be either eCapture or eRender)
+	hr = pMMDeviceEnumerator->GetDefaultAudioEndpoint(flow, eConsole, ppMMDevice);
 	if (FAILED(hr)) {
 		ERR(L"IMMDeviceEnumerator::GetDefaultAudioEndpoint failed: hr = 0x%08x", hr);
 		return hr;
@@ -120,7 +119,7 @@ HRESULT get_default_device(IMMDevice **ppMMDevice) {
 	return S_OK;
 }
 
-HRESULT list_devices() {
+HRESULT CPrefs::list_devices(EDataFlow flow, std::vector<std::wstring> *devices) {
 	HRESULT hr = S_OK;
 
 	// get an enumerator
@@ -139,10 +138,9 @@ HRESULT list_devices() {
 
 	IMMDeviceCollection *pMMDeviceCollection;
 
-	// get all the active render endpoints
-	hr = pMMDeviceEnumerator->EnumAudioEndpoints(
-		eRender, DEVICE_STATE_ACTIVE, &pMMDeviceCollection
-	);
+	// get all the active endpoints for chosen flow
+	hr = pMMDeviceEnumerator->EnumAudioEndpoints(flow, DEVICE_STATE_ACTIVE, &pMMDeviceCollection);
+
 	if (FAILED(hr)) {
 		ERR(L"IMMDeviceEnumerator::EnumAudioEndpoints failed: hr = 0x%08x", hr);
 		return hr;
@@ -192,8 +190,8 @@ HRESULT list_devices() {
 		}
 
 		LOG(L"    %ls", pv.pwszVal);
+		devices->push_back(pv.pwszVal);
 	}
-
 	return S_OK;
 }
 
@@ -218,9 +216,9 @@ HRESULT get_specific_device(LPCWSTR szLongName, IMMDevice **ppMMDevice) {
 
 	IMMDeviceCollection *pMMDeviceCollection;
 
-	// get all the active render endpoints
+	// get all the active endpoints
 	hr = pMMDeviceEnumerator->EnumAudioEndpoints(
-		eRender, DEVICE_STATE_ACTIVE, &pMMDeviceCollection
+		eAll, DEVICE_STATE_ACTIVE, &pMMDeviceCollection
 	);
 	if (FAILED(hr)) {
 		ERR(L"IMMDeviceEnumerator::EnumAudioEndpoints failed: hr = 0x%08x", hr);

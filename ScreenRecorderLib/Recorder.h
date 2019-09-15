@@ -18,6 +18,12 @@ delegate void InternalErrorCallbackDelegate(std::wstring path);
 
 namespace ScreenRecorderLib {
 
+	public enum class AudioDeviceSource
+	{
+		OutputDevices,
+		InputDevices,
+		All
+	};
 	public enum class RecorderStatus {
 		Idle,
 		Recording,
@@ -141,12 +147,30 @@ namespace ScreenRecorderLib {
 	public:
 		AudioOptions() {
 			IsAudioEnabled = false;
+			IsOutputDeviceEnabled = true;
+			IsInputDeviceEnabled = false;
 			Bitrate = AudioBitrate::bitrate_96kbps;
 			Channels = AudioChannels::Stereo;
 		}
 		property bool IsAudioEnabled;
+		/// <summary>
+		///Enable to record system audio output.
+		/// </summary>
+		property bool IsOutputDeviceEnabled;
+		/// <summary>
+		///Enable to record system audio input (e.g. microphone)
+		/// </summary>
+		property bool IsInputDeviceEnabled;
 		property AudioBitrate Bitrate;
 		property AudioChannels Channels;
+		/// <summary>
+		///Audio playback device to capture audio from. Pass null or empty string to select system default.
+		/// </summary>
+		property String^ AudioOutputDevice;
+		/// <summary>
+		///Audio input device to capture audio from. Pass null or empty string to select system default.
+		/// </summary>
+		property String^ AudioInputDevice;
 	};
 	public ref class MouseOptions {
 	public:
@@ -154,6 +178,7 @@ namespace ScreenRecorderLib {
 			IsMousePointerEnabled = true;
 			IsMouseClicksDetected = false;
 			MouseClickDetectionColor = "#FFFF00";
+			MouseRightClickDetectionColor = "#FFFF00";
 			MouseClickDetectionRadius = 20;
 			MouseClickDetectionDuration = 150;
 		}
@@ -169,6 +194,10 @@ namespace ScreenRecorderLib {
 		/// The color of the dot where the left mouse button is pressed, in hex format. Default is Yellow (#FFFF00).
 		/// </summary>
 		property String^ MouseClickDetectionColor;
+		/// <summary>
+		/// The color of the dot where the right mouse button is pressed, in hex format. Default is Yellow (#FFFF00).
+		/// </summary>
+		property String^ MouseRightClickDetectionColor;
 		/// <summary>
 		/// The radius of the dot where the left mouse button is pressed. Default is 20.
 		/// </summary>
@@ -274,6 +303,7 @@ namespace ScreenRecorderLib {
 		void SetOptions(RecorderOptions^ options);
 		static Recorder^ CreateRecorder();
 		static Recorder^ CreateRecorder(RecorderOptions^ options);
+		static List<String^>^ GetSystemAudioDevices(AudioDeviceSource source);
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;

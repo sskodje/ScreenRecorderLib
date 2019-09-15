@@ -1,5 +1,9 @@
+#pragma once
 // prefs.h
 //https://github.com/mvaneerde/blog/tree/master/loopback-capture
+#include <vector>
+#include <mmdeviceapi.h>
+
 class CPrefs {
 public:
 	IMMDevice *m_pMMDevice;
@@ -7,7 +11,8 @@ public:
 	bool m_bInt16;
 	PWAVEFORMATEX m_pwfx;
 	// set hr to S_FALSE to abort but return success
-	CPrefs(int argc, LPCWSTR argv[], HRESULT &hr);
+	CPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow);
 	~CPrefs();
-
+	// writes all found devices for chosen flow into devices
+	static HRESULT list_devices(EDataFlow flow, std::vector<std::wstring> *devices);
 };
