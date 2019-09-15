@@ -209,9 +209,13 @@ std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vec
 	}
 	else
 	{
-		newvector.insert(newvector.end(), second.begin(), second.end());
+		//This will clip the second audio sample to the length of the first.
+		//It fixes audio artifacts due to  variable length of the two samples, but potentially loses information..
+		vector<BYTE>::iterator end = first.size() > 0 ? second.begin() += first.size() : second.end();
 
-		for (size_t i = 0; i < first.size(); i++)
+		newvector.insert(newvector.end(), second.begin(), end);
+
+		for (int i = 0; i < first.size(); i++)
 		{
 			newvector[i] += first[i];
 		}
