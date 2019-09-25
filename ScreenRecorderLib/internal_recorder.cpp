@@ -545,11 +545,14 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						_com_error err(hr);
 						ERR(L"Reinitialized desktop duplication error: %s\n", err.ErrorMessage());
 					}
-					if (hr != E_ACCESSDENIED) {
+					if (hr == E_ACCESSDENIED) {
+						//Access to video output is denied, probably due to DRM, screen saver, fullscreen application or similar.
+						//We continue the recording, and instead of desktop texture just add a blank texture instead.
+						hr = S_OK;
+					}
+					else {
 						RETURN_ON_BAD_HR(hr);
 					}
-					wait(1);
-					continue;
 				}
 				if (hr == DXGI_ERROR_DEVICE_REMOVED) {
 					return pDevice->GetDeviceRemovedReason();
@@ -568,7 +571,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					&& (!m_IsMousePointerEnabled || FrameInfo.PointerShapeBufferSize == 0)//always redraw when pointer changes if we draw pointer
 					&& (hr == DXGI_ERROR_WAIT_TIMEOUT || (durationSinceLastFrame100Nanos) < videoFrameDuration100Nanos)) //skip if frame timeouted or duration is under our chosen framerate
 				{
-					if (hr == S_OK) {
+					if (hr == S_OK && pDesktopResource != nullptr) {
 						//we got a frame, but it's too soon, so we cache it and see if there are more changes.
 						if (pPreviousFrameCopy == nullptr) {
 							RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, nullptr, &pPreviousFrameCopy));
@@ -619,7 +622,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					if (pPreviousFrameCopy) {
 						m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
 					}
-					else {
+					else if (pDesktopResource != nullptr) {
 						CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
 						RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
 						m_ImmediateContext->CopyResource(pFrameCopy, pAcquiredDesktopImage);
