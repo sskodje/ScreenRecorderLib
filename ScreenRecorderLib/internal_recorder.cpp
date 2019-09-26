@@ -78,7 +78,7 @@ internal_recorder::~internal_recorder()
 LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
 	// MB1 click
-	if (wParam == WM_LBUTTONDOWN)
+	if (wParam == WM_LBUTTONDOWN || wParam == WM_RBUTTONDOWN)
 	{
 		g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
 	}
@@ -499,13 +499,13 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				if (m_IsMouseClicksDetected && GetKeyState(VK_LBUTTON) < 0)
 				{
 					//If left mouse button is held, reset the duration of click duration
-					m_ClickName = "left";
+					m_LastMouseClickButton = VK_LBUTTON;
 					g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
 				}
 				if (m_IsMouseClicksDetected && GetKeyState(VK_RBUTTON) < 0)
 				{
 					//If right mouse button is held, reset the duration of click duration
-					m_ClickName = "right";
+					m_LastMouseClickButton = VK_RBUTTON;
 					g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
 				}
 				if (m_IsPaused) {
@@ -646,11 +646,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						&& m_IsMouseClicksDetected
 						&& gotMousePointer)
 					{
-						if (m_ClickName == "left")
+						if (m_LastMouseClickButton == VK_LBUTTON)
 						{
 							hr = pMousePointer->DrawMouseClick(PtrInfo, pFrameCopy, m_MouseClickDetectionLMBColor, m_MouseClickDetectionRadius);
 						}
-						if (m_ClickName == "right")
+						if (m_LastMouseClickButton == VK_RBUTTON)
 						{
 							hr = pMousePointer->DrawMouseClick(PtrInfo, pFrameCopy, m_MouseClickDetectionRMBColor, m_MouseClickDetectionRadius);
 						}

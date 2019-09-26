@@ -142,7 +142,7 @@ private:
 	bool m_IsRecording = false;
 	bool m_IsEncoderFailure = false;
 	bool m_IsMouseClicksDetected = false;
-	std::string m_ClickName = "";
+	int m_LastMouseClickButton;
 	std::string m_MouseClickDetectionLMBColor = "#FFFF00";
 	std::string m_MouseClickDetectionRMBColor = "#FFFF00";
 	int m_MouseClickDetectionRadius = 20;
