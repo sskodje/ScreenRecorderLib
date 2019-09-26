@@ -17,7 +17,12 @@ delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fi
 delegate void InternalErrorCallbackDelegate(std::wstring path);
 
 namespace ScreenRecorderLib {
-
+	public enum class ImageFormat {
+		PNG,
+		JPEG,
+		TIFF,
+		BMP
+	};
 	public enum class AudioDeviceSource
 	{
 		OutputDevices,
@@ -120,6 +125,7 @@ namespace ScreenRecorderLib {
 			IsFixedFramerate = false;
 			EncoderProfile = H264Profile::Baseline;
 			BitrateMode = BitrateControlMode::Quality;
+			SnapshotFormat = ImageFormat::PNG;
 		}
 		property H264Profile EncoderProfile;
 		/// <summary>
@@ -142,6 +148,10 @@ namespace ScreenRecorderLib {
 		///Send data to the video encoder every frame, even if it means duplicating the previous frame(s). Can fix stutter issues in fringe cases, but uses more resources.
 		/// </summary>
 		property bool IsFixedFramerate;
+		/// <summary>
+		///Image format for snapshots. This is only used with Snapshot and Slideshow modes.
+		/// </summary>
+		property ImageFormat SnapshotFormat;
 	};
 	public ref class AudioOptions {
 	public:

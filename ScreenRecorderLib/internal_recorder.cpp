@@ -193,6 +193,9 @@ void internal_recorder::SetMouseClickDetectionRadius(int value) {
 void internal_recorder::SetMouseClickDetectionDuration(int value) {
 	g_MouseClickDetectionDurationMillis = value;
 }
+void internal_recorder::SetSnapshotSaveFormat(GUID value) {
+	m_ImageEncoderFormat = value;
+}
 
 std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vector<BYTE> &second)
 {
@@ -1322,9 +1325,9 @@ std::string internal_recorder::NowToString()
 }
 HRESULT internal_recorder::WriteFrameToImage(ID3D11Texture2D* pAcquiredDesktopImage, LPCWSTR filePath)
 {
-
+	
 	HRESULT hr = SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage,
-		IMAGE_ENCODER_FORMAT, filePath);
+		m_ImageEncoderFormat, filePath, nullptr);
 	return hr;
 }
 

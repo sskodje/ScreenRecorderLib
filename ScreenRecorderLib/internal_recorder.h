@@ -87,6 +87,7 @@ public:
 	void SetMouseClickDetectionRMBColor(std::string value);
 	void SetMouseClickDetectionRadius(int value);
 	void SetMouseClickDetectionDuration(int value);
+	void SetSnapshotSaveFormat(GUID value);
 
 private:
 	// Format constants
@@ -95,7 +96,7 @@ private:
 	const UINT32 AUDIO_BITS_PER_SAMPLE = 16; //Audio bits per sample must be 16.
 	const UINT32 AUDIO_SAMPLES_PER_SECOND = 44100;//Audio samples per seconds must be 44100.
 	const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_ARGB32;
-	const GUID   IMAGE_ENCODER_FORMAT = GUID_ContainerFormatPng;
+
 
 
 	struct TaskWrapper;
@@ -146,6 +147,8 @@ private:
 	std::string m_MouseClickDetectionRMBColor = "#FFFF00";
 	int m_MouseClickDetectionRadius = 20;
 	UINT64 m_LastEncodedSampleCount = 0;
+	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;
+
 	std::string NowToString();
 	std::vector<BYTE> MixAudio(std::vector<BYTE> &first, std::vector<BYTE> &second);
 	HHOOK m_Mousehook;

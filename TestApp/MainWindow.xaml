@@ -35,6 +35,13 @@
                 <x:Type TypeName="rec:BitrateControlMode" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
+        <ObjectDataProvider x:Key="ImageFormatData"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type System:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="rec:ImageFormat" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
     </Window.Resources>
     <Grid x:Name="LayoutRoot">
         <Grid.RowDefinitions>
@@ -44,7 +51,7 @@
         <StackPanel HorizontalAlignment="Center"
                     VerticalAlignment="Center">
             <StackPanel x:Name="SettingsPanel">
- 
+
                 <ComboBox x:Name="ScreenComboBox"
                           Margin="5"
                           SelectionChanged="ScreenComboBox_SelectionChanged">
@@ -125,9 +132,26 @@
                                       Margin="0,5,5,5"
                                       ItemsSource="{Binding Source={StaticResource RecorderModeData}}"
                                       SelectedItem="{Binding ElementName=MainWin,Path=CurrentRecordingMode}"
+                                      VerticalAlignment="Top"
+                                      SelectionChanged="RecordingModeComboBox_SelectionChanged"/>
+                        </StackPanel>
+                        
+                        <StackPanel Orientation="Horizontal"
+                                    x:Name="SnapshotImageFormatPanel"
+                                    Visibility="Collapsed">
+                            <Label Content="Image format"
+                                   Width="85"
+                                   VerticalAlignment="Center" />
+                            <ComboBox x:Name="ImageFormatComboBox"
+                                      MinWidth="100"
+                                      Margin="0,5,5,5"
+                                      ItemsSource="{Binding Source={StaticResource ImageFormatData}}"
+                                      SelectedItem="{Binding ElementName=MainWin,Path=CurrentImageFormat}"
                                       VerticalAlignment="Top" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal">
+                        
+                        <StackPanel Orientation="Horizontal"
+                                    x:Name="VideoBitrateModePanel">
                             <Label Content="Bitrate Mode"
                                    Width="85"
                                    VerticalAlignment="Center" />
@@ -139,7 +163,8 @@
                                       SelectionChanged="RecordingBitrateModeComboBox_SelectionChanged"
                                       VerticalAlignment="Top" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal"
+                                    x:Name="VideoProfilePanel">
                             <Label Content="H264 profile"
                                    Width="85"
                                    VerticalAlignment="Center" />
@@ -150,11 +175,12 @@
                                       SelectedItem="{Binding ElementName=MainWin,Path=CurrentH264Profile}"
                                       VerticalAlignment="Top" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal"
+                                    x:Name="AudioOutPanel">
                             <CheckBox Content="Audio out"
-                                   Width="85"
+                                      Width="85"
                                       IsChecked="{Binding ElementName=MainWin,Path=IsAudioOutEnabled,Mode=TwoWay}"
-                                   VerticalAlignment="Center" />
+                                      VerticalAlignment="Center" />
                             <ComboBox x:Name="AudioOutputsComboBox"
                                       MinWidth="100"
                                       MaxWidth="155"
@@ -163,11 +189,12 @@
                                       SelectedIndex="0"
                                       VerticalAlignment="Top" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal">
+                        <StackPanel Orientation="Horizontal"
+                                    x:Name="AudioInPanel">
                             <CheckBox Content="Audio in"
                                       IsChecked="{Binding ElementName=MainWin,Path=IsAudioInEnabled,Mode=TwoWay}"
-                                   Width="85"
-                                   VerticalAlignment="Center" />
+                                      Width="85"
+                                      VerticalAlignment="Center" />
                             <ComboBox x:Name="AudioInputsComboBox"
                                       MinWidth="100"
                                       MaxWidth="155"

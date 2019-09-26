@@ -103,6 +103,21 @@ namespace TestApp
             }
         }
 
+        private ImageFormat _currentImageFormat;
+        public ImageFormat CurrentImageFormat
+        {
+            get { return _currentImageFormat; }
+            set
+            {
+                if (_currentImageFormat != value)
+                {
+                    _currentImageFormat = value;
+                    RaisePropertyChanged("CurrentImageFormat");
+                }
+            }
+        }
+
+
 
         public H264Profile CurrentH264Profile { get; set; } = H264Profile.Main;
         public MainWindow()
@@ -204,7 +219,8 @@ namespace TestApp
                     Framerate = this.VideoFramerate,
                     Quality = this.VideoQuality,
                     IsFixedFramerate = this.IsFixedFramerate,
-                    EncoderProfile = this.CurrentH264Profile
+                    EncoderProfile = this.CurrentH264Profile,
+                    SnapshotFormat = CurrentImageFormat
                 },
                 DisplayOptions = new DisplayOptions(selectedDisplay.DisplayName, left, top, right, bottom),
                 MouseOptions = new MouseOptions
@@ -396,6 +412,29 @@ namespace TestApp
             catch
             {
                 ((TextBox)sender).ClearValue(TextBox.BorderBrushProperty);
+            }
+        }
+
+        private void RecordingModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (this.AudioInPanel != null)
+            {
+                switch (CurrentRecordingMode)
+                {
+                    case RecorderMode.Video:
+                        this.VideoBitrateModePanel.Visibility = Visibility.Visible;
+                        this.VideoProfilePanel.Visibility = Visibility.Visible;
+                        this.SnapshotImageFormatPanel.Visibility = Visibility.Collapsed;
+                        break;
+                    case RecorderMode.Slideshow:
+                    case RecorderMode.Snapshot:
+                        this.VideoBitrateModePanel.Visibility = Visibility.Collapsed;
+                        this.VideoProfilePanel.Visibility = Visibility.Collapsed;
+                        this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
+                        break;
+                    default:
+                        break;
+                }
             }
         }
     }

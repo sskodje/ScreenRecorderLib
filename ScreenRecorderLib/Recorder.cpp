@@ -27,6 +27,22 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			lRec->SetFixedFramerate(options->VideoOptions->IsFixedFramerate);
 			lRec->SetH264EncoderProfile((UINT32)options->VideoOptions->EncoderProfile);
 			lRec->SetVideoBitrateMode((UINT32)options->VideoOptions->BitrateMode);
+			switch (options->VideoOptions->SnapshotFormat)
+			{
+			case ImageFormat::BMP:
+				lRec->SetSnapshotSaveFormat(GUID_ContainerFormatBmp);
+				break;
+			case ImageFormat::JPEG:
+				lRec->SetSnapshotSaveFormat(GUID_ContainerFormatJpeg);
+				break;
+			case ImageFormat::TIFF:
+				lRec->SetSnapshotSaveFormat(GUID_ContainerFormatTiff);
+				break;
+			default:
+			case ImageFormat::PNG:
+				lRec->SetSnapshotSaveFormat(GUID_ContainerFormatPng);
+				break;
+			}
 		}
 		if (options->DisplayOptions) {
 			RECT rect;
