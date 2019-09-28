@@ -156,6 +156,9 @@ private:
 	void SetDebugName(ID3D11DeviceChild* child, const std::string& name);
 	void SetViewPort(ID3D11DeviceContext *deviceContext, UINT Width, UINT Height);
 
+	std::wstring GetImageExtension();
+	std::wstring GetVideoExtension();
+
 	HRESULT EnqueueFrame(FrameWriteModel model);
 	HRESULT ConfigureOutputDir(std::wstring path);
 	HRESULT InitializeDx(IDXGIOutput *pOutput, ID3D11DeviceContext **ppContext, ID3D11Device **ppDevice, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc);

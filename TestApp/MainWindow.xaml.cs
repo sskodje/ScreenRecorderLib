@@ -173,7 +173,7 @@ namespace TestApp
             else if (CurrentRecordingMode == RecorderMode.Snapshot)
             {
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss-ff");
-                videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + ".png");
+                videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + GetImageExtension());
             }
             _progressTimer = new DispatcherTimer();
             _progressTimer.Tick += _progressTimer_Tick;
@@ -257,6 +257,22 @@ namespace TestApp
             }
             _secondsElapsed = 0;
             IsRecording = true;
+        }
+
+        private string GetImageExtension()
+        {
+            switch (CurrentImageFormat)
+            {
+                case ImageFormat.JPEG:
+                    return ".jpg";
+                case ImageFormat.TIFF:
+                    return ".tiff";
+                case ImageFormat.BMP:
+                    return ".bmp";
+                default:
+                case ImageFormat.PNG:
+                    return ".png";
+            }
         }
 
         private void Rec_OnRecordingFailed(object sender, RecordingFailedEventArgs e)

@@ -233,6 +233,29 @@ std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vec
 	return newvector;
 }
 
+std::wstring internal_recorder::GetImageExtension() {
+	if (m_ImageEncoderFormat == GUID_ContainerFormatPng) {
+		return L".png";
+	}
+	else if (m_ImageEncoderFormat == GUID_ContainerFormatJpeg) {
+		return L".jpg";
+	}
+	else if (m_ImageEncoderFormat == GUID_ContainerFormatBmp) {
+		return L".bmp";
+	}
+	else if (m_ImageEncoderFormat == GUID_ContainerFormatTiff) {
+		return L".tiff";
+	}
+	else {
+		ERR("Image encoder format not recognized, defaulting to .jpg extension");
+		return L".jpg";
+	}
+}
+
+std::wstring internal_recorder::GetVideoExtension() {
+	return L".mp4";
+}
+
 HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 	m_OutputFullPath = path;
 	wstring dir = path;
@@ -253,7 +276,7 @@ HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 		return S_FALSE;
 	}
 	if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SNAPSHOT) {
-		wstring ext = m_RecorderMode == MODE_VIDEO ? L".mp4" : L".png";
+		wstring ext = m_RecorderMode == MODE_VIDEO ? GetVideoExtension() : GetImageExtension();
 		LPWSTR pStrExtension = PathFindExtension(path.c_str());
 		if (pStrExtension == nullptr || pStrExtension[0] == 0)
 		{
@@ -932,7 +955,7 @@ HRESULT internal_recorder::InitializeDx(IDXGIOutput *pDxgiOutput, ID3D11DeviceCo
 	*pOutputDuplDesc = OutputDuplDesc;
 
 	return hr;
-}
+		}
 
 HRESULT internal_recorder::InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOutput *pDxgiOutput, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc) {
 	*ppDesktopDupl = nullptr;
@@ -1293,7 +1316,7 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel model) {
 		}
 	}
 	else if (m_RecorderMode == MODE_SLIDESHOW) {
-		wstring	path = m_OutputFolder + L"\\" + to_wstring(model.FrameNumber) + L".png";
+		wstring	path = m_OutputFolder + L"\\" + to_wstring(model.FrameNumber) + GetImageExtension();
 		hr = WriteFrameToImage(model.Frame, path.c_str());
 		LONGLONG startposMs = (model.StartPos / 10 / 1000);
 		LONGLONG durationMs = (model.Duration / 10 / 1000);
