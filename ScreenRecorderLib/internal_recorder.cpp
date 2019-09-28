@@ -1269,6 +1269,28 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel model) {
 			ERR(L"Writing of video frame with start pos %lld ms failed: %s\n", (model.StartPos / 10 / 1000), err.ErrorMessage());
 			return hr;//Stop recording if we fail
 		}
+		BYTE *data;
+		//If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
+		//If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
+		if (m_IsAudioEnabled && model.Audio.size() == 0) {
+			int frameCount = ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000));
+			LONGLONG byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
+			model.Audio.insert(model.Audio.end(), byteCount, 0);
+			LOG(L"Inserted %zd bytes of silence", model.Audio.size());
+		}
+		if (model.Audio.size() > 0) {
+			data = new BYTE[model.Audio.size()];
+			std::copy(model.Audio.begin(), model.Audio.end(), data);
+			hr = WriteAudioSamplesToVideo(model.StartPos, model.Duration, m_AudioStreamIndex, data, model.Audio.size());
+			delete[] data;
+			model.Audio.clear();
+			vector<BYTE>().swap(model.Audio);
+			if (FAILED(hr)) {
+				_com_error err(hr);
+				ERR(L"Writing of audio sample with start pos %lld ms failed: %s\n", (model.StartPos / 10 / 1000), err.ErrorMessage());
+				return hr;//Stop recording if we fail
+			}
+		}
 	}
 	else if (m_RecorderMode == MODE_SLIDESHOW) {
 		wstring	path = m_OutputFolder + L"\\" + to_wstring(model.FrameNumber) + L".png";
@@ -1283,32 +1305,11 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel model) {
 		else {
 
 			m_FrameDelays.insert(std::pair<wstring, int>(path, model.FrameNumber == 0 ? 0 : (int)durationMs));
-			ERR(L"Wrote video slideshow frame with start pos %lld ms and with duration %lld ms\n", startposMs, durationMs);
+			LOG(L"Wrote video slideshow frame with start pos %lld ms and with duration %lld ms\n", startposMs, durationMs);
 		}
 	}
 	model.Frame.Release();
-	BYTE *data;
-	//If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
-	//If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
-	if (m_IsAudioEnabled && model.Audio.size() == 0) {
-		int frameCount = ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000));
-		LONGLONG byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
-		model.Audio.insert(model.Audio.end(), byteCount, 0);
-		LOG(L"Inserted %zd bytes of silence", model.Audio.size());
-	}
-	if (model.Audio.size() > 0) {
-		data = new BYTE[model.Audio.size()];
-		std::copy(model.Audio.begin(), model.Audio.end(), data);
-		hr = WriteAudioSamplesToVideo(model.StartPos, model.Duration, m_AudioStreamIndex, data, model.Audio.size());
-		delete[] data;
-		model.Audio.clear();
-		vector<BYTE>().swap(model.Audio);
-		if (FAILED(hr)) {
-			_com_error err(hr);
-			ERR(L"Writing of audio sample with start pos %lld ms failed: %s\n", (model.StartPos / 10 / 1000), err.ErrorMessage());
-			return hr;//Stop recording if we fail
-		}
-	}
+
 	return hr;
 }
 
@@ -1325,7 +1326,6 @@ std::string internal_recorder::NowToString()
 }
 HRESULT internal_recorder::WriteFrameToImage(ID3D11Texture2D* pAcquiredDesktopImage, LPCWSTR filePath)
 {
-	
 	HRESULT hr = SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage,
 		m_ImageEncoderFormat, filePath, nullptr);
 	return hr;
