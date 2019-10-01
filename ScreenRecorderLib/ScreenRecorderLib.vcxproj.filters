@@ -51,6 +51,12 @@
     <ClInclude Include="ManagedStreamWrapper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="WWMFResampler.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="WWUtil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AssemblyInfo.cpp">
@@ -69,6 +75,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="audio_prefs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WWMFResampler.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WWUtil.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

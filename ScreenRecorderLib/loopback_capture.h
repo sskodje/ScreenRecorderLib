@@ -4,7 +4,7 @@
 #include <avrt.h>
 #include <mutex>
 #include <mmdeviceapi.h>
-//#include "..\r8brain\CDSPResampler.h"
+#include "WWMFResampler.h"
 
 #pragma comment(lib, "avrt.lib")
 #pragma comment(lib, "ole32.lib")
@@ -49,7 +49,10 @@ private:
 	std::vector<BYTE> m_RecordedBytes = {};
 	UINT32 m_SamplesPerSec = 0;
 	std::mutex mtx;           // mutex for critical section
-	double OutSampleRate;
-	//r8b::CDSPResampler16* Resampler;
+	
+	WWMFResampler resampler;
+	WWMFPcmFormat inputFormat;
+	WWMFPcmFormat outputFormat;
+	WWMFSampleData sampleData;
 };
 

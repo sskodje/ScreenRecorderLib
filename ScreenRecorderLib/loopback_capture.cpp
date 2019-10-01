@@ -115,23 +115,37 @@ HRESULT loopback_capture::LoopbackCapture(
 		}
 	}
 
+	// set resampler options
 	if (samplerate != 0.0)
 	{
-		OutSampleRate = samplerate;
+		m_SamplesPerSec = samplerate;
 	}
 	else
 	{
 		if (pwfx->nSamplesPerSec >= 48000)
 		{
-			OutSampleRate = 48000.0;
+			m_SamplesPerSec = 48000.0;
 		}
 		else
 		{
-			OutSampleRate = 44100.0;
+			m_SamplesPerSec = 44100.0;
 		}
 	}
 
-	m_SamplesPerSec = OutSampleRate;
+	inputFormat.nChannels = pwfx->nChannels;
+	inputFormat.bits = pwfx->wBitsPerSample;
+	inputFormat.sampleRate = pwfx->nSamplesPerSec;
+	inputFormat.dwChannelMask = 0;
+	inputFormat.validBitsPerSample = pwfx->wBitsPerSample;
+	inputFormat.sampleFormat = WWMFBitFormatInt;
+
+	outputFormat = inputFormat;
+	outputFormat.sampleRate = m_SamplesPerSec;
+
+	// initialize resampler if sample rate differs from 44.1kHz or 48kHz
+	if (inputFormat.sampleRate != outputFormat.sampleRate) {
+		resampler.Initialize(inputFormat, outputFormat, 60);
+	}
 
 	// create a periodic waitable timer
 	HANDLE hWakeUp = CreateWaitableTimer(NULL, FALSE, NULL);
@@ -271,58 +285,13 @@ HRESULT loopback_capture::LoopbackCapture(
 #pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
 
 			if (m_IsDestructed) { return E_ABORT; }
-			// Convert audio
-			//if (pwfx->nSamplesPerSec != OutSampleRate) {
-				/*
-				 * In this section or in loopback_capture::GetRecordedBytes() 
-				 * we should resample our audio if pwfx->nSamplesPerSec != 48000 or 44100.
-				 * For this task I tried to use WWMFResampler (example can be found here https://github.com/openhome/ohPlayer/blob/master/Win32/WWMFResampler.cpp)
-				 * but with this resampler I have sound distortion. So my suggestion is to use https://github.com/avaneev/r8brain-free-src.
-				 * Unfortunately I can't get it work right yet.	
-				 *
-				 */
 
-				//double* opp = nullptr;
-				//double* InBufs = new double[lBytesToWrite];
-				
-				//// Convert the buffer to doubles (before resampling)
-				//const double div = (1.0f / 32768.0f);
-				//for (int i = 0; i < lBytesToWrite; i++) {
-				//	InBufs[i] = div * (double)pData[i];
-				//}
-				
-				//int bytesToWrite = 0;
-				
-				//bytesToWrite = Resampler->process(InBufs, lBytesToWrite, opp);
-				
-				//mtx.lock();
-				//BYTE* convertedBytes = new BYTE[bytesToWrite];
-				
-				//// Convert back to byte
-				//const double mul = (32768.0f);
-				//for (int i = 0; i < bytesToWrite; i++) {
-				//	double tmp = mul * InBufs[i];
-				//	tmp = std::fmax(tmp, -32768); // CLIP < 32768
-				//	tmp = std::fmin(tmp, 32767); // CLIP > 32767 
-				//	convertedBytes[i] = (BYTE)(tmp);
-				//}
-				
-				//if (m_RecordedBytes.size() == 0)
-				//	m_RecordedBytes.reserve(bytesToWrite);
-				//m_RecordedBytes.insert(m_RecordedBytes.end(), &convertedBytes[0], &convertedBytes[bytesToWrite]);
-				
-				//delete[] convertedBytes;
-				//delete[] InBufs;
-				//mtx.unlock();
-			//}
-			//else {
-				mtx.lock();
-				int size = lBytesToWrite;
-				if (m_RecordedBytes.size() == 0)
-					m_RecordedBytes.reserve(size);
-				m_RecordedBytes.insert(m_RecordedBytes.end(), &pData[0], &pData[size]);
-				mtx.unlock();
-			//}
+			mtx.lock();
+			int size = lBytesToWrite;
+			if (m_RecordedBytes.size() == 0)
+				m_RecordedBytes.reserve(size);
+			m_RecordedBytes.insert(m_RecordedBytes.end(), &pData[0], &pData[size]);
+			mtx.unlock();
 
 			*pnFrames += nNumFramesToRead;
 
@@ -365,6 +334,19 @@ HRESULT loopback_capture::LoopbackCapture(
 std::vector<BYTE> loopback_capture::GetRecordedBytes()
 {
 	mtx.lock();
+
+	// convert audio
+	if (inputFormat.sampleRate != outputFormat.sampleRate) {
+
+		resampler.Resample(m_RecordedBytes.data(), m_RecordedBytes.size(), &sampleData);
+
+		m_RecordedBytes.clear();
+
+		m_RecordedBytes.insert(m_RecordedBytes.end(), &sampleData.data[0], &sampleData.data[sampleData.bytes]);
+
+		sampleData.Release();
+	}
+
 	std::vector<BYTE> newvector(m_RecordedBytes);
 	m_RecordedBytes.clear();
 	mtx.unlock();
@@ -385,6 +367,9 @@ void loopback_capture::ClearRecordedBytes()
 
 void loopback_capture::Cleanup()
 {
+	if (inputFormat.sampleRate != outputFormat.sampleRate) {
+		resampler.Finalize();
+	}
 	m_RecordedBytes.clear();
 	vector<BYTE>().swap(m_RecordedBytes);
 }
