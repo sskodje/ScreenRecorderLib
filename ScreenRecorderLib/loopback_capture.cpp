@@ -338,8 +338,13 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes()
 	// convert audio
 	if (inputFormat.sampleRate != outputFormat.sampleRate) {
 
-		resampler.Resample(m_RecordedBytes.data(), m_RecordedBytes.size(), &sampleData);
-
+		HRESULT hr = resampler.Resample(m_RecordedBytes.data(), m_RecordedBytes.size(), &sampleData);
+		if (SUCCEEDED(hr)) {
+			LOG("Resampled audio from %uhz to %uhz", inputFormat.sampleRate, outputFormat.sampleRate);
+		}
+		else {
+			ERR("Resampling of audio failed: hr = 0x%08x", hr);
+		}
 		m_RecordedBytes.clear();
 
 		m_RecordedBytes.insert(m_RecordedBytes.end(), &sampleData.data[0], &sampleData.data[sampleData.bytes]);
