@@ -170,6 +170,7 @@
     <ClInclude Include="Recorder.h" />
     <ClInclude Include="ManagedStreamWrapper.h" />
     <ClInclude Include="utilities.h" />
+    <ClInclude Include="WWMFResampler.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AssemblyInfo.cpp">
@@ -208,6 +209,7 @@
     <ClCompile Include="Recorder.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="WWMFResampler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="app.ico" />

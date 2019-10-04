@@ -2,6 +2,7 @@
 #include <winnt.h>
 #include <locale>
 #include <codecvt>
+#include <comdef.h>
 #include "log.h"
 
 #define RETURN_ON_BAD_HR(expr) \
