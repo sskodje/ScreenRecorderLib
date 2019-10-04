@@ -171,7 +171,6 @@
     <ClInclude Include="ManagedStreamWrapper.h" />
     <ClInclude Include="utilities.h" />
     <ClInclude Include="WWMFResampler.h" />
-    <ClInclude Include="WWUtil.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AssemblyInfo.cpp">
@@ -211,7 +210,6 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="WWMFResampler.cpp" />
-    <ClCompile Include="WWUtil.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="app.ico" />
