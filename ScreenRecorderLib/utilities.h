@@ -5,6 +5,7 @@
 #include <comdef.h>
 #include "log.h"
 
+
 #define RETURN_ON_BAD_HR(expr) \
 { \
     HRESULT _hr_ = (expr); \
@@ -48,21 +49,7 @@ public:
 
 		return converterX.to_bytes(wstr);
 	}
-	static bool  CreateAllDirs(std::wstring path) {
-		int pos = 0;
-		do
-		{
-			pos = path.find_first_of(L"\\/", pos + 1);
-			BOOL result = CreateDirectory(path.substr(0, pos).c_str(), nullptr);
-			if (!result) {
-				DWORD error = GetLastError();
-				if (ERROR_ALREADY_EXISTS != error){
-					return false;
-				}
-			}
-		} while (pos != std::string::npos);
-		return true;
-	}
+
 	// Create a string with last error message
 	static std::wstring GetLastErrorStdWstr() {
 		return s2ws(GetLastErrorStdStr());

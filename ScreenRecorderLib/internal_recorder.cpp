@@ -11,6 +11,7 @@
 #include <mfidl.h>
 #include <VersionHelpers.h>
 #include <Wmcodecdsp.h>
+#include <filesystem>
 #include "mouse_pointer.h"
 #include "loopback_capture.h"
 #include "internal_recorder.h"
@@ -261,8 +262,8 @@ HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 	wstring dir = path;
 	LPWSTR directory = (LPWSTR)dir.c_str();
 	PathRemoveFileSpecW(directory);
-
-	if (utilities::CreateAllDirs(directory))
+	std::error_code ec;
+	if (std::filesystem::create_directories(directory, ec))
 	{
 		LOG(L"output folder is ready");
 		m_OutputFolder = directory;
@@ -272,8 +273,8 @@ HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 		// Failed to create directory.
 		ERR(L"failed to create output folder");
 		if (RecordingFailedCallback != nullptr)
-			RecordingFailedCallback(L"failed to create output folder");
-		return S_FALSE;
+			RecordingFailedCallback(L"Failed to create output folder: "+utilities::s2ws(ec.message()));
+		return E_FAIL;
 	}
 	if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SNAPSHOT) {
 		wstring ext = m_RecorderMode == MODE_VIDEO ? GetVideoExtension() : GetImageExtension();
@@ -313,10 +314,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 	}
 	m_FrameDelays.clear();
 	if (!path.empty()) {
-		HRESULT hr = ConfigureOutputDir(path);
-		if (FAILED(hr)) {
-			return hr;
-		}
+		RETURN_ON_BAD_HR(ConfigureOutputDir(path));
 	}
 	if (m_IsMouseClicksDetected) {
 		m_Mousehook = SetWindowsHookEx(WH_MOUSE, MouseHookProc, nullptr, 0);
