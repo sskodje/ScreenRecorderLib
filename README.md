@@ -20,8 +20,6 @@ This will start a video recording using the default settings:
 * no audio
 * mouse pointer enabled
 
-**For audio recording to work, system audio must be set to 16 bit, 44100hz or 48000hz**
-
 ```csharp
         using ScreenRecorderLib;
         
