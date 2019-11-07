@@ -263,7 +263,7 @@ HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 	LPWSTR directory = (LPWSTR)dir.c_str();
 	PathRemoveFileSpecW(directory);
 	std::error_code ec;
-	if (std::filesystem::create_directories(directory, ec))
+	if (std::filesystem::exists(directory) || std::filesystem::create_directories(directory, ec))
 	{
 		LOG(L"output folder is ready");
 		m_OutputFolder = directory;
@@ -273,7 +273,7 @@ HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 		// Failed to create directory.
 		ERR(L"failed to create output folder");
 		if (RecordingFailedCallback != nullptr)
-			RecordingFailedCallback(L"Failed to create output folder: "+utilities::s2ws(ec.message()));
+			RecordingFailedCallback(L"Failed to create output folder: " + utilities::s2ws(ec.message()));
 		return E_FAIL;
 	}
 	if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SNAPSHOT) {
@@ -953,7 +953,7 @@ HRESULT internal_recorder::InitializeDx(IDXGIOutput *pDxgiOutput, ID3D11DeviceCo
 	*pOutputDuplDesc = OutputDuplDesc;
 
 	return hr;
-		}
+}
 
 HRESULT internal_recorder::InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOutput *pDxgiOutput, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc) {
 	*ppDesktopDupl = nullptr;
