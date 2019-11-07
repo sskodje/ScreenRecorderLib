@@ -301,7 +301,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		wstring errorText = L"Windows 8 or higher is required";
 		ERR(L"%ls", errorText);
 		RecordingFailedCallback(errorText);
-		return S_FALSE;
+		return E_FAIL;
 	}
 
 	if (m_IsRecording) {
@@ -369,12 +369,12 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			HANDLE hOutputCaptureStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 			if (nullptr == hOutputCaptureStartedEvent) {
 				ERR(L"CreateEvent failed: last error is %u", GetLastError());
-				return S_FALSE;
+				return E_FAIL;
 			}
 			HANDLE hInputCaptureStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 			if (nullptr == hInputCaptureStartedEvent) {
 				ERR(L"CreateEvent failed: last error is %u", GetLastError());
-				return S_FALSE;
+				return E_FAIL;
 			}
 			CloseHandleOnExit closeOutputCaptureStartedEvent(hOutputCaptureStartedEvent);
 			CloseHandleOnExit closeInputCaptureStartedEvent(hInputCaptureStartedEvent);
@@ -383,12 +383,12 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			HANDLE hOutputCaptureStopEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 			if (nullptr == hOutputCaptureStopEvent) {
 				ERR(L"CreateEvent failed: last error is %u", GetLastError());
-				return S_FALSE;
+				return E_FAIL;
 			}
 			HANDLE hInputCaptureStopEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 			if (nullptr == hInputCaptureStopEvent) {
 				ERR(L"CreateEvent failed: last error is %u", GetLastError());
-				return S_FALSE;
+				return E_FAIL;
 			}
 
 			CloseHandleOnExit closeOutputCaptureStopEvent(hOutputCaptureStopEvent);
@@ -421,7 +421,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				);
 				if (nullptr == hThread) {
 					ERR(L"CreateThread failed: last error is %u", GetLastError());
-					return S_FALSE;
+					return E_FAIL;
 				}
 				CloseHandleOnExit closeThread(hThread);
 				WaitForSingleObjectEx(hOutputCaptureStartedEvent, 1000, false);
@@ -459,7 +459,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				);
 				if (nullptr == hThread) {
 					ERR(L"CreateThread failed: last error is %u", GetLastError());
-					return S_FALSE;
+					return E_FAIL;
 				}
 				CloseHandleOnExit closeThread(hThread);
 				WaitForSingleObjectEx(hInputCaptureStartedEvent, 1000, false);
@@ -939,7 +939,7 @@ HRESULT internal_recorder::InitializeDx(IDXGIOutput *pDxgiOutput, ID3D11DeviceCo
 	RETURN_ON_BAD_HR(hr);
 	pMulti.Release();
 	if (pDevice == nullptr)
-		return S_FALSE;
+		return E_FAIL;
 	hr = InitializeDesktopDupl(pDevice, pDxgiOutput, &pDeskDupl, &OutputDuplDesc);
 	RETURN_ON_BAD_HR(hr);
 
