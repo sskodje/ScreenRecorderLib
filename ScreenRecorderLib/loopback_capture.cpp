@@ -49,6 +49,11 @@ HRESULT loopback_capture::LoopbackCapture(
 	double samplerate
 ) {
 	HRESULT hr;
+
+	if (pMMDevice == nullptr) {
+		ERR(L"IMMDevice is NULL");
+		return E_FAIL;
+	}
 	// activate an IAudioClient
 	IAudioClient *pAudioClient;
 	hr = pMMDevice->Activate(
