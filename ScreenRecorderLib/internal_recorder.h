@@ -161,15 +161,14 @@ private:
 
 	HRESULT EnqueueFrame(FrameWriteModel model);
 	HRESULT ConfigureOutputDir(std::wstring path);
-	HRESULT InitializeDx(IDXGIOutput *pOutput, ID3D11DeviceContext **ppContext, ID3D11Device **ppDevice, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc);
-	HRESULT InitializeDesktopDupl(ID3D11Device *pDevice, IDXGIOutput *pOutput, IDXGIOutputDuplication **ppDesktopDupl, DXGI_OUTDUPL_DESC *pOutputDuplDesc);
-	HRESULT InitializeVideoSinkWriter(std::wstring path, IMFByteStream *outStream, ID3D11Device* pDevice, RECT sourceRect, RECT destRect, IMFSinkWriter **ppWriter, DWORD *pVideoStreamIndex, DWORD *pAudioStreamIndex);
-	HRESULT WriteFrameToVideo(ULONGLONG frameStartPos, ULONGLONG frameDuration, DWORD streamIndex, ID3D11Texture2D* pAcquiredDesktopImage);
-	HRESULT WriteFrameToImage(ID3D11Texture2D* pAcquiredDesktopImage, LPCWSTR filePath);
-	HRESULT WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULONGLONG frameDuration, DWORD streamIndex, BYTE *pSrc, DWORD cbData);
-	HRESULT GetOutputForDeviceName(std::wstring deviceName, IDXGIOutput **adapter);
-	HRESULT SetAttributeU32(ATL::CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value);
-	HRESULT CreateInputMediaTypeFromOutput(IMFMediaType *pType, const GUID& subtype, IMFMediaType **ppType);
-
-
+	HRESULT initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out_ D3D11_TEXTURE2D_DESC *pFrameDesc, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect);
+	HRESULT InitializeDx(_In_opt_ IDXGIOutput *pDxgiOutput, _Outptr_ ID3D11DeviceContext **ppContext, _Outptr_ ID3D11Device **ppDevice, _Outptr_ IDXGIOutputDuplication **ppDesktopDupl, _Out_ DXGI_OUTDUPL_DESC *pOutputDuplDesc);
+	HRESULT InitializeDesktopDupl(_In_ ID3D11Device *pDevice, _In_opt_ IDXGIOutput *pDxgiOutput, _Outptr_ IDXGIOutputDuplication **ppDesktopDupl, _Out_ DXGI_OUTDUPL_DESC *pOutputDuplDesc);
+	HRESULT InitializeVideoSinkWriter(std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device* pDevice, RECT sourceRect, RECT destRect, DXGI_MODE_ROTATION rotation, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex);
+	HRESULT WriteFrameToVideo(ULONGLONG frameStartPos, ULONGLONG frameDuration, DWORD streamIndex, _In_ ID3D11Texture2D* pAcquiredDesktopImage);
+	HRESULT WriteFrameToImage(_In_ ID3D11Texture2D* pAcquiredDesktopImage, LPCWSTR filePath);
+	HRESULT WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULONGLONG frameDuration, DWORD streamIndex, _In_ BYTE *pSrc, DWORD cbData);
+	HRESULT GetOutputForDeviceName(std::wstring deviceName, _Out_opt_ IDXGIOutput **adapter);
+	HRESULT SetAttributeU32(_Inout_ ATL::CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value);
+	HRESULT CreateInputMediaTypeFromOutput(_In_ IMFMediaType *pType, const GUID& subtype, _Outptr_ IMFMediaType **ppType);
 };

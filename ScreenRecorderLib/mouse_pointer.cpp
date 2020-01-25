@@ -2,39 +2,7 @@
 #include "log.h"
 #include <comdef.h>
 #include <Dxgiformat.h>
-
-
-
 using namespace DirectX;
-
-HRESULT mouse_pointer::DrawMousePointer(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device, PTR_INFO PtrInfo, DXGI_OUTDUPL_FRAME_INFO FrameInfo, RECT screenRect, D3D11_TEXTURE2D_DESC DESC, IDXGIOutputDuplication *DeskDupl, ID3D11Texture2D *Frame)
-{
-	HRESULT hr = S_FALSE;
-	if (PtrInfo.Visible && PtrInfo.PtrShapeBuffer != nullptr) {
-		hr = DrawMouse(&PtrInfo, ImmediateContext, Device, DESC, Frame);
-	}
-	return hr;
-}
-
-HRESULT mouse_pointer::DrawMouseClick(PTR_INFO PtrInfo, ID3D11Texture2D *Frame, std::string color, int radius)
-{
-	HRESULT hr = DrawMouseClick(&PtrInfo, Frame,color,radius);
-	return hr;
-}
-
-void mouse_pointer::CleanupResources()
-{
-	if (m_SamplerLinear)
-		m_SamplerLinear.Release();
-	if (m_BlendState)
-		m_BlendState.Release();
-	if (m_InputLayout)
-		m_InputLayout.Release();
-	if (m_VertexShader)
-		m_VertexShader.Release();
-	if (m_PixelShader)
-		m_PixelShader.Release();
-}
 
 HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device)
 {
@@ -79,10 +47,50 @@ HRESULT mouse_pointer::InitMouseClickTexture(ID3D11DeviceContext *ImmediateConte
 	return hr;
 }
 
-//
-// Draw mouse click
-//
-HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, ID3D11Texture2D* bgTexture, std::string colorStr,int radius)
+
+long mouse_pointer::ParseColorString(std::string color)
+{
+	if (color.length() == 0)
+		return D2D1::ColorF::Yellow;
+	if (color.front() == '#') {
+		color.replace(0, 1, "0x");
+	}
+	return std::strtoul(color.data(), 0, 16);
+}
+float mouse_pointer::GetCurrentDpi()
+{
+	int newDpiX(0);
+	auto hDC = GetDC(NULL);
+	newDpiX = GetDeviceCaps(hDC, LOGPIXELSX);
+	ReleaseDC(NULL, hDC);
+	return (float)newDpiX / 96.0f;
+}
+
+void mouse_pointer::GetPointerPosition(_In_ PTR_INFO* PtrInfo, DXGI_MODE_ROTATION rotation, int desktopWidth, int desktopHeight, INT * PtrLeft, INT * PtrTop)
+{
+	if (rotation == DXGI_MODE_ROTATION_IDENTITY
+		|| rotation == DXGI_MODE_ROTATION_UNSPECIFIED)
+	{
+		*PtrLeft = PtrInfo->Position.x;
+		*PtrTop = PtrInfo->Position.y;
+	}
+	else if (rotation == DXGI_MODE_ROTATION_ROTATE90) {
+		*PtrLeft = PtrInfo->Position.y;
+		*PtrTop = desktopHeight - PtrInfo->Position.x - (PtrInfo->ShapeInfo.Height);
+	}
+	else if (rotation == DXGI_MODE_ROTATION_ROTATE180) {
+		*PtrLeft = desktopWidth - PtrInfo->Position.x - (PtrInfo->ShapeInfo.Width);
+		*PtrTop = desktopHeight - PtrInfo->Position.y - (PtrInfo->ShapeInfo.Height);
+	}
+	else if (rotation == DXGI_MODE_ROTATION_ROTATE270) {
+
+		*PtrLeft = desktopWidth - PtrInfo->Position.y - PtrInfo->ShapeInfo.Height;
+		*PtrTop = PtrInfo->Position.x;
+	}
+}
+
+
+HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, ID3D11Texture2D* bgTexture, std::string colorStr, int radius, DXGI_MODE_ROTATION rotation)
 {
 	ATL::CComPtr<IDXGISurface> pSharedSurface;
 	HRESULT hr = bgTexture->QueryInterface(__uuidof(IDXGISurface), (void**)&pSharedSurface);
@@ -106,20 +114,33 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, ID3D11Texture2D* b
 	long colorValue = ParseColorString(colorStr);
 
 	ATL::CComPtr<ID2D1SolidColorBrush> color;
-	
+
 	if (FAILED(pRenderTarget->CreateSolidColorBrush(
 		D2D1::ColorF(colorValue, 0.7f), &color))) {
 
 		pRenderTarget->CreateSolidColorBrush(
 			D2D1::ColorF(D2D1::ColorF::Yellow, 0.7f), &color);
 	}
-	
-
+	DXGI_SURFACE_DESC desc;
+	pSharedSurface->GetDesc(&desc);
 	D2D1_ELLIPSE ellipse;
 	D2D1_POINT_2F mousePoint;
 	float dpi = GetCurrentDpi();
-	mousePoint.x = PtrInfo->Position.x / dpi;
-	mousePoint.y = PtrInfo->Position.y / dpi;
+	INT ptrLeft, ptrTop;
+	GetPointerPosition(PtrInfo, rotation, desc.Width, desc.Height, &ptrLeft, &ptrTop);
+
+	if (rotation == DXGI_MODE_ROTATION_ROTATE90) {
+		ptrTop += PtrInfo->ShapeInfo.Height;
+	}
+	else if (rotation == DXGI_MODE_ROTATION_ROTATE180) {
+		ptrLeft += PtrInfo->ShapeInfo.Width;
+		ptrTop += PtrInfo->ShapeInfo.Height;
+	}
+	else if (rotation == DXGI_MODE_ROTATION_ROTATE270) {
+		ptrLeft += PtrInfo->ShapeInfo.Height;
+	}
+	mousePoint.x = ptrLeft / dpi;
+	mousePoint.y = ptrTop / dpi;
 
 	ellipse.point = mousePoint;
 	ellipse.radiusX = radius;
@@ -132,29 +153,14 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, ID3D11Texture2D* b
 	return S_OK;
 }
 
-long mouse_pointer::ParseColorString(std::string color)
-{
-	if (color.length() == 0)
-		return D2D1::ColorF::Yellow;
-	if (color.front() == '#') {
-		color.replace(0, 1, "0x");
-	}
-	return std::strtoul(color.data(), 0, 16);
-}
-float mouse_pointer::GetCurrentDpi()
-{
-	int newDpiX(0);
-	auto hDC = GetDC(NULL);
-	newDpiX = GetDeviceCaps(hDC, LOGPIXELSX);
-	ReleaseDC(NULL, hDC);
-	return (float)newDpiX / 96.0f;
-}
 
 //
 // Draw mouse provided in buffer to backbuffer
 //
-HRESULT mouse_pointer::DrawMouse(_In_ PTR_INFO* PtrInfo, ID3D11DeviceContext* DeviceContext, ID3D11Device* Device, D3D11_TEXTURE2D_DESC FullDesc, ID3D11Texture2D* bgTexture)
+HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11DeviceContext* DeviceContext _In_, ID3D11Device* Device, _In_ ID3D11Texture2D* bgTexture, DXGI_MODE_ROTATION rotation)
 {
+	if (!PtrInfo || !PtrInfo->Visible || PtrInfo->PtrShapeBuffer == nullptr)
+		return S_FALSE;
 	// Vars to be used
 	ID3D11Texture2D* MouseTex = nullptr;
 	ID3D11ShaderResourceView* ShaderRes = nullptr;
@@ -163,6 +169,8 @@ HRESULT mouse_pointer::DrawMouse(_In_ PTR_INFO* PtrInfo, ID3D11DeviceContext* De
 	D3D11_TEXTURE2D_DESC Desc;
 	D3D11_SHADER_RESOURCE_VIEW_DESC SDesc;
 
+	D3D11_TEXTURE2D_DESC DesktopDesc;
+	bgTexture->GetDesc(&DesktopDesc);
 	// Position will be changed based on mouse position
 	VERTEX Vertices[NUMVERTICES] =
 	{
@@ -174,8 +182,8 @@ HRESULT mouse_pointer::DrawMouse(_In_ PTR_INFO* PtrInfo, ID3D11DeviceContext* De
 		{ XMFLOAT3(1.0f, 1.0f, 0), XMFLOAT2(1.0f, 0.0f) },
 	};
 
-	INT DesktopWidth = FullDesc.Width;
-	INT DesktopHeight = FullDesc.Height;
+	INT DesktopWidth = DesktopDesc.Width;
+	INT DesktopHeight = DesktopDesc.Height;
 
 	// Center of desktop dimensions
 	INT CenterX = (DesktopWidth / 2);
@@ -215,41 +223,86 @@ HRESULT mouse_pointer::DrawMouse(_In_ PTR_INFO* PtrInfo, ID3D11DeviceContext* De
 	{
 	case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
 	{
-		PtrLeft = PtrInfo->Position.x;
-		PtrTop = PtrInfo->Position.y;
-
 		PtrWidth = static_cast<INT>(PtrInfo->ShapeInfo.Width);
 		PtrHeight = static_cast<INT>(PtrInfo->ShapeInfo.Height);
+
+		GetPointerPosition(PtrInfo, rotation, DesktopWidth, DesktopHeight, &PtrLeft, &PtrTop);
 
 		break;
 	}
 	case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME:
 	{
-		ProcessMonoMask(FullDesc, bgTexture, DeviceContext, Device, true, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
+		ProcessMonoMask(bgTexture, DeviceContext, Device, rotation, true, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
 		break;
 	}
 	case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
 	{
-		ProcessMonoMask(FullDesc, bgTexture, DeviceContext, Device, false, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
+		ProcessMonoMask(bgTexture, DeviceContext, Device, rotation, false, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
 		break;
 	}
 	default:
-		break;
+		ERR("Unrecognized mouse pointer type");
+		return E_FAIL;
 	}
 
 	// VERTEX creation
-	Vertices[0].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
-	Vertices[0].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
-	Vertices[1].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
-	Vertices[1].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
-	Vertices[2].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
-	Vertices[2].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
-	Vertices[3].Pos.x = Vertices[2].Pos.x;
-	Vertices[3].Pos.y = Vertices[2].Pos.y;
-	Vertices[4].Pos.x = Vertices[1].Pos.x;
-	Vertices[4].Pos.y = Vertices[1].Pos.y;
-	Vertices[5].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
-	Vertices[5].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
+	if (rotation == DXGI_MODE_ROTATION_UNSPECIFIED
+		|| rotation == DXGI_MODE_ROTATION_IDENTITY) {
+		Vertices[0].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
+		Vertices[0].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
+		Vertices[1].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
+		Vertices[1].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
+		Vertices[2].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
+		Vertices[2].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
+		Vertices[3].Pos.x = Vertices[2].Pos.x;
+		Vertices[3].Pos.y = Vertices[2].Pos.y;
+		Vertices[4].Pos.x = Vertices[1].Pos.x;
+		Vertices[4].Pos.y = Vertices[1].Pos.y;
+		Vertices[5].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
+		Vertices[5].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
+	}	//Flip pointer 90 degrees counterclockwise
+	else if (rotation == DXGI_MODE_ROTATION_ROTATE90) {
+		Vertices[0].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
+		Vertices[0].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
+		Vertices[1].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
+		Vertices[1].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
+		Vertices[2].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
+		Vertices[2].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
+		Vertices[3].Pos.x = Vertices[2].Pos.x;
+		Vertices[3].Pos.y = Vertices[2].Pos.y;
+		Vertices[4].Pos.x = Vertices[1].Pos.x;
+		Vertices[4].Pos.y = Vertices[1].Pos.y;
+		Vertices[5].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
+		Vertices[5].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
+	}	//Turn pointer upside down
+	else if (rotation == DXGI_MODE_ROTATION_ROTATE180) {
+		Vertices[0].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
+		Vertices[0].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
+		Vertices[1].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
+		Vertices[1].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
+		Vertices[2].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
+		Vertices[2].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
+		Vertices[3].Pos.x = Vertices[2].Pos.x;
+		Vertices[3].Pos.y = Vertices[2].Pos.y;
+		Vertices[4].Pos.x = Vertices[1].Pos.x;
+		Vertices[4].Pos.y = Vertices[1].Pos.y;
+		Vertices[5].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
+		Vertices[5].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
+	}	//Flip pointer 90 degrees clockwise
+	else if (rotation == DXGI_MODE_ROTATION_ROTATE270) {
+		Vertices[0].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
+		Vertices[0].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
+		Vertices[1].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
+		Vertices[1].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
+		Vertices[2].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
+		Vertices[2].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
+		Vertices[3].Pos.x = Vertices[2].Pos.x;
+		Vertices[3].Pos.y = Vertices[2].Pos.y;
+		Vertices[4].Pos.x = Vertices[1].Pos.x;
+		Vertices[4].Pos.y = Vertices[1].Pos.y;
+		Vertices[5].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
+		Vertices[5].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
+	}
 
 	// Set texture properties
 	Desc.Width = PtrWidth;
@@ -301,7 +354,7 @@ HRESULT mouse_pointer::DrawMouse(_In_ PTR_INFO* PtrInfo, ID3D11DeviceContext* De
 
 		_com_error err(hr);
 		ERR(L"Failed to create mouse pointer vertex buffer: %ls", err.ErrorMessage());
-		return false;
+		return hr;
 	}
 	ID3D11RenderTargetView* RTV;
 	// Create a render target view
@@ -354,15 +407,17 @@ HRESULT mouse_pointer::DrawMouse(_In_ PTR_INFO* PtrInfo, ID3D11DeviceContext* De
 //
 // Process both masked and monochrome pointers
 //
-HRESULT mouse_pointer::ProcessMonoMask(_In_ D3D11_TEXTURE2D_DESC FullDesc, _In_ ID3D11Texture2D* bgTexture, ID3D11DeviceContext* DeviceContext, ID3D11Device* Device, bool IsMono, _Inout_ PTR_INFO* PtrInfo, _Out_ INT* PtrWidth, _Out_ INT* PtrHeight, _Out_ INT* PtrLeft, _Out_ INT* PtrTop, _Outptr_result_bytebuffer_(*PtrHeight * *PtrWidth * BPP) BYTE** InitBuffer, _Out_ D3D11_BOX* Box)
+HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3D11DeviceContext* DeviceContext, _In_ ID3D11Device* Device, DXGI_MODE_ROTATION rotation, bool IsMono, _Inout_ PTR_INFO* PtrInfo, _Out_ INT* PtrWidth, _Out_ INT* PtrHeight, _Out_ INT* PtrLeft, _Out_ INT* PtrTop, _Outptr_result_bytebuffer_(*PtrHeight * *PtrWidth * BPP) BYTE** InitBuffer, _Out_ D3D11_BOX* Box)
 {
+	D3D11_TEXTURE2D_DESC desc;
+	bgTexture->GetDesc(&desc);
 	//// Desktop dimensions
-	INT DesktopWidth = FullDesc.Width;
-	INT DesktopHeight = FullDesc.Height;
-
+	INT DesktopWidth = desc.Width;
+	INT DesktopHeight = desc.Height;
 	// Pointer position
 	INT GivenLeft = PtrInfo->Position.x;
 	INT GivenTop = PtrInfo->Position.y;
+	GetPointerPosition(PtrInfo, rotation, DesktopWidth, DesktopHeight, &GivenLeft, &GivenTop);
 
 	// Figure out if any adjustment is needed for out of bound positions
 	if (GivenLeft < 0)
@@ -410,7 +465,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ D3D11_TEXTURE2D_DESC FullDesc, _In_ 
 	CopyBufferDesc.Height = *PtrHeight;
 	CopyBufferDesc.MipLevels = 1;
 	CopyBufferDesc.ArraySize = 1;
-	CopyBufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	CopyBufferDesc.Format = desc.Format;
 	CopyBufferDesc.SampleDesc.Count = 1;
 	CopyBufferDesc.SampleDesc.Quality = 0;
 	CopyBufferDesc.Usage = D3D11_USAGE_STAGING;
@@ -467,13 +522,55 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ D3D11_TEXTURE2D_DESC FullDesc, _In_ 
 		return hr;
 	}
 
+	// New temp mouseshape buffer for rotation
+	BYTE *DesktopBuffer = new (std::nothrow) BYTE[*PtrWidth * *PtrHeight * BPP];
+	if (!(*DesktopBuffer))
+	{
+		_com_error err(hr);
+		ERR(L"Failed to allocate memory for new desktop background buffer: %lls", err.ErrorMessage());
+		return hr;
+	}
+
 	UINT* InitBuffer32 = reinterpret_cast<UINT*>(*InitBuffer);
-	UINT* Desktop32 = reinterpret_cast<UINT*>(MappedSurface.pBits);
+	UINT* DesktopBuffer32 = reinterpret_cast<UINT*>(DesktopBuffer);
 	UINT  DesktopPitchInPixels = MappedSurface.Pitch / sizeof(UINT);
 
 	// What to skip (pixel offset)
 	UINT SkipX = (GivenLeft < 0) ? (-1 * GivenLeft) : (0);
 	UINT SkipY = (GivenTop < 0) ? (-1 * GivenTop) : (0);
+
+	//Rotate background if needed
+	if (rotation == DXGI_MODE_ROTATION_ROTATE90
+		|| rotation == DXGI_MODE_ROTATION_ROTATE180
+		|| rotation == DXGI_MODE_ROTATION_ROTATE270) {
+		UINT* Desktop32 = reinterpret_cast<UINT*>(MappedSurface.pBits);
+		for (INT Row = 0; Row < *PtrHeight; ++Row)
+		{
+			for (INT Col = 0; Col < *PtrWidth; ++Col)
+			{
+				int	rotatedRow = Row;
+				int rotatedCol = Col;
+
+				if (rotation == DXGI_MODE_ROTATION_ROTATE90) {
+					rotatedRow = Col;
+					rotatedCol = *PtrHeight - 1 - Row;
+				}
+				else if (rotation == DXGI_MODE_ROTATION_ROTATE180) {
+					rotatedRow = *PtrHeight - 1 - Row;
+					rotatedCol = *PtrWidth - 1 - Col;
+				}
+				else if (rotation == DXGI_MODE_ROTATION_ROTATE270) {
+					rotatedRow = *PtrWidth - 1 - Col;
+					rotatedCol = Row;
+				}
+				// Set new pixel
+				DesktopBuffer32[(rotatedRow * *PtrWidth) + rotatedCol] = Desktop32[(Row * DesktopPitchInPixels) + Col];
+			}
+		}
+	}
+	else {
+		DesktopBuffer32 = reinterpret_cast<UINT*>(MappedSurface.pBits);
+	}
 
 	if (IsMono)
 	{
@@ -491,7 +588,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ D3D11_TEXTURE2D_DESC FullDesc, _In_ 
 				UINT XorMask32 = (XorMask) ? 0x00FFFFFF : 0x00000000;
 
 				// Set new pixel
-				InitBuffer32[(Row * *PtrWidth) + Col] = (Desktop32[(Row * DesktopPitchInPixels) + Col] & AndMask32) ^ XorMask32;
+				InitBuffer32[(Row * *PtrWidth) + Col] = (DesktopBuffer32[(Row * DesktopPitchInPixels) + Col] & AndMask32) ^ XorMask32;
 
 				// Adjust mask
 				if (Mask == 0x01)
@@ -519,7 +616,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ D3D11_TEXTURE2D_DESC FullDesc, _In_ 
 				if (MaskVal)
 				{
 					// Mask was 0xFF
-					InitBuffer32[(Row * *PtrWidth) + Col] = (Desktop32[(Row * DesktopPitchInPixels) + Col] ^ Buffer32[(Col + SkipX) + ((Row + SkipY) * (PtrInfo->ShapeInfo.Pitch / sizeof(UINT)))]) | 0xFF000000;
+					InitBuffer32[(Row * *PtrWidth) + Col] = (DesktopBuffer32[(Row * DesktopPitchInPixels) + Col] ^ Buffer32[(Col + SkipX) + ((Row + SkipY) * (PtrInfo->ShapeInfo.Pitch / sizeof(UINT)))]) | 0xFF000000;
 				}
 				else
 				{
@@ -528,6 +625,11 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ D3D11_TEXTURE2D_DESC FullDesc, _In_ 
 				}
 			}
 		}
+	}
+	if (DesktopBuffer)
+	{
+		delete[] DesktopBuffer;
+		DesktopBuffer = nullptr;
 	}
 
 	// Done with resource
@@ -663,4 +765,18 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 	}
 
 	return S_OK;
+}
+
+void mouse_pointer::CleanupResources()
+{
+	if (m_SamplerLinear)
+		m_SamplerLinear.Release();
+	if (m_BlendState)
+		m_BlendState.Release();
+	if (m_InputLayout)
+		m_InputLayout.Release();
+	if (m_VertexShader)
+		m_VertexShader.Release();
+	if (m_PixelShader)
+		m_PixelShader.Release();
 }

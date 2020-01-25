@@ -41,8 +41,8 @@ public:
 
 	HRESULT Initialize(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device);
 
-	HRESULT DrawMousePointer(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device, PTR_INFO PtrInfo, DXGI_OUTDUPL_FRAME_INFO FrameInfo, RECT screenRect, D3D11_TEXTURE2D_DESC DESC, IDXGIOutputDuplication *DeskDupl, ID3D11Texture2D *Frame);
-	HRESULT DrawMouseClick(PTR_INFO PtrInfo, ID3D11Texture2D *Frame, std::string color, int radius);
+	HRESULT DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11DeviceContext* DeviceContext _In_, ID3D11Device* Device, _In_ ID3D11Texture2D* bgTexture, DXGI_MODE_ROTATION rotation);
+	HRESULT DrawMouseClick(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Texture2D* bgTexture, std::string colorStr, int radius, DXGI_MODE_ROTATION rotation);
 	HRESULT GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO* FrameInfo, RECT screenRect, IDXGIOutputDuplication* DeskDupl);
 	void CleanupResources();
 private:
@@ -55,16 +55,15 @@ private:
 	ATL::CComPtr<ID3D11PixelShader> m_PixelShader;
 	ATL::CComPtr<ID3D11InputLayout> m_InputLayout;
 	ATL::CComPtr<ID2D1Factory> m_D2DFactory;
-
 #pragma endregion
 
-	HRESULT DrawMouse(_In_ PTR_INFO* PtrInfo, ID3D11DeviceContext* DeviceContext, ID3D11Device* Device, D3D11_TEXTURE2D_DESC FullDesc, ID3D11Texture2D* bgTexture);
-	HRESULT DrawMouseClick(_In_ PTR_INFO* PtrInfo,  ID3D11Texture2D* bgTexture, std::string color, int radius);
+
+
 
 	long ParseColorString(std::string color);
 	float GetCurrentDpi();
-
-	HRESULT ProcessMonoMask(_In_ D3D11_TEXTURE2D_DESC FullDesc, _In_ ID3D11Texture2D* bgTexture, ID3D11DeviceContext* DeviceContext, ID3D11Device* Device, bool IsMono, _Inout_ PTR_INFO* PtrInfo, _Out_ INT* PtrWidth, _Out_ INT* PtrHeight, _Out_ INT* PtrLeft, _Out_ INT* PtrTop, _Outptr_result_bytebuffer_(*PtrHeight * *PtrWidth * BPP) BYTE** InitBuffer, _Out_ D3D11_BOX* Box);
+	void GetPointerPosition(_In_ PTR_INFO* PtrInfo, DXGI_MODE_ROTATION rotation,int desktopWidth, int desktopHeight, _Out_ INT* PtrLeft, _Out_ INT* PtrTop);
+	HRESULT ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3D11DeviceContext* DeviceContext, _In_ ID3D11Device* Device, DXGI_MODE_ROTATION rotation, bool IsMono, _Inout_ PTR_INFO* PtrInfo, _Out_ INT* PtrWidth, _Out_ INT* PtrHeight, _Out_ INT* PtrLeft, _Out_ INT* PtrTop, _Outptr_result_bytebuffer_(*PtrHeight * *PtrWidth * BPP) BYTE** InitBuffer, _Out_ D3D11_BOX* Box);
 	HRESULT InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Device* Device);
 	HRESULT InitMouseClickTexture(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device);
 };
