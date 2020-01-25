@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -380,9 +381,9 @@ namespace TestApp
 
         private void ScreenComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            var screen = WindowsDisplayAPI.DisplayConfig.PathDisplayTarget.GetDisplayTargets()[this.ScreenComboBox.SelectedIndex];
-            this.RecordingAreaRightTextBox.Text = screen.PreferredResolution.Width.ToString();
-            this.RecordingAreaBottomTextBox.Text = screen.PreferredResolution.Height.ToString();
+            var screen = WindowsDisplayAPI.Display.GetDisplays().ToList()[this.ScreenComboBox.SelectedIndex];
+            this.RecordingAreaRightTextBox.Text = screen.CurrentSetting.Resolution.Width.ToString();
+            this.RecordingAreaBottomTextBox.Text = screen.CurrentSetting.Resolution.Height.ToString();
             this.RecordingAreaLeftTextBox.Text = 0.ToString();
             this.RecordingAreaTopTextBox.Text = 0.ToString();
         }
