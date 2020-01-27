@@ -74,21 +74,10 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			lRec->SetMouseClickDetectionRMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseRightClickDetectionColor));
 			lRec->SetMouseClickDetectionRadius(options->MouseOptions->MouseClickDetectionRadius);
 			lRec->SetMouseClickDetectionDuration(options->MouseOptions->MouseClickDetectionDuration);
+			lRec->SetMouseClickDetectionMode((UINT32)options->MouseOptions->MouseClickDetectionMode);
 		}
-		switch (options->RecorderMode)
-		{
-		case RecorderMode::Video:
-			lRec->SetRecorderMode(MODE_VIDEO);
-			break;
-		case RecorderMode::Slideshow:
-			lRec->SetRecorderMode(MODE_SLIDESHOW);
-			break;
-		case RecorderMode::Snapshot:
-			lRec->SetRecorderMode(MODE_SNAPSHOT);
-			break;
-		default:
-			break;
-		}
+
+		lRec->SetRecorderMode((UINT32)options->RecorderMode);
 		lRec->SetIsThrottlingDisabled(options->IsThrottlingDisabled);
 		lRec->SetIsLowLatencyModeEnabled(options->IsLowLatencyEnabled);
 		lRec->SetIsFastStartEnabled(options->IsMp4FastStartEnabled);

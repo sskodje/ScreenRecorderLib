@@ -17,6 +17,16 @@ delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fi
 delegate void InternalErrorCallbackDelegate(std::wstring path);
 
 namespace ScreenRecorderLib {
+	public enum class MouseDetectionMode {
+		///<summary>
+		///Use polling for detecting mouse clicks. Does not affect mouse performance, but may not work for all mouse clicks generated programmatically.
+		///</summary>
+		Polling= MOUSE_DETECTION_MODE_POLLING,
+		///<summary>
+		///Use a low level system hook for detecting mouse clicks. Works more reliably for programmatic events, but can negatively affect mouse performance while recording.
+		///</summary>
+		Hook= MOUSE_DETECTION_MODE_HOOK
+	};
 	public enum class ImageFormat {
 		PNG,
 		JPEG,
@@ -50,11 +60,11 @@ namespace ScreenRecorderLib {
 
 	public enum class RecorderMode {
 		///<summary>Record as mp4 video in h264 format. </summary>
-		Video,
+		Video = MODE_VIDEO,
 		///<summary>Record one PNG picture for each frame. </summary>
-		Slideshow,
+		Slideshow= MODE_SLIDESHOW,
 		///<summary>Make a snapshot of the screen. </summary>
-		Snapshot
+		Snapshot = MODE_SNAPSHOT
 	};
 	public enum class H264Profile
 	{
@@ -191,6 +201,7 @@ namespace ScreenRecorderLib {
 			MouseRightClickDetectionColor = "#FFFF00";
 			MouseClickDetectionRadius = 20;
 			MouseClickDetectionDuration = 150;
+			MouseClickDetectionMode = MouseDetectionMode::Polling;
 		}
 		/// <summary>
 		///Display the mouse cursor on the recording
@@ -216,6 +227,10 @@ namespace ScreenRecorderLib {
 		/// The duration of the dot shown where the left mouse button is pressed, in milliseconds. Default is 150.
 		/// </summary>
 		property int MouseClickDetectionDuration;
+		/// <summary>
+		/// The mode for detecting mouse clicks. Default is Polling.
+		/// </summary>
+		property MouseDetectionMode MouseClickDetectionMode;
 
 	};
 	public ref class RecorderOptions {

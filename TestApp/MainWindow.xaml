@@ -9,7 +9,7 @@
         xmlns:rec="clr-namespace:ScreenRecorderLib;assembly=ScreenRecorderLib"
         mc:Ignorable="d"
         Title="ScreenRecorderLib Demo"
-        Height="640"
+        Height="700"
         Width="525"
         SizeToContent="Height">
     <Window.Resources>
@@ -40,6 +40,13 @@
                             ObjectType="{x:Type System:Enum}">
             <ObjectDataProvider.MethodParameters>
                 <x:Type TypeName="rec:ImageFormat" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+        <ObjectDataProvider x:Key="MouseDetectionModeData"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type System:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="rec:MouseDetectionMode" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
     </Window.Resources>
@@ -216,6 +223,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <StackPanel Orientation="Horizontal">
@@ -254,9 +262,19 @@
                                      VerticalAlignment="Center" />
                         </StackPanel>
                         <StackPanel Orientation="Horizontal"
-                                    x:Name="MouseLeftClickColorPanel"
+                                    x:Name="MouseClickModePanel"
                                     Visibility="Visible"
                                     Grid.Row="3">
+                            <Label Content="Mouse detection mode"
+                                   Width="140" />
+                            <ComboBox x:Name="MouseDetectionModeComboBox"
+                                      ItemsSource="{Binding Source={StaticResource MouseDetectionModeData}}"
+                                      SelectedItem="{Binding ElementName=MainWin,Path=CurrentMouseDetectionMode}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    x:Name="MouseLeftClickColorPanel"
+                                    Visibility="Visible"
+                                    Grid.Row="4">
                             <Label Content="Left click color"
                                    Width="85" />
                             <TextBox x:Name="LeftMouseColorTextBox"
@@ -269,7 +287,7 @@
                         <StackPanel Orientation="Horizontal"
                                     x:Name="MouseRightClickColorPanel"
                                     Visibility="Visible"
-                                    Grid.Row="4">
+                                    Grid.Row="5">
                             <Label Content="Right click col"
                                    Width="85" />
                             <TextBox x:Name="RightMouseColorTextBox"
@@ -282,7 +300,7 @@
                         <StackPanel Orientation="Horizontal"
                                     x:Name="MouseClickRadiusPanel"
                                     Visibility="Visible"
-                                    Grid.Row="5">
+                                    Grid.Row="6">
                             <Label Content="Click radius"
                                    Width="85" />
                             <TextBox x:Name="RadiusTextBox"
@@ -294,7 +312,7 @@
                         <StackPanel Orientation="Horizontal"
                                     x:Name="MouseClickDurationPanel"
                                     Visibility="Visible"
-                                    Grid.Row="6">
+                                    Grid.Row="7">
                             <Label Content="Click duration"
                                    Width="85" />
                             <TextBox x:Name="DurationTextBox"
@@ -304,7 +322,7 @@
                                      VerticalAlignment="Center" />
                             <Label Content="ms" />
                         </StackPanel>
-                        <Grid Grid.Row="7">
+                        <Grid Grid.Row="8">
                             <Button Content="Delete temp files"
                                     Click="DeleteTempFilesButton_Click"
                                     VerticalAlignment="Top" />

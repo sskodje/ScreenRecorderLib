@@ -37,8 +37,8 @@ using namespace concurrency;
 using namespace DirectX;
 
 INT32 g_LastMouseClickDurationRemaining;
-INT32 g_MouseClickDetectionDurationMillis = 150;
-
+INT32 g_MouseClickDetectionDurationMillis = 50;
+INT32 g_LastMouseClickButton;
 // Driver types supported
 D3D_DRIVER_TYPE gDriverTypes[] =
 {
@@ -79,8 +79,14 @@ internal_recorder::~internal_recorder()
 LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
 	// MB1 click
-	if (wParam == WM_LBUTTONDOWN || wParam == WM_RBUTTONDOWN)
+	if (wParam == WM_LBUTTONDOWN)
 	{
+		g_LastMouseClickButton = VK_LBUTTON;
+		g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
+	}
+	else if (wParam == WM_RBUTTONDOWN)
+	{
+		g_LastMouseClickButton = VK_RBUTTON;
 		g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
 	}
 	return CallNextHookEx(0, nCode, wParam, lParam);
@@ -193,6 +199,9 @@ void internal_recorder::SetMouseClickDetectionRadius(int value) {
 }
 void internal_recorder::SetMouseClickDetectionDuration(int value) {
 	g_MouseClickDetectionDurationMillis = value;
+}
+void internal_recorder::SetMouseClickDetectionMode(UINT32 value) {
+	m_MouseClickDetectionMode = value;
 }
 void internal_recorder::SetSnapshotSaveFormat(GUID value) {
 	m_ImageEncoderFormat = value;
@@ -316,10 +325,44 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 	if (!path.empty()) {
 		RETURN_ON_BAD_HR(ConfigureOutputDir(path));
 	}
-	if (m_IsMouseClicksDetected) {
-		m_Mousehook = SetWindowsHookEx(WH_MOUSE, MouseHookProc, nullptr, 0);
-	}
+
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
+
+	if (m_IsMouseClicksDetected) {
+		switch (m_MouseClickDetectionMode)
+		{
+		default:
+		case MOUSE_DETECTION_MODE_POLLING: {
+			concurrency::create_task([this, token]() {
+				while (true) {
+					if (GetKeyState(VK_LBUTTON) < 0)
+					{
+						//If left mouse button is held, reset the duration of click duration
+						g_LastMouseClickButton = VK_LBUTTON;
+						g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
+					}
+					else if (GetKeyState(VK_RBUTTON) < 0)
+					{
+						//If right mouse button is held, reset the duration of click duration
+						g_LastMouseClickButton = VK_RBUTTON;
+						g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
+					}
+
+					if (token.is_canceled()) {
+						break;
+					}
+					wait(1);
+				}
+				LOG("Exiting mouse click polling task");
+			});
+			break;
+		}
+		case MOUSE_DETECTION_MODE_HOOK: {
+			m_Mousehook = SetWindowsHookEx(WH_MOUSE_LL, MouseHookProc, nullptr, 0);
+			break;
+		}
+		}
+	}
 	concurrency::create_task([this, token, stream]() {
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 		RETURN_ON_BAD_HR(hr = MFStartup(MF_VERSION, MFSTARTUP_LITE));
@@ -488,27 +531,12 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				CComPtr<IDXGIResource> pDesktopResource = nullptr;
 				DXGI_OUTDUPL_FRAME_INFO FrameInfo;
 				RtlZeroMemory(&FrameInfo, sizeof(FrameInfo));
-				if (!m_IsRecording)
-				{
+
+				if (token.is_canceled()) {
 					hr = S_OK;
 					break;
 				}
-				if (token.is_canceled()) {
-					return E_UNEXPECTED;
-				}
 
-				if (m_IsMouseClicksDetected && GetKeyState(VK_LBUTTON) < 0)
-				{
-					//If left mouse button is held, reset the duration of click duration
-					m_LastMouseClickButton = VK_LBUTTON;
-					g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-				}
-				if (m_IsMouseClicksDetected && GetKeyState(VK_RBUTTON) < 0)
-				{
-					//If right mouse button is held, reset the duration of click duration
-					m_LastMouseClickButton = VK_RBUTTON;
-					g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-				}
 				if (m_IsPaused) {
 					wait(10);
 					lastFrame = high_resolution_clock::now();
@@ -647,11 +675,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						&& m_IsMouseClicksDetected
 						&& gotMousePointer)
 					{
-						if (m_LastMouseClickButton == VK_LBUTTON)
+						if (g_LastMouseClickButton == VK_LBUTTON)
 						{
 							hr = pMousePointer->DrawMouseClick(&PtrInfo, pFrameCopy, m_MouseClickDetectionLMBColor, m_MouseClickDetectionRadius, screenRotation);
 						}
-						if (m_LastMouseClickButton == VK_RBUTTON)
+						if (g_LastMouseClickButton == VK_RBUTTON)
 						{
 							hr = pMousePointer->DrawMouseClick(&PtrInfo, pFrameCopy, m_MouseClickDetectionRMBColor, m_MouseClickDetectionRadius, screenRotation);
 						}
@@ -661,7 +689,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 
 					if (m_IsMousePointerEnabled && gotMousePointer) {
-						hr = pMousePointer->DrawMousePointer(&PtrInfo, m_ImmediateContext, pDevice, pFrameCopy,screenRotation);
+						hr = pMousePointer->DrawMousePointer(&PtrInfo, m_ImmediateContext, pDevice, pFrameCopy, screenRotation);
 						if (hr == DXGI_ERROR_ACCESS_LOST
 							|| hr == DXGI_ERROR_INVALID_CALL) {
 							if (pDeskDupl) {
@@ -688,7 +716,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 
 					if (token.is_canceled()) {
-						return E_UNEXPECTED;
+						hr = S_OK;
+						break;
 					}
 					if (m_IsRecording) {
 						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
@@ -738,6 +767,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				delete PtrInfo.PtrShapeBuffer;
 			PtrInfo.PtrShapeBuffer = nullptr;
 		}
+		LOG("Exiting recording task");
 		return hr;
 	}).then([this, token](HRESULT hr) {
 		m_IsRecording = false;
@@ -832,7 +862,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 void internal_recorder::EndRecording() {
 	if (m_IsRecording) {
 		m_IsPaused = false;
-		m_IsRecording = false;
+		m_TaskWrapperImpl->m_RecordTaskCts.cancel();
 	}
 }
 void internal_recorder::PauseRecording() {

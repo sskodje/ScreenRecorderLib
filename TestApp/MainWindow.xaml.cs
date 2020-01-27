@@ -47,7 +47,7 @@ namespace TestApp
         public string MouseLeftClickColor { get; set; } = "#ffff00";
         public string MouseRightClickColor { get; set; } = "#ffff00";
         public int MouseClickRadius { get; set; } = 20;
-        public int MouseClickDuration { get; set; } = 150;
+        public int MouseClickDuration { get; set; } = 50;
         public List<string> AudioInputsList { get; set; } = new List<string>();
         public List<string> AudioOutputsList { get; set; } = new List<string>();
         public bool IsAudioInEnabled { get; set; } = false;
@@ -118,9 +118,24 @@ namespace TestApp
             }
         }
 
+        private MouseDetectionMode _currentMouseDetectionMode;
+        public MouseDetectionMode CurrentMouseDetectionMode
+        {
+            get { return _currentMouseDetectionMode; }
+            set
+            {
+                if (_currentMouseDetectionMode != value)
+                {
+                    _currentMouseDetectionMode = value;
+                    RaisePropertyChanged("CurrentMouseDetectionMode");
+                }
+            }
+        }
 
 
         public H264Profile CurrentH264Profile { get; set; } = H264Profile.Main;
+
+
         public MainWindow()
         {
             InitializeComponent();
@@ -231,7 +246,8 @@ namespace TestApp
                     MouseClickDetectionColor = this.MouseLeftClickColor,
                     MouseRightClickDetectionColor = this.MouseRightClickColor,
                     MouseClickDetectionRadius = this.MouseClickRadius,
-                    MouseClickDetectionDuration = this.MouseClickDuration
+                    MouseClickDetectionDuration = this.MouseClickDuration,
+                     MouseClickDetectionMode = this.CurrentMouseDetectionMode
                 }
             };
 

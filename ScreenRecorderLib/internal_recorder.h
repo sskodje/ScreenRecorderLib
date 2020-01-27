@@ -31,6 +31,8 @@ typedef void(__stdcall *CallbackErrorFunction)(std::wstring);
 #define STATUS_PAUSED 2
 #define STATUS_FINALIZING 3
 
+#define MOUSE_DETECTION_MODE_POLLING 0
+#define MOUSE_DETECTION_MODE_HOOK 1
 
 typedef struct
 {
@@ -87,6 +89,7 @@ public:
 	void SetMouseClickDetectionRMBColor(std::string value);
 	void SetMouseClickDetectionRadius(int value);
 	void SetMouseClickDetectionDuration(int value);
+	void SetMouseClickDetectionMode(UINT32 value);
 	void SetSnapshotSaveFormat(GUID value);
 
 private:
@@ -142,10 +145,11 @@ private:
 	bool m_IsRecording = false;
 	bool m_IsEncoderFailure = false;
 	bool m_IsMouseClicksDetected = false;
-	int m_LastMouseClickButton;
+
 	std::string m_MouseClickDetectionLMBColor = "#FFFF00";
 	std::string m_MouseClickDetectionRMBColor = "#FFFF00";
-	int m_MouseClickDetectionRadius = 20;
+	UINT32 m_MouseClickDetectionRadius = 20;
+	UINT32 m_MouseClickDetectionMode = MOUSE_DETECTION_MODE_POLLING;
 	UINT64 m_LastEncodedSampleCount = 0;
 	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;
 
