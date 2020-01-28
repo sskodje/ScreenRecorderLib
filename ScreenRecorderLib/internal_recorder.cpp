@@ -36,9 +36,9 @@ using namespace std::chrono;
 using namespace concurrency;
 using namespace DirectX;
 
-INT32 g_LastMouseClickDurationRemaining;
-INT32 g_MouseClickDetectionDurationMillis = 50;
-INT32 g_LastMouseClickButton;
+UINT g_LastMouseClickDurationRemaining;
+UINT g_MouseClickDetectionDurationMillis = 50;
+UINT g_LastMouseClickButton;
 // Driver types supported
 D3D_DRIVER_TYPE gDriverTypes[] =
 {
@@ -215,7 +215,7 @@ std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vec
 	{
 		newvector.insert(newvector.end(), first.begin(), first.end());
 
-		for (int i = 0; i < second.size(); i++)
+		for (UINT i = 0; i < second.size(); i++)
 		{
 			newvector[i] += second[i];
 		}
@@ -228,13 +228,13 @@ std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vec
 
 		newvector.insert(newvector.end(), second.begin(), end);
 
-		for (int i = 0; i < first.size(); i++)
+		for (UINT i = 0; i < first.size(); i++)
 		{
 			newvector[i] += first[i];
 		}
 	}
 
-	for (int i = 0; i < newvector.size(); ++i)
+	for (UINT i = 0; i < newvector.size(); ++i)
 		if (newvector[i] > 0x7fff)
 			newvector[i] = newvector[i] / 2; // divide by the number of channels being mixed
 		else if (newvector[i] < -0x7fff)
@@ -436,7 +436,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				threadArgs.hStopEvent = hOutputCaptureStopEvent;
 				threadArgs.nFrames = 0;
 				threadArgs.flow = eRender;
-				threadArgs.samplerate = 0.0;
+				threadArgs.samplerate = 0;
 
 				HANDLE hThread = CreateThread(
 					nullptr, 0,
@@ -469,7 +469,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				threadArgs.hStopEvent = hInputCaptureStopEvent;
 				threadArgs.nFrames = 0;
 				threadArgs.flow = eCapture;
-				threadArgs.samplerate = 0.0;
+				threadArgs.samplerate = 0;
 
 				if (m_IsOutputDeviceEnabled)
 				{
@@ -616,7 +616,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					if (hr == S_OK || pPreviousFrameCopy == nullptr || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
 						UINT32 delay = 1;
 						if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
-							double d = (videoFrameDuration100Nanos - (durationSinceLastFrame100Nanos)) / 10 / 1000;
+							double d = (videoFrameDuration100Nanos - durationSinceLastFrame100Nanos) / 10 / 1000;
 							delay = round(d);
 						}
 
@@ -683,7 +683,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						{
 							hr = pMousePointer->DrawMouseClick(&PtrInfo, pFrameCopy, m_MouseClickDetectionRMBColor, m_MouseClickDetectionRadius, screenRotation);
 						}
-						INT32 millis = max(durationSinceLastFrame100Nanos / 10 / 1000, 0);
+						UINT millis = max(durationSinceLastFrame100Nanos / 10 / 1000, 0);
 						g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millis, 0);
 						LOG("Drawing mouse click, duration remaining on click is %u ms", g_LastMouseClickDurationRemaining);
 					}
@@ -955,7 +955,7 @@ HRESULT internal_recorder::InitializeDx(_In_opt_ IDXGIOutput *pDxgiOutput, _Outp
 			driverTypes.push_back(type);
 		}
 	}
-	int numDriverTypes = driverTypes.size();
+	UINT numDriverTypes = driverTypes.size();
 	UINT creationFlagsDebug = D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_DEBUG;
 	UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
 	// Create devices
@@ -1363,7 +1363,7 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel model) {
 		//If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
 		if (m_IsAudioEnabled && model.Audio.size() == 0) {
 			int frameCount = ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000));
-			LONGLONG byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
+			UINT32 byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
 			model.Audio.insert(model.Audio.end(), byteCount, 0);
 			LOG(L"Inserted %zd bytes of silence", model.Audio.size());
 		}

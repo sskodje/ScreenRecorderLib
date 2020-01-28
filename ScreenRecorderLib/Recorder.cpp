@@ -114,7 +114,7 @@ List<String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
 	{
 		if (vector.size() != 0)
 		{
-			for (int i = 0; i < vector.size(); ++i)
+			for (UINT i = 0; i < vector.size(); ++i)
 			{
 				devices->Add(gcnew String(vector[i].c_str()));
 			}

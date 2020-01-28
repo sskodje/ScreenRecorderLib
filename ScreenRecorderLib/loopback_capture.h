@@ -20,7 +20,7 @@ struct LoopbackCaptureThreadFunctionArguments {
 	UINT32 nFrames;
 	HRESULT hr;
 	EDataFlow flow;
-	double samplerate;
+	UINT32 samplerate;
 };
 
 DWORD WINAPI LoopbackCaptureThreadFunction(LPVOID pContext);
@@ -39,7 +39,7 @@ public:
 		HANDLE hStopEvent,
 		PUINT32 pnFrames,
 		EDataFlow flow,
-		double samplerate = 0
+		UINT32 samplerate = 0
 	);
 
 	std::vector<BYTE> loopback_capture::GetRecordedBytes();

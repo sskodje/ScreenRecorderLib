@@ -46,7 +46,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	HANDLE hStopEvent,
 	PUINT32 pnFrames,
 	EDataFlow flow,
-	double samplerate
+	UINT32 samplerate
 ) {
 	HRESULT hr;
 
@@ -121,7 +121,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	}
 
 	// set resampler options
-	if (samplerate != 0.0)
+	if (samplerate != 0)
 	{
 		m_SamplesPerSec = samplerate;
 	}
@@ -129,11 +129,11 @@ HRESULT loopback_capture::LoopbackCapture(
 	{
 		if (pwfx->nSamplesPerSec >= 48000)
 		{
-			m_SamplesPerSec = 48000.0;
+			m_SamplesPerSec = 48000;
 		}
 		else
 		{
-			m_SamplesPerSec = 44100.0;
+			m_SamplesPerSec = 44100;
 		}
 	}
 
