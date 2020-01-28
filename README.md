@@ -101,7 +101,7 @@ To change the options, pass a RecorderOptions when creating the Recorder:
                     MouseClickDetectionDuration = 100
 		    IsMousePointerEnabled = true,
                     /* Polling checks every millisecond if a mouse button is pressed.
-                       Hook works better with programatically generated mouse clicks, but may affect
+                       Hook works better with programmatically generated mouse clicks, but may affect
                        mouse performance and interferes with debugging.*/
 		    MouseClickDetectionMode = MouseDetectionMode.Hook
                 }
