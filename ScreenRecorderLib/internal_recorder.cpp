@@ -769,7 +769,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		}
 		LOG("Exiting recording task");
 		return hr;
-	}).then([this, token](HRESULT hr) {
+	})
+	.then([this, token](HRESULT hr) {
 		m_IsRecording = false;
 
 		if (!m_IsDestructed) {
@@ -805,7 +806,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 #endif
 		}
 		return hr;
-	}).then([this](concurrency::task<HRESULT> t)
+	})
+	.then([this](concurrency::task<HRESULT> t)
 	{
 		std::wstring errMsg = L"";
 		bool success = false;
