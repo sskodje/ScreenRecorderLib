@@ -151,6 +151,10 @@ HRESULT loopback_capture::LoopbackCapture(
 	if (inputFormat.sampleRate != outputFormat.sampleRate) {
 		resampler.Initialize(inputFormat, outputFormat, 60);
 	}
+	else
+	{
+		LOG("No resampling nescessary");
+	}
 
 	// create a periodic waitable timer
 	HANDLE hWakeUp = CreateWaitableTimer(NULL, FALSE, NULL);
