@@ -149,6 +149,11 @@ HRESULT loopback_capture::LoopbackCapture(
 
 	// initialize resampler if sample rate differs from 44.1kHz or 48kHz
 	if (inputFormat.sampleRate != outputFormat.sampleRate) {
+		LOG("Resampler (bits): %u -> %u", inputFormat.bits, outputFormat.bits);
+		LOG("Resampler (channels): %u -> %u", inputFormat.nChannels, outputFormat.nChannels);
+		LOG("Resampler (sampleFormat): %i -> %i", inputFormat.sampleFormat, outputFormat.sampleFormat);
+		LOG("Resampler (sampleRate): %lu -> %lu", inputFormat.sampleRate, outputFormat.sampleRate);
+		LOG("Resampler (validBitsPerSample): %u -> %u", inputFormat.validBitsPerSample, outputFormat.validBitsPerSample);		
 		resampler.Initialize(inputFormat, outputFormat, 60);
 	}
 	else

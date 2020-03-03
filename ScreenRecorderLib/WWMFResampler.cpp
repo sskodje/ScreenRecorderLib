@@ -93,11 +93,6 @@ CreateResamplerMFT(
 HRESULT
 WWMFResampler::Initialize(const WWMFPcmFormat &inputFormat, const WWMFPcmFormat &outputFormat, int halfFilterLength)
 {
-	LOG("Resampler (bits): %u -> %u", inputFormat.bits, outputFormat.bits);
-	LOG("Resampler (channels): %u -> %u", inputFormat.nChannels, outputFormat.nChannels);
-	LOG("Resampler (sampleFormat): %i -> %i", inputFormat.sampleFormat, outputFormat.sampleFormat);
-	LOG("Resampler (sampleRate): %u -> %u", inputFormat.sampleRate, outputFormat.sampleRate);
-	LOG("Resampler (validBitsPerSample): %u -> %u", inputFormat.validBitsPerSample, outputFormat.validBitsPerSample);
 	m_inputFormat = inputFormat;
 	m_outputFormat = outputFormat;
 	assert(m_pTransform == NULL);
