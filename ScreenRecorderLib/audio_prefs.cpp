@@ -73,6 +73,7 @@ CPrefs::CPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow)
 		if (NULL == m_pMMDevice) {
 			hr = get_default_device(&m_pMMDevice, flow);
 			if (FAILED(hr)) {
+				ERR(L"No audio capture devices available");
 				return;
 			}
 		}

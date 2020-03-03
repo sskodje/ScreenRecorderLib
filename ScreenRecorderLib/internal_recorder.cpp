@@ -424,31 +424,34 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				LPCWSTR argv[3] = { L"", L"--device", m_AudioOutputDevice.c_str() };
 				int argc = isDeviceEmpty ? 1 : SIZEOF_ARRAY(argv);
 				CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, eRender);
-				prefs.m_bInt16 = true;
-				// create arguments for loopback capture thread
-				LoopbackCaptureThreadFunctionArguments threadArgs;
-				threadArgs.hr = E_UNEXPECTED; // thread will overwrite this
-				threadArgs.pMMDevice = prefs.m_pMMDevice;
-				threadArgs.pCaptureInstance = pLoopbackCaptureOutputDevice.get();
-				threadArgs.bInt16 = prefs.m_bInt16;
-				threadArgs.hFile = prefs.m_hFile;
-				threadArgs.hStartedEvent = hOutputCaptureStartedEvent;
-				threadArgs.hStopEvent = hOutputCaptureStopEvent;
-				threadArgs.nFrames = 0;
-				threadArgs.flow = eRender;
-				threadArgs.samplerate = 0;
 
-				HANDLE hThread = CreateThread(
-					nullptr, 0,
-					LoopbackCaptureThreadFunction, &threadArgs, 0, nullptr
-				);
-				if (nullptr == hThread) {
-					ERR(L"CreateThread failed: last error is %u", GetLastError());
-					return E_FAIL;
+				if (SUCCEEDED(hr)) {
+					prefs.m_bInt16 = true;
+					// create arguments for loopback capture thread
+					LoopbackCaptureThreadFunctionArguments threadArgs;
+					threadArgs.hr = E_UNEXPECTED; // thread will overwrite this
+					threadArgs.pMMDevice = prefs.m_pMMDevice;
+					threadArgs.pCaptureInstance = pLoopbackCaptureOutputDevice.get();
+					threadArgs.bInt16 = prefs.m_bInt16;
+					threadArgs.hFile = prefs.m_hFile;
+					threadArgs.hStartedEvent = hOutputCaptureStartedEvent;
+					threadArgs.hStopEvent = hOutputCaptureStopEvent;
+					threadArgs.nFrames = 0;
+					threadArgs.flow = eRender;
+					threadArgs.samplerate = 0;
+
+					HANDLE hThread = CreateThread(
+						nullptr, 0,
+						LoopbackCaptureThreadFunction, &threadArgs, 0, nullptr
+					);
+					if (nullptr == hThread) {
+						ERR(L"CreateThread failed: last error is %u", GetLastError());
+						return E_FAIL;
+					}
+					WaitForSingleObjectEx(hOutputCaptureStartedEvent, 1000, false);
+					m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
+					CloseHandle(hThread);
 				}
-				WaitForSingleObjectEx(hOutputCaptureStartedEvent, 1000, false);
-				m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
-				CloseHandle(hThread);
 			}
 
 			if (recordAudio && m_IsInputDeviceEnabled)
@@ -457,36 +460,38 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				LPCWSTR argv[3] = { L"", L"--device", m_AudioInputDevice.c_str() };
 				int argc = isDeviceEmpty ? 1 : SIZEOF_ARRAY(argv);
 				CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, eCapture);
-				prefs.m_bInt16 = true;
-				// create arguments for loopback capture thread
-				LoopbackCaptureThreadFunctionArguments threadArgs;
-				threadArgs.hr = E_UNEXPECTED; // thread will overwrite this
-				threadArgs.pMMDevice = prefs.m_pMMDevice;
-				threadArgs.pCaptureInstance = pLoopbackCaptureInputDevice.get();
-				threadArgs.bInt16 = prefs.m_bInt16;
-				threadArgs.hFile = prefs.m_hFile;
-				threadArgs.hStartedEvent = hInputCaptureStartedEvent;
-				threadArgs.hStopEvent = hInputCaptureStopEvent;
-				threadArgs.nFrames = 0;
-				threadArgs.flow = eCapture;
-				threadArgs.samplerate = 0;
+				if (SUCCEEDED(hr)) {
+					prefs.m_bInt16 = true;
+					// create arguments for loopback capture thread
+					LoopbackCaptureThreadFunctionArguments threadArgs;
+					threadArgs.hr = E_UNEXPECTED; // thread will overwrite this
+					threadArgs.pMMDevice = prefs.m_pMMDevice;
+					threadArgs.pCaptureInstance = pLoopbackCaptureInputDevice.get();
+					threadArgs.bInt16 = prefs.m_bInt16;
+					threadArgs.hFile = prefs.m_hFile;
+					threadArgs.hStartedEvent = hInputCaptureStartedEvent;
+					threadArgs.hStopEvent = hInputCaptureStopEvent;
+					threadArgs.nFrames = 0;
+					threadArgs.flow = eCapture;
+					threadArgs.samplerate = 0;
 
-				if (m_IsOutputDeviceEnabled)
-				{
-					threadArgs.samplerate = m_InputAudioSamplesPerSecond;
-				}
+					if (m_IsOutputDeviceEnabled)
+					{
+						threadArgs.samplerate = m_InputAudioSamplesPerSecond;
+					}
 
-				HANDLE hThread = CreateThread(
-					nullptr, 0,
-					LoopbackCaptureThreadFunction, &threadArgs, 0, nullptr
-				);
-				if (nullptr == hThread) {
-					ERR(L"CreateThread failed: last error is %u", GetLastError());
-					return E_FAIL;
+					HANDLE hThread = CreateThread(
+						nullptr, 0,
+						LoopbackCaptureThreadFunction, &threadArgs, 0, nullptr
+					);
+					if (nullptr == hThread) {
+						ERR(L"CreateThread failed: last error is %u", GetLastError());
+						return E_FAIL;
+					}
+					WaitForSingleObjectEx(hInputCaptureStartedEvent, 1000, false);
+					m_InputAudioSamplesPerSecond = pLoopbackCaptureInputDevice->GetInputSampleRate();
+					CloseHandle(hThread);
 				}
-				WaitForSingleObjectEx(hInputCaptureStartedEvent, 1000, false);
-				m_InputAudioSamplesPerSecond = pLoopbackCaptureInputDevice->GetInputSampleRate();
-				CloseHandle(hThread);
 			}
 
 			if (recordAudio && m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
@@ -826,32 +831,32 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			ERR(L"Exception in RecordTask");
 		}
 
-		if (RecordingStatusChangedCallback)
-			RecordingStatusChangedCallback(STATUS_IDLE);
+			if (RecordingStatusChangedCallback)
+				RecordingStatusChangedCallback(STATUS_IDLE);
 
 
-		if (success) {
-			if (RecordingCompleteCallback)
-				RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);
-		}
-		else {
-			if (RecordingFailedCallback) {
-
-
-				if (m_IsEncoderFailure) {
-					errMsg = L"Write error in video encoder.";
-					if (m_IsHardwareEncodingEnabled) {
-						errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
-					}
-				}
-				else {
-					if (errMsg.empty()) {
-						errMsg = utilities::GetLastErrorStdWstr();
-					}
-				}
-				RecordingFailedCallback(errMsg);
+			if (success) {
+				if (RecordingCompleteCallback)
+					RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);
 			}
-		}
+			else {
+				if (RecordingFailedCallback) {
+
+
+					if (m_IsEncoderFailure) {
+						errMsg = L"Write error in video encoder.";
+						if (m_IsHardwareEncodingEnabled) {
+							errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
+						}
+					}
+					else {
+						if (errMsg.empty()) {
+							errMsg = utilities::GetLastErrorStdWstr();
+						}
+					}
+					RecordingFailedCallback(errMsg);
+				}
+			}
 
 		UnhookWindowsHookEx(m_Mousehook);
 	});
