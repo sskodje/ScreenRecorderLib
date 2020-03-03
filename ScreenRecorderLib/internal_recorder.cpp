@@ -36,7 +36,7 @@ using namespace std::chrono;
 using namespace concurrency;
 using namespace DirectX;
 
-UINT g_LastMouseClickDurationRemaining;
+UINT64 g_LastMouseClickDurationRemaining;
 UINT g_MouseClickDetectionDurationMillis = 50;
 UINT g_LastMouseClickButton;
 // Driver types supported
@@ -61,7 +61,7 @@ struct internal_recorder::TaskWrapper {
 };
 
 
-internal_recorder::internal_recorder() :m_TaskWrapperImpl(new TaskWrapper())
+internal_recorder::internal_recorder()
 {
 	m_IsDestructed = false;
 }
@@ -325,7 +325,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 	if (!path.empty()) {
 		RETURN_ON_BAD_HR(ConfigureOutputDir(path));
 	}
-
+	m_TaskWrapperImpl = std::make_unique<TaskWrapper>();
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
 
 	if (m_IsMouseClicksDetected) {
@@ -621,8 +621,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					if (hr == S_OK || pPreviousFrameCopy == nullptr || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
 						UINT32 delay = 1;
 						if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
-							double d = (videoFrameDuration100Nanos - durationSinceLastFrame100Nanos) / 10 / 1000;
-							delay = round(d);
+							delay = static_cast<UINT32>((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos) / 10 / 1000);
 						}
 
 						wait(delay);
@@ -688,7 +687,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						{
 							hr = pMousePointer->DrawMouseClick(&PtrInfo, pFrameCopy, m_MouseClickDetectionRMBColor, m_MouseClickDetectionRadius, screenRotation);
 						}
-						UINT millis = max(durationSinceLastFrame100Nanos / 10 / 1000, 0);
+						auto millis = max(durationSinceLastFrame100Nanos / 10 / 1000, 0);
 						g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millis, 0);
 						LOG("Drawing mouse click, duration remaining on click is %u ms", g_LastMouseClickDurationRemaining);
 					}
@@ -750,7 +749,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					lastFrameStartPos += durationSinceLastFrame100Nanos;
 					if (m_IsFixedFramerate)
 					{
-						wait(videoFrameDurationMillis);
+						wait(static_cast<UINT32>(videoFrameDurationMillis));
 					}
 				}
 			}
@@ -774,7 +773,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		}
 		LOG("Exiting recording task");
 		return hr;
-	}).then([this, token](HRESULT hr) {
+	})
+	.then([this, token](HRESULT hr) {
 		m_IsRecording = false;
 
 		if (!m_IsDestructed) {
@@ -810,7 +810,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 #endif
 		}
 		return hr;
-	}).then([this](concurrency::task<HRESULT> t)
+	})
+	.then([this](concurrency::task<HRESULT> t)
 	{
 		std::wstring errMsg = L"";
 		bool success = false;
@@ -1367,8 +1368,8 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel model) {
 		//If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
 		//If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
 		if (m_IsAudioEnabled && model.Audio.size() == 0) {
-			int frameCount = ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000));
-			UINT32 byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
+			auto frameCount = static_cast<UINT32>(ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000)));
+			auto byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
 			model.Audio.insert(model.Audio.end(), byteCount, 0);
 			LOG(L"Inserted %zd bytes of silence", model.Audio.size());
 		}
@@ -1411,9 +1412,14 @@ std::string internal_recorder::NowToString()
 {
 	chrono::system_clock::time_point p = chrono::system_clock::now();
 	time_t t = chrono::system_clock::to_time_t(p);
+	struct tm newTime;
+	auto err = localtime_s(&newTime, &t);
 
-	std::stringstream ss;
-	ss << std::put_time(std::localtime(&t), "%Y-%m-%d %X");
+	std::stringstream ss;	
+	if (err)
+		ss << "NEW";
+	else
+		ss << std::put_time(&newTime, "%Y-%m-%d %X");
 	string time = ss.str();
 	std::replace(time.begin(), time.end(), ':', '-');
 	return time;
