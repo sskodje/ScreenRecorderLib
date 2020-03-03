@@ -61,7 +61,7 @@ struct internal_recorder::TaskWrapper {
 };
 
 
-internal_recorder::internal_recorder()
+internal_recorder::internal_recorder() :m_TaskWrapperImpl(make_unique<TaskWrapper>())
 {
 	m_IsDestructed = false;
 }
@@ -325,7 +325,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 	if (!path.empty()) {
 		RETURN_ON_BAD_HR(ConfigureOutputDir(path));
 	}
-	m_TaskWrapperImpl = std::make_unique<TaskWrapper>();
+	m_TaskWrapperImpl->m_RecordTaskCts = cancellation_token_source();
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
 
 	if (m_IsMouseClicksDetected) {
@@ -774,7 +774,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		LOG("Exiting recording task");
 		return hr;
 	})
-	.then([this, token](HRESULT hr) {
+		.then([this, token](HRESULT hr) {
 		m_IsRecording = false;
 
 		if (!m_IsDestructed) {
@@ -811,7 +811,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		}
 		return hr;
 	})
-	.then([this](concurrency::task<HRESULT> t)
+		.then([this](concurrency::task<HRESULT> t)
 	{
 		std::wstring errMsg = L"";
 		bool success = false;
@@ -832,32 +832,32 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			ERR(L"Exception in RecordTask");
 		}
 
-			if (RecordingStatusChangedCallback)
-				RecordingStatusChangedCallback(STATUS_IDLE);
+		if (RecordingStatusChangedCallback)
+			RecordingStatusChangedCallback(STATUS_IDLE);
 
 
-			if (success) {
-				if (RecordingCompleteCallback)
-					RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);
-			}
-			else {
-				if (RecordingFailedCallback) {
+		if (success) {
+			if (RecordingCompleteCallback)
+				RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);
+		}
+		else {
+			if (RecordingFailedCallback) {
 
 
-					if (m_IsEncoderFailure) {
-						errMsg = L"Write error in video encoder.";
-						if (m_IsHardwareEncodingEnabled) {
-							errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
-						}
+				if (m_IsEncoderFailure) {
+					errMsg = L"Write error in video encoder.";
+					if (m_IsHardwareEncodingEnabled) {
+						errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
 					}
-					else {
-						if (errMsg.empty()) {
-							errMsg = utilities::GetLastErrorStdWstr();
-						}
-					}
-					RecordingFailedCallback(errMsg);
 				}
+				else {
+					if (errMsg.empty()) {
+						errMsg = utilities::GetLastErrorStdWstr();
+					}
+				}
+				RecordingFailedCallback(errMsg);
 			}
+		}
 
 		UnhookWindowsHookEx(m_Mousehook);
 	});
@@ -1415,7 +1415,7 @@ std::string internal_recorder::NowToString()
 	struct tm newTime;
 	auto err = localtime_s(&newTime, &t);
 
-	std::stringstream ss;	
+	std::stringstream ss;
 	if (err)
 		ss << "NEW";
 	else
