@@ -61,7 +61,7 @@ struct internal_recorder::TaskWrapper {
 };
 
 
-internal_recorder::internal_recorder() :m_TaskWrapperImpl(new TaskWrapper())
+internal_recorder::internal_recorder()
 {
 	m_IsDestructed = false;
 }
@@ -325,7 +325,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 	if (!path.empty()) {
 		RETURN_ON_BAD_HR(ConfigureOutputDir(path));
 	}
-
+	m_TaskWrapperImpl = std::make_unique<TaskWrapper>();
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
 
 	if (m_IsMouseClicksDetected) {
