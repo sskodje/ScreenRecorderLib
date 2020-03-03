@@ -12,7 +12,9 @@ namespace ScreenRecorderLib
         public void RunInTestMethodTest()
         {
             Stream outStream = new MemoryStream();
+            
             var rec = ScreenRecorderLib.Recorder.CreateRecorder();
+            
             bool isError = false;
             bool isComplete = false;
             ManualResetEvent resetEvent = new ManualResetEvent(false);
@@ -30,7 +32,9 @@ namespace ScreenRecorderLib
             rec.Record(outStream);
             Thread.Sleep(3000);
             rec.Stop();
+            
             resetEvent.WaitOne(5000);
+            rec.Dispose();
             Assert.IsNotNull(outStream);
             Assert.IsFalse(isError);
             Assert.IsTrue(isComplete);
