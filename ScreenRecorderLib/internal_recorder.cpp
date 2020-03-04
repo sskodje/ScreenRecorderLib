@@ -57,23 +57,24 @@ D3D_FEATURE_LEVEL m_FeatureLevels[] =
 };
 
 struct internal_recorder::TaskWrapper {
+	Concurrency::task<void> m_RecordTask;
 	Concurrency::cancellation_token_source m_RecordTaskCts;
 };
 
 
 internal_recorder::internal_recorder() :m_TaskWrapperImpl(make_unique<TaskWrapper>())
 {
-	m_IsDestructed = false;
+
 }
 
 internal_recorder::~internal_recorder()
 {
 	UnhookWindowsHookEx(m_Mousehook);
 	if (m_IsRecording) {
-		if (RecordingStatusChangedCallback != nullptr)
-			RecordingStatusChangedCallback(STATUS_IDLE);
+		LOG("Recording is in progress while destructing, cancelling recording task and waiting for completion.");
+		m_TaskWrapperImpl->m_RecordTaskCts.cancel();
+		m_TaskWrapperImpl->m_RecordTask.wait();
 	}
-	m_IsDestructed = true;
 }
 
 LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
@@ -363,7 +364,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		}
 		}
 	}
-	concurrency::create_task([this, token, stream]() {
+	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, token, stream]() {
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 		RETURN_ON_BAD_HR(hr = MFStartup(MF_VERSION, MFSTARTUP_LITE));
 		{
@@ -756,10 +757,9 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 			SetEvent(hOutputCaptureStopEvent);
 			SetEvent(hInputCaptureStopEvent);
-			if (!m_IsDestructed) {
-				if (RecordingStatusChangedCallback != nullptr)
-					RecordingStatusChangedCallback(STATUS_FINALIZING);
-			}
+
+			if (RecordingStatusChangedCallback != nullptr)
+				RecordingStatusChangedCallback(STATUS_FINALIZING);
 
 			pDeskDupl->ReleaseFrame();
 			if (pPreviousFrameCopy)
@@ -777,23 +777,21 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		.then([this, token](HRESULT hr) {
 		m_IsRecording = false;
 
-		if (!m_IsDestructed) {
-			if (m_SinkWriter) {
-				m_SinkWriter->Finalize();
+		if (m_SinkWriter) {
+			m_SinkWriter->Finalize();
 
-				//Dispose of MPEG4MediaSink 
-				IMFMediaSink *pSink;
-				if (SUCCEEDED(m_SinkWriter->GetServiceForStream(MF_SINK_WRITER_MEDIASINK, GUID_NULL, IID_PPV_ARGS(&pSink)))) {
-					pSink->Shutdown();
-					pSink->Release();
-				};
-				try {
-					m_SinkWriter->Release();
-					m_SinkWriter = nullptr;
-				}
-				catch (...) {
-					ERR(L"Error releasing sink writer");
-				}
+			//Dispose of MPEG4MediaSink 
+			IMFMediaSink *pSink;
+			if (SUCCEEDED(m_SinkWriter->GetServiceForStream(MF_SINK_WRITER_MEDIASINK, GUID_NULL, IID_PPV_ARGS(&pSink)))) {
+				pSink->Shutdown();
+				pSink->Release();
+			};
+			try {
+				m_SinkWriter->Release();
+				m_SinkWriter = nullptr;
+			}
+			catch (...) {
+				ERR(L"Error releasing sink writer");
 			}
 
 			SafeRelease(&m_ImmediateContext);
