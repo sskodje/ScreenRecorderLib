@@ -1203,7 +1203,10 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeIn, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
 	pVideoMediaTypeIn->SetUINT32(MF_MT_VIDEO_ROTATION, rotationFormat);
 
-	if (m_IsAudioEnabled) {
+	bool isAudioEnabled = m_IsAudioEnabled
+		&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
+
+	if (isAudioEnabled) {
 		// Set the output audio type.
 		RETURN_ON_BAD_HR(MFCreateMediaType(&pAudioMediaTypeOut));
 		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
@@ -1238,7 +1241,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	audioStreamIndex = 1;
 	RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(videoStreamIndex, pVideoMediaTypeIn, nullptr));
 	pVideoMediaTypeIn.Release();
-	if (m_IsAudioEnabled) {
+	if (isAudioEnabled) {
 		RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, nullptr));
 		pAudioMediaTypeIn.Release();
 	}
@@ -1363,9 +1366,11 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel model) {
 			return hr;//Stop recording if we fail
 		}
 		BYTE *data;
+		bool isAudioEnabled = m_IsAudioEnabled
+			&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
 		//If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
 		//If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
-		if (m_IsAudioEnabled && model.Audio.size() == 0) {
+		if (isAudioEnabled && model.Audio.size() == 0) {
 			auto frameCount = static_cast<UINT32>(ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000)));
 			auto byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
 			model.Audio.insert(model.Audio.end(), byteCount, 0);
