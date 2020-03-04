@@ -21,6 +21,7 @@ struct LoopbackCaptureThreadFunctionArguments {
 	HRESULT hr;
 	EDataFlow flow;
 	UINT32 samplerate;
+	UINT32 channels;
 };
 
 DWORD WINAPI LoopbackCaptureThreadFunction(LPVOID pContext);
@@ -39,7 +40,8 @@ public:
 		HANDLE hStopEvent,
 		PUINT32 pnFrames,
 		EDataFlow flow,
-		UINT32 samplerate = 0
+		UINT32 samplerate,
+		UINT32 channels
 	);
 
 	std::vector<BYTE> loopback_capture::GetRecordedBytes();
@@ -54,5 +56,7 @@ private:
 	WWMFPcmFormat inputFormat;
 	WWMFPcmFormat outputFormat;
 	WWMFSampleData sampleData;
+
+	bool requiresResampling();
 };
 
