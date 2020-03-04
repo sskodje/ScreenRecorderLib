@@ -31,7 +31,8 @@ DWORD WINAPI LoopbackCaptureThreadFunction(LPVOID pContext) {
 				pArgs->hStopEvent,
 				&pArgs->nFrames,
 				pArgs->flow,
-				pArgs->samplerate
+				pArgs->samplerate,
+				pArgs->channels
 			);
 		}
 	}
@@ -46,7 +47,8 @@ HRESULT loopback_capture::LoopbackCapture(
 	HANDLE hStopEvent,
 	PUINT32 pnFrames,
 	EDataFlow flow,
-	UINT32 samplerate
+	UINT32 samplerate,
+	UINT32 channels
 ) {
 	HRESULT hr;
 
@@ -146,9 +148,10 @@ HRESULT loopback_capture::LoopbackCapture(
 
 	outputFormat = inputFormat;
 	outputFormat.sampleRate = m_SamplesPerSec;
+	outputFormat.nChannels = channels;
 
 	// initialize resampler if sample rate differs from 44.1kHz or 48kHz
-	if (inputFormat.sampleRate != outputFormat.sampleRate) {
+	if (requiresResampling()) {
 		LOG("Resampler (bits): %u -> %u", inputFormat.bits, outputFormat.bits);
 		LOG("Resampler (channels): %u -> %u", inputFormat.nChannels, outputFormat.nChannels);
 		LOG("Resampler (sampleFormat): %i -> %i", inputFormat.sampleFormat, outputFormat.sampleFormat);
@@ -350,7 +353,7 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes()
 	mtx.lock();
 
 	// convert audio
-	if (inputFormat.sampleRate != outputFormat.sampleRate) {
+	if (requiresResampling()) {
 
 		HRESULT hr = resampler.Resample(m_RecordedBytes.data(), m_RecordedBytes.size(), &sampleData);
 		if (SUCCEEDED(hr)) {
@@ -376,6 +379,10 @@ UINT32 loopback_capture::GetInputSampleRate() {
 	return m_SamplesPerSec;
 }
 
+bool loopback_capture::requiresResampling()
+{
+	return inputFormat.sampleRate != outputFormat.sampleRate || outputFormat.nChannels != inputFormat.nChannels;
+}
 
 void loopback_capture::ClearRecordedBytes()
 {
@@ -386,7 +393,7 @@ void loopback_capture::ClearRecordedBytes()
 
 void loopback_capture::Cleanup()
 {
-	if (inputFormat.sampleRate != outputFormat.sampleRate) {
+	if (requiresResampling()) {
 		resampler.Finalize();
 	}
 	m_RecordedBytes.clear();

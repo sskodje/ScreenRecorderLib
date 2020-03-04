@@ -439,6 +439,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					threadArgs.nFrames = 0;
 					threadArgs.flow = eRender;
 					threadArgs.samplerate = 0;
+					threadArgs.channels = m_AudioChannels;
 
 					HANDLE hThread = CreateThread(
 						nullptr, 0,
@@ -473,7 +474,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					threadArgs.hStopEvent = hInputCaptureStopEvent;
 					threadArgs.nFrames = 0;
 					threadArgs.flow = eCapture;
-					threadArgs.samplerate = 0;
+					threadArgs.samplerate = 0;					
+					threadArgs.channels = m_AudioChannels;
 
 					if (m_IsOutputDeviceEnabled)
 					{
