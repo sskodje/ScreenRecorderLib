@@ -786,16 +786,9 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			IMFMediaSink *pSink;
 			if (SUCCEEDED(m_SinkWriter->GetServiceForStream(MF_SINK_WRITER_MEDIASINK, GUID_NULL, IID_PPV_ARGS(&pSink)))) {
 				pSink->Shutdown();
-				pSink->Release();
 			};
-			try {
-				m_SinkWriter->Release();
-				m_SinkWriter = nullptr;
-			}
-			catch (...) {
-				ERR(L"Error releasing sink writer");
-			}
 
+			SafeRelease(&m_SinkWriter);
 			SafeRelease(&m_ImmediateContext);
 
 			LOG(L"Finalized!");
