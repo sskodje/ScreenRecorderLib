@@ -33,10 +33,10 @@ typedef void(__stdcall *CallbackErrorFunction)(std::wstring);
 
 #define MOUSE_DETECTION_MODE_POLLING 0
 #define MOUSE_DETECTION_MODE_HOOK 1
-
+class loopback_capture;
 typedef struct
 {
-	UINT FrameNumber;
+	UINT FrameNumber = -1;
 	ULONGLONG StartPos;
 	ULONGLONG Duration;
 	std::vector<BYTE> Audio;
@@ -55,6 +55,7 @@ public:
 	CallbackStatusChangedFunction RecordingStatusChangedCallback;
 	HRESULT BeginRecording(std::wstring path);
 	HRESULT BeginRecording(std::wstring path, IStream * stream);
+	std::vector<BYTE> collectAudioFrame(std::unique_ptr<loopback_capture>& pLoopbackCaptureOutputDevice, std::unique_ptr<loopback_capture>& pLoopbackCaptureInputDevice);
 	HRESULT BeginRecording(IStream *stream);
 	std::vector<ATL::CComPtr<IDXGIAdapter>> EnumDisplayAdapters();
 	void EndRecording();

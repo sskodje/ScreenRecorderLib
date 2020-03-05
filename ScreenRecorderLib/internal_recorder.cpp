@@ -531,7 +531,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 			std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
 			mouse_pointer::PTR_INFO PtrInfo;
-			RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
+			RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));			
+			FrameWriteModel model;
 			while (true)
 			{
 				bool gotMousePointer = false;
@@ -608,7 +609,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				if (frameNr > 0 //always draw first frame 
 					&& !m_IsFixedFramerate
 					&& (!m_IsMousePointerEnabled || FrameInfo.PointerShapeBufferSize == 0)//always redraw when pointer changes if we draw pointer
-					&& (hr == DXGI_ERROR_WAIT_TIMEOUT || (durationSinceLastFrame100Nanos) < videoFrameDuration100Nanos)) //skip if frame timeouted or duration is under our chosen framerate
+					&& (hr == DXGI_ERROR_WAIT_TIMEOUT || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos)) //skip if frame timeouted or duration is under our chosen framerate
 				{
 					if (hr == S_OK && pDesktopResource != nullptr) {
 						//we got a frame, but it's too soon, so we cache it and see if there are more changes.
@@ -637,23 +638,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 				lastFrame = high_resolution_clock::now();
 				{
-					std::vector<BYTE> audioData;
-					if (recordAudio) {
-						if (m_IsOutputDeviceEnabled && !m_IsInputDeviceEnabled)
-						{
-							audioData = pLoopbackCaptureOutputDevice->GetRecordedBytes();
-						}
-						if (!m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
-						{
-							audioData = pLoopbackCaptureInputDevice->GetRecordedBytes();
-						}
-						if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
-						{
-							// mix our audio buffers from output device and input device to get one audio buffer since VideoSinkWriter works only with one Audio sink
-							audioData = MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), pLoopbackCaptureInputDevice->GetRecordedBytes());
-						}
-					}
-
 					CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
 					RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, nullptr, &pFrameCopy));
 
@@ -726,20 +710,25 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						break;
 					}
 					if (m_IsRecording) {
-						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
-							FrameWriteModel(model);
-							model.Frame = pFrameCopy;
-							model.Duration = durationSinceLastFrame100Nanos;
-							model.StartPos = lastFrameStartPos;
-							if (recordAudio) {
-								model.Audio = audioData;
+						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {							
+							if (model.FrameNumber != -1)
+							{
+								model.Duration = durationSinceLastFrame100Nanos;
+								std::vector<BYTE> audioData;
+								if (recordAudio)																
+									model.Audio = collectAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);									
+								
+								hr = EnqueueFrame(model);
+								if (FAILED(hr)) {
+									m_IsEncoderFailure = true;
+									break;
+								}
 							}
+
 							model.FrameNumber = frameNr;
-							hr = EnqueueFrame(model);
-							if (FAILED(hr)) {
-								m_IsEncoderFailure = true;
-								break;
-							}
+							model.Frame = pFrameCopy;
+							model.StartPos = lastFrameStartPos;
+
 							frameNr++;
 						}
 						else if (m_RecorderMode == MODE_SNAPSHOT) {
@@ -753,6 +742,27 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					{
 						wait(static_cast<UINT32>(videoFrameDurationMillis));
 					}
+				}
+			}
+			LOG("Finishing Recording");
+			if (model.FrameNumber != -1)
+			{
+				model.Duration = duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100;
+				if (recordAudio)				
+					model.Audio = collectAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
+				
+				hr = EnqueueFrame(model);
+				if (FAILED(hr)) {
+					m_IsEncoderFailure = true;					
+				}
+
+				// Append a zero-length dummy frame otherwise VFR video might be too short
+				model.StartPos += model.Duration;
+				model.Duration = 0;
+
+				hr = EnqueueFrame(model);
+				if (FAILED(hr)) {
+					m_IsEncoderFailure = true;
 				}
 			}
 
@@ -865,6 +875,20 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 	});
 
 	return S_OK;
+}
+
+std::vector<BYTE> internal_recorder::collectAudioFrame(std::unique_ptr<loopback_capture>& pLoopbackCaptureOutputDevice,
+	std::unique_ptr<loopback_capture>& pLoopbackCaptureInputDevice)
+{
+	if (m_IsOutputDeviceEnabled && !m_IsInputDeviceEnabled)	
+		return pLoopbackCaptureOutputDevice->GetRecordedBytes();
+	
+	if (!m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)	
+		return pLoopbackCaptureInputDevice->GetRecordedBytes();	
+	
+	if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)	
+		// mix our audio buffers from output device and input device to get one audio buffer since VideoSinkWriter works only with one Audio sink
+		return MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), pLoopbackCaptureInputDevice->GetRecordedBytes());	
 }
 
 void internal_recorder::EndRecording() {
