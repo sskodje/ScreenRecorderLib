@@ -57,23 +57,24 @@ D3D_FEATURE_LEVEL m_FeatureLevels[] =
 };
 
 struct internal_recorder::TaskWrapper {
+	Concurrency::task<void> m_RecordTask;
 	Concurrency::cancellation_token_source m_RecordTaskCts;
 };
 
 
 internal_recorder::internal_recorder() :m_TaskWrapperImpl(make_unique<TaskWrapper>())
 {
-	m_IsDestructed = false;
+
 }
 
 internal_recorder::~internal_recorder()
 {
 	UnhookWindowsHookEx(m_Mousehook);
 	if (m_IsRecording) {
-		if (RecordingStatusChangedCallback != nullptr)
-			RecordingStatusChangedCallback(STATUS_IDLE);
+		LOG("Recording is in progress while destructing, cancelling recording task and waiting for completion.");
+		m_TaskWrapperImpl->m_RecordTaskCts.cancel();
+		m_TaskWrapperImpl->m_RecordTask.wait();
 	}
-	m_IsDestructed = true;
 }
 
 LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
@@ -363,7 +364,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		}
 		}
 	}
-	concurrency::create_task([this, token, stream]() {
+	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, token, stream]() {
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 		RETURN_ON_BAD_HR(hr = MFStartup(MF_VERSION, MFSTARTUP_LITE));
 		{
@@ -768,10 +769,9 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 			SetEvent(hOutputCaptureStopEvent);
 			SetEvent(hInputCaptureStopEvent);
-			if (!m_IsDestructed) {
-				if (RecordingStatusChangedCallback != nullptr)
-					RecordingStatusChangedCallback(STATUS_FINALIZING);
-			}
+
+			if (RecordingStatusChangedCallback != nullptr)
+				RecordingStatusChangedCallback(STATUS_FINALIZING);
 
 			pDeskDupl->ReleaseFrame();
 			if (pPreviousFrameCopy)
@@ -789,25 +789,16 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		.then([this, token](HRESULT hr) {
 		m_IsRecording = false;
 
-		if (!m_IsDestructed) {
-			if (m_SinkWriter) {
-				m_SinkWriter->Finalize();
+		if (m_SinkWriter) {
+			m_SinkWriter->Finalize();
 
-				//Dispose of MPEG4MediaSink 
-				IMFMediaSink *pSink;
-				if (SUCCEEDED(m_SinkWriter->GetServiceForStream(MF_SINK_WRITER_MEDIASINK, GUID_NULL, IID_PPV_ARGS(&pSink)))) {
-					pSink->Shutdown();
-					pSink->Release();
-				};
-				try {
-					m_SinkWriter->Release();
-					m_SinkWriter = nullptr;
-				}
-				catch (...) {
-					ERR(L"Error releasing sink writer");
-				}
-			}
+			//Dispose of MPEG4MediaSink 
+			IMFMediaSink *pSink;
+			if (SUCCEEDED(m_SinkWriter->GetServiceForStream(MF_SINK_WRITER_MEDIASINK, GUID_NULL, IID_PPV_ARGS(&pSink)))) {
+				pSink->Shutdown();
+			};
 
+			SafeRelease(&m_SinkWriter);
 			SafeRelease(&m_ImmediateContext);
 
 			LOG(L"Finalized!");
@@ -1231,7 +1222,10 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeIn, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
 	pVideoMediaTypeIn->SetUINT32(MF_MT_VIDEO_ROTATION, rotationFormat);
 
-	if (m_IsAudioEnabled) {
+	bool isAudioEnabled = m_IsAudioEnabled
+		&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
+
+	if (isAudioEnabled) {
 		// Set the output audio type.
 		RETURN_ON_BAD_HR(MFCreateMediaType(&pAudioMediaTypeOut));
 		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
@@ -1266,7 +1260,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	audioStreamIndex = 1;
 	RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(videoStreamIndex, pVideoMediaTypeIn, nullptr));
 	pVideoMediaTypeIn.Release();
-	if (m_IsAudioEnabled) {
+	if (isAudioEnabled) {
 		RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, nullptr));
 		pAudioMediaTypeIn.Release();
 	}
@@ -1391,9 +1385,11 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel model) {
 			return hr;//Stop recording if we fail
 		}
 		BYTE *data;
+		bool isAudioEnabled = m_IsAudioEnabled
+			&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
 		//If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
 		//If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
-		if (m_IsAudioEnabled && model.Audio.size() == 0) {
+		if (isAudioEnabled && model.Audio.size() == 0) {
 			auto frameCount = static_cast<UINT32>(ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000)));
 			auto byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
 			model.Audio.insert(model.Audio.end(), byteCount, 0);

@@ -160,9 +160,12 @@ Recorder::!Recorder() {
 		delete m_ManagedStream;
 		m_ManagedStream = nullptr;
 	}
-	_statusChangedDelegateGcHandler.Free();
-	_errorDelegateGcHandler.Free();
-	_completedDelegateGcHandler.Free();
+	if (_statusChangedDelegateGcHandler.IsAllocated)
+		_statusChangedDelegateGcHandler.Free();
+	if (_errorDelegateGcHandler.IsAllocated)
+		_errorDelegateGcHandler.Free();
+	if (_completedDelegateGcHandler.IsAllocated)
+		_completedDelegateGcHandler.Free();
 }
 
 void Recorder::EventComplete(std::wstring str, fifo_map<std::wstring, int> delays)

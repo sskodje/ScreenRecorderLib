@@ -112,7 +112,6 @@ private:
 	ID3D11DeviceContext *m_ImmediateContext = nullptr;
 	IMFSinkWriter *m_SinkWriter = nullptr;
 
-	bool m_IsDestructed = false;
 	UINT32 m_RecorderMode = MODE_VIDEO;
 	DWORD m_VideoStreamIndex = 0;
 	DWORD m_AudioStreamIndex = 0;
