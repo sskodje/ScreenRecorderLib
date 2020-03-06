@@ -34,6 +34,8 @@ typedef void(__stdcall *CallbackErrorFunction)(std::wstring);
 #define MOUSE_DETECTION_MODE_POLLING 0
 #define MOUSE_DETECTION_MODE_HOOK 1
 
+class loopback_capture;
+
 typedef struct
 {
 	UINT FrameNumber;
@@ -111,6 +113,7 @@ private:
 	ID3D11DeviceContext *m_ImmediateContext = nullptr;
 	IMFSinkWriter *m_SinkWriter = nullptr;
 
+	UINT32 m_MaxFrameLength100Nanos = 1000 * 1000 * 10; //1 second in 100 nanoseconds measure.
 	UINT32 m_RecorderMode = MODE_VIDEO;
 	DWORD m_VideoStreamIndex = 0;
 	DWORD m_AudioStreamIndex = 0;
@@ -144,7 +147,7 @@ private:
 	bool m_IsRecording = false;
 	bool m_IsEncoderFailure = false;
 	bool m_IsMouseClicksDetected = false;
-
+	bool m_LastFrameHadAudio = false;
 	std::string m_MouseClickDetectionLMBColor = "#FFFF00";
 	std::string m_MouseClickDetectionRMBColor = "#FFFF00";
 	UINT32 m_MouseClickDetectionRadius = 20;
@@ -153,6 +156,7 @@ private:
 	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;
 
 	std::string NowToString();
+	std::vector<BYTE> GrabAudioFrame(std::unique_ptr<loopback_capture>& pLoopbackCaptureOutputDevice, std::unique_ptr<loopback_capture>& pLoopbackCaptureInputDevice);
 	std::vector<BYTE> MixAudio(std::vector<BYTE> &first, std::vector<BYTE> &second);
 	HHOOK m_Mousehook;
 
