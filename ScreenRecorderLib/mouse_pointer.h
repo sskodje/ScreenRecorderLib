@@ -58,7 +58,8 @@ private:
 #pragma endregion
 
 
-
+	std::unique_ptr<BYTE[]> _InitBuffer;
+	std::unique_ptr<BYTE[]> _DesktopBuffer;
 
 	long ParseColorString(std::string color);
 	float GetCurrentDpi();
