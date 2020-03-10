@@ -884,12 +884,12 @@ std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_cap
 	std::unique_ptr<loopback_capture>& pLoopbackCaptureInputDevice)
 {
 	if (m_IsOutputDeviceEnabled && !m_IsInputDeviceEnabled)
-		return pLoopbackCaptureOutputDevice->GetRecordedBytes();
+		return std::move(pLoopbackCaptureOutputDevice->GetRecordedBytes());
 	else if (!m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
-		return pLoopbackCaptureInputDevice->GetRecordedBytes();
+		return std::move(pLoopbackCaptureInputDevice->GetRecordedBytes());
 	else if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
 		// mix our audio buffers from output device and input device to get one audio buffer since VideoSinkWriter works only with one Audio sink
-		return MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), pLoopbackCaptureInputDevice->GetRecordedBytes());
+		return std::move(MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), pLoopbackCaptureInputDevice->GetRecordedBytes()));
 	else
 		return  std::vector<BYTE>();
 }
