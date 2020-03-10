@@ -715,7 +715,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 					if (m_IsRecording) {
 						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
-							FrameWriteModel(model);
+							FrameWriteModel model;
 							model.Frame = pFrameCopy;
 							model.Duration = durationSinceLastFrame100Nanos;
 							model.StartPos = lastFrameStartPos;
@@ -1373,14 +1373,13 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel& model) {
 			ERR(L"Writing of video frame with start pos %lld ms failed: %s\n", (model.StartPos / 10 / 1000), err.ErrorMessage());
 			return hr;//Stop recording if we fail
 		}
-		BYTE *data;
 		bool isAudioEnabled = m_IsAudioEnabled
 			&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
 		/* If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
 		 * If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
 		 * We ignore every instance where the last frame had audio, due to sometimes very short frame durations due to mouse cursor changes have zero audio length,	 
 		 * and inserting silence between two frames that has audio leads to glitching. */
-		if (isAudioEnabled && model.Audio.size() == 0) {
+		if (isAudioEnabled && model.Audio.size() == 0 && model.Duration > 0) {
 			if (!m_LastFrameHadAudio) {
 				auto frameCount = static_cast<UINT32>(ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000)));
 				auto byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
@@ -1394,13 +1393,8 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel& model) {
 		}
 
 		if (model.Audio.size() > 0) {
-			ULONGLONG bufferSize = model.Audio.size();
-			data = new BYTE[bufferSize];
-			std::copy(model.Audio.begin(), model.Audio.end(), data);
-			hr = WriteAudioSamplesToVideo(model.StartPos, model.Duration, m_AudioStreamIndex, data, bufferSize);
-			delete[] data;
-			model.Audio.clear();
-			vector<BYTE>().swap(model.Audio);
+			hr = WriteAudioSamplesToVideo(model.StartPos, model.Duration, m_AudioStreamIndex, &(model.Audio)[0], model.Audio.size());
+			model.Audio.resize(0);
 			if (FAILED(hr)) {
 				_com_error err(hr);
 				ERR(L"Writing of audio sample with start pos %lld ms failed: %s\n", (model.StartPos / 10 / 1000), err.ErrorMessage());
