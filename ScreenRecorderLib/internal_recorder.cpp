@@ -475,7 +475,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					threadArgs.hStopEvent = hInputCaptureStopEvent;
 					threadArgs.nFrames = 0;
 					threadArgs.flow = eCapture;
-					threadArgs.samplerate = 0;					
+					threadArgs.samplerate = 0;
 					threadArgs.channels = m_AudioChannels;
 
 					if (m_IsOutputDeviceEnabled)
@@ -532,8 +532,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 			std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
 			mouse_pointer::PTR_INFO PtrInfo;
-			RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));			
-			FrameWriteModel model;
+			RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
 			while (true)
 			{
 				bool gotMousePointer = false;
@@ -574,26 +573,20 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						pDeskDupl->ReleaseFrame();
 						pDeskDupl.Release();
 					}
-					if (FAILED(hr))
-					{
-						_com_error err(hr);
-						ERR(L"AcquireNextFrame error: %s\n", err.ErrorMessage());
-					}
-
+					_com_error err(hr);
+					ERR(L"Error getting next frame, reinitializing: %s\n", err.ErrorMessage());
 					hr = InitializeDesktopDupl(pDevice, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
 					if (FAILED(hr))
 					{
 						_com_error err(hr);
-						ERR(L"Reinitialized desktop duplication error: %s\n", err.ErrorMessage());
+						ERR(L"Error reinitializing desktop duplication: %s\n", err.ErrorMessage());
+						if (hr == E_ACCESSDENIED) {
+							//Access to video output is denied, probably due to DRM, screen saver, fullscreen application or similar.
+							//We continue the recording, and instead of desktop texture just add a blank texture instead.
+							hr = S_OK;
+						}
 					}
-					if (hr == E_ACCESSDENIED) {
-						//Access to video output is denied, probably due to DRM, screen saver, fullscreen application or similar.
-						//We continue the recording, and instead of desktop texture just add a blank texture instead.
-						hr = S_OK;
-					}
-					else {
-						RETURN_ON_BAD_HR(hr);
-					}
+					RETURN_ON_BAD_HR(hr);
 				}
 				if (hr == DXGI_ERROR_DEVICE_REMOVED) {
 					return pDevice->GetDeviceRemovedReason();
@@ -610,24 +603,33 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				if (frameNr > 0 //always draw first frame 
 					&& !m_IsFixedFramerate
 					&& (!m_IsMousePointerEnabled || FrameInfo.PointerShapeBufferSize == 0)//always redraw when pointer changes if we draw pointer
-					&& (hr == DXGI_ERROR_WAIT_TIMEOUT || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos)) //skip if frame timeouted or duration is under our chosen framerate
+					&& ((hr == DXGI_ERROR_WAIT_TIMEOUT && durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) //don't wait on timeout if the frame duration is > m_MaxFrameLength100Nanos
+						|| durationSinceLastFrame100Nanos < videoFrameDuration100Nanos)) //wait if frame timeouted or duration is under our chosen framerate
 				{
-					if (hr == S_OK && pDesktopResource != nullptr) {
-						//we got a frame, but it's too soon, so we cache it and see if there are more changes.
-						if (pPreviousFrameCopy == nullptr) {
-							RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, nullptr, &pPreviousFrameCopy));
+					bool delay = false;
+					if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
+						if (pDesktopResource != nullptr) {
+							//we got a frame, but it's too soon, so we cache it and see if there are more changes.
+							if (pPreviousFrameCopy == nullptr) {
+								RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, nullptr, &pPreviousFrameCopy));
+							}
+							CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
+							RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
+							m_ImmediateContext->CopyResource(pPreviousFrameCopy, pAcquiredDesktopImage);
+							pAcquiredDesktopImage.Release();
 						}
-						CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
-						RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
-						m_ImmediateContext->CopyResource(pPreviousFrameCopy, pAcquiredDesktopImage);
-						pAcquiredDesktopImage.Release();
+						delay = true;
 					}
-					if (hr == S_OK || pPreviousFrameCopy == nullptr || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
+					else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+						if (durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) {
+							delay = true;
+						}
+					}
+					if (delay) {
 						UINT32 delay = 1;
 						if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
 							delay = static_cast<UINT32>((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos) / 10 / 1000);
 						}
-
 						wait(delay);
 						continue;
 					}
@@ -653,13 +655,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 					SetDebugName(pFrameCopy, "FrameCopy");
 
-					if (m_IsFixedFramerate && pPreviousFrameCopy == nullptr) {
+					if (pPreviousFrameCopy == nullptr) {
 						RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, nullptr, &pPreviousFrameCopy));
 						m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
 						SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
-					}
-					else if (!m_IsFixedFramerate && pPreviousFrameCopy) {
-						pPreviousFrameCopy.Release();
 					}
 
 					if (g_LastMouseClickDurationRemaining > 0
@@ -687,11 +686,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 								pDeskDupl->ReleaseFrame();
 								pDeskDupl.Release();
 							}
-							if (FAILED(hr))
-							{
-								_com_error err(hr);
-								ERR(L"DrawMousePointer error: %s\n", err.ErrorMessage());
-							}
+							_com_error err(hr);
+							ERR(L"Error drawing mouse pointer, reinitializing desktop duplication: %s\n", err.ErrorMessage());
 							hr = InitializeDesktopDupl(pDevice, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
 							if (FAILED(hr))
 							{
@@ -711,25 +707,20 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						break;
 					}
 					if (m_IsRecording) {
-						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {							
-							if (model.FrameNumber != -1)
-							{
-								model.Duration = durationSinceLastFrame100Nanos;
-								std::vector<BYTE> audioData;
-								if (recordAudio)																
-									model.Audio = collectAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);									
-								
-								hr = EnqueueFrame(model);
-								if (FAILED(hr)) {
-									m_IsEncoderFailure = true;
-									break;
-								}
-							}
-
-							model.FrameNumber = frameNr;
+						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
+							FrameWriteModel(model);
 							model.Frame = pFrameCopy;
+							model.Duration = durationSinceLastFrame100Nanos;
 							model.StartPos = lastFrameStartPos;
-
+							if (recordAudio) {
+								model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
+							}
+							model.FrameNumber = frameNr;
+							hr = EnqueueFrame(model);
+							if (FAILED(hr)) {
+								m_IsEncoderFailure = true;
+								break;
+							}
 							frameNr++;
 						}
 						else if (m_RecorderMode == MODE_SNAPSHOT) {
@@ -745,28 +736,18 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 				}
 			}
-			LOG("Finishing Recording");
-			if (model.FrameNumber != -1)
-			{
+			//Push the last frame waiting to be recorded to the sink writer.
+			if (pPreviousFrameCopy != nullptr) {
+				FrameWriteModel(model);
+				model.Frame = pPreviousFrameCopy;
 				model.Duration = duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100;
-				if (recordAudio)				
-					model.Audio = collectAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
-				
-				hr = EnqueueFrame(model);
-				if (FAILED(hr)) {
-					m_IsEncoderFailure = true;					
+				model.StartPos = lastFrameStartPos;
+				if (recordAudio) {
+					model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
 				}
-
-				// Append a zero-length dummy frame otherwise VFR video might be too short
-				model.StartPos += model.Duration;
-				model.Duration = 0;
-
+				model.FrameNumber = frameNr;
 				hr = EnqueueFrame(model);
-				if (FAILED(hr)) {
-					m_IsEncoderFailure = true;
-				}
 			}
-
 			SetEvent(hOutputCaptureStopEvent);
 			SetEvent(hInputCaptureStopEvent);
 
@@ -868,20 +849,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 	return S_OK;
 }
 
-std::vector<BYTE> internal_recorder::collectAudioFrame(std::unique_ptr<loopback_capture>& pLoopbackCaptureOutputDevice,
-	std::unique_ptr<loopback_capture>& pLoopbackCaptureInputDevice)
-{
-	if (m_IsOutputDeviceEnabled && !m_IsInputDeviceEnabled)	
-		return pLoopbackCaptureOutputDevice->GetRecordedBytes();
-	
-	if (!m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)	
-		return pLoopbackCaptureInputDevice->GetRecordedBytes();	
-	
-	if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)	
-		// mix our audio buffers from output device and input device to get one audio buffer since VideoSinkWriter works only with one Audio sink
-		return MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), pLoopbackCaptureInputDevice->GetRecordedBytes());	
-}
-
 void internal_recorder::EndRecording() {
 	if (m_IsRecording) {
 		m_IsPaused = false;
@@ -903,6 +870,20 @@ void internal_recorder::ResumeRecording() {
 				RecordingStatusChangedCallback(STATUS_RECORDING);
 		}
 	}
+}
+
+std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_capture>& pLoopbackCaptureOutputDevice,
+	std::unique_ptr<loopback_capture>& pLoopbackCaptureInputDevice)
+{
+	if (m_IsOutputDeviceEnabled && !m_IsInputDeviceEnabled)
+		return pLoopbackCaptureOutputDevice->GetRecordedBytes();
+	else if (!m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
+		return pLoopbackCaptureInputDevice->GetRecordedBytes();
+	else if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
+		// mix our audio buffers from output device and input device to get one audio buffer since VideoSinkWriter works only with one Audio sink
+		return MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), pLoopbackCaptureInputDevice->GetRecordedBytes());
+	else
+		return  std::vector<BYTE>();
 }
 
 HRESULT internal_recorder::initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out_ D3D11_TEXTURE2D_DESC *pFrameDesc, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect) {
@@ -1387,18 +1368,28 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel model) {
 		BYTE *data;
 		bool isAudioEnabled = m_IsAudioEnabled
 			&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
-		//If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
-		//If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
+		/* If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
+		 * If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
+		 * We ignore every instance where the last frame had audio, due to sometimes very short frame durations due to mouse cursor changes have zero audio length,	 
+		 * and inserting silence between two frames that has audio leads to glitching. */
 		if (isAudioEnabled && model.Audio.size() == 0) {
-			auto frameCount = static_cast<UINT32>(ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000)));
-			auto byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
-			model.Audio.insert(model.Audio.end(), byteCount, 0);
-			LOG(L"Inserted %zd bytes of silence", model.Audio.size());
+			if (!m_LastFrameHadAudio) {
+				auto frameCount = static_cast<UINT32>(ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000)));
+				auto byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
+				model.Audio.insert(model.Audio.end(), byteCount, 0);
+				LOG(L"Inserted %zd bytes of silence", model.Audio.size());
+			}
+			m_LastFrameHadAudio = false;
 		}
+		else {
+			m_LastFrameHadAudio = true;
+		}
+
 		if (model.Audio.size() > 0) {
-			data = new BYTE[model.Audio.size()];
+			ULONGLONG bufferSize = model.Audio.size();
+			data = new BYTE[bufferSize];
 			std::copy(model.Audio.begin(), model.Audio.end(), data);
-			hr = WriteAudioSamplesToVideo(model.StartPos, model.Duration, m_AudioStreamIndex, data, model.Audio.size());
+			hr = WriteAudioSamplesToVideo(model.StartPos, model.Duration, m_AudioStreamIndex, data, bufferSize);
 			delete[] data;
 			model.Audio.clear();
 			vector<BYTE>().swap(model.Audio);
