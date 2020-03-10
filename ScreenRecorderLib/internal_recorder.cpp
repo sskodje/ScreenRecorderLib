@@ -19,6 +19,7 @@
 #include "log.h"
 #include "utilities.h"
 #include "cleanup.h"
+#include "string_format.h"
 
 
 #pragma comment(lib, "dxguid.lib")
@@ -365,6 +366,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		}
 	}
 	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, token, stream]() {
+		m_IsEncoderFailure = 0xA0000001;;
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 		RETURN_ON_BAD_HR(hr = MFStartup(MF_VERSION, MFSTARTUP_LITE));
 		{
@@ -717,8 +719,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 							}
 							model.FrameNumber = frameNr;
 							hr = EnqueueFrame(model);
+							m_IsEncoderFailure = hr;
 							if (FAILED(hr)) {
-								m_IsEncoderFailure = true;
 								break;
 							}
 							frameNr++;
@@ -829,7 +831,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 
 				if (m_IsEncoderFailure) {
-					errMsg = L"Write error in video encoder.";
+					_com_error encoderFailure(m_IsEncoderFailure);
+					errMsg = string_format(L"Write error (0x%lx) in video encoder: %s", m_IsEncoderFailure, encoderFailure.ErrorMessage());
 					if (m_IsHardwareEncodingEnabled) {
 						errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
 					}
