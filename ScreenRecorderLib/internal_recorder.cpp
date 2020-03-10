@@ -1363,7 +1363,7 @@ HRESULT internal_recorder::SetAttributeU32(_Inout_ CComPtr<ICodecAPI>& codec, co
 	return codec->SetValue(&guid, &val);
 }
 
-HRESULT internal_recorder::EnqueueFrame(FrameWriteModel model) {
+HRESULT internal_recorder::EnqueueFrame(FrameWriteModel& model) {
 	HRESULT hr(S_OK);
 
 	if (m_RecorderMode == MODE_VIDEO) {
