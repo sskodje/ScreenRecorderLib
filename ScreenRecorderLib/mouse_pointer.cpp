@@ -507,18 +507,18 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 		ERR(L"Failed to map surface for pointer: %lls", err.ErrorMessage());
 		return hr;
 	}
-
-	if (!_InitBuffer.get())
+	auto bufSize = *PtrWidth * *PtrHeight * BPP;
+	if (_InitBuffer.size() < bufSize)
 	{
-		_InitBuffer = std::make_unique<BYTE[]>(*PtrWidth * *PtrHeight * BPP);
-		_DesktopBuffer = std::make_unique<BYTE[]>(*PtrWidth * *PtrHeight * BPP);
+		_InitBuffer.resize(bufSize);
+		_DesktopBuffer.resize(bufSize);
 	}
 
 	// New mouseshape buffer
-	*InitBuffer = _InitBuffer.get();
+	*InitBuffer = &(_InitBuffer[0]);
 
 	// New temp mouseshape buffer for rotation
-	BYTE* DesktopBuffer = _DesktopBuffer.get();
+	BYTE* DesktopBuffer = &(_DesktopBuffer[0]);
 
 	UINT* InitBuffer32 = reinterpret_cast<UINT*>(*InitBuffer);
 	UINT* DesktopBuffer32 = reinterpret_cast<UINT*>(DesktopBuffer);

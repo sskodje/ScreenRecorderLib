@@ -9,6 +9,7 @@
 #include "PixelShader.h"
 #include "VertexShader.h"
 #include <d2d1.h>
+#include <vector>
 
 #pragma comment(lib, "D2d1.lib")
 
@@ -58,8 +59,8 @@ private:
 #pragma endregion
 
 
-	std::unique_ptr<BYTE[]> _InitBuffer;
-	std::unique_ptr<BYTE[]> _DesktopBuffer;
+	std::vector<BYTE> _InitBuffer;
+	std::vector<BYTE> _DesktopBuffer;
 
 	long ParseColorString(std::string color);
 	float GetCurrentDpi();
