@@ -115,7 +115,7 @@ namespace ScreenRecorderLib
                         Thread.Sleep(2000);
                         rec.Stop();
 
-                        Assert.IsTrue(resetEvent.WaitOne(), $"[{i}] Recording finalize timed out");
+                        Assert.IsTrue(resetEvent.WaitOne(5000), $"[{i}] Recording finalize timed out");
                         Assert.IsNotNull(outStream, $"[{i}] Outstream is null");
                         Assert.IsFalse(isError, $"[{i}] Recording error: " + error);
                         Assert.IsTrue(isComplete, $"[{i}] Recording not complete");

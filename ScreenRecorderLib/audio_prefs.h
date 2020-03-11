@@ -3,6 +3,7 @@
 //https://github.com/mvaneerde/blog/tree/master/loopback-capture
 #include <vector>
 #include <mmdeviceapi.h>
+#include <string>
 
 class CPrefs {
 public:

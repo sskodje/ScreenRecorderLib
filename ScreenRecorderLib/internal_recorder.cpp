@@ -19,6 +19,7 @@
 #include "log.h"
 #include "utilities.h"
 #include "cleanup.h"
+#include "string_format.h"
 
 
 #pragma comment(lib, "dxguid.lib")
@@ -365,6 +366,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		}
 	}
 	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, token, stream]() {
+		m_IsEncoderFailure = 0xA0000001;;
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 		RETURN_ON_BAD_HR(hr = MFStartup(MF_VERSION, MFSTARTUP_LITE));
 		{
@@ -599,7 +601,12 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 				}
 
-				UINT64 durationSinceLastFrame100Nanos = duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100;
+				auto now = chrono::high_resolution_clock::now();
+				auto duration = duration_cast<nanoseconds>(now - lastFrame).count();
+				UINT64 durationSinceLastFrame100Nanos = duration > 0
+					? duration / 100
+					: 0;			
+
 				if (frameNr > 0 //always draw first frame 
 					&& !m_IsFixedFramerate
 					&& (!m_IsMousePointerEnabled || FrameInfo.PointerShapeBufferSize == 0)//always redraw when pointer changes if we draw pointer
@@ -708,7 +715,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 					if (m_IsRecording) {
 						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
-							FrameWriteModel(model);
+							FrameWriteModel model;
 							model.Frame = pFrameCopy;
 							model.Duration = durationSinceLastFrame100Nanos;
 							model.StartPos = lastFrameStartPos;
@@ -717,8 +724,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 							}
 							model.FrameNumber = frameNr;
 							hr = EnqueueFrame(model);
+							m_IsEncoderFailure = hr;
 							if (FAILED(hr)) {
-								m_IsEncoderFailure = true;
 								break;
 							}
 							frameNr++;
@@ -829,7 +836,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 
 				if (m_IsEncoderFailure) {
-					errMsg = L"Write error in video encoder.";
+					_com_error encoderFailure(m_IsEncoderFailure);
+					errMsg = string_format(L"Write error (0x%lx) in video encoder: %s", m_IsEncoderFailure, encoderFailure.ErrorMessage());
 					if (m_IsHardwareEncodingEnabled) {
 						errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
 					}
@@ -876,12 +884,12 @@ std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_cap
 	std::unique_ptr<loopback_capture>& pLoopbackCaptureInputDevice)
 {
 	if (m_IsOutputDeviceEnabled && !m_IsInputDeviceEnabled)
-		return pLoopbackCaptureOutputDevice->GetRecordedBytes();
+		return std::move(pLoopbackCaptureOutputDevice->GetRecordedBytes());
 	else if (!m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
-		return pLoopbackCaptureInputDevice->GetRecordedBytes();
+		return std::move(pLoopbackCaptureInputDevice->GetRecordedBytes());
 	else if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
 		// mix our audio buffers from output device and input device to get one audio buffer since VideoSinkWriter works only with one Audio sink
-		return MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), pLoopbackCaptureInputDevice->GetRecordedBytes());
+		return std::move(MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), pLoopbackCaptureInputDevice->GetRecordedBytes()));
 	else
 		return  std::vector<BYTE>();
 }
@@ -1355,7 +1363,7 @@ HRESULT internal_recorder::SetAttributeU32(_Inout_ CComPtr<ICodecAPI>& codec, co
 	return codec->SetValue(&guid, &val);
 }
 
-HRESULT internal_recorder::EnqueueFrame(FrameWriteModel model) {
+HRESULT internal_recorder::EnqueueFrame(FrameWriteModel& model) {
 	HRESULT hr(S_OK);
 
 	if (m_RecorderMode == MODE_VIDEO) {
@@ -1365,14 +1373,13 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel model) {
 			ERR(L"Writing of video frame with start pos %lld ms failed: %s\n", (model.StartPos / 10 / 1000), err.ErrorMessage());
 			return hr;//Stop recording if we fail
 		}
-		BYTE *data;
 		bool isAudioEnabled = m_IsAudioEnabled
 			&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
 		/* If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
 		 * If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
 		 * We ignore every instance where the last frame had audio, due to sometimes very short frame durations due to mouse cursor changes have zero audio length,	 
 		 * and inserting silence between two frames that has audio leads to glitching. */
-		if (isAudioEnabled && model.Audio.size() == 0) {
+		if (isAudioEnabled && model.Audio.size() == 0 && model.Duration > 0) {
 			if (!m_LastFrameHadAudio) {
 				auto frameCount = static_cast<UINT32>(ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000)));
 				auto byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
@@ -1386,13 +1393,8 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel model) {
 		}
 
 		if (model.Audio.size() > 0) {
-			ULONGLONG bufferSize = model.Audio.size();
-			data = new BYTE[bufferSize];
-			std::copy(model.Audio.begin(), model.Audio.end(), data);
-			hr = WriteAudioSamplesToVideo(model.StartPos, model.Duration, m_AudioStreamIndex, data, bufferSize);
-			delete[] data;
-			model.Audio.clear();
-			vector<BYTE>().swap(model.Audio);
+			hr = WriteAudioSamplesToVideo(model.StartPos, model.Duration, m_AudioStreamIndex, &(model.Audio)[0], model.Audio.size());
+			model.Audio.resize(0);
 			if (FAILED(hr)) {
 				_com_error err(hr);
 				ERR(L"Writing of audio sample with start pos %lld ms failed: %s\n", (model.StartPos / 10 / 1000), err.ErrorMessage());

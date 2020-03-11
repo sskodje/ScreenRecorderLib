@@ -54,6 +54,9 @@
     <ClInclude Include="WWMFResampler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="string_format.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AssemblyInfo.cpp">

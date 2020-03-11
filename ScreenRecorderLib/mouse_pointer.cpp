@@ -394,11 +394,6 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 		MouseTex->Release();
 		MouseTex = nullptr;
 	}
-	if (InitBuffer)
-	{
-		delete[] InitBuffer;
-		InitBuffer = nullptr;
-	}
 
 	return hr;
 }
@@ -512,24 +507,18 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 		ERR(L"Failed to map surface for pointer: %lls", err.ErrorMessage());
 		return hr;
 	}
+	auto bufSize = *PtrWidth * *PtrHeight * BPP;
+	if (_InitBuffer.size() < bufSize)
+	{
+		_InitBuffer.resize(bufSize);
+		_DesktopBuffer.resize(bufSize);
+	}
 
 	// New mouseshape buffer
-	*InitBuffer = new (std::nothrow) BYTE[*PtrWidth * *PtrHeight * BPP];
-	if (!(*InitBuffer))
-	{
-		_com_error err(hr);
-		ERR(L"Failed to allocate memory for new mouse shape buffer: %lls", err.ErrorMessage());
-		return hr;
-	}
+	*InitBuffer = &(_InitBuffer[0]);
 
 	// New temp mouseshape buffer for rotation
-	BYTE *DesktopBuffer = new (std::nothrow) BYTE[*PtrWidth * *PtrHeight * BPP];
-	if (!(*DesktopBuffer))
-	{
-		_com_error err(hr);
-		ERR(L"Failed to allocate memory for new desktop background buffer: %lls", err.ErrorMessage());
-		return hr;
-	}
+	BYTE* DesktopBuffer = &(_DesktopBuffer[0]);
 
 	UINT* InitBuffer32 = reinterpret_cast<UINT*>(*InitBuffer);
 	UINT* DesktopBuffer32 = reinterpret_cast<UINT*>(DesktopBuffer);
@@ -625,11 +614,6 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 				}
 			}
 		}
-	}
-	if (DesktopBuffer)
-	{
-		delete[] DesktopBuffer;
-		DesktopBuffer = nullptr;
 	}
 
 	// Done with resource

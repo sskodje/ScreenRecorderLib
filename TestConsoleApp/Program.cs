@@ -17,7 +17,19 @@ namespace TestConsoleApp
         private static Stopwatch _stopWatch;
         static void Main(string[] args)
         {
-            Recorder rec = Recorder.CreateRecorder();
+            var inputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices);
+            var opts = new RecorderOptions
+            {
+                AudioOptions = new AudioOptions
+                {
+                    AudioInputDevice = inputDevices.First(),
+                    IsAudioEnabled = true,
+                    IsInputDeviceEnabled = true,
+                    IsOutputDeviceEnabled = true,
+                },
+            };
+
+            Recorder rec = Recorder.CreateRecorder(opts);
             rec.OnRecordingFailed += Rec_OnRecordingFailed;
             rec.OnRecordingComplete += Rec_OnRecordingComplete;
             rec.OnStatusChanged += Rec_OnStatusChanged;
@@ -105,7 +117,7 @@ namespace TestConsoleApp
 
         private static void Rec_OnRecordingFailed(object sender, RecordingFailedEventArgs e)
         {
-            Console.WriteLine("Recording failed");
+            Console.WriteLine("Recording failed with: " + e.Error);
             _isRecording = false;
             _stopWatch?.Stop();
             Console.WriteLine();

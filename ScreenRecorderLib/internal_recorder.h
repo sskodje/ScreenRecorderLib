@@ -145,7 +145,7 @@ private:
 	bool m_IsHardwareEncodingEnabled = true;
 	bool m_IsPaused = false;
 	bool m_IsRecording = false;
-	bool m_IsEncoderFailure = false;
+	HRESULT m_IsEncoderFailure = 0xA0000001;
 	bool m_IsMouseClicksDetected = false;
 	bool m_LastFrameHadAudio = false;
 	std::string m_MouseClickDetectionLMBColor = "#FFFF00";
@@ -166,7 +166,7 @@ private:
 	std::wstring GetImageExtension();
 	std::wstring GetVideoExtension();
 
-	HRESULT EnqueueFrame(FrameWriteModel model);
+	HRESULT EnqueueFrame(FrameWriteModel& model);
 	HRESULT ConfigureOutputDir(std::wstring path);
 	HRESULT initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out_ D3D11_TEXTURE2D_DESC *pFrameDesc, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect);
 	HRESULT InitializeDx(_In_opt_ IDXGIOutput *pDxgiOutput, _Outptr_ ID3D11DeviceContext **ppContext, _Outptr_ ID3D11Device **ppDevice, _Outptr_ IDXGIOutputDuplication **ppDesktopDupl, _Out_ DXGI_OUTDUPL_DESC *pOutputDuplDesc);
