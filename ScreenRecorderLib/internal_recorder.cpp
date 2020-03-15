@@ -605,7 +605,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				auto duration = duration_cast<nanoseconds>(now - lastFrame).count();
 				UINT64 durationSinceLastFrame100Nanos = duration > 0
 					? duration / 100
-					: 0;			
+					: 0;
 
 				if (frameNr > 0 //always draw first frame 
 					&& !m_IsFixedFramerate
@@ -778,21 +778,21 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		m_IsRecording = false;
 
 		if (m_SinkWriter) {
-			m_SinkWriter->Finalize();
-
+			hr = m_SinkWriter->Finalize();
+			if (FAILED(hr)) {
+				ERR("Failed to finalize sink writer");
+			}
 			//Dispose of MPEG4MediaSink 
 			IMFMediaSink *pSink;
 			if (SUCCEEDED(m_SinkWriter->GetServiceForStream(MF_SINK_WRITER_MEDIASINK, GUID_NULL, IID_PPV_ARGS(&pSink)))) {
-				pSink->Shutdown();
+				hr = pSink->Shutdown();
+				if (FAILED(hr)) {
+					ERR("Failed to shut down IMFMediaSink");
+				}
 			};
 
 			SafeRelease(&m_SinkWriter);
 			SafeRelease(&m_ImmediateContext);
-
-			LOG(L"Finalized!");
-			MFShutdown();
-			CoUninitialize();
-			LOG(L"MF shut down!");
 #if _DEBUG
 			if (m_Debug) {
 				m_Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
@@ -804,6 +804,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 	})
 		.then([this](concurrency::task<HRESULT> t)
 	{
+		LOG(L"Finalized!");
+		MFShutdown();
+		CoUninitialize();
+		LOG(L"MF shut down!");
 		std::wstring errMsg = L"";
 		bool success = false;
 		try {
@@ -815,7 +819,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				errMsg = err.ErrorMessage();
 			}
 		}
-		catch (const exception& e) {
+		catch (const exception & e) {
 			// handle error
 			ERR(L"Exception in RecordTask: %s", e.what());
 		}
@@ -1377,12 +1381,12 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel& model) {
 			&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
 		/* If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
 		 * If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
-		 * We ignore every instance where the last frame had audio, due to sometimes very short frame durations due to mouse cursor changes have zero audio length,	 
+		 * We ignore every instance where the last frame had audio, due to sometimes very short frame durations due to mouse cursor changes have zero audio length,
 		 * and inserting silence between two frames that has audio leads to glitching. */
 		if (isAudioEnabled && model.Audio.size() == 0 && model.Duration > 0) {
 			if (!m_LastFrameHadAudio) {
 				auto frameCount = static_cast<UINT32>(ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000)));
-				auto byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8)*m_AudioChannels;
+				auto byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8) * m_AudioChannels;
 				model.Audio.insert(model.Audio.end(), byteCount, 0);
 				LOG(L"Inserted %zd bytes of silence", model.Audio.size());
 			}
