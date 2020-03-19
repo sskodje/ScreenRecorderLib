@@ -37,8 +37,8 @@ using namespace std::chrono;
 using namespace concurrency;
 using namespace DirectX;
 
-UINT64 g_LastMouseClickDurationRemaining;
-UINT g_MouseClickDetectionDurationMillis = 50;
+INT64 g_LastMouseClickDurationRemaining;
+INT g_MouseClickDetectionDurationMillis = 50;
 UINT g_LastMouseClickButton;
 // Driver types supported
 D3D_DRIVER_TYPE gDriverTypes[] =
@@ -284,7 +284,7 @@ HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 		// Failed to create directory.
 		ERR(L"failed to create output folder");
 		if (RecordingFailedCallback != nullptr)
-			RecordingFailedCallback(L"Failed to create output folder: " + utilities::s2ws(ec.message()));
+			RecordingFailedCallback(L"Failed to create output folder: " + s2ws(ec.message()));
 		return E_FAIL;
 	}
 	if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SNAPSHOT) {
@@ -292,7 +292,7 @@ HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 		LPWSTR pStrExtension = PathFindExtension(path.c_str());
 		if (pStrExtension == nullptr || pStrExtension[0] == 0)
 		{
-			m_OutputFullPath = m_OutputFolder + L"\\" + utilities::s2ws(NowToString()) + ext;
+			m_OutputFullPath = m_OutputFolder + L"\\" + s2ws(CurrentTimeToFormattedString()) + ext;
 		}
 	}
 	return S_OK;
@@ -323,6 +323,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		}
 		return S_FALSE;
 	}
+	m_EncoderResult = S_FALSE;
+	m_LastFrameHadAudio = false;
 	m_FrameDelays.clear();
 	if (!path.empty()) {
 		RETURN_ON_BAD_HR(ConfigureOutputDir(path));
@@ -366,7 +368,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		}
 	}
 	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, token, stream]() {
-		m_IsEncoderFailure = 0xA0000001;;
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 		RETURN_ON_BAD_HR(hr = MFStartup(MF_VERSION, MFSTARTUP_LITE));
 		{
@@ -447,7 +448,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					HANDLE hThread = CreateThread(
 						nullptr, 0,
 						LoopbackCaptureThreadFunction, &threadArgs, 0, nullptr
-					);
+						);
 					if (nullptr == hThread) {
 						ERR(L"CreateThread failed: last error is %u", GetLastError());
 						return E_FAIL;
@@ -488,7 +489,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					HANDLE hThread = CreateThread(
 						nullptr, 0,
 						LoopbackCaptureThreadFunction, &threadArgs, 0, nullptr
-					);
+						);
 					if (nullptr == hThread) {
 						ERR(L"CreateThread failed: last error is %u", GetLastError());
 						return E_FAIL;
@@ -523,13 +524,13 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 			g_LastMouseClickDurationRemaining = 0;
 
-			ULONGLONG lastFrameStartPos = 0;
+			INT64 lastFrameStartPos = 0;
 			pLoopbackCaptureOutputDevice->ClearRecordedBytes();
 			pLoopbackCaptureInputDevice->ClearRecordedBytes();
 
-			UINT64 videoFrameDurationMillis = 1000 / m_VideoFps;
-			UINT64 videoFrameDuration100Nanos = videoFrameDurationMillis * 10 * 1000;
-			UINT frameTimeout = 0;
+			INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
+			INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
+			INT frameTimeout = 0;
 			int frameNr = 0;
 			CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 			std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
@@ -601,11 +602,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 				}
 
-				auto now = chrono::high_resolution_clock::now();
-				auto duration = duration_cast<nanoseconds>(now - lastFrame).count();
-				UINT64 durationSinceLastFrame100Nanos = duration > 0
-					? duration / 100
-					: 0;
+				INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100, 0);
 
 				if (frameNr > 0 //always draw first frame 
 					&& !m_IsFixedFramerate
@@ -635,7 +632,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					if (delay) {
 						UINT32 delay = 1;
 						if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
-							delay = static_cast<UINT32>((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos) / 10 / 1000);
+							delay = HundredNanosToMillis(static_cast<UINT32>((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos)));
 						}
 						wait(delay);
 						continue;
@@ -680,7 +677,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						{
 							hr = pMousePointer->DrawMouseClick(&PtrInfo, pFrameCopy, m_MouseClickDetectionRMBColor, m_MouseClickDetectionRadius, screenRotation);
 						}
-						auto millis = max(durationSinceLastFrame100Nanos / 10 / 1000, 0);
+						INT64 millis = max(HundredNanosToMillis(durationSinceLastFrame100Nanos), 0);
 						g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millis, 0);
 						LOG("Drawing mouse click, duration remaining on click is %u ms", g_LastMouseClickDurationRemaining);
 					}
@@ -723,8 +720,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 								model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
 							}
 							model.FrameNumber = frameNr;
-							hr = EnqueueFrame(model);
-							m_IsEncoderFailure = hr;
+							hr = m_EncoderResult = EnqueueFrame(model);
 							if (FAILED(hr)) {
 								break;
 							}
@@ -753,7 +749,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
 				}
 				model.FrameNumber = frameNr;
-				hr = EnqueueFrame(model);
+				hr = m_EncoderResult = EnqueueFrame(model);
 			}
 			SetEvent(hOutputCaptureStopEvent);
 			SetEvent(hInputCaptureStopEvent);
@@ -837,18 +833,16 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		}
 		else {
 			if (RecordingFailedCallback) {
-
-
-				if (m_IsEncoderFailure) {
-					_com_error encoderFailure(m_IsEncoderFailure);
-					errMsg = string_format(L"Write error (0x%lx) in video encoder: %s", m_IsEncoderFailure, encoderFailure.ErrorMessage());
+				if (FAILED(m_EncoderResult)) {
+					_com_error encoderFailure(m_EncoderResult);
+					errMsg = string_format(L"Write error (0x%lx) in video encoder: %s", m_EncoderResult, encoderFailure.ErrorMessage());
 					if (m_IsHardwareEncodingEnabled) {
 						errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
 					}
 				}
 				else {
 					if (errMsg.empty()) {
-						errMsg = utilities::GetLastErrorStdWstr();
+						errMsg = GetLastErrorStdWstr();
 					}
 				}
 				RecordingFailedCallback(errMsg);
@@ -1093,10 +1087,10 @@ void internal_recorder::SetViewPort(ID3D11DeviceContext *deviceContext, UINT Wid
 	deviceContext->RSSetViewports(1, &VP);
 }
 
-HRESULT internal_recorder::GetOutputForDeviceName(std::wstring deviceName, _Out_opt_ IDXGIOutput **ppOutput) {
+HRESULT internal_recorder::GetOutputForDeviceName(std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **ppOutput) {
 	HRESULT hr = S_OK;
+	*ppOutput = nullptr;
 	if (deviceName != L"") {
-		*ppOutput = nullptr;
 		std::vector<CComPtr<IDXGIAdapter>> adapters = EnumDisplayAdapters();
 		for each (CComPtr<IDXGIAdapter> adapter in adapters)
 		{
@@ -1307,7 +1301,7 @@ HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
 	_In_ IMFMediaType *pType,    // Pointer to an encoded video type.
 	const GUID& subtype,    // Uncompressed subtype (eg, RGB-32, AYUV)
 	_Outptr_ IMFMediaType **ppType   // Receives a matching uncompressed video type.
-)
+	)
 {
 	CComPtr<IMFMediaType> pTypeUncomp = nullptr;
 
@@ -1336,7 +1330,7 @@ HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
 			MF_MT_PIXEL_ASPECT_RATIO,
 			(UINT32*)&par.Numerator,
 			(UINT32*)&par.Denominator
-		);
+			);
 
 		// Default to square pixels.
 		if (FAILED(hr))
@@ -1345,7 +1339,7 @@ HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
 				pTypeUncomp,
 				MF_MT_PIXEL_ASPECT_RATIO,
 				1, 1
-			);
+				);
 		}
 	}
 
@@ -1374,7 +1368,7 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel& model) {
 		hr = WriteFrameToVideo(model.StartPos, model.Duration, m_VideoStreamIndex, model.Frame);
 		if (FAILED(hr)) {
 			_com_error err(hr);
-			ERR(L"Writing of video frame with start pos %lld ms failed: %s\n", (model.StartPos / 10 / 1000), err.ErrorMessage());
+			ERR(L"Writing of video frame with start pos %lld ms failed: %s\n", (HundredNanosToMillis(model.StartPos)), err.ErrorMessage());
 			return hr;//Stop recording if we fail
 		}
 		bool isAudioEnabled = m_IsAudioEnabled
@@ -1385,7 +1379,7 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel& model) {
 		 * and inserting silence between two frames that has audio leads to glitching. */
 		if (isAudioEnabled && model.Audio.size() == 0 && model.Duration > 0) {
 			if (!m_LastFrameHadAudio) {
-				auto frameCount = static_cast<UINT32>(ceil(m_InputAudioSamplesPerSecond * ((double)model.Duration / 10 / 1000 / 1000)));
+				auto frameCount = static_cast<UINT32>(ceil(m_InputAudioSamplesPerSecond * HundredNanosToMillis((double)model.Duration) / 1000));
 				auto byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8) * m_AudioChannels;
 				model.Audio.insert(model.Audio.end(), byteCount, 0);
 				LOG(L"Inserted %zd bytes of silence", model.Audio.size());
@@ -1401,7 +1395,7 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel& model) {
 			model.Audio.resize(0);
 			if (FAILED(hr)) {
 				_com_error err(hr);
-				ERR(L"Writing of audio sample with start pos %lld ms failed: %s\n", (model.StartPos / 10 / 1000), err.ErrorMessage());
+				ERR(L"Writing of audio sample with start pos %lld ms failed: %s\n", (HundredNanosToMillis(model.StartPos)), err.ErrorMessage());
 				return hr;//Stop recording if we fail
 			}
 		}
@@ -1409,8 +1403,8 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel& model) {
 	else if (m_RecorderMode == MODE_SLIDESHOW) {
 		wstring	path = m_OutputFolder + L"\\" + to_wstring(model.FrameNumber) + GetImageExtension();
 		hr = WriteFrameToImage(model.Frame, path.c_str());
-		LONGLONG startposMs = (model.StartPos / 10 / 1000);
-		LONGLONG durationMs = (model.Duration / 10 / 1000);
+		INT64 startposMs = HundredNanosToMillis(model.StartPos);
+		INT64 durationMs = HundredNanosToMillis(model.Duration);
 		if (FAILED(hr)) {
 			_com_error err(hr);
 			ERR(L"Writing of video frame with start pos %lld ms failed: %s\n", startposMs, err.ErrorMessage());
@@ -1427,7 +1421,7 @@ HRESULT internal_recorder::EnqueueFrame(FrameWriteModel& model) {
 	return hr;
 }
 
-std::string internal_recorder::NowToString()
+std::string internal_recorder::CurrentTimeToFormattedString()
 {
 	chrono::system_clock::time_point p = chrono::system_clock::now();
 	time_t t = chrono::system_clock::to_time_t(p);
@@ -1450,7 +1444,7 @@ HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D* pAcquiredDesk
 	return hr;
 }
 
-HRESULT internal_recorder::WriteFrameToVideo(ULONGLONG frameStartPos, ULONGLONG frameDuration, DWORD streamIndex, _In_ ID3D11Texture2D* pAcquiredDesktopImage)
+HRESULT internal_recorder::WriteFrameToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ ID3D11Texture2D* pAcquiredDesktopImage)
 {
 	IMFMediaBuffer *pMediaBuffer;
 	HRESULT hr = MFCreateDXGISurfaceBuffer(__uuidof(ID3D11Texture2D), pAcquiredDesktopImage, 0, FALSE, &pMediaBuffer);
@@ -1471,7 +1465,7 @@ HRESULT internal_recorder::WriteFrameToVideo(ULONGLONG frameStartPos, ULONGLONG 
 	IMFSample *pSample;
 	if (SUCCEEDED(hr))
 	{
-		hr = MFCreateVideoSampleFromSurface(nullptr, &pSample);
+		hr = MFCreateSample(&pSample);
 	}
 	if (SUCCEEDED(hr))
 	{
@@ -1490,7 +1484,7 @@ HRESULT internal_recorder::WriteFrameToVideo(ULONGLONG frameStartPos, ULONGLONG 
 		// Send the sample to the Sink Writer.
 		hr = m_SinkWriter->WriteSample(streamIndex, pSample);
 		if (SUCCEEDED(hr)) {
-			LOG(L"Wrote frame with start pos %lld ms and with duration %lld ms", (frameStartPos / 10 / 1000), (frameDuration / 10 / 1000));
+			LOG(L"Wrote frame with start pos %lld ms and with duration %lld ms", HundredNanosToMillis(frameStartPos), HundredNanosToMillis(frameDuration));
 		}
 	}
 	SafeRelease(&pSample);
@@ -1498,7 +1492,7 @@ HRESULT internal_recorder::WriteFrameToVideo(ULONGLONG frameStartPos, ULONGLONG 
 	SafeRelease(&pMediaBuffer);
 	return hr;
 }
-HRESULT internal_recorder::WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULONGLONG frameDuration, DWORD streamIndex, _In_ BYTE *pSrc, DWORD cbData)
+HRESULT internal_recorder::WriteAudioSamplesToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ BYTE *pSrc, DWORD cbData)
 {
 	IMFMediaBuffer *pBuffer = nullptr;
 	BYTE *pData = nullptr;
@@ -1506,7 +1500,7 @@ HRESULT internal_recorder::WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULO
 	HRESULT hr = MFCreateMemoryBuffer(
 		cbData,   // Amount of memory to allocate, in bytes.
 		&pBuffer
-	);
+		);
 	//once in awhile, things get behind and we get an out of memory error when trying to create the buffer
 	//so, just check, wait and try again if necessary
 	int counter = 0;
@@ -1541,7 +1535,7 @@ HRESULT internal_recorder::WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULO
 	IMFSample *pSample;
 	if (SUCCEEDED(hr))
 	{
-		hr = MFCreateVideoSampleFromSurface(nullptr, &pSample);
+		hr = MFCreateSample(&pSample);
 	}
 	if (SUCCEEDED(hr))
 	{
@@ -1549,12 +1543,12 @@ HRESULT internal_recorder::WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULO
 	}
 	if (SUCCEEDED(hr))
 	{
-		LONGLONG start = frameStartPos;
+		INT64 start = frameStartPos;
 		hr = pSample->SetSampleTime(start);
 	}
 	if (SUCCEEDED(hr))
 	{
-		LONGLONG duration = frameDuration;
+		INT64 duration = frameDuration;
 		hr = pSample->SetSampleDuration(duration);
 	}
 	if (SUCCEEDED(hr))
@@ -1562,7 +1556,7 @@ HRESULT internal_recorder::WriteAudioSamplesToVideo(ULONGLONG frameStartPos, ULO
 		// Send the sample to the Sink Writer.
 		hr = m_SinkWriter->WriteSample(streamIndex, pSample);
 		if (SUCCEEDED(hr)) {
-			LOG(L"Wrote audio sample with start pos %lld ms and with duration %lld ms", frameStartPos / 10 / 1000, (frameDuration / 10 / 1000));
+			LOG(L"Wrote audio sample with start pos %lld ms and with duration %lld ms", HundredNanosToMillis(frameStartPos), HundredNanosToMillis(frameDuration));
 		}
 	}
 	SafeRelease(&pSample);

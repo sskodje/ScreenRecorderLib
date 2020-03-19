@@ -93,6 +93,7 @@ List<String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
 
 	switch (source)
 	{
+	default:
 	case  AudioDeviceSource::OutputDevices:
 		dFlow = eRender;
 		break;
@@ -101,8 +102,6 @@ List<String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
 		break;
 	case AudioDeviceSource::All:
 		dFlow = eAll;
-		break;
-	default:
 		break;
 	}
 

@@ -66,31 +66,33 @@ float mouse_pointer::GetCurrentDpi()
 	return (float)newDpiX / 96.0f;
 }
 
-void mouse_pointer::GetPointerPosition(_In_ PTR_INFO* PtrInfo, DXGI_MODE_ROTATION rotation, int desktopWidth, int desktopHeight, INT * PtrLeft, INT * PtrTop)
+void mouse_pointer::GetPointerPosition(_In_ PTR_INFO *PtrInfo, DXGI_MODE_ROTATION rotation, int desktopWidth, int desktopHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop)
 {
-	if (rotation == DXGI_MODE_ROTATION_IDENTITY
-		|| rotation == DXGI_MODE_ROTATION_UNSPECIFIED)
+	switch (rotation)
 	{
+	default:
+	case DXGI_MODE_ROTATION_UNSPECIFIED:
+	case DXGI_MODE_ROTATION_IDENTITY:
 		*PtrLeft = PtrInfo->Position.x;
 		*PtrTop = PtrInfo->Position.y;
-	}
-	else if (rotation == DXGI_MODE_ROTATION_ROTATE90) {
+		break;
+	case DXGI_MODE_ROTATION_ROTATE90:
 		*PtrLeft = PtrInfo->Position.y;
 		*PtrTop = desktopHeight - PtrInfo->Position.x - (PtrInfo->ShapeInfo.Height);
-	}
-	else if (rotation == DXGI_MODE_ROTATION_ROTATE180) {
+		break;
+	case DXGI_MODE_ROTATION_ROTATE180:
 		*PtrLeft = desktopWidth - PtrInfo->Position.x - (PtrInfo->ShapeInfo.Width);
 		*PtrTop = desktopHeight - PtrInfo->Position.y - (PtrInfo->ShapeInfo.Height);
-	}
-	else if (rotation == DXGI_MODE_ROTATION_ROTATE270) {
-
+		break;
+	case DXGI_MODE_ROTATION_ROTATE270:
 		*PtrLeft = desktopWidth - PtrInfo->Position.y - PtrInfo->ShapeInfo.Height;
 		*PtrTop = PtrInfo->Position.x;
+		break;
 	}
 }
 
 
-HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, ID3D11Texture2D* bgTexture, std::string colorStr, int radius, DXGI_MODE_ROTATION rotation)
+HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Texture2D* bgTexture, std::string colorStr, float radius, DXGI_MODE_ROTATION rotation)
 {
 	ATL::CComPtr<IDXGISurface> pSharedSurface;
 	HRESULT hr = bgTexture->QueryInterface(__uuidof(IDXGISurface), (void**)&pSharedSurface);
@@ -157,7 +159,7 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, ID3D11Texture2D* b
 //
 // Draw mouse provided in buffer to backbuffer
 //
-HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11DeviceContext* DeviceContext _In_, ID3D11Device* Device, _In_ ID3D11Texture2D* bgTexture, DXGI_MODE_ROTATION rotation)
+HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11DeviceContext* DeviceContext, _In_ ID3D11Device* Device, _In_ ID3D11Texture2D* bgTexture, DXGI_MODE_ROTATION rotation)
 {
 	if (!PtrInfo || !PtrInfo->Visible || PtrInfo->PtrShapeBuffer == nullptr)
 		return S_FALSE;
@@ -624,7 +626,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 	{
 		_com_error err(hr);
 		ERR(L"Failed to allocate memory for new mouse shape buffer: %lls", err.ErrorMessage());
-		return false;
+		return hr;
 	}
 	return hr;
 }

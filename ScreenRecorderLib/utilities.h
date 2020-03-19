@@ -27,10 +27,8 @@
     }\
     } \
 }
-class utilities
-{
-public:
-    static std::wstring s2ws(const std::string& str)
+
+inline std::wstring s2ws(const std::string& str)
     {
         if (str.empty()) return std::wstring();
         int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
@@ -38,7 +36,7 @@ public:
         MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
         return wstrTo;
     }
-    static std::string ws2s(const std::wstring& wstr)
+    inline std::string ws2s(const std::wstring& wstr)
     {
         if (wstr.empty()) return std::string();
         int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
@@ -47,12 +45,9 @@ public:
         return r;
     }
 
+
     // Create a string with last error message
-    static std::wstring GetLastErrorStdWstr() {
-        return s2ws(GetLastErrorStdStr());
-    }
-    // Create a string with last error message
-    static std::string GetLastErrorStdStr()
+    inline std::string GetLastErrorStdStr()
     {
         DWORD error = GetLastError();
         if (error)
@@ -79,5 +74,17 @@ public:
         }
         return std::string();
     }
-};
+
+    // Create a string with last error message
+    inline std::wstring GetLastErrorStdWstr() {
+        return s2ws(GetLastErrorStdStr());
+    }
+
+    inline INT64 MillisToHundredNanos(INT64 millis) {
+        return millis * 10 * 1000;
+    }
+    
+    inline INT64 HundredNanosToMillis(INT64 hundredNanos) {
+        return hundredNanos / 10 / 1000;
+    }
 

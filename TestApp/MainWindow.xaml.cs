@@ -45,7 +45,7 @@ namespace TestApp
         public bool IsMp4FastStartEnabled { get; set; } = false;
         public bool IsMouseClicksDetected { get; set; } = false;
         public string MouseLeftClickColor { get; set; } = "#ffff00";
-        public string MouseRightClickColor { get; set; } = "#ffff00";
+        public string MouseRightClickColor { get; set; } = "#006aff";
         public int MouseClickRadius { get; set; } = 20;
         public int MouseClickDuration { get; set; } = 50;
         public List<string> AudioInputsList { get; set; } = new List<string>();

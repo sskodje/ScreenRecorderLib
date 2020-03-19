@@ -99,7 +99,7 @@ namespace ScreenRecorderLib {
 			System::Runtime::InteropServices::Marshal::Copy(source, tempBytes, 0, count);
 			return m_Stream->Write(tempBytes, offset, count);
 		};
-		void SetLength(long long value) override {
+		void SetLength(long long value) {
 			return m_Stream->SetLength(value);
 		};
 	};

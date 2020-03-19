@@ -214,7 +214,9 @@
     <ClCompile Include="Recorder.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="WWMFResampler.cpp" />
+    <ClCompile Include="WWMFResampler.cpp">
+      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="app.ico" />
