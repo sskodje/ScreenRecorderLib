@@ -192,7 +192,7 @@
                                       MinWidth="100"
                                       MaxWidth="155"
                                       Margin="0,5,5,5"
-                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioOutputsList}"
+                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioOutputsList.Values}"
                                       SelectedIndex="0"
                                       VerticalAlignment="Top" />
                         </StackPanel>
@@ -206,7 +206,7 @@
                                       MinWidth="100"
                                       MaxWidth="155"
                                       Margin="0,5,5,5"
-                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioInputsList}"
+                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioInputsList.Values}"
                                       SelectedIndex="0"
                                       VerticalAlignment="Top" />
                         </StackPanel>

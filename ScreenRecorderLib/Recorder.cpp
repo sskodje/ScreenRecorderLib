@@ -86,9 +86,9 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 	}
 }
 
-List<String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
+Dictionary<String^, String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
 {
-	std::vector<std::wstring> vector;
+	std::map<std::wstring, std::wstring> map;
 	EDataFlow dFlow;
 
 	switch (source)
@@ -105,17 +105,16 @@ List<String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
 		break;
 	}
 
-	List<String^>^ devices = gcnew List<String^>();
+	Dictionary<String^, String^>^ devices = gcnew Dictionary<String^, String^>();
 
-	HRESULT hr = CPrefs::list_devices(dFlow, &vector);
+	HRESULT hr = CPrefs::list_devices(dFlow, &map);
 
 	if (hr == S_OK)
 	{
-		if (vector.size() != 0)
+		if (map.size() != 0)
 		{
-			for (UINT i = 0; i < vector.size(); ++i)
-			{
-				devices->Add(gcnew String(vector[i].c_str()));
+			for (auto const& element : map) {
+				devices->Add(gcnew String(element.first.c_str()), gcnew String(element.second.c_str()));
 			}
 		}
 	}

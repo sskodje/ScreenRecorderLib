@@ -1,7 +1,7 @@
 #pragma once
 // prefs.h
 //https://github.com/mvaneerde/blog/tree/master/loopback-capture
-#include <vector>
+#include <map>
 #include <mmdeviceapi.h>
 #include <string>
 
@@ -15,5 +15,5 @@ public:
 	CPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow);
 	~CPrefs();
 	// writes all found devices for chosen flow into devices
-	static HRESULT list_devices(EDataFlow flow, std::vector<std::wstring> *devices);
+	static HRESULT list_devices(EDataFlow flow, std::map<std::wstring, std::wstring>* devices);
 };
