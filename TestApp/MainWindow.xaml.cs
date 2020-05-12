@@ -48,8 +48,8 @@ namespace TestApp
         public string MouseRightClickColor { get; set; } = "#006aff";
         public int MouseClickRadius { get; set; } = 20;
         public int MouseClickDuration { get; set; } = 50;
-        public List<string> AudioInputsList { get; set; } = new List<string>();
-        public List<string> AudioOutputsList { get; set; } = new List<string>();
+        public Dictionary<string, string> AudioInputsList { get; set; }
+        public Dictionary<string, string> AudioOutputsList { get; set; }
         public bool IsAudioInEnabled { get; set; } = false;
         public bool IsAudioOutEnabled { get; set; } = true;
 
@@ -144,10 +144,11 @@ namespace TestApp
                 this.ScreenComboBox.Items.Add(target);
             }
 
-            AudioOutputsList.Add("Default playback device");
-            AudioInputsList.Add("Default recording device");
-            AudioOutputsList.AddRange(Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices));
-            AudioInputsList.AddRange(Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices));
+            AudioOutputsList = Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices);
+            AudioInputsList = Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices);
+
+            RaisePropertyChanged("AudioOutputsList");
+            RaisePropertyChanged("AudioInputsList");
 
             ScreenComboBox.SelectedIndex = 0;
             AudioOutputsComboBox.SelectedIndex = 0;
@@ -207,8 +208,8 @@ namespace TestApp
 
             Display selectedDisplay = (Display)this.ScreenComboBox.SelectedItem;
 
-            var audioOutputDevice = IsAudioOutEnabled && AudioOutputsComboBox.SelectedIndex > 0 ? AudioOutputsComboBox.SelectedItem.ToString() : string.Empty;
-            var audioInputDevice = IsAudioInEnabled && AudioInputsComboBox.SelectedIndex > 0 ? AudioInputsComboBox.SelectedItem.ToString() : string.Empty;
+            var audioOutputDevice = IsAudioOutEnabled && AudioOutputsComboBox.SelectedIndex > 0 ? GetDeviceId(AudioOutputsList, AudioOutputsComboBox.SelectedItem.ToString()) : string.Empty;
+            var audioInputDevice = IsAudioInEnabled && AudioInputsComboBox.SelectedIndex > 0 ? GetDeviceId(AudioInputsList, AudioInputsComboBox.SelectedItem.ToString()) : string.Empty;
 
 
             RecorderOptions options = new RecorderOptions
@@ -247,7 +248,7 @@ namespace TestApp
                     MouseRightClickDetectionColor = this.MouseRightClickColor,
                     MouseClickDetectionRadius = this.MouseClickRadius,
                     MouseClickDetectionDuration = this.MouseClickDuration,
-                     MouseClickDetectionMode = this.CurrentMouseDetectionMode
+                    MouseClickDetectionMode = this.CurrentMouseDetectionMode
                 }
             };
 
@@ -290,6 +291,16 @@ namespace TestApp
                 case ImageFormat.PNG:
                     return ".png";
             }
+        }
+
+        private string GetDeviceId(Dictionary<string, string> dictionary, string name)
+        {
+            foreach (var value in dictionary.Where(value => value.Value == name))
+            {
+                return value.Key;
+            }
+
+            return string.Empty;
         }
 
         private void Rec_OnRecordingFailed(object sender, RecordingFailedEventArgs e)

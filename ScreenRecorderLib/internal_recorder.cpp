@@ -213,34 +213,38 @@ std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vec
 {
 	std::vector<BYTE> newvector;
 
+	size_t smaller;
+
 	if (first.size() >= second.size())
 	{
 		newvector.insert(newvector.end(), first.begin(), first.end());
-
-		for (UINT i = 0; i < second.size(); i++)
-		{
-			newvector[i] += second[i];
-		}
+		smaller = second.size();
 	}
 	else
 	{
-		//This will clip the second audio sample to the length of the first.
-		//It fixes audio artifacts due to  variable length of the two samples, but potentially loses information..
-		vector<BYTE>::iterator end = first.size() > 0 ? second.begin() += first.size() : second.end();
-
-		newvector.insert(newvector.end(), second.begin(), end);
-
-		for (UINT i = 0; i < first.size(); i++)
-		{
-			newvector[i] += first[i];
-		}
+		newvector.insert(newvector.end(), second.begin(), second.end());
+		smaller = first.size();
 	}
 
-	for (UINT i = 0; i < newvector.size(); ++i)
-		if (newvector[i] > 0x7fff)
-			newvector[i] = newvector[i] / 2; // divide by the number of channels being mixed
-		else if (newvector[i] < -0x7fff)
-			newvector[i] = newvector[i] / 2;
+	for (int i = 0; i < smaller; i += 2) {
+		short buf1A = first[i + 1];
+		short buf2A = first[i];
+		buf1A = (short)((buf1A & 0xff) << 8);
+		buf2A = (short)(buf2A & 0xff);
+		
+		short buf1B = second[i + 1];
+		short buf2B = second[i];
+		buf1B = (short)((buf1B & 0xff) << 8);
+		buf2B = (short)(buf2B & 0xff);
+
+		short buf1C = (short)(buf1A + buf1B);
+		short buf2C = (short)(buf2A + buf2B);
+
+		short res = (short)(buf1C + buf2C);
+
+		newvector[i] = (BYTE)res;
+		newvector[i + 1] = (BYTE)(res >> 8);
+	}
 
 	return newvector;
 }
@@ -465,6 +469,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				LPCWSTR argv[3] = { L"", L"--device", m_AudioInputDevice.c_str() };
 				int argc = isDeviceEmpty ? 1 : SIZEOF_ARRAY(argv);
 				CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, eCapture);
+
 				if (SUCCEEDED(hr)) {
 					prefs.m_bInt16 = true;
 					// create arguments for loopback capture thread

@@ -15,7 +15,7 @@
 
 
 HRESULT get_default_device(IMMDevice **ppMMDevice, EDataFlow flow);
-HRESULT get_specific_device(LPCWSTR szLongName, IMMDevice **ppMMDevice);
+HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMMDevice);
 HRESULT open_file(LPCWSTR szFileName, HMMIO *phFile);
 
 
@@ -44,7 +44,7 @@ CPrefs::CPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow)
 					return;
 				}
 
-				hr = get_specific_device(argv[i], &m_pMMDevice);
+				hr = get_specific_device(argv[i], flow, &m_pMMDevice);
 				if (FAILED(hr)) {
 					return;
 				}
@@ -120,7 +120,7 @@ HRESULT get_default_device(IMMDevice **ppMMDevice, EDataFlow flow) {
 	return S_OK;
 }
 
-HRESULT CPrefs::list_devices(EDataFlow flow, std::vector<std::wstring> *devices) {
+HRESULT CPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wstring> *devices) {
 	HRESULT hr = S_OK;
 
 	// get an enumerator
@@ -185,18 +185,26 @@ HRESULT CPrefs::list_devices(EDataFlow flow, std::vector<std::wstring> *devices)
 		}
 		PropVariantClearOnExit clearPv(&pv);
 
+		LPWSTR deviceID = L"";
+		hr = pMMDevice->GetId(&deviceID);
+		if (FAILED(hr)) {
+			ERR(L"IMMDevice->GetId(deviceID) failed: hr = 0x%08x", hr);
+			return hr;
+		}
+
 		if (VT_LPWSTR != pv.vt) {
 			ERR(L"PKEY_Device_FriendlyName variant type is %u - expected VT_LPWSTR", pv.vt);
 			return E_UNEXPECTED;
 		}
 
 		LOG(L"    %ls", pv.pwszVal);
-		devices->push_back(pv.pwszVal);
+
+		devices->insert(std::pair<std::wstring, std::wstring>(deviceID, pv.pwszVal));
 	}
 	return S_OK;
 }
 
-HRESULT get_specific_device(LPCWSTR szLongName, IMMDevice **ppMMDevice) {
+HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMMDevice) {
 	HRESULT hr = S_OK;
 
 	*ppMMDevice = NULL;
@@ -219,7 +227,7 @@ HRESULT get_specific_device(LPCWSTR szLongName, IMMDevice **ppMMDevice) {
 
 	// get all the active endpoints
 	hr = pMMDeviceEnumerator->EnumAudioEndpoints(
-		eAll, DEVICE_STATE_ACTIVE, &pMMDeviceCollection
+		flow, DEVICE_STATE_ACTIVE, &pMMDeviceCollection
 	);
 	if (FAILED(hr)) {
 		ERR(L"IMMDeviceEnumerator::EnumAudioEndpoints failed: hr = 0x%08x", hr);
@@ -245,45 +253,30 @@ HRESULT get_specific_device(LPCWSTR szLongName, IMMDevice **ppMMDevice) {
 		}
 		ReleaseOnExit releaseMMDevice(pMMDevice);
 
-		// open the property store on that device
-		IPropertyStore *pPropertyStore;
-		hr = pMMDevice->OpenPropertyStore(STGM_READ, &pPropertyStore);
+		// get device id
+		LPWSTR deviceID = L"";
+		hr = pMMDevice->GetId(&deviceID);
 		if (FAILED(hr)) {
-			ERR(L"IMMDevice::OpenPropertyStore failed: hr = 0x%08x", hr);
+			ERR(L"IMMDevice->GetId(deviceID) failed: hr = 0x%08x", hr);
 			return hr;
-		}
-		ReleaseOnExit releasePropertyStore(pPropertyStore);
-
-		// get the long name property
-		PROPVARIANT pv; PropVariantInit(&pv);
-		hr = pPropertyStore->GetValue(PKEY_Device_FriendlyName, &pv);
-		if (FAILED(hr)) {
-			ERR(L"IPropertyStore::GetValue failed: hr = 0x%08x", hr);
-			return hr;
-		}
-		PropVariantClearOnExit clearPv(&pv);
-
-		if (VT_LPWSTR != pv.vt) {
-			ERR(L"PKEY_Device_FriendlyName variant type is %u - expected VT_LPWSTR", pv.vt);
-			return E_UNEXPECTED;
 		}
 
 		// is it a match?
-		if (0 == _wcsicmp(pv.pwszVal, szLongName)) {
+		if (0 == _wcsicmp(deviceID, szDeviceId)) {
 			// did we already find it?
 			if (NULL == *ppMMDevice) {
 				*ppMMDevice = pMMDevice;
 				pMMDevice->AddRef();
 			}
 			else {
-				ERR(L"Found (at least) two devices named %ls", szLongName);
+				ERR(L"Found (at least) two devices named %ls", szDeviceId);
 				return E_UNEXPECTED;
 			}
 		}
 	}
 
 	if (NULL == *ppMMDevice) {
-		ERR(L"Could not find a device named %ls", szLongName);
+		ERR(L"Could not find a device named %ls", szDeviceId);
 		return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
 	}
 

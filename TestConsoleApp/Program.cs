@@ -22,7 +22,7 @@ namespace TestConsoleApp
             {
                 AudioOptions = new AudioOptions
                 {
-                    AudioInputDevice = inputDevices.First(),
+                    AudioInputDevice = inputDevices.First().Key,
                     IsAudioEnabled = true,
                     IsInputDeviceEnabled = true,
                     IsOutputDeviceEnabled = true,
