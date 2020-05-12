@@ -48,8 +48,8 @@ namespace TestApp
         public string MouseRightClickColor { get; set; } = "#006aff";
         public int MouseClickRadius { get; set; } = 20;
         public int MouseClickDuration { get; set; } = 50;
-        public Dictionary<string, string> AudioInputsList { get; set; }
-        public Dictionary<string, string> AudioOutputsList { get; set; }
+        public Dictionary<string, string> AudioInputsList { get; set; } = new Dictionary<string, string>();
+        public Dictionary<string, string> AudioOutputsList { get; set; } = new Dictionary<string, string>();
         public bool IsAudioInEnabled { get; set; } = false;
         public bool IsAudioOutEnabled { get; set; } = true;
 
@@ -143,9 +143,16 @@ namespace TestApp
             {
                 this.ScreenComboBox.Items.Add(target);
             }
-
-            AudioOutputsList = Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices);
-            AudioInputsList = Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices);
+            AudioOutputsList.Add("", "Default playback device");
+            AudioInputsList.Add("", "Default recording device");
+            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices))
+            {
+                AudioOutputsList.Add(kvp.Key, kvp.Value);
+            }
+            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices))
+            {
+                AudioInputsList.Add(kvp.Key, kvp.Value);
+            }
 
             RaisePropertyChanged("AudioOutputsList");
             RaisePropertyChanged("AudioInputsList");
@@ -208,9 +215,8 @@ namespace TestApp
 
             Display selectedDisplay = (Display)this.ScreenComboBox.SelectedItem;
 
-            var audioOutputDevice = IsAudioOutEnabled && AudioOutputsComboBox.SelectedIndex > 0 ? GetDeviceId(AudioOutputsList, AudioOutputsComboBox.SelectedItem.ToString()) : string.Empty;
-            var audioInputDevice = IsAudioInEnabled && AudioInputsComboBox.SelectedIndex > 0 ? GetDeviceId(AudioInputsList, AudioInputsComboBox.SelectedItem.ToString()) : string.Empty;
-
+            string audioOutputDevice = AudioOutputsComboBox.SelectedValue as string;
+            string audioInputDevice = AudioInputsComboBox.SelectedValue as string;
 
             RecorderOptions options = new RecorderOptions
             {

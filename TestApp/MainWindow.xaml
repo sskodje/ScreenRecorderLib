@@ -142,7 +142,7 @@
                                       VerticalAlignment="Top"
                                       SelectionChanged="RecordingModeComboBox_SelectionChanged"/>
                         </StackPanel>
-                        
+
                         <StackPanel Orientation="Horizontal"
                                     x:Name="SnapshotImageFormatPanel"
                                     Visibility="Collapsed">
@@ -156,7 +156,7 @@
                                       SelectedItem="{Binding ElementName=MainWin,Path=CurrentImageFormat}"
                                       VerticalAlignment="Top" />
                         </StackPanel>
-                        
+
                         <StackPanel Orientation="Horizontal"
                                     x:Name="VideoBitrateModePanel">
                             <Label Content="Bitrate Mode"
@@ -192,7 +192,9 @@
                                       MinWidth="100"
                                       MaxWidth="155"
                                       Margin="0,5,5,5"
-                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioOutputsList.Values}"
+                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioOutputsList}"
+                                      DisplayMemberPath="Value"
+                                      SelectedValuePath="Key"
                                       SelectedIndex="0"
                                       VerticalAlignment="Top" />
                         </StackPanel>
@@ -206,7 +208,9 @@
                                       MinWidth="100"
                                       MaxWidth="155"
                                       Margin="0,5,5,5"
-                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioInputsList.Values}"
+                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioInputsList}"
+                                      DisplayMemberPath="Value"
+                                      SelectedValuePath="Key"
                                       SelectedIndex="0"
                                       VerticalAlignment="Top" />
                         </StackPanel>
