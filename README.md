@@ -143,4 +143,4 @@ To only record a portion of the screen, or a different monitor than the main mon
             }
 ```
 
-See the sample project for a full implementation, including multimonitor.
+See the sample project for a full implementation.
