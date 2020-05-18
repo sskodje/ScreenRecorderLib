@@ -17,16 +17,23 @@ namespace TestConsoleApp
         private static Stopwatch _stopWatch;
         static void Main(string[] args)
         {
-            var inputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices);
+            //This is how you can select audio devices. If you want the system default device,
+            //just leave the AudioInputDevice or AudioOutputDevice properties unset or pass null or empty string.
+            var audioInputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices);
+            var audioOutputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices);
+            string selectedAudioInputDevice = audioInputDevices.Count > 0 ? audioInputDevices.First().Key : null;
+            string selectedAudioOutputDevice = audioOutputDevices.Count > 0 ? audioOutputDevices.First().Key : null;
+            
             var opts = new RecorderOptions
             {
                 AudioOptions = new AudioOptions
                 {
-                    AudioInputDevice = inputDevices.First().Key,
+                    AudioInputDevice = selectedAudioInputDevice,
+                    AudioOutputDevice= selectedAudioOutputDevice,
                     IsAudioEnabled = true,
                     IsInputDeviceEnabled = true,
                     IsOutputDeviceEnabled = true,
-                },
+                }
             };
 
             Recorder rec = Recorder.CreateRecorder(opts);
