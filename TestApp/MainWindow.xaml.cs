@@ -43,6 +43,7 @@ namespace TestApp
         public bool IsHardwareEncodingEnabled { get; set; } = true;
         public bool IsLowLatencyEnabled { get; set; } = false;
         public bool IsMp4FastStartEnabled { get; set; } = false;
+        public bool IsFragmentedMp4Enabled { get; set; } = false;
         public bool IsMouseClicksDetected { get; set; } = false;
         public string MouseLeftClickColor { get; set; } = "#ffff00";
         public string MouseRightClickColor { get; set; } = "#006aff";
@@ -169,7 +170,7 @@ namespace TestApp
         }
         public event PropertyChangedEventHandler PropertyChanged;
 
-        private void RecordButton_Click(object sender, RoutedEventArgs e)
+        private async void RecordButton_Click(object sender, RoutedEventArgs e)
         {
             if (IsRecording)
             {
@@ -225,6 +226,7 @@ namespace TestApp
                 IsHardwareEncodingEnabled = this.IsHardwareEncodingEnabled,
                 IsLowLatencyEnabled = this.IsLowLatencyEnabled,
                 IsMp4FastStartEnabled = this.IsMp4FastStartEnabled,
+                IsFragmentedMp4Enabled = this.IsFragmentedMp4Enabled,
                 AudioOptions = new AudioOptions
                 {
                     Bitrate = AudioBitrate.bitrate_96kbps,

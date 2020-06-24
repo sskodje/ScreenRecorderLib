@@ -126,6 +126,10 @@
                                   Content="Enable MP4 fast start"
                                   Margin="0"
                                   ToolTip="MP4 header is writter at the start of the file. This makes the file better suited to streaming." />
+                        <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsFragmentedMp4Enabled}"
+                                  Content="Enable Fragmented MP4"
+                                  Margin="0"
+                                  ToolTip="Fragmented MP4 is used for adaptive streaming, where playback can be started at intervals in the stream, instead of requiring the start of the stream" />
                         <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsMouseClicksDetected}"
                                   Content="Detect mouse clicks"
                                   Margin="0"
