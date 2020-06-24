@@ -12,11 +12,14 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		Nuget\nuget.exe = Nuget\nuget.exe
 		Nuget\pack.cmd = Nuget\pack.cmd
 		Nuget\ScreenRecorderLib.nuspec = Nuget\ScreenRecorderLib.nuspec
+		Nuget\ScreenRecorderLib.targets = Nuget\ScreenRecorderLib.targets
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestConsoleApp", "TestConsoleApp\TestConsoleApp.csproj", "{FDA56BBE-5019-47C5-AF1E-386D123C02E3}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{7199CBA5-ACDD-4751-B819-F74C5211EDE1}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TestConsoleAppCpp", "TestConsoleAppCpp\TestConsoleAppCpp.vcxproj", "{B56F1482-CBEC-4ACA-9B12-2C0C845C5CF9}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -76,6 +79,16 @@ Global
 		{7199CBA5-ACDD-4751-B819-F74C5211EDE1}.Release|x64.Build.0 = Release|Any CPU
 		{7199CBA5-ACDD-4751-B819-F74C5211EDE1}.Release|x86.ActiveCfg = Release|Any CPU
 		{7199CBA5-ACDD-4751-B819-F74C5211EDE1}.Release|x86.Build.0 = Release|Any CPU
+		{B56F1482-CBEC-4ACA-9B12-2C0C845C5CF9}.Debug|Any CPU.ActiveCfg = Debug|Win32
+		{B56F1482-CBEC-4ACA-9B12-2C0C845C5CF9}.Debug|x64.ActiveCfg = Debug|x64
+		{B56F1482-CBEC-4ACA-9B12-2C0C845C5CF9}.Debug|x64.Build.0 = Debug|x64
+		{B56F1482-CBEC-4ACA-9B12-2C0C845C5CF9}.Debug|x86.ActiveCfg = Debug|Win32
+		{B56F1482-CBEC-4ACA-9B12-2C0C845C5CF9}.Debug|x86.Build.0 = Debug|Win32
+		{B56F1482-CBEC-4ACA-9B12-2C0C845C5CF9}.Release|Any CPU.ActiveCfg = Release|Win32
+		{B56F1482-CBEC-4ACA-9B12-2C0C845C5CF9}.Release|x64.ActiveCfg = Release|x64
+		{B56F1482-CBEC-4ACA-9B12-2C0C845C5CF9}.Release|x64.Build.0 = Release|x64
+		{B56F1482-CBEC-4ACA-9B12-2C0C845C5CF9}.Release|x86.ActiveCfg = Release|Win32
+		{B56F1482-CBEC-4ACA-9B12-2C0C845C5CF9}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
