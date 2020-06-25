@@ -305,6 +305,8 @@ namespace ScreenRecorderLib {
 		void EventComplete(std::wstring str, nlohmann::fifo_map<std::wstring, int> delays);
 		void EventFailed(std::wstring str);
 		void EventStatusChanged(int status);
+		void SetupCallbacks();
+		void ClearCallbacks();
 		GCHandle _statusChangedDelegateGcHandler;
 		GCHandle _errorDelegateGcHandler;
 		GCHandle _completedDelegateGcHandler;

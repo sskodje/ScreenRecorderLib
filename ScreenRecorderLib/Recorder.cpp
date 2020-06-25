@@ -13,9 +13,6 @@ Recorder::Recorder(RecorderOptions^ options)
 {
 	lRec = new internal_recorder();
 	SetOptions(options);
-	createErrorCallback();
-	createCompletionCallback();
-	createStatusCallback();
 }
 
 void Recorder::SetOptions(RecorderOptions^ options) {
@@ -121,6 +118,73 @@ Dictionary<String^, String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource 
 	return devices;
 }
 
+Recorder::~Recorder()
+{
+	this->!Recorder();
+	GC::SuppressFinalize(this);
+}
+
+Recorder::!Recorder() {
+	if (lRec) {
+		delete lRec;
+		lRec = nullptr;
+	}
+	if (m_ManagedStream) {
+		delete m_ManagedStream;
+		m_ManagedStream = nullptr;
+	}
+	ClearCallbacks();
+}
+
+Recorder^ Recorder::CreateRecorder() {
+	return gcnew Recorder(nullptr);
+}
+
+Recorder^ Recorder::CreateRecorder(RecorderOptions ^ options)
+{
+	Recorder^ rec = gcnew Recorder(options);
+	return rec;
+}
+void Recorder::Record(System::Runtime::InteropServices::ComTypes::IStream^ stream) {
+	SetupCallbacks();
+	IStream *pNativeStream = (IStream*)Marshal::GetComInterfaceForObject(stream, System::Runtime::InteropServices::ComTypes::IStream::typeid).ToPointer();
+	lRec->BeginRecording(pNativeStream);
+}
+void Recorder::Record(System::IO::Stream^ stream) {
+	SetupCallbacks();
+	m_ManagedStream = new ManagedIStream(stream);
+	lRec->BeginRecording(m_ManagedStream);
+}
+void Recorder::Record(System::String^ path) {
+	SetupCallbacks();
+	std::wstring stdPathString = msclr::interop::marshal_as<std::wstring>(path);
+	lRec->BeginRecording(stdPathString);
+}
+void Recorder::Pause() {
+	lRec->PauseRecording();
+}
+void Recorder::Resume() {
+	lRec->ResumeRecording();
+}
+void Recorder::Stop() {
+	lRec->EndRecording();
+}
+
+void Recorder::SetupCallbacks() {
+	createErrorCallback();
+	createCompletionCallback();
+	createStatusCallback();
+}
+
+void Recorder::ClearCallbacks() {
+	if (_statusChangedDelegateGcHandler.IsAllocated)
+		_statusChangedDelegateGcHandler.Free();
+	if (_errorDelegateGcHandler.IsAllocated)
+		_errorDelegateGcHandler.Free();
+	if (_completedDelegateGcHandler.IsAllocated)
+		_completedDelegateGcHandler.Free();
+}
+
 void Recorder::createErrorCallback() {
 	InternalErrorCallbackDelegate^ fp = gcnew InternalErrorCallbackDelegate(this, &Recorder::EventFailed);
 	_errorDelegateGcHandler = GCHandle::Alloc(fp);
@@ -143,31 +207,11 @@ void Recorder::createStatusCallback() {
 	CallbackStatusChangedFunction cb = static_cast<CallbackStatusChangedFunction>(ip.ToPointer());
 	lRec->RecordingStatusChangedCallback = cb;
 }
-Recorder::~Recorder()
-{
-	this->!Recorder();
-	GC::SuppressFinalize(this);
-}
-
-Recorder::!Recorder() {
-	if (lRec) {
-		delete lRec;
-		lRec = nullptr;
-	}
-	if (m_ManagedStream) {
-		delete m_ManagedStream;
-		m_ManagedStream = nullptr;
-	}
-	if (_statusChangedDelegateGcHandler.IsAllocated)
-		_statusChangedDelegateGcHandler.Free();
-	if (_errorDelegateGcHandler.IsAllocated)
-		_errorDelegateGcHandler.Free();
-	if (_completedDelegateGcHandler.IsAllocated)
-		_completedDelegateGcHandler.Free();
-}
 
 void Recorder::EventComplete(std::wstring str, fifo_map<std::wstring, int> delays)
 {
+	ClearCallbacks();
+
 	List<FrameData^>^ frameInfos = gcnew List<FrameData^>();
 
 	for (auto x : delays) {
@@ -182,6 +226,7 @@ void Recorder::EventComplete(std::wstring str, fifo_map<std::wstring, int> delay
 }
 void Recorder::EventFailed(std::wstring str)
 {
+	ClearCallbacks();
 	if (m_ManagedStream) {
 		delete m_ManagedStream;
 		m_ManagedStream = nullptr;
@@ -193,34 +238,4 @@ void Recorder::EventStatusChanged(int status)
 	RecorderStatus recorderStatus = (RecorderStatus)status;
 	Status = recorderStatus;
 	OnStatusChanged(this, gcnew RecordingStatusEventArgs(recorderStatus));
-}
-Recorder^ Recorder::CreateRecorder() {
-	return gcnew Recorder(nullptr);
-}
-
-Recorder^ Recorder::CreateRecorder(RecorderOptions ^ options)
-{
-	Recorder^ rec = gcnew Recorder(options);
-	return rec;
-}
-void Recorder::Record(System::Runtime::InteropServices::ComTypes::IStream^ stream) {
-	IStream *pNativeStream = (IStream*)Marshal::GetComInterfaceForObject(stream, System::Runtime::InteropServices::ComTypes::IStream::typeid).ToPointer();
-	lRec->BeginRecording(pNativeStream);
-}
-void Recorder::Record(System::IO::Stream^ stream) {
-	m_ManagedStream = new ManagedIStream(stream);
-	lRec->BeginRecording(m_ManagedStream);
-}
-void Recorder::Record(System::String^ path) {
-	std::wstring stdPathString = msclr::interop::marshal_as<std::wstring>(path);
-	lRec->BeginRecording(stdPathString);
-}
-void Recorder::Pause() {
-	lRec->PauseRecording();
-}
-void Recorder::Resume() {
-	lRec->ResumeRecording();
-}
-void Recorder::Stop() {
-	lRec->EndRecording();
 }
