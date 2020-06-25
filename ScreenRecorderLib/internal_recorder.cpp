@@ -231,7 +231,7 @@ std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vec
 		short buf2A = first[i];
 		buf1A = (short)((buf1A & 0xff) << 8);
 		buf2A = (short)(buf2A & 0xff);
-		
+
 		short buf1B = second[i + 1];
 		short buf2B = second[i];
 		buf1B = (short)((buf1B & 0xff) << 8);
@@ -387,14 +387,16 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			RETURN_ON_BAD_HR(hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &pDevice, &pDeskDupl, &outputDuplDesc));
 
 			DXGI_MODE_ROTATION screenRotation = outputDuplDesc.Rotation;
-			D3D11_TEXTURE2D_DESC frameDesc;
+			D3D11_TEXTURE2D_DESC sourceFrameDesc;
+			D3D11_TEXTURE2D_DESC destFrameDesc;
 			RECT sourceRect, destRect;
 
-			RtlZeroMemory(&frameDesc, sizeof(frameDesc));
+			RtlZeroMemory(&destFrameDesc, sizeof(destFrameDesc));
+			RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
 			RtlZeroMemory(&sourceRect, sizeof(sourceRect));
 			RtlZeroMemory(&destRect, sizeof(destRect));
 
-			RETURN_ON_BAD_HR(hr = initializeDesc(outputDuplDesc, &frameDesc, &sourceRect, &destRect));
+			RETURN_ON_BAD_HR(hr = initializeDesc(outputDuplDesc, &sourceFrameDesc, &destFrameDesc, &sourceRect, &destRect));
 
 			// create "loopback audio capture has started" events
 			HANDLE hOutputCaptureStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -452,7 +454,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					HANDLE hThread = CreateThread(
 						nullptr, 0,
 						LoopbackCaptureThreadFunction, &threadArgs, 0, nullptr
-						);
+					);
 					if (nullptr == hThread) {
 						ERR(L"CreateThread failed: last error is %u", GetLastError());
 						return E_FAIL;
@@ -494,7 +496,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					HANDLE hThread = CreateThread(
 						nullptr, 0,
 						LoopbackCaptureThreadFunction, &threadArgs, 0, nullptr
-						);
+					);
 					if (nullptr == hThread) {
 						ERR(L"CreateThread failed: last error is %u", GetLastError());
 						return E_FAIL;
@@ -620,7 +622,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						if (pDesktopResource != nullptr) {
 							//we got a frame, but it's too soon, so we cache it and see if there are more changes.
 							if (pPreviousFrameCopy == nullptr) {
-								RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, nullptr, &pPreviousFrameCopy));
+								RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
 							}
 							CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
 							RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
@@ -651,7 +653,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				lastFrame = high_resolution_clock::now();
 				{
 					CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
-					RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, nullptr, &pFrameCopy));
+					RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopy));
 
 					if (pPreviousFrameCopy) {
 						m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
@@ -665,7 +667,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					SetDebugName(pFrameCopy, "FrameCopy");
 
 					if (pPreviousFrameCopy == nullptr) {
-						RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&frameDesc, nullptr, &pPreviousFrameCopy));
+						RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
 						m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
 						SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
 					}
@@ -715,26 +717,39 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						hr = S_OK;
 						break;
 					}
-					if (m_IsRecording) {
-						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
-							FrameWriteModel model;
-							model.Frame = pFrameCopy;
-							model.Duration = durationSinceLastFrame100Nanos;
-							model.StartPos = lastFrameStartPos;
-							if (recordAudio) {
-								model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
-							}
-							model.FrameNumber = frameNr;
-							hr = m_EncoderResult = EnqueueFrame(model);
-							if (FAILED(hr)) {
-								break;
-							}
-							frameNr++;
+
+					if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !EqualRect(&destRect, &sourceRect)) {
+						CComPtr<ID3D11Texture2D> pCroppedFrameCopy = nullptr;
+						RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&destFrameDesc, nullptr, &pCroppedFrameCopy));
+						D3D11_BOX sourceRegion;
+						sourceRegion.left = destRect.left;
+						sourceRegion.right = destRect.right;
+						sourceRegion.top = destRect.top;
+						sourceRegion.bottom = destRect.bottom;
+						sourceRegion.front = 0;
+						sourceRegion.back = 1;
+						m_ImmediateContext->CopySubresourceRegion(pCroppedFrameCopy, 0, 0, 0, 0, pFrameCopy, 0, &sourceRegion);
+						pFrameCopy = pCroppedFrameCopy;
+					}
+
+					if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
+						FrameWriteModel model;
+						model.Frame = pFrameCopy;
+						model.Duration = durationSinceLastFrame100Nanos;
+						model.StartPos = lastFrameStartPos;
+						if (recordAudio) {
+							model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
 						}
-						else if (m_RecorderMode == MODE_SNAPSHOT) {
-							hr = WriteFrameToImage(pFrameCopy, m_OutputFullPath.c_str());
+						model.FrameNumber = frameNr;
+						hr = m_EncoderResult = RenderFrame(model);
+						if (FAILED(hr)) {
 							break;
 						}
+						frameNr++;
+					}
+					else if (m_RecorderMode == MODE_SNAPSHOT) {
+						hr = WriteFrameToImage(pFrameCopy, m_OutputFullPath.c_str());
+						break;
 					}
 
 					lastFrameStartPos += durationSinceLastFrame100Nanos;
@@ -754,7 +769,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
 				}
 				model.FrameNumber = frameNr;
-				hr = m_EncoderResult = EnqueueFrame(model);
+				hr = m_EncoderResult = RenderFrame(model);
 			}
 			SetEvent(hOutputCaptureStopEvent);
 			SetEvent(hInputCaptureStopEvent);
@@ -897,25 +912,13 @@ std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_cap
 		return  std::vector<BYTE>();
 }
 
-HRESULT internal_recorder::initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out_ D3D11_TEXTURE2D_DESC *pFrameDesc, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect) {
+HRESULT internal_recorder::initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out_ D3D11_TEXTURE2D_DESC *pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC *pDestFrameDesc, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect) {
 	UINT monitorWidth = (outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE90 || outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE270)
 		? outputDuplDesc.ModeDesc.Height : outputDuplDesc.ModeDesc.Width;
 
 	UINT monitorHeight = (outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE90 || outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE270)
 		? outputDuplDesc.ModeDesc.Width : outputDuplDesc.ModeDesc.Height;
 
-	D3D11_TEXTURE2D_DESC frameDesc;
-	frameDesc.Width = monitorWidth;
-	frameDesc.Height = monitorHeight;
-	frameDesc.Format = outputDuplDesc.ModeDesc.Format;
-	frameDesc.ArraySize = 1;
-	frameDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
-	frameDesc.MiscFlags = 0;
-	frameDesc.SampleDesc.Count = 1;
-	frameDesc.SampleDesc.Quality = 0;
-	frameDesc.MipLevels = 1;
-	frameDesc.CPUAccessFlags = 0;
-	frameDesc.Usage = D3D11_USAGE_DEFAULT;
 
 	RECT sourceRect;
 	sourceRect.left = 0;
@@ -932,9 +935,36 @@ HRESULT internal_recorder::initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out
 		destRect = m_DestRect;
 	}
 
+	D3D11_TEXTURE2D_DESC sourceFrameDesc;
+	sourceFrameDesc.Width = monitorWidth;
+	sourceFrameDesc.Height = monitorHeight;
+	sourceFrameDesc.Format = outputDuplDesc.ModeDesc.Format;
+	sourceFrameDesc.ArraySize = 1;
+	sourceFrameDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
+	sourceFrameDesc.MiscFlags = 0;
+	sourceFrameDesc.SampleDesc.Count = 1;
+	sourceFrameDesc.SampleDesc.Quality = 0;
+	sourceFrameDesc.MipLevels = 1;
+	sourceFrameDesc.CPUAccessFlags = 0;
+	sourceFrameDesc.Usage = D3D11_USAGE_DEFAULT;
+
+	D3D11_TEXTURE2D_DESC destFrameDesc;
+	destFrameDesc.Width = destRect.right - destRect.left;
+	destFrameDesc.Height = destRect.bottom - destRect.top;
+	destFrameDesc.Format = outputDuplDesc.ModeDesc.Format;
+	destFrameDesc.ArraySize = 1;
+	destFrameDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
+	destFrameDesc.MiscFlags = 0;
+	destFrameDesc.SampleDesc.Count = 1;
+	destFrameDesc.SampleDesc.Quality = 0;
+	destFrameDesc.MipLevels = 1;
+	destFrameDesc.CPUAccessFlags = 0;
+	destFrameDesc.Usage = D3D11_USAGE_DEFAULT;
+
 	*pSourceRect = sourceRect;
 	*pDestRect = destRect;
-	*pFrameDesc = frameDesc;
+	*pSourceFrameDesc = sourceFrameDesc;
+	*pDestFrameDesc = destFrameDesc;
 	return S_OK;
 }
 
@@ -1306,7 +1336,7 @@ HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
 	_In_ IMFMediaType *pType,    // Pointer to an encoded video type.
 	const GUID& subtype,    // Uncompressed subtype (eg, RGB-32, AYUV)
 	_Outptr_ IMFMediaType **ppType   // Receives a matching uncompressed video type.
-	)
+)
 {
 	CComPtr<IMFMediaType> pTypeUncomp = nullptr;
 
@@ -1335,7 +1365,7 @@ HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
 			MF_MT_PIXEL_ASPECT_RATIO,
 			(UINT32*)&par.Numerator,
 			(UINT32*)&par.Denominator
-			);
+		);
 
 		// Default to square pixels.
 		if (FAILED(hr))
@@ -1344,7 +1374,7 @@ HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
 				pTypeUncomp,
 				MF_MT_PIXEL_ASPECT_RATIO,
 				1, 1
-				);
+			);
 		}
 	}
 
@@ -1366,7 +1396,7 @@ HRESULT internal_recorder::SetAttributeU32(_Inout_ CComPtr<ICodecAPI>& codec, co
 	return codec->SetValue(&guid, &val);
 }
 
-HRESULT internal_recorder::EnqueueFrame(FrameWriteModel& model) {
+HRESULT internal_recorder::RenderFrame(FrameWriteModel& model) {
 	HRESULT hr(S_OK);
 
 	if (m_RecorderMode == MODE_VIDEO) {
@@ -1505,7 +1535,7 @@ HRESULT internal_recorder::WriteAudioSamplesToVideo(INT64 frameStartPos, INT64 f
 	HRESULT hr = MFCreateMemoryBuffer(
 		cbData,   // Amount of memory to allocate, in bytes.
 		&pBuffer
-		);
+	);
 	//once in awhile, things get behind and we get an out of memory error when trying to create the buffer
 	//so, just check, wait and try again if necessary
 	int counter = 0;
