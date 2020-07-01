@@ -808,6 +808,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			};
 
 			SafeRelease(&m_SinkWriter);
+		}
 			SafeRelease(&m_ImmediateContext);
 #if _DEBUG
 			if (m_Debug) {
@@ -815,7 +816,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				SafeRelease(&m_Debug);
 			}
 #endif
-		}
 		return hr;
 	})
 		.then([this](concurrency::task<HRESULT> t)
