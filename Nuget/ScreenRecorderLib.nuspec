@@ -3,20 +3,12 @@
   <metadata>
     <id>ScreenRecorderLib</id>
     <version>2.1.0</version>
-    <authors>Sverre Kristoffer Skodje</authors>
-    <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
-    <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
+    <title>ScreenRecorderLib</title>
+    <authors>ACPx Infrastructure</authors>
+    <owners>CSG Systems International</owners>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectUrl>https://github.com/CSGOpenSource/ScreenRecorderLib</projectUrl>
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to h264 video or PNG images.</description>
-    <summary />
-    <releaseNotes>
-      - Fixes for adding nuget package to C++/CLI projects.
-      - Snapshots and slideshow images is now correctly cropped to the input rectangle.
-      - Fixed memory leak issue if Recorder instance was not explicitly disposed.
-    </releaseNotes>
-    <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
-    <language>en-GB</language>
-    <tags>Screen Recording Windows .NET</tags>
   </metadata>
   <files>
     <file src="ScreenRecorderLib.targets" target="build\ScreenRecorderLib.targets" />

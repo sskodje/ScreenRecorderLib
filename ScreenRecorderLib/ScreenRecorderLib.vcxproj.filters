@@ -97,5 +97,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <None Include="ScreenRecorder.snk" />
   </ItemGroup>
 </Project>
