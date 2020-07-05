@@ -1,11 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <PropertyGroup Condition="'$(PlatformTarget)' == 'x64'">
-    <_NuGetPlatform>x64</_NuGetPlatform>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(_NuGetPlatform)' == ''">
-    <_NuGetPlatform>$x86</_NuGetPlatform>
-  </PropertyGroup>
 
   <Target Name="PlatformCheck" BeforeTargets="InjectReference"
     Condition="(('$(Platform)' != 'x86') AND  ('$(Platform)' != 'x64') AND ('$(Platform)' != 'Win32'))">
@@ -13,11 +7,17 @@
   </Target>
 
   <Target Name="InjectReference" BeforeTargets="ResolveAssemblyReferences">
-    <ItemGroup>
-      <Reference Include="ScreenRecorderLib">
-        <HintPath>$(MSBuildThisFileDirectory)$(_NuGetPlatform)\ScreenRecorderLib.dll</HintPath>
-      </Reference>
-    </ItemGroup>
+  <ItemGroup>
+    <Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'x86'">
+      <HintPath>$(MSBuildThisFileDirectory)x86\ScreenRecorderLib.dll</HintPath>
+    </Reference>
+	<Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'Win32'">
+      <HintPath>$(MSBuildThisFileDirectory)x86\ScreenRecorderLib.dll</HintPath>
+    </Reference>
+    <Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'x64'">
+      <HintPath>$(MSBuildThisFileDirectory)x64\ScreenRecorderLib.dll</HintPath>
+    </Reference>
+  </ItemGroup>
 
     <ItemGroup Condition="'$(Language)' == 'C++'">
       <Content Include="$(MSBuildThisFileDirectory)\$(Platform)\*.*">
@@ -32,7 +32,4 @@
 			  OverwriteReadOnlyFiles='true'
 			  Condition="'%(Content.Link)' != ''" />
   </Target>
-  <PropertyGroup>
-    <_NuGetPlatform></_NuGetPlatform>
-  </PropertyGroup>
 </Project>

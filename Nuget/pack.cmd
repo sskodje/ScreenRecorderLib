@@ -1,1 +1,1 @@
-nuget.exe pack ScreenRecorderLib.nuspec
+nuget.exe pack ScreenRecorderLib.StrongName.nuspec
