@@ -4,7 +4,7 @@
     <id>ScreenRecorderLib.StrongName</id>
     <version>2.3.0</version>
     <owners>Sverre Kristoffer Skodje</owners>
-	<author>CSG Systems, Inc.</author>
+	<authors>CSG Systems, Inc.</authors>
     <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
