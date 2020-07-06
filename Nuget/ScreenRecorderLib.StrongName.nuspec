@@ -1,19 +1,20 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
-    <id>ScreenRecorderLib</id>
+    <id>ScreenRecorderLib.StrongName</id>
     <version>2.3.0</version>
-    <authors>ACPx Infrastructure</authors>
-    <owners>CSG Systems International</owners> 
-    <projectUrl>https://github.com/CSGOpenSource/ScreenRecorderLib</projectUrl>
+    <owners>Sverre Kristoffer Skodje</owners>
+	<author>CSG Systems, Inc.</author>
+    <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
+    <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to h264 video or PNG images.</description>
     <summary />
     <releaseNotes>
       - Fixed error in nuget package.
     </releaseNotes>
-    <copyright>Copyright © CSG Systems International 2020</copyright>
-    <language>en-US</language>
+    <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
+    <language>en-GB</language>
     <tags>Screen Recording Windows .NET</tags>
   </metadata>
   <files>
