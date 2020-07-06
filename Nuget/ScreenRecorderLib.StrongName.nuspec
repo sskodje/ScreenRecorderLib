@@ -18,7 +18,7 @@
     <tags>Screen Recording Windows .NET</tags>
   </metadata>
   <files>
-    <file src="ScreenRecorderLib.targets" target="build\ScreenRecorderLib.targets" />
+    <file src="ScreenRecorderLib.StrongName.targets" target="build\ScreenRecorderLib.StrongName.targets" />
     <file src="..\ScreenRecorderLib\Release\ScreenRecorderLib.dll" target="build\x64\ScreenRecorderLib.dll" />
     <file src="..\ScreenRecorderLib\Release\ScreenRecorderLib.xml" target="build\x64\ScreenRecorderLib.xml" />
     <file src="..\ScreenRecorderLib\Release\ScreenRecorderLib.dll" target="build\x86\ScreenRecorderLib.dll" />
