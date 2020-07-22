@@ -401,7 +401,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			RtlZeroMemory(&destRect, sizeof(destRect));
 
 			RETURN_ON_BAD_HR(hr = initializeDesc(outputDuplDesc, &sourceFrameDesc, &destFrameDesc, &sourceRect, &destRect));
-
+			bool isDestRectEqualToSourceRect = EqualRect(&sourceRect, &destRect);
 			// create "loopback audio capture has started" events
 			HANDLE hOutputCaptureStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 			if (nullptr == hOutputCaptureStartedEvent) {
@@ -554,6 +554,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				CComPtr<ID3D11Texture2D> pCroppedFrameCopy = nullptr;
 				HRESULT hr = pDevice->CreateTexture2D(&destFrameDesc, nullptr, &pCroppedFrameCopy);
 				D3D11_BOX sourceRegion;
+				RtlZeroMemory(&sourceRegion, sizeof(sourceRegion));
 				sourceRegion.left = destRect.left;
 				sourceRegion.right = destRect.right;
 				sourceRegion.top = destRect.top;
@@ -591,10 +592,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 			auto render_frame = [&](CComPtr<ID3D11Texture2D> pFrameCopy, INT64 duration)
 			{
-				if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !EqualRect(&destRect, &sourceRect)) {
+				if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
 					pFrameCopy = crop_frame(pFrameCopy);
 				}
 				FrameWriteModel model;
+				RtlZeroMemory(&model, sizeof(model));
 				model.Frame = pFrameCopy;
 				model.Duration = duration;
 				model.StartPos = lastFrameStartPos;
