@@ -275,6 +275,10 @@ std::wstring internal_recorder::GetVideoExtension() {
 HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 	m_OutputFullPath = path;
 	wstring dir = path;
+	if (m_RecorderMode == MODE_SLIDESHOW) {
+		if (!dir.empty() && dir.back() != '\\')
+			dir += '\\';
+	}
 	LPWSTR directory = (LPWSTR)dir.c_str();
 	PathRemoveFileSpecW(directory);
 	std::error_code ec;
