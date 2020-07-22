@@ -48,7 +48,9 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			rect.right = options->DisplayOptions->Right;
 			rect.bottom = options->DisplayOptions->Bottom;
 			lRec->SetDestRectangle(rect);
-			lRec->SetDisplayOutput(msclr::interop::marshal_as<std::wstring>(options->DisplayOptions->MonitorDeviceName));
+			if (options->DisplayOptions->MonitorDeviceName != nullptr) {
+				lRec->SetDisplayOutput(msclr::interop::marshal_as<std::wstring>(options->DisplayOptions->MonitorDeviceName));
+			}
 		}
 
 		if (options->AudioOptions) {
