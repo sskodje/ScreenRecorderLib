@@ -543,7 +543,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
 			INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 			INT frameTimeout = 0;
-			int frameNr = 0;
+			INT frameNr = 0;
 			CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 			std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
 			mouse_pointer::PTR_INFO PtrInfo;
@@ -567,7 +567,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 			auto draw_mouse_pointer = [&](CComPtr<ID3D11Texture2D> pFrameCopy, INT64 durationSinceLastFrame100Nanos)
 			{
-				HRESULT hr;
+				HRESULT hr = S_FALSE;
 				if (g_LastMouseClickDurationRemaining > 0
 					&& m_IsMouseClicksDetected)
 				{
@@ -699,9 +699,9 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						}
 					}
 					if (delay) {
-						UINT32 delay = 1;
+						UINT64 delay = 1;
 						if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
-							delay = HundredNanosToMillis(static_cast<UINT32>((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos)));
+							delay = HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
 						}
 						wait(delay);
 						continue;
@@ -824,12 +824,12 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 			SafeRelease(&m_SinkWriter);
 		}
-			SafeRelease(&m_ImmediateContext);
+		SafeRelease(&m_ImmediateContext);
 #if _DEBUG
-			if (m_Debug) {
-				m_Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
-				SafeRelease(&m_Debug);
-			}
+		if (m_Debug) {
+			m_Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
+			SafeRelease(&m_Debug);
+		}
 #endif
 		return hr;
 	})
@@ -1429,8 +1429,8 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 		 * and inserting silence between two frames that has audio leads to glitching. */
 		if (isAudioEnabled && model.Audio.size() == 0 && model.Duration > 0) {
 			if (!m_LastFrameHadAudio) {
-				auto frameCount = static_cast<UINT32>(ceil(m_InputAudioSamplesPerSecond * HundredNanosToMillis((double)model.Duration) / 1000));
-				auto byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8) * m_AudioChannels;
+				int frameCount = int(ceil(m_InputAudioSamplesPerSecond * HundredNanosToMillis(model.Duration) / 1000));
+				int byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8) * m_AudioChannels;
 				model.Audio.insert(model.Audio.end(), byteCount, 0);
 				LOG(L"Inserted %zd bytes of silence", model.Audio.size());
 			}
