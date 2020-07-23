@@ -3,10 +3,13 @@
  
   <Target Name="InjectReference" BeforeTargets="ResolveAssemblyReferences">
   <ItemGroup>
+    <Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'Any CPU'">
+      <HintPath>$(MSBuildThisFileDirectory)x86\ScreenRecorderLib.dll</HintPath>
+    </Reference>
     <Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'x86'">
       <HintPath>$(MSBuildThisFileDirectory)x86\ScreenRecorderLib.dll</HintPath>
     </Reference>
-	<Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'Win32'">
+    <Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'Win32'">
       <HintPath>$(MSBuildThisFileDirectory)x86\ScreenRecorderLib.dll</HintPath>
     </Reference>
     <Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'x64'">
