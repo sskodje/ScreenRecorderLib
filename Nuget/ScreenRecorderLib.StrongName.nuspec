@@ -5,7 +5,7 @@
     <version>2.3.0</version>
     <owners>Sverre Kristoffer Skodje</owners>
 	<authors>CSG Systems, Inc.</authors>
-    <license>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</license>
+    <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to h264 video or PNG images.</description>
