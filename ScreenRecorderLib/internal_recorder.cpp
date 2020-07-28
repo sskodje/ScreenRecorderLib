@@ -549,7 +549,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			mouse_pointer::PTR_INFO PtrInfo;
 			RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
 
-			auto crop_frame = [&](CComPtr<ID3D11Texture2D> pFrameCopy)
+			auto crop_frame =
+				[this,
+				&pDevice,
+				&destFrameDesc,
+				&destRect](CComPtr<ID3D11Texture2D> frame)
 			{
 				CComPtr<ID3D11Texture2D> pCroppedFrameCopy = nullptr;
 				HRESULT hr = pDevice->CreateTexture2D(&destFrameDesc, nullptr, &pCroppedFrameCopy);
@@ -561,11 +565,16 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				sourceRegion.bottom = destRect.bottom;
 				sourceRegion.front = 0;
 				sourceRegion.back = 1;
-				m_ImmediateContext->CopySubresourceRegion(pCroppedFrameCopy, 0, 0, 0, 0, pFrameCopy, 0, &sourceRegion);
+				m_ImmediateContext->CopySubresourceRegion(pCroppedFrameCopy, 0, 0, 0, 0, frame, 0, &sourceRegion);
 				return pCroppedFrameCopy;
 			};
 
-			auto draw_mouse_pointer = [&](CComPtr<ID3D11Texture2D> pFrameCopy, INT64 durationSinceLastFrame100Nanos)
+			auto draw_mouse_pointer =
+				[this,
+				&pDevice,
+				&pMousePointer,
+				&PtrInfo,
+				&screenRotation](CComPtr<ID3D11Texture2D> frame, INT64 durationSinceLastFrame100Nanos)
 			{
 				HRESULT hr = S_FALSE;
 				if (g_LastMouseClickDurationRemaining > 0
@@ -573,11 +582,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				{
 					if (g_LastMouseClickButton == VK_LBUTTON)
 					{
-						hr = pMousePointer->DrawMouseClick(&PtrInfo, pFrameCopy, m_MouseClickDetectionLMBColor, m_MouseClickDetectionRadius, screenRotation);
+						hr = pMousePointer->DrawMouseClick(&PtrInfo, frame, m_MouseClickDetectionLMBColor, m_MouseClickDetectionRadius, screenRotation);
 					}
 					if (g_LastMouseClickButton == VK_RBUTTON)
 					{
-						hr = pMousePointer->DrawMouseClick(&PtrInfo, pFrameCopy, m_MouseClickDetectionRMBColor, m_MouseClickDetectionRadius, screenRotation);
+						hr = pMousePointer->DrawMouseClick(&PtrInfo, frame, m_MouseClickDetectionRMBColor, m_MouseClickDetectionRadius, screenRotation);
 					}
 					INT64 millis = max(HundredNanosToMillis(durationSinceLastFrame100Nanos), 0);
 					g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millis, 0);
@@ -585,19 +594,27 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				}
 
 				if (m_IsMousePointerEnabled) {
-					hr = pMousePointer->DrawMousePointer(&PtrInfo, m_ImmediateContext, pDevice, pFrameCopy, screenRotation);
+					hr = pMousePointer->DrawMousePointer(&PtrInfo, m_ImmediateContext, pDevice, frame, screenRotation);
 				}
 				return hr;
 			};
 
-			auto render_frame = [&](CComPtr<ID3D11Texture2D> pFrameCopy, INT64 duration)
+			auto render_frame =
+				[this,
+				&crop_frame,
+				&pLoopbackCaptureOutputDevice,
+				&pLoopbackCaptureInputDevice,
+				&frameNr,
+				&lastFrameStartPos,
+				&isDestRectEqualToSourceRect,
+				&recordAudio](CComPtr<ID3D11Texture2D> frame, INT64 duration)
 			{
 				if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
-					pFrameCopy = crop_frame(pFrameCopy);
+					frame = crop_frame(frame);
 				}
 				FrameWriteModel model;
 				RtlZeroMemory(&model, sizeof(model));
-				model.Frame = pFrameCopy;
+				model.Frame = frame;
 				model.Duration = duration;
 				model.StartPos = lastFrameStartPos;
 				if (recordAudio) {
@@ -762,14 +779,15 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						break;
 					}
 
-					if (SUCCEEDED(render_frame(pFrameCopy, durationSinceLastFrame100Nanos))) {
-						frameNr++;
-					}
+					hr = render_frame(pFrameCopy, durationSinceLastFrame100Nanos);
 
+					if (FAILED(hr)) {
+						break;
+					}
 					if (m_RecorderMode == MODE_SNAPSHOT) {
 						break;
 					}
-
+					frameNr++;
 					lastFrameStartPos += durationSinceLastFrame100Nanos;
 					if (m_IsFixedFramerate)
 					{
