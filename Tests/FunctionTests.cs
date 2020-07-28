@@ -80,12 +80,82 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void RecordingWithAudioTest()
+        public void RecordingWithAudioOutputTest()
         {
             using (var outStream = new MemoryStream())
             {
                 RecorderOptions options = new RecorderOptions();
                 options.AudioOptions = new AudioOptions { IsAudioEnabled = true };
+                using (var rec = Recorder.CreateRecorder(options))
+                {
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        resetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        resetEvent.Set();
+                    };
+
+                    rec.Record(outStream);
+                    Thread.Sleep(3000);
+                    rec.Stop();
+                    resetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError);
+                    Assert.IsTrue(isComplete);
+                    Assert.AreNotEqual(outStream.Length, 0);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void RecordingWithAudioInputTest()
+        {
+            using (var outStream = new MemoryStream())
+            {
+                RecorderOptions options = new RecorderOptions();
+                options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled=true };
+                using (var rec = Recorder.CreateRecorder(options))
+                {
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        resetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        resetEvent.Set();
+                    };
+
+                    rec.Record(outStream);
+                    Thread.Sleep(3000);
+                    rec.Stop();
+                    resetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError);
+                    Assert.IsTrue(isComplete);
+                    Assert.AreNotEqual(outStream.Length, 0);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void RecordingWithAudioMixingTest()
+        {
+            using (var outStream = new MemoryStream())
+            {
+                RecorderOptions options = new RecorderOptions();
+                options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled = true, IsOutputDeviceEnabled = true };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
                     bool isError = false;
