@@ -934,13 +934,23 @@ void internal_recorder::ResumeRecording() {
 std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_capture> & pLoopbackCaptureOutputDevice,
 	std::unique_ptr<loopback_capture> & pLoopbackCaptureInputDevice)
 {
-	if (m_IsOutputDeviceEnabled && !m_IsInputDeviceEnabled)
-		return std::move(pLoopbackCaptureOutputDevice->GetRecordedBytes());
-	else if (!m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
-		return std::move(pLoopbackCaptureInputDevice->GetRecordedBytes());
-	else if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
+	if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled && pLoopbackCaptureOutputDevice && pLoopbackCaptureInputDevice) {
 		// mix our audio buffers from output device and input device to get one audio buffer since VideoSinkWriter works only with one Audio sink
-		return std::move(MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), pLoopbackCaptureInputDevice->GetRecordedBytes()));
+		if (pLoopbackCaptureOutputDevice->PeakRecordedBytes().size() > 0) {
+			std::vector<BYTE> outputDeviceData = pLoopbackCaptureOutputDevice->GetRecordedBytes(0);
+			std::vector<BYTE> inputDeviceData = pLoopbackCaptureInputDevice->GetRecordedBytes(outputDeviceData.size());
+			return std::move(MixAudio(outputDeviceData, inputDeviceData));
+		}
+		else {
+			std::vector<BYTE> inputDeviceData = pLoopbackCaptureInputDevice->GetRecordedBytes();
+			std::vector<BYTE> outputDeviceData = pLoopbackCaptureOutputDevice->GetRecordedBytes(inputDeviceData.size());
+			return std::move(MixAudio(outputDeviceData, inputDeviceData));
+		}
+	}
+	else if (m_IsOutputDeviceEnabled && pLoopbackCaptureOutputDevice)
+		return std::move(pLoopbackCaptureOutputDevice->GetRecordedBytes());
+	else if (m_IsInputDeviceEnabled && pLoopbackCaptureInputDevice)
+		return std::move(pLoopbackCaptureInputDevice->GetRecordedBytes());
 	else
 		return  std::vector<BYTE>();
 }
