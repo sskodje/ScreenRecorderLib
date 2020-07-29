@@ -1447,11 +1447,13 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 
 	if (m_RecorderMode == MODE_VIDEO) {
 		hr = WriteFrameToVideo(model.StartPos, model.Duration, m_VideoStreamIndex, model.Frame);
+		bool wroteAudioSample;
 		if (FAILED(hr)) {
 			_com_error err(hr);
 			ERR(L"Writing of video frame with start pos %lld ms failed: %s\n", (HundredNanosToMillis(model.StartPos)), err.ErrorMessage());
 			return hr;//Stop recording if we fail
 		}
+
 		bool isAudioEnabled = m_IsAudioEnabled
 			&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
 		/* If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
@@ -1479,7 +1481,11 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 				ERR(L"Writing of audio sample with start pos %lld ms failed: %s\n", (HundredNanosToMillis(model.StartPos)), err.ErrorMessage());
 				return hr;//Stop recording if we fail
 			}
+			else {
+				wroteAudioSample = true;
+			}
 		}
+		LOG(L"Wrote %s with start pos %lld ms and with duration %lld ms", wroteAudioSample ? L"video and audio sample" : L"video sample", HundredNanosToMillis(model.StartPos), HundredNanosToMillis(model.Duration));
 	}
 	else if (m_RecorderMode == MODE_SLIDESHOW) {
 		wstring	path = m_OutputFolder + L"\\" + to_wstring(model.FrameNumber) + GetImageExtension();
@@ -1488,7 +1494,7 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 		INT64 durationMs = HundredNanosToMillis(model.Duration);
 		if (FAILED(hr)) {
 			_com_error err(hr);
-			ERR(L"Writing of video frame with start pos %lld ms failed: %s\n", startposMs, err.ErrorMessage());
+			ERR(L"Writing of video slideshow frame with start pos %lld ms failed: %s\n", startposMs, err.ErrorMessage());
 			return hr; //Stop recording if we fail
 		}
 		else {
@@ -1499,6 +1505,7 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 	}
 	else if (m_RecorderMode == MODE_SNAPSHOT) {
 		hr = WriteFrameToImage(model.Frame, m_OutputFullPath.c_str());
+		LOG(L"Wrote snapshot to %s\n", m_OutputFullPath.c_str());
 	}
 	model.Frame.Release();
 
@@ -1567,9 +1574,6 @@ HRESULT internal_recorder::WriteFrameToVideo(INT64 frameStartPos, INT64 frameDur
 	{
 		// Send the sample to the Sink Writer.
 		hr = m_SinkWriter->WriteSample(streamIndex, pSample);
-		if (SUCCEEDED(hr)) {
-			LOG(L"Wrote frame with start pos %lld ms and with duration %lld ms", HundredNanosToMillis(frameStartPos), HundredNanosToMillis(frameDuration));
-		}
 	}
 	SafeRelease(&pSample);
 	SafeRelease(&p2DBuffer);
@@ -1639,9 +1643,6 @@ HRESULT internal_recorder::WriteAudioSamplesToVideo(INT64 frameStartPos, INT64 f
 	{
 		// Send the sample to the Sink Writer.
 		hr = m_SinkWriter->WriteSample(streamIndex, pSample);
-		if (SUCCEEDED(hr)) {
-			LOG(L"Wrote audio sample with start pos %lld ms and with duration %lld ms", HundredNanosToMillis(frameStartPos), HundredNanosToMillis(frameDuration));
-		}
 	}
 	SafeRelease(&pSample);
 	SafeRelease(&pBuffer);
