@@ -745,7 +745,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 					SetDebugName(pFrameCopy, "FrameCopy");
 
-					if (pPreviousFrameCopy == nullptr) {
+					if (pPreviousFrameCopy == nullptr
+						&& m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
 						RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
 						m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
 						SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
