@@ -85,6 +85,6 @@ inline std::wstring s2ws(const std::string& str)
     }
     
     inline INT64 HundredNanosToMillis(INT64 hundredNanos) {
-        return hundredNanos / 10 / 1000;
+        return round((double)hundredNanos / 10 / 1000);
     }
 

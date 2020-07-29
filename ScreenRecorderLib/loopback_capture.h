@@ -22,7 +22,9 @@ struct LoopbackCaptureThreadFunctionArguments {
 	EDataFlow flow;
 	UINT32 samplerate;
 	UINT32 channels;
+	LPCWSTR tag;
 };
+
 
 DWORD WINAPI LoopbackCaptureThreadFunction(LPVOID pContext);
 class loopback_capture
@@ -31,6 +33,7 @@ public:
 	loopback_capture();
 	~loopback_capture();
 	void ClearRecordedBytes();
+	bool IsCapturing();
 	void Cleanup();
 	HRESULT LoopbackCapture(
 		IMMDevice *pMMDevice,
@@ -41,14 +44,18 @@ public:
 		PUINT32 pnFrames,
 		EDataFlow flow,
 		UINT32 samplerate,
-		UINT32 channels
+		UINT32 channels,
+		LPCWSTR tag
 	);
-
+	std::vector<BYTE> loopback_capture::PeakRecordedBytes();
 	std::vector<BYTE> loopback_capture::GetRecordedBytes();
+	std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount);
 	UINT32 GetInputSampleRate();
 private:
 	bool m_IsDestructed = false;
+	bool m_IsCapturing = false;
 	std::vector<BYTE> m_RecordedBytes = {};
+	LPCWSTR m_Tag;
 	UINT32 m_SamplesPerSec = 0;
 	std::mutex mtx;           // mutex for critical section
 	
