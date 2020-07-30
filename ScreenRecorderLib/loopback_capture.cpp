@@ -368,7 +368,7 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount)
 		}
 		byteCount = min(byteCount, m_RecordedBytes.size());
 	}
-	else if(byteCount <= 0) {
+	else if (byteCount <= 0) {
 		byteCount = m_RecordedBytes.size();
 	}
 	mtx.lock();
@@ -379,7 +379,7 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount)
 
 		HRESULT hr = resampler.Resample(newvector.data(), newvector.size(), &sampleData);
 		if (SUCCEEDED(hr)) {
-			LOG(L"Resampled audio from %uhz to %uhz", inputFormat.sampleRate, outputFormat.sampleRate);
+			LOG(L"Resampled audio from %dch %uhz to %dch %uhz", inputFormat.nChannels, inputFormat.sampleRate, outputFormat.nChannels, outputFormat.sampleRate);
 		}
 		else {
 			ERR(L"Resampling of audio failed: hr = 0x%08x", hr);
@@ -391,7 +391,7 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount)
 		sampleData.Release();
 	}
 	m_RecordedBytes.erase(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
-//	LOG(L"Got %d bytes from loopback_capture %s. %d bytes remaining", newvector.size(), m_Tag, m_RecordedBytes.size());
+	//	LOG(L"Got %d bytes from loopback_capture %s. %d bytes remaining", newvector.size(), m_Tag, m_RecordedBytes.size());
 	mtx.unlock();
 	return newvector;
 }
