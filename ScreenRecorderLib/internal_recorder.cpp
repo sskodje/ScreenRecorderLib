@@ -12,7 +12,6 @@
 #include <VersionHelpers.h>
 #include <Wmcodecdsp.h>
 #include <filesystem>
-#include "mouse_pointer.h"
 #include "loopback_capture.h"
 #include "internal_recorder.h"
 #include "audio_prefs.h"
@@ -381,14 +380,13 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		{
 			DXGI_OUTDUPL_DESC outputDuplDesc;
 			RtlZeroMemory(&outputDuplDesc, sizeof(outputDuplDesc));
-			CComPtr<ID3D11Device> pDevice = nullptr;
 			CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
 			std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
 			std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = make_unique<loopback_capture>();
 			std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = make_unique<loopback_capture>();
 			CComPtr<IDXGIOutput> pSelectedOutput = nullptr;
 			hr = GetOutputForDeviceName(m_DisplayOutputName, &pSelectedOutput);
-			RETURN_ON_BAD_HR(hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &pDevice, &pDeskDupl, &outputDuplDesc));
+			RETURN_ON_BAD_HR(hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &m_Device, &pDeskDupl, &outputDuplDesc));
 
 			DXGI_MODE_ROTATION screenRotation = outputDuplDesc.Rotation;
 			D3D11_TEXTURE2D_DESC sourceFrameDesc;
@@ -525,14 +523,14 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(stream, &outputStream));
 
 				}
-				RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, pDevice, sourceRect, destRect, outputDuplDesc.Rotation, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+				RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, outputDuplDesc.Rotation, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 			}
 
 			m_IsRecording = true;
 			if (RecordingStatusChangedCallback != nullptr)
 				RecordingStatusChangedCallback(STATUS_RECORDING);
 
-			RETURN_ON_BAD_HR(hr = pMousePointer->Initialize(m_ImmediateContext, pDevice));
+			RETURN_ON_BAD_HR(hr = pMousePointer->Initialize(m_ImmediateContext, m_Device));
 			SetViewPort(m_ImmediateContext, sourceRect.right - sourceRect.left, sourceRect.bottom - sourceRect.top);
 
 			g_LastMouseClickDurationRemaining = 0;
@@ -550,82 +548,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
 			mouse_pointer::PTR_INFO PtrInfo;
 			RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
-
-			auto crop_frame =
-				[this,
-				&pDevice,
-				&destFrameDesc,
-				&destRect](CComPtr<ID3D11Texture2D> frame)
-			{
-				CComPtr<ID3D11Texture2D> pCroppedFrameCopy = nullptr;
-				HRESULT hr = pDevice->CreateTexture2D(&destFrameDesc, nullptr, &pCroppedFrameCopy);
-				D3D11_BOX sourceRegion;
-				RtlZeroMemory(&sourceRegion, sizeof(sourceRegion));
-				sourceRegion.left = destRect.left;
-				sourceRegion.right = destRect.right;
-				sourceRegion.top = destRect.top;
-				sourceRegion.bottom = destRect.bottom;
-				sourceRegion.front = 0;
-				sourceRegion.back = 1;
-				m_ImmediateContext->CopySubresourceRegion(pCroppedFrameCopy, 0, 0, 0, 0, frame, 0, &sourceRegion);
-				return pCroppedFrameCopy;
-			};
-
-			auto draw_mouse_pointer =
-				[this,
-				&pDevice,
-				&pMousePointer,
-				&PtrInfo,
-				&screenRotation](CComPtr<ID3D11Texture2D> frame, INT64 durationSinceLastFrame100Nanos)
-			{
-				HRESULT hr = S_FALSE;
-				if (g_LastMouseClickDurationRemaining > 0
-					&& m_IsMouseClicksDetected)
-				{
-					if (g_LastMouseClickButton == VK_LBUTTON)
-					{
-						hr = pMousePointer->DrawMouseClick(&PtrInfo, frame, m_MouseClickDetectionLMBColor, m_MouseClickDetectionRadius, screenRotation);
-					}
-					if (g_LastMouseClickButton == VK_RBUTTON)
-					{
-						hr = pMousePointer->DrawMouseClick(&PtrInfo, frame, m_MouseClickDetectionRMBColor, m_MouseClickDetectionRadius, screenRotation);
-					}
-					INT64 millis = max(HundredNanosToMillis(durationSinceLastFrame100Nanos), 0);
-					g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millis, 0);
-					LOG("Drawing mouse click, duration remaining on click is %u ms", g_LastMouseClickDurationRemaining);
-				}
-
-				if (m_IsMousePointerEnabled) {
-					hr = pMousePointer->DrawMousePointer(&PtrInfo, m_ImmediateContext, pDevice, frame, screenRotation);
-				}
-				return hr;
-			};
-
-			auto render_frame =
-				[this,
-				&crop_frame,
-				&pLoopbackCaptureOutputDevice,
-				&pLoopbackCaptureInputDevice,
-				&frameNr,
-				&lastFrameStartPos,
-				&isDestRectEqualToSourceRect,
-				&recordAudio](CComPtr<ID3D11Texture2D> frame, INT64 duration)
-			{
-				if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
-					frame = crop_frame(frame);
-				}
-				FrameWriteModel model;
-				RtlZeroMemory(&model, sizeof(model));
-				model.Frame = frame;
-				model.Duration = duration;
-				model.StartPos = lastFrameStartPos;
-				if (recordAudio) {
-					model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
-				}
-				model.FrameNumber = frameNr;
-				HRESULT hr = m_EncoderResult = RenderFrame(model);
-				return hr;
-			};
 
 			while (true)
 			{
@@ -666,7 +588,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 					_com_error err(hr);
 					ERR(L"Error getting next frame, reinitializing: %s\n", err.ErrorMessage());
-					hr = InitializeDesktopDupl(pDevice, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
+					hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
 					if (FAILED(hr))
 					{
 						_com_error err(hr);
@@ -680,7 +602,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					RETURN_ON_BAD_HR(hr);
 				}
 				if (hr == DXGI_ERROR_DEVICE_REMOVED) {
-					return pDevice->GetDeviceRemovedReason();
+					return m_Device->GetDeviceRemovedReason();
 				}
 				if (m_RecorderMode == MODE_SLIDESHOW
 					|| m_RecorderMode == MODE_SNAPSHOT) {
@@ -703,7 +625,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						if (pDesktopResource != nullptr) {
 							//we got a frame, but it's too soon, so we cache it and see if there are more changes.
 							if (pPreviousFrameCopy == nullptr) {
-								RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
+								RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
 							}
 							CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
 							RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
@@ -734,7 +656,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				lastFrame = high_resolution_clock::now();
 				{
 					CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
-					RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopy));
+					RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopy));
 
 					if (pPreviousFrameCopy) {
 						m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
@@ -749,13 +671,13 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 					if (pPreviousFrameCopy == nullptr
 						&& m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
-						RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
+						RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
 						m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
 						SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
 					}
 
 					if (gotMousePointer) {
-						hr = draw_mouse_pointer(pFrameCopy, durationSinceLastFrame100Nanos);
+						hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
 						if (hr == DXGI_ERROR_ACCESS_LOST
 							|| hr == DXGI_ERROR_INVALID_CALL) {
 							if (pDeskDupl) {
@@ -764,7 +686,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 							}
 							_com_error err(hr);
 							ERR(L"Error drawing mouse pointer, reinitializing desktop duplication: %s\n", err.ErrorMessage());
-							hr = InitializeDesktopDupl(pDevice, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
+							hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
 							if (FAILED(hr))
 							{
 								_com_error err(hr);
@@ -781,9 +703,18 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						hr = S_OK;
 						break;
 					}
-
-					hr = render_frame(pFrameCopy, durationSinceLastFrame100Nanos);
-
+					if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
+						pFrameCopy = CropFrame(pFrameCopy, destFrameDesc, destRect);
+					}
+					FrameWriteModel model;
+					RtlZeroMemory(&model, sizeof(model));
+					model.Frame = pFrameCopy;
+					model.Duration = durationSinceLastFrame100Nanos;
+					model.StartPos = lastFrameStartPos;
+					model.Audio = recordAudio ? GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice) : std::vector<BYTE>();
+					model.FrameNumber = frameNr;
+					hr = m_EncoderResult = RenderFrame(model);
+					
 					if (FAILED(hr)) {
 						break;
 					}
@@ -803,9 +734,19 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			if (pPreviousFrameCopy != nullptr) {
 				INT64 duration = duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100;
 				if (gotMousePointer) {
-					draw_mouse_pointer(pPreviousFrameCopy, duration);
+					DrawMousePointer(pPreviousFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, duration);
 				}
-				render_frame(pPreviousFrameCopy, duration);
+				if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
+					pPreviousFrameCopy = CropFrame(pPreviousFrameCopy, destFrameDesc, destRect);
+				}
+				FrameWriteModel model;
+				RtlZeroMemory(&model, sizeof(model));
+				model.Frame = pPreviousFrameCopy;
+				model.Duration = duration;
+				model.StartPos = lastFrameStartPos;
+				model.Audio = recordAudio ? GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice) : std::vector<BYTE>();
+				model.FrameNumber = frameNr;
+				hr = m_EncoderResult = RenderFrame(model);
 			}
 			SetEvent(hOutputCaptureStopEvent);
 			SetEvent(hInputCaptureStopEvent);
@@ -846,6 +787,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			SafeRelease(&m_SinkWriter);
 		}
 		SafeRelease(&m_ImmediateContext);
+		SafeRelease(&m_Device);
 #if _DEBUG
 		if (m_Debug) {
 			m_Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
@@ -955,7 +897,7 @@ std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_cap
 	else if (m_IsInputDeviceEnabled && pLoopbackCaptureInputDevice)
 		return std::move(pLoopbackCaptureInputDevice->GetRecordedBytes());
 	else
-		return  std::vector<BYTE>();
+		return std::vector<BYTE>();
 }
 
 HRESULT internal_recorder::initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out_ D3D11_TEXTURE2D_DESC * pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC * pDestFrameDesc, _Out_ RECT * pSourceRect, _Out_ RECT * pDestRect) {
@@ -1076,7 +1018,7 @@ HRESULT internal_recorder::InitializeDx(_In_opt_ IDXGIOutput * pDxgiOutput, _Out
 			// Device creation success, no need to loop anymore
 			break;
 		}
-	}
+}
 
 	RETURN_ON_BAD_HR(hr);
 	CComPtr<ID3D10Multithread> pMulti = nullptr;
@@ -1433,6 +1375,47 @@ HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
 	return hr;
 }
 
+HRESULT internal_recorder::DrawMousePointer(ID3D11Texture2D * frame, mouse_pointer * pMousePointer, mouse_pointer::PTR_INFO ptrInfo, DXGI_MODE_ROTATION screenRotation, INT64 durationSinceLastFrame100Nanos)
+{
+	HRESULT hr = S_FALSE;
+	if (g_LastMouseClickDurationRemaining > 0
+		&& m_IsMouseClicksDetected)
+	{
+		if (g_LastMouseClickButton == VK_LBUTTON)
+		{
+			hr = pMousePointer->DrawMouseClick(&ptrInfo, frame, m_MouseClickDetectionLMBColor, m_MouseClickDetectionRadius, screenRotation);
+		}
+		if (g_LastMouseClickButton == VK_RBUTTON)
+		{
+			hr = pMousePointer->DrawMouseClick(&ptrInfo, frame, m_MouseClickDetectionRMBColor, m_MouseClickDetectionRadius, screenRotation);
+		}
+		INT64 millis = max(HundredNanosToMillis(durationSinceLastFrame100Nanos), 0);
+		g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millis, 0);
+		LOG("Drawing mouse click, duration remaining on click is %u ms", g_LastMouseClickDurationRemaining);
+	}
+
+	if (m_IsMousePointerEnabled) {
+		hr = pMousePointer->DrawMousePointer(&ptrInfo, m_ImmediateContext, m_Device, frame, screenRotation);
+	}
+	return hr;
+}
+
+ID3D11Texture2D * internal_recorder::CropFrame(ID3D11Texture2D * frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect)
+{
+	CComPtr<ID3D11Texture2D> pCroppedFrameCopy = nullptr;
+	HRESULT hr = m_Device->CreateTexture2D(&frameDesc, nullptr, &pCroppedFrameCopy);
+	D3D11_BOX sourceRegion;
+	RtlZeroMemory(&sourceRegion, sizeof(sourceRegion));
+	sourceRegion.left = destRect.left;
+	sourceRegion.right = destRect.right;
+	sourceRegion.top = destRect.top;
+	sourceRegion.bottom = destRect.bottom;
+	sourceRegion.front = 0;
+	sourceRegion.back = 1;
+	m_ImmediateContext->CopySubresourceRegion(pCroppedFrameCopy, 0, 0, 0, 0, frame, 0, &sourceRegion);
+	return pCroppedFrameCopy;
+}
+
 
 HRESULT internal_recorder::SetAttributeU32(_Inout_ CComPtr<ICodecAPI> & codec, const GUID & guid, UINT32 value)
 {
@@ -1475,7 +1458,6 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 
 		if (model.Audio.size() > 0) {
 			hr = WriteAudioSamplesToVideo(model.StartPos, model.Duration, m_AudioStreamIndex, &(model.Audio)[0], model.Audio.size());
-			model.Audio.resize(0);
 			if (FAILED(hr)) {
 				_com_error err(hr);
 				ERR(L"Writing of audio sample with start pos %lld ms failed: %s\n", (HundredNanosToMillis(model.StartPos)), err.ErrorMessage());

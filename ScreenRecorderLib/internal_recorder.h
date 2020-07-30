@@ -17,7 +17,7 @@
 #include <mfreadwrite.h>
 #include "fifo_map.h"
 #include "audio_prefs.h"
-
+#include "mouse_pointer.h"
 typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_map<std::wstring, int>);
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
 typedef void(__stdcall *CallbackErrorFunction)(std::wstring);
@@ -112,6 +112,7 @@ private:
 #endif
 	ID3D11DeviceContext *m_ImmediateContext = nullptr;
 	IMFSinkWriter *m_SinkWriter = nullptr;
+	ID3D11Device *m_Device = nullptr;
 
 	bool m_LastFrameHadAudio = false;
 	HRESULT m_EncoderResult = S_FALSE;
@@ -178,4 +179,6 @@ private:
 	HRESULT GetOutputForDeviceName(std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **adapter);
 	HRESULT SetAttributeU32(_Inout_ ATL::CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value);
 	HRESULT CreateInputMediaTypeFromOutput(_In_ IMFMediaType *pType, const GUID& subtype, _Outptr_ IMFMediaType **ppType);
+	HRESULT DrawMousePointer(ID3D11Texture2D *frame, mouse_pointer *pointer, mouse_pointer::PTR_INFO ptrInfo, DXGI_MODE_ROTATION screenRotation, INT64 durationSinceLastFrame100Nanos);
+	ID3D11Texture2D* CropFrame(ID3D11Texture2D *frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect);
 };
