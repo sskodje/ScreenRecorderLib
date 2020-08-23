@@ -213,6 +213,10 @@ namespace TestApp
             Int32.TryParse(this.RecordingAreaLeftTextBox.Text, out left);
             int top = 0;
             Int32.TryParse(this.RecordingAreaTopTextBox.Text, out top);
+            int maxWidth = 0;
+            Int32.TryParse(this.RecordingAreaMaxWidthTextBox.Text, out maxWidth);
+            int maxHeight = 0;
+            Int32.TryParse(this.RecordingAreaMaxHeightTextBox.Text, out maxHeight);
 
             Display selectedDisplay = (Display)this.ScreenComboBox.SelectedItem;
 
@@ -245,7 +249,9 @@ namespace TestApp
                     Quality = this.VideoQuality,
                     IsFixedFramerate = this.IsFixedFramerate,
                     EncoderProfile = this.CurrentH264Profile,
-                    SnapshotFormat = CurrentImageFormat
+                    SnapshotFormat = CurrentImageFormat,
+                    MaxWidth = maxWidth,
+                    MaxHeight = maxHeight,
                 },
                 DisplayOptions = new DisplayOptions(selectedDisplay.DisplayName, left, top, right, bottom),
                 MouseOptions = new MouseOptions

@@ -58,8 +58,8 @@ public:
 	CallbackCompleteFunction RecordingCompleteCallback;
 	CallbackStatusChangedFunction RecordingStatusChangedCallback;
 	HRESULT BeginRecording(std::wstring path);
-	HRESULT BeginRecording(std::wstring path, IStream * stream);
-	HRESULT BeginRecording(IStream *stream);
+	HRESULT BeginRecording(std::wstring path, IStream* stream);
+	HRESULT BeginRecording(IStream* stream);
 	std::vector<ATL::CComPtr<IDXGIAdapter>> EnumDisplayAdapters();
 	void EndRecording();
 	void PauseRecording();
@@ -95,6 +95,8 @@ public:
 	void SetMouseClickDetectionDuration(int value);
 	void SetMouseClickDetectionMode(UINT32 value);
 	void SetSnapshotSaveFormat(GUID value);
+	void SetMaxVideoWidth(UINT32 value);
+	void SetMaxVideoHeight(UINT32 value);
 
 private:
 	// Format constants
@@ -157,6 +159,8 @@ private:
 	UINT32 m_MouseClickDetectionRadius = 20;
 	UINT32 m_MouseClickDetectionMode = MOUSE_DETECTION_MODE_POLLING;
 	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;
+	UINT32 m_MaxVideoWidth = 0;
+	UINT32 m_MaxVideoHeight = 0;
 
 	//functions
 	std::string CurrentTimeToFormattedString();

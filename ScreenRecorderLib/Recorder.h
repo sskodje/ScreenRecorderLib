@@ -136,6 +136,8 @@ namespace ScreenRecorderLib {
 			EncoderProfile = H264Profile::Baseline;
 			BitrateMode = BitrateControlMode::Quality;
 			SnapshotFormat = ImageFormat::PNG;
+			MaxHeight = 0;
+			MaxWidth = 0;
 		}
 		property H264Profile EncoderProfile;
 		/// <summary>
@@ -162,6 +164,14 @@ namespace ScreenRecorderLib {
 		///Image format for snapshots. This is only used with Snapshot and Slideshow modes.
 		/// </summary>
 		property ImageFormat SnapshotFormat;
+		/// <summary>
+		/// Maximum width, in pixels, of the output video 
+		/// </summary>
+		property int MaxWidth;	
+		/// <summary>
+		/// Maximum height, in pixels, of the output video;
+		/// </summary>
+		property int MaxHeight;
 	};
 	public ref class AudioOptions {
 	public:
