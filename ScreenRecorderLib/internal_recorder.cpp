@@ -208,6 +208,16 @@ void internal_recorder::SetSnapshotSaveFormat(GUID value) {
 	m_ImageEncoderFormat = value;
 }
 
+void internal_recorder::SetMaxVideoWidth(UINT32 value)
+{
+	m_MaxVideoWidth = value;
+}
+
+void internal_recorder::SetMaxVideoHeight(UINT32 value)
+{
+	m_MaxVideoHeight = value;
+}
+
 std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vector<BYTE> &second)
 {
 	std::vector<BYTE> newvector;
@@ -1215,6 +1225,20 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	UINT destWidth = max(0, destRect.right - destRect.left);
 	UINT destHeight = max(0, destRect.bottom - destRect.top);
 
+	UINT outputWidth = destWidth, outputHeight = destHeight;
+	if (m_MaxVideoHeight != 0 || m_MaxVideoWidth != 0) {
+		double aspect = (double)destWidth / (double)destHeight;
+
+		if (m_MaxVideoWidth != 0 && destWidth > m_MaxVideoWidth) {
+			outputHeight = m_MaxVideoWidth / aspect;
+			outputWidth = m_MaxVideoWidth;
+		}
+		else if(m_MaxVideoHeight != 0 && destHeight > m_MaxVideoHeight){
+			outputWidth = m_MaxVideoHeight * aspect;
+			outputHeight = m_MaxVideoHeight;
+		}
+	}
+
 	// Set the output video type.
 	RETURN_ON_BAD_HR(MFCreateMediaType(&pVideoMediaTypeOut));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
@@ -1223,7 +1247,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_MPEG2_PROFILE, m_H264Profile));
 	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT601));
-	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeOut, MF_MT_FRAME_SIZE, destWidth, destHeight));
+	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeOut, MF_MT_FRAME_SIZE, outputWidth, outputHeight));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeOut, MF_MT_FRAME_RATE, m_VideoFps, 1));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeOut, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
 

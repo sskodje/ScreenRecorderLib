@@ -98,7 +98,16 @@
                              VerticalContentAlignment="Center"
                              GotFocus="TextBox_GotFocus"
                              MinWidth="30" />
-
+                    <Label Content="w" />
+                    <TextBox x:Name="RecordingAreaMaxWidthTextBox"
+                             VerticalContentAlignment="Center"
+                             GotFocus="TextBox_GotFocus"
+                             MinWidth="30" />
+                    <Label Content="h" />
+                    <TextBox x:Name="RecordingAreaMaxHeightTextBox"
+                             VerticalContentAlignment="Center"
+                             GotFocus="TextBox_GotFocus"
+                             MinWidth="30" />
                 </StackPanel>
                 <Grid>
                     <Grid.ColumnDefinitions>
