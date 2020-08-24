@@ -1252,6 +1252,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	UINT destWidth = max(0, destRect.right - destRect.left);
 	UINT destHeight = max(0, destRect.bottom - destRect.top);
 
+	// Compute the potentially constrained video output size
 	UINT outputWidth = destWidth, outputHeight = destHeight;
 	if (m_MaxVideoHeight != 0 || m_MaxVideoWidth != 0) {
 		double aspect = (double)destWidth / (double)destHeight;
@@ -1260,7 +1261,8 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 			outputHeight = m_MaxVideoWidth / aspect;
 			outputWidth = m_MaxVideoWidth;
 		}
-		else if(m_MaxVideoHeight != 0 && destHeight > m_MaxVideoHeight){
+
+		if(m_MaxVideoHeight != 0 && destHeight > m_MaxVideoHeight){
 			outputWidth = m_MaxVideoHeight * aspect;
 			outputHeight = m_MaxVideoHeight;
 		}
