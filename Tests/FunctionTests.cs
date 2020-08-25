@@ -425,6 +425,47 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
+        public void DefaultRecordingOneMinuteToFileTest()
+        {
+            string filePath = Path.Combine(Path.GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
+            {
+                using (var rec = Recorder.CreateRecorder())
+                {
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        resetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        resetEvent.Set();
+                    };
+
+                    rec.Record(filePath);
+                    Thread.Sleep(60*1000);
+                    rec.Stop();
+                    resetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+            }
+        }
+
+        [TestMethod]
         public void Run50RecordingsTestWithDifferentInstances()
         {
             for (int i = 0; i < 50; i++)
