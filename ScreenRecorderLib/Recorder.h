@@ -17,15 +17,23 @@ delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fi
 delegate void InternalErrorCallbackDelegate(std::wstring path);
 
 namespace ScreenRecorderLib {
+	public enum class LogLevel
+	{
+		Trace = 0,
+		Debug = 1,
+		Info = 2,
+		Warn = 3,
+		Error = 4
+	};
 	public enum class MouseDetectionMode {
 		///<summary>
 		///Use polling for detecting mouse clicks. Does not affect mouse performance, but may not work for all mouse clicks generated programmatically.
 		///</summary>
-		Polling= MOUSE_DETECTION_MODE_POLLING,
+		Polling = MOUSE_DETECTION_MODE_POLLING,
 		///<summary>
 		///Use a low level system hook for detecting mouse clicks. Works more reliably for programmatic events, but can negatively affect mouse performance while recording.
 		///</summary>
-		Hook= MOUSE_DETECTION_MODE_HOOK
+		Hook = MOUSE_DETECTION_MODE_HOOK
 	};
 	public enum class ImageFormat {
 		PNG,
@@ -62,7 +70,7 @@ namespace ScreenRecorderLib {
 		///<summary>Record as mp4 video in h264 format. </summary>
 		Video = MODE_VIDEO,
 		///<summary>Record one PNG picture for each frame. </summary>
-		Slideshow= MODE_SLIDESHOW,
+		Slideshow = MODE_SLIDESHOW,
 		///<summary>Make a snapshot of the screen. </summary>
 		Snapshot = MODE_SNAPSHOT
 	};
@@ -240,6 +248,13 @@ namespace ScreenRecorderLib {
 			IsLowLatencyEnabled = false;
 			IsHardwareEncodingEnabled = true;
 			IsMp4FastStartEnabled = true;
+#if _DEBUG
+			IsLogEnabled = true;
+			LogSeverityLevel = LogLevel::Debug;
+#else
+			IsLogEnabled = false;
+			LogSeverityLevel = LogLevel::Info;
+#endif
 		}
 		property RecorderMode RecorderMode;
 		/// <summary>
@@ -262,7 +277,18 @@ namespace ScreenRecorderLib {
 		/// Fragments the video into a list of individually playable blocks. This allows playback of video segments that has no end, i.e. live streaming.
 		/// </summary>
 		property bool IsFragmentedMp4Enabled;
-
+		/// <summary>
+		/// Toggles logging. Default is on when debugging, off in release mode, this setting overrides it.
+		/// </summary>
+		property bool IsLogEnabled;
+		/// <summary>
+		/// A path to a file to write logs to. If this is not empty, all logs will be redirected to it.
+		/// </summary>
+		property String^ LogFilePath;
+		/// <summary>
+		/// The maximum level of the logs to write.
+		/// </summary>
+		property LogLevel LogSeverityLevel;
 
 		property VideoOptions^ VideoOptions;
 		property DisplayOptions^ DisplayOptions;

@@ -82,6 +82,11 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		lRec->SetIsFastStartEnabled(options->IsMp4FastStartEnabled);
 		lRec->SetIsHardwareEncodingEnabled(options->IsHardwareEncodingEnabled);
 		lRec->SetIsFragmentedMp4Enabled(options->IsFragmentedMp4Enabled);
+		lRec->SetIsLogEnabled(options->IsLogEnabled);
+		if (options->LogFilePath != nullptr) {
+			lRec->SetLogFilePath(msclr::interop::marshal_as<std::wstring>(options->LogFilePath));
+		}
+		lRec->SetLogSeverityLevel((UINT32)options->LogSeverityLevel);
 	}
 }
 

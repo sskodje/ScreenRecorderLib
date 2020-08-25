@@ -95,7 +95,9 @@ public:
 	void SetMouseClickDetectionDuration(int value);
 	void SetMouseClickDetectionMode(UINT32 value);
 	void SetSnapshotSaveFormat(GUID value);
-
+	void SetIsLogEnabled(bool value);
+	void SetLogFilePath(std::wstring value);
+	void SetLogSeverityLevel(int value);
 private:
 	// Format constants
 	const GUID   VIDEO_ENCODING_FORMAT = MFVideoFormat_H264;
