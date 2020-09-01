@@ -659,7 +659,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 							//Unexpected error, return.
 							ERROR(L"Error reinitializing desktop duplication with unexpected error, returning: %s", err.ErrorMessage());
 							return hr;
-							break;
 						}
 					}
 				}
@@ -674,6 +673,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 				INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100, 0);
 
+				//Delay frames that comes quicker than selected framerate to see if we can skip them.
 				if (frameNr > 0 //always draw first frame 
 					&& !m_IsFixedFramerate
 					&& (!m_IsMousePointerEnabled || FrameInfo.PointerShapeBufferSize == 0)//always redraw when pointer changes if we draw pointer

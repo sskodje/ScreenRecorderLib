@@ -682,7 +682,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 	// A non-zero mouse update timestamp indicates that there is a mouse position update and optionally a shape change
 	if (FrameInfo->LastMouseUpdateTime.QuadPart == 0)
 	{
-		return S_OK;
+		return S_FALSE;
 	}
 
 	bool UpdatePosition = true;
@@ -714,7 +714,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 	// No new shape
 	if (FrameInfo->PointerShapeBufferSize == 0)
 	{
-		return S_OK;
+		return S_FALSE;
 	}
 
 	// Old buffer too small
