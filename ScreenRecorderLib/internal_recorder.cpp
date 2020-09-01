@@ -753,57 +753,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					else {
 						if (gotMousePointer) {
 							hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
-							if (hr == DXGI_ERROR_ACCESS_LOST
-								|| hr == DXGI_ERROR_DEVICE_REMOVED) {
-								if (pDeskDupl) {
-									pDeskDupl->ReleaseFrame();
-									pDeskDupl.Release();
-								}
-								if (hr == DXGI_ERROR_DEVICE_REMOVED) {
-									switch (m_Device->GetDeviceRemovedReason())
-									{
-									case DXGI_ERROR_DEVICE_REMOVED:
-									case DXGI_ERROR_DEVICE_RESET:
-									case E_OUTOFMEMORY:
-									{
-										// Device is removed with expected reason, so we try reinitialize 
-										break;
-									}
-									default:
-									{
-										// Device is removed with unexpected reason, so we abort recording.
-										_com_error err(m_Device->GetDeviceRemovedReason());
-										ERROR("Lost access to video card with unexpected reason, aborting: %s", err.ErrorMessage());
-										return m_Device->GetDeviceRemovedReason();
-									}
-									}
-								}
+							if (FAILED(hr)) {
 								_com_error err(hr);
-								ERROR(L"Error drawing mouse pointer, reinitializing desktop duplication: %s", err.ErrorMessage());
-								hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
-
-								switch (hr)
-								{
-								case E_ACCESSDENIED:
-								case DXGI_ERROR_DEVICE_REMOVED:
-								case DXGI_ERROR_UNSUPPORTED:
-								case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
-								case DXGI_ERROR_SESSION_DISCONNECTED:
-								{
-									_com_error err(hr);
-									//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application or similar.
-									ERROR(L"Error reinitializing desktop duplication: %s", err.ErrorMessage());
-									wait(1);
-									continue;
-								}
-								default:
-								{
-									_com_error err(hr);
-									//Unexpected error, return.
-									ERROR(L"Error reinitializing desktop duplication with unexpected error, returning: %s", err.ErrorMessage());
-									return hr;
-								}
-								}
+								ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
+								//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
 							}
 						}
 					}
