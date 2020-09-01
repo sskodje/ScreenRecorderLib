@@ -569,6 +569,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 			INT frameTimeout = 0;
 			INT frameNr = 0;
+			INT totalCachedFrameDuration = 0;
 			CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 			std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
 			mouse_pointer::PTR_INFO PtrInfo;
@@ -709,8 +710,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				}
 
 				if (hr != DXGI_ERROR_WAIT_TIMEOUT) {
-					if (pPreviousFrameCopy)
-						pPreviousFrameCopy.Release();
 					RETURN_ON_BAD_HR(hr);
 				}
 
@@ -719,79 +718,92 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
 					RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopy));
 
-					if (pPreviousFrameCopy) {
-						m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
-					}
-					else if (pDesktopResource != nullptr) {
+
+					if (pDesktopResource != nullptr) {
 						CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
 						RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
 						m_ImmediateContext->CopyResource(pFrameCopy, pAcquiredDesktopImage);
+						if (pPreviousFrameCopy) {
+							pPreviousFrameCopy.Release();
+						}
+						//Copy new frame to pPreviousFrameCopy
+						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
+							RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
+							m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
+							SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
+						}
+						totalCachedFrameDuration = 0;
+					}
+					else if (pPreviousFrameCopy) {
+						m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
+						totalCachedFrameDuration += durationSinceLastFrame100Nanos;
 					}
 
 					SetDebugName(pFrameCopy, "FrameCopy");
 
-					if (pPreviousFrameCopy == nullptr
-						&& m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
-						RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
-						m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
-						SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
+					//When this happens, it probably means there is no screen output, so we show black screen instead of stale data.
+					//Desktop duplication sends a frame at the least about every 1 second, so over this it can be interpreted as no output.
+					if (totalCachedFrameDuration > m_MaxStaleFrameTime) {
+						if (pPreviousFrameCopy) {
+							pPreviousFrameCopy.Release();
+							RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
+							DEBUG("Clearing frame copy due to stale data. This most likely means there is no screen output, due to e.g. Windows power saving.");
+						}
 					}
+					else {
+						if (gotMousePointer) {
+							hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
+							if (hr == DXGI_ERROR_ACCESS_LOST
+								|| hr == DXGI_ERROR_DEVICE_REMOVED) {
+								if (pDeskDupl) {
+									pDeskDupl->ReleaseFrame();
+									pDeskDupl.Release();
+								}
+								if (hr == DXGI_ERROR_DEVICE_REMOVED) {
+									switch (m_Device->GetDeviceRemovedReason())
+									{
+									case DXGI_ERROR_DEVICE_REMOVED:
+									case DXGI_ERROR_DEVICE_RESET:
+									case E_OUTOFMEMORY:
+									{
+										// Device is removed with expected reason, so we try reinitialize 
+										break;
+									}
+									default:
+									{
+										// Device is removed with unexpected reason, so we abort recording.
+										_com_error err(m_Device->GetDeviceRemovedReason());
+										ERROR("Lost access to video card with unexpected reason, aborting: %s", err.ErrorMessage());
+										return m_Device->GetDeviceRemovedReason();
+									}
+									}
+								}
+								_com_error err(hr);
+								ERROR(L"Error drawing mouse pointer, reinitializing desktop duplication: %s", err.ErrorMessage());
+								hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
 
-					if (gotMousePointer) {
-						hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
-						if (hr == DXGI_ERROR_ACCESS_LOST
-							|| hr == DXGI_ERROR_DEVICE_REMOVED) {
-							if (pDeskDupl) {
-								pDeskDupl->ReleaseFrame();
-								pDeskDupl.Release();
-							}
-							if (hr == DXGI_ERROR_DEVICE_REMOVED) {
-								switch (m_Device->GetDeviceRemovedReason())
+								switch (hr)
 								{
+								case E_ACCESSDENIED:
 								case DXGI_ERROR_DEVICE_REMOVED:
-								case DXGI_ERROR_DEVICE_RESET:
-								case E_OUTOFMEMORY:
+								case DXGI_ERROR_UNSUPPORTED:
+								case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
+								case DXGI_ERROR_SESSION_DISCONNECTED:
 								{
-									// Device is removed with expected reason, so we try reinitialize 
-									break;
+									_com_error err(hr);
+									//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application or similar.
+									ERROR(L"Error reinitializing desktop duplication: %s", err.ErrorMessage());
+									wait(1);
+									continue;
 								}
 								default:
 								{
-									// Device is removed with unexpected reason, so we abort recording.
-									_com_error err(m_Device->GetDeviceRemovedReason());
-									ERROR("Lost access to video card with unexpected reason, aborting: %s", err.ErrorMessage());
-									return m_Device->GetDeviceRemovedReason();
+									_com_error err(hr);
+									//Unexpected error, return.
+									ERROR(L"Error reinitializing desktop duplication with unexpected error, returning: %s", err.ErrorMessage());
+									return hr;
 								}
 								}
-							}
-							_com_error err(hr);
-							ERROR(L"Error drawing mouse pointer, reinitializing desktop duplication: %s", err.ErrorMessage());
-							hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
-
-							switch (hr)
-							{
-							case E_ACCESSDENIED:
-							case DXGI_ERROR_DEVICE_REMOVED:
-							case DXGI_ERROR_UNSUPPORTED:
-							case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
-							case DXGI_ERROR_SESSION_DISCONNECTED:
-							{
-								_com_error err(hr);
-								//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application or similar.
-								//We continue the recording, and instead of desktop texture just add a blank texture instead.
-								wait(1);
-								continue;
-								ERROR(L"Error reinitializing desktop duplication: %s", err.ErrorMessage());
-								break;
-							}
-							default:
-							{
-								_com_error err(hr);
-								//Unexpected error, return.
-								ERROR(L"Error reinitializing desktop duplication with unexpected error, returning: %s", err.ErrorMessage());
-								return hr;
-								break;
-							}
 							}
 						}
 					}
@@ -852,8 +864,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				RecordingStatusChangedCallback(STATUS_FINALIZING);
 				DEBUG("Changed Recording Status to Finalizing");
 			}
-
-			pDeskDupl->ReleaseFrame();
+			if (pDeskDupl)
+				pDeskDupl->ReleaseFrame();
 			if (pPreviousFrameCopy)
 				pPreviousFrameCopy.Release();
 			if (pMousePointer) {
