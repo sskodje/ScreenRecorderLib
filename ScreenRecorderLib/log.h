@@ -5,6 +5,8 @@
 #include <iomanip>
 #include <sstream>
 
+#define LOG_BUFFER_SIZE 1024
+
 #define LOG_LVL_TRACE 0
 #define LOG_LVL_DEBUG 1
 #define LOG_LVL_INFO 2
@@ -23,10 +25,10 @@ extern std::wstring logFilePath;
 
 inline  void _log(int logLvl, const wchar_t * format, ...) {
 	if (isLoggingEnabled && logLvl >= logSeverityLevel) {
-		wchar_t buffer[256];
+		wchar_t buffer[LOG_BUFFER_SIZE];
 		va_list args;
 		va_start(args, format);
-		vswprintf(buffer, 256, format, args);
+		vswprintf(buffer, LOG_BUFFER_SIZE, format, args);
 		if (!logFilePath.empty()) {
 
 			std::wofstream logFile(logFilePath, std::ios_base::app | std::ios_base::out);
