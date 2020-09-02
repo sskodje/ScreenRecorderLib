@@ -637,6 +637,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 							hr = S_OK;
 							if (pPreviousFrameCopy) {
 								pPreviousFrameCopy.Release();
+								RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
 							}
 							else {
 								//We are just recording empty frames now. Slow down the framerate and rate of reconnect retry attempts to save resources.
