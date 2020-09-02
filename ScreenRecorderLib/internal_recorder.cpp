@@ -607,37 +607,18 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				}
 
 				if (pDeskDupl == nullptr
-					|| hr == DXGI_ERROR_ACCESS_LOST
-					|| hr == DXGI_ERROR_DEVICE_REMOVED) {
+					|| hr == DXGI_ERROR_ACCESS_LOST) {
+					if (pDeskDupl == nullptr) {
+						DEBUG(L"Error getting next frame due to Desktop Duplication instance is NULL, reinitializing");
+					}
+					else if (hr == DXGI_ERROR_ACCESS_LOST) {
+						_com_error err(hr);
+						DEBUG(L"Error getting next frame due to DXGI_ERROR_ACCESS_LOST, reinitializing: %s", err.ErrorMessage());
+
+					}
 					if (pDeskDupl) {
 						pDeskDupl->ReleaseFrame();
 						pDeskDupl.Release();
-					}
-					if (pDeskDupl == nullptr) {
-						ERROR(L"pDeskDupl is NULL, reinitializing");
-					}
-					else {
-						if (hr == DXGI_ERROR_DEVICE_REMOVED) {
-							switch (m_Device->GetDeviceRemovedReason())
-							{
-							case DXGI_ERROR_DEVICE_REMOVED:
-							case DXGI_ERROR_DEVICE_RESET:
-							case E_OUTOFMEMORY:
-							{
-								// Device is removed with expected reason, so we try reinitialize 
-								break;
-							}
-							default:
-							{
-								// Device is removed with unexpected reason, so we abort recording.
-								_com_error err(m_Device->GetDeviceRemovedReason());
-								ERROR("Lost access to video card with unexpected reason, aborting: %s", err.ErrorMessage());
-								return m_Device->GetDeviceRemovedReason();
-							}
-							}
-						}
-						_com_error err(hr);
-						ERROR(L"Error getting next frame, reinitializing: %s", err.ErrorMessage());
 					}
 					hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
 					if (FAILED(hr))
@@ -645,22 +626,40 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						_com_error err(hr);
 						switch (hr)
 						{
-						case E_ACCESSDENIED:
 						case DXGI_ERROR_DEVICE_REMOVED:
-						case DXGI_ERROR_UNSUPPORTED:
-						case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
+						case DXGI_ERROR_DEVICE_RESET:
+							return m_Device->GetDeviceRemovedReason();
+						case E_ACCESSDENIED:
+						case DXGI_ERROR_MODE_CHANGE_IN_PROGRESS:
 						case DXGI_ERROR_SESSION_DISCONNECTED:
 							//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application is launching, or similar.
 							//We continue the recording, and instead of desktop texture just add a blank texture instead.
 							hr = S_OK;
-							ERROR(L"Error reinitializing desktop duplication: %s", err.ErrorMessage());
+							if (pPreviousFrameCopy) {
+								pPreviousFrameCopy.Release();
+							}
+							else {
+								//We are just recording empty frames now. Slow down the framerate and rate of reconnect retry attempts to save resources.
+								wait(200);
+							}
+							WARN(L"Desktop duplication temporarily unavailable: %s", err.ErrorMessage());
 							break;
+						case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
+							ERROR(L"Error reinitializing desktop duplication with DXGI_ERROR_NOT_CURRENTLY_AVAILABLE. This means DXGI reached the limit on the maximum number of concurrent duplication applications (default of four). Therefore, the calling application cannot create any desktop duplication interfaces until the other applications close");
+							return hr;
 						default:
 							//Unexpected error, return.
-							ERROR(L"Error reinitializing desktop duplication with unexpected error, returning: %s", err.ErrorMessage());
+							ERROR(L"Error reinitializing desktop duplication with unexpected error, aborting: %s", err.ErrorMessage());
 							return hr;
 						}
 					}
+					else {
+						DEBUG("Desktop duplication reinitialized");
+						continue;
+					}
+				}
+				else if (FAILED(hr) && hr != DXGI_ERROR_WAIT_TIMEOUT) {
+					return hr;
 				}
 
 				if (m_RecorderMode == MODE_SLIDESHOW
@@ -775,11 +774,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					model.StartPos = lastFrameStartPos;
 					model.Audio = recordAudio ? GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice) : std::vector<BYTE>();
 					model.FrameNumber = frameNr;
-					hr = m_EncoderResult = RenderFrame(model);
+					RETURN_ON_BAD_HR(hr = m_EncoderResult = RenderFrame(model));
 
-					if (FAILED(hr)) {
-						break;
-					}
 					if (m_RecorderMode == MODE_SNAPSHOT) {
 						break;
 					}
