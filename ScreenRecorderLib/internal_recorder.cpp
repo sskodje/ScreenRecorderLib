@@ -1508,7 +1508,7 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 			ERROR(L"Writing of video frame with start pos %lld ms failed: %s", (HundredNanosToMillis(model.StartPos)), err.ErrorMessage());
 			return hr;//Stop recording if we fail
 		}
-
+		bool paddedAudio = false;
 		bool isAudioEnabled = m_IsAudioEnabled
 			&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
 		/* If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
@@ -1520,7 +1520,7 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 				int frameCount = int(ceil(m_InputAudioSamplesPerSecond * HundredNanosToMillis(model.Duration) / 1000));
 				int byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8) * m_AudioChannels;
 				model.Audio.insert(model.Audio.end(), byteCount, 0);
-				TRACE(L"Inserted %zd bytes of silence", model.Audio.size());
+				paddedAudio = true;
 			}
 			m_LastFrameHadAudio = false;
 		}
@@ -1539,7 +1539,8 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 				wroteAudioSample = true;
 			}
 		}
-		TRACE(L"Wrote %s with start pos %lld ms and with duration %lld ms", wroteAudioSample ? L"video and audio sample" : L"video sample", HundredNanosToMillis(model.StartPos), HundredNanosToMillis(model.Duration));
+		auto frameInfoStr = wroteAudioSample ? (paddedAudio ? L"video sample and audio padding" : L"video and audio sample") : L"video sample";
+		TRACE(L"Wrote %s with start pos %lld ms and with duration %lld ms", frameInfoStr, HundredNanosToMillis(model.StartPos), HundredNanosToMillis(model.Duration));
 	}
 	else if (m_RecorderMode == MODE_SLIDESHOW) {
 		wstring	path = m_OutputFolder + L"\\" + to_wstring(model.FrameNumber) + GetImageExtension();
