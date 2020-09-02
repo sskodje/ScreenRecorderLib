@@ -409,8 +409,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = make_unique<loopback_capture>();
 			CComPtr<IDXGIOutput> pSelectedOutput = nullptr;
 			hr = GetOutputForDeviceName(m_DisplayOutputName, &pSelectedOutput);
-			RETURN_ON_BAD_HR(hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &m_Device, &pDeskDupl, &outputDuplDesc));
-
+			RETURN_ON_BAD_HR(hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &m_Device));
+			RETURN_ON_BAD_HR(hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc));
 			DXGI_MODE_ROTATION screenRotation = outputDuplDesc.Rotation;
 			D3D11_TEXTURE2D_DESC sourceFrameDesc;
 			D3D11_TEXTURE2D_DESC destFrameDesc;
@@ -1034,10 +1034,9 @@ HRESULT internal_recorder::initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out
 	return S_OK;
 }
 
-HRESULT internal_recorder::InitializeDx(_In_opt_ IDXGIOutput * pDxgiOutput, _Outptr_ ID3D11DeviceContext * *ppContext, _Outptr_ ID3D11Device * *ppDevice, _Outptr_ IDXGIOutputDuplication * *ppDesktopDupl, _Out_ DXGI_OUTDUPL_DESC * pOutputDuplDesc) {
+HRESULT internal_recorder::InitializeDx(_In_opt_ IDXGIOutput * pDxgiOutput, _Outptr_ ID3D11DeviceContext * *ppContext, _Outptr_ ID3D11Device * *ppDevice) {
 	*ppContext = nullptr;
 	*ppDevice = nullptr;
-	*ppDesktopDupl = nullptr;
 
 	HRESULT hr(S_OK);
 	DXGI_OUTDUPL_DESC OutputDuplDesc;
@@ -1106,17 +1105,12 @@ HRESULT internal_recorder::InitializeDx(_In_opt_ IDXGIOutput * pDxgiOutput, _Out
 	pMulti.Release();
 	if (pDevice == nullptr)
 		return E_FAIL;
-	hr = InitializeDesktopDupl(pDevice, pDxgiOutput, &pDeskDupl, &OutputDuplDesc);
-	RETURN_ON_BAD_HR(hr);
 
 	// Return the pointer to the caller.
 	*ppContext = m_ImmediateContext;
 	(*ppContext)->AddRef();
 	*ppDevice = pDevice;
 	(*ppDevice)->AddRef();
-	*ppDesktopDupl = pDeskDupl;
-	(*ppDesktopDupl)->AddRef();
-	*pOutputDuplDesc = OutputDuplDesc;
 
 	return hr;
 }
