@@ -6,6 +6,7 @@ using namespace DirectX;
 
 HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device)
 {
+	CleanupResources();
 	// Create the sample state
 	D3D11_SAMPLER_DESC SampDesc;
 	RtlZeroMemory(&SampDesc, sizeof(SampDesc));
@@ -637,7 +638,6 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Device* Device)
 {
 	HRESULT hr;
-
 	UINT Size = ARRAYSIZE(g_VS);
 	hr = Device->CreateVertexShader(g_VS, Size, nullptr, &m_VertexShader);
 	if (FAILED(hr))
@@ -765,4 +765,6 @@ void mouse_pointer::CleanupResources()
 		m_VertexShader.Release();
 	if (m_PixelShader)
 		m_PixelShader.Release();
+	if (m_D2DFactory)
+		m_D2DFactory.Release();
 }
