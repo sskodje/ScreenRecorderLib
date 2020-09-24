@@ -53,6 +53,10 @@ namespace TestApp
         public Dictionary<string, string> AudioOutputsList { get; set; } = new Dictionary<string, string>();
         public bool IsAudioInEnabled { get; set; } = false;
         public bool IsAudioOutEnabled { get; set; } = true;
+        public string LogFilePath { get; set; } = "log.txt";
+        public bool IsLogToFileEnabled { get; set; }
+        public bool IsLogEnabled { get; set; } = true;
+        public LogLevel LogSeverityLevel { get; set; } = LogLevel.Debug;
 
         private bool _recordToStream;
         public bool RecordToStream
@@ -231,6 +235,10 @@ namespace TestApp
                 IsLowLatencyEnabled = this.IsLowLatencyEnabled,
                 IsMp4FastStartEnabled = this.IsMp4FastStartEnabled,
                 IsFragmentedMp4Enabled = this.IsFragmentedMp4Enabled,
+                IsLogEnabled = this.IsLogEnabled,
+                LogSeverityLevel = this.LogSeverityLevel,
+                LogFilePath = IsLogToFileEnabled ? this.LogFilePath : "",
+
                 AudioOptions = new AudioOptions
                 {
                     Bitrate = AudioBitrate.bitrate_96kbps,

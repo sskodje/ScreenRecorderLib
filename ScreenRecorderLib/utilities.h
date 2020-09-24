@@ -11,7 +11,7 @@
     if (FAILED(_hr_)) { \
     {\
         _com_error err(_hr_);\
-        ERR(L"RETURN_ON_BAD_HR: %ls", err.ErrorMessage());\
+        ERROR(L"RETURN_ON_BAD_HR: %ls", err.ErrorMessage());\
     }\
         return _hr_; \
     } \
@@ -23,7 +23,7 @@
     if (FAILED(_hr_)) { \
     {\
         _com_error err(_hr_);\
-        ERR(L"BAD HR: %ls", err.ErrorMessage());\
+        ERROR(L"BAD HR: %ls", err.ErrorMessage());\
     }\
     } \
 }

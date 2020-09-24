@@ -45,6 +45,72 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
+        public void QualitySettingTest()
+        {
+            long fullQualitySize;
+            long lowestQualitySize;
+            using (var outStream = new MemoryStream())
+            {
+                using (var rec = Recorder.CreateRecorder(new RecorderOptions { VideoOptions = new VideoOptions { BitrateMode = BitrateControlMode.Quality, Quality = 100 } }))
+                {
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        resetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        resetEvent.Set();
+                    };
+
+                    rec.Record(outStream);
+                    Thread.Sleep(3000);
+                    rec.Stop();
+                    resetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError);
+                    Assert.IsTrue(isComplete);
+                    Assert.AreNotEqual(outStream.Length, 0);
+                    fullQualitySize = outStream.Length;
+                }
+            }
+            using (var outStream = new MemoryStream())
+            {
+                using (var rec = Recorder.CreateRecorder(new RecorderOptions { VideoOptions = new VideoOptions { BitrateMode = BitrateControlMode.Quality, Quality = 0 } }))
+                {
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        resetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        resetEvent.Set();
+                    };
+
+                    rec.Record(outStream);
+                    Thread.Sleep(3000);
+                    rec.Stop();
+                    resetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError);
+                    Assert.IsTrue(isComplete);
+                    Assert.AreNotEqual(outStream.Length, 0);
+                    lowestQualitySize = outStream.Length;
+                }
+            }
+            Assert.IsTrue(fullQualitySize > lowestQualitySize*2);
+        }
+
+        [TestMethod]
         public void SoftwareEncodingTest()
         {
             using (var outStream = new MemoryStream())
@@ -120,7 +186,7 @@ namespace ScreenRecorderLib
             using (var outStream = new MemoryStream())
             {
                 RecorderOptions options = new RecorderOptions();
-                options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled=true };
+                options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled = true };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
                     bool isError = false;
@@ -407,6 +473,47 @@ namespace ScreenRecorderLib
 
                     rec.Record(filePath);
                     Thread.Sleep(3000);
+                    rec.Stop();
+                    resetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+            }
+        }
+
+        [TestMethod]
+        public void DefaultRecordingOneMinuteToFileTest()
+        {
+            string filePath = Path.Combine(Path.GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
+            {
+                using (var rec = Recorder.CreateRecorder())
+                {
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        resetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        resetEvent.Set();
+                    };
+
+                    rec.Record(filePath);
+                    Thread.Sleep(60 * 1000);
                     rec.Stop();
                     resetEvent.WaitOne(5000);
 
