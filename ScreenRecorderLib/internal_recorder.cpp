@@ -174,6 +174,14 @@ void internal_recorder::SetDestRectangle(RECT rect)
 		rect.bottom += 1;
 	m_DestRect = rect;
 }
+void internal_recorder::SetInputVolume(float volume)
+{
+	m_InputVolumeModifier = volume;
+}
+void internal_recorder::SetOutputVolume(float volume)
+{
+	m_OutputVolumeModifier = volume;
+}
 void internal_recorder::SetDisplayOutput(UINT32 output)
 {
 	m_DisplayOutput = output;
@@ -227,36 +235,36 @@ void internal_recorder::SetLogSeverityLevel(int value) {
 	logSeverityLevel = value;
 }
 
-std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vector<BYTE> &second)
-{
-	std::vector<BYTE> newvector;
+std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vector<BYTE> &second, float firstVolume, float secondVolume)
+{	
+	std::vector<BYTE> newvector(max(first.size(), second.size()));
 
-	size_t smaller;
+	for (size_t i = 0; i < newvector.size(); i += 2) {
 
-	if (first.size() >= second.size())
-	{
-		newvector.insert(newvector.end(), first.begin(), first.end());
-		smaller = second.size();
-	}
-	else
-	{
-		newvector.insert(newvector.end(), second.begin(), second.end());
-		smaller = first.size();
-	}
+		short buf1A = 0;
+		short buf2A = 0;
 
-	for (int i = 0; i < smaller; i += 2) {
-		short buf1A = first[i + 1];
-		short buf2A = first[i];
-		buf1A = (short)((buf1A & 0xff) << 8);
-		buf2A = (short)(buf2A & 0xff);
+		if (i + 1 < first.size())
+		{
+			buf1A = first[i + 1];
+			buf2A = first[i];
+			buf1A = (short)((buf1A & 0xff) << 8);
+			buf2A = (short)(buf2A & 0xff);
+		}
 
-		short buf1B = second[i + 1];
-		short buf2B = second[i];
-		buf1B = (short)((buf1B & 0xff) << 8);
-		buf2B = (short)(buf2B & 0xff);
+		short buf1B = 0;
+		short buf2B = 0;
 
-		short buf1C = (short)(buf1A + buf1B);
-		short buf2C = (short)(buf2A + buf2B);
+		if (i + 1 < second.size())
+		{
+			buf1B = second[i + 1];
+			buf2B = second[i];
+			buf1B = (short)((buf1B & 0xff) << 8);
+			buf2B = (short)(buf2B & 0xff);
+		}
+
+		short buf1C = (short) round(buf1A * firstVolume + buf1B * secondVolume);
+		short buf2C = (short) round(buf2A * firstVolume + buf2B * secondVolume);
 
 		short res = (short)(buf1C + buf2C);
 
@@ -963,12 +971,12 @@ std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_cap
 		if (pLoopbackCaptureOutputDevice->PeakRecordedBytes().size() > 0) {
 			std::vector<BYTE> outputDeviceData = pLoopbackCaptureOutputDevice->GetRecordedBytes(0);
 			std::vector<BYTE> inputDeviceData = pLoopbackCaptureInputDevice->GetRecordedBytes(outputDeviceData.size());
-			return std::move(MixAudio(outputDeviceData, inputDeviceData));
+			return std::move(MixAudio(outputDeviceData, inputDeviceData, m_OutputVolumeModifier, m_InputVolumeModifier));
 		}
 		else {
 			std::vector<BYTE> inputDeviceData = pLoopbackCaptureInputDevice->GetRecordedBytes();
 			std::vector<BYTE> outputDeviceData = pLoopbackCaptureOutputDevice->GetRecordedBytes(inputDeviceData.size());
-			return std::move(MixAudio(outputDeviceData, inputDeviceData));
+			return std::move(MixAudio(outputDeviceData, inputDeviceData, m_OutputVolumeModifier, m_InputVolumeModifier));
 		}
 	}
 	else if (m_IsOutputDeviceEnabled && pLoopbackCaptureOutputDevice)

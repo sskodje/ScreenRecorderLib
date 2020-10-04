@@ -243,7 +243,9 @@ namespace TestApp
                     IsOutputDeviceEnabled = IsAudioOutEnabled,
                     IsInputDeviceEnabled = IsAudioInEnabled,
                     AudioOutputDevice = audioOutputDevice,
-                    AudioInputDevice = audioInputDevice
+                    AudioInputDevice = audioInputDevice,
+                    InputVolume = (float)InputVolumeSlider.Value,
+                    OutputVolume = (float)OutputVolumeSlider.Value
                 },
                 VideoOptions = new VideoOptions
                 {
@@ -495,6 +497,23 @@ namespace TestApp
                     default:
                         break;
                 }
+            }
+        }
+
+        private void OnInputVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_rec != null)
+            {
+                _rec.SetInputVolume((float)e.NewValue);
+            }
+            
+        }
+
+        private void OnOutputVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_rec != null)
+            {
+                _rec.SetOutputVolume((float)e.NewValue);
             }
         }
     }

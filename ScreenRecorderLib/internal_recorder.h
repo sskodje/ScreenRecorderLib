@@ -77,6 +77,9 @@ public:
 	void SetInputDeviceEnabled(bool value);
 	void SetMousePointerEnabled(bool value);
 	void SetDestRectangle(RECT rect);
+	void SetInputVolume(float volume);
+	void SetOutputVolume(float volume);
+	
 	[[deprecated]]
 	void SetDisplayOutput(UINT32 output);
 	void SetDisplayOutput(std::wstring output);
@@ -161,11 +164,12 @@ private:
 	UINT32 m_MouseClickDetectionRadius = 20;
 	UINT32 m_MouseClickDetectionMode = MOUSE_DETECTION_MODE_POLLING;
 	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;
-
+	float m_InputVolumeModifier = 1;
+	float m_OutputVolumeModifier = 1;
 	//functions
 	std::string CurrentTimeToFormattedString();
 	std::vector<BYTE> GrabAudioFrame(std::unique_ptr<loopback_capture>& pLoopbackCaptureOutputDevice, std::unique_ptr<loopback_capture>& pLoopbackCaptureInputDevice);
-	std::vector<BYTE> MixAudio(std::vector<BYTE> &first, std::vector<BYTE> &second);
+	std::vector<BYTE> MixAudio(std::vector<BYTE> &first, std::vector<BYTE> &second, float firstVolume, float secondVolume);
 	void SetDebugName(ID3D11DeviceChild* child, const std::string& name);
 	void SetViewPort(ID3D11DeviceContext *deviceContext, UINT Width, UINT Height);
 	std::wstring GetImageExtension();

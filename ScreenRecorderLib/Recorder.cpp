@@ -65,6 +65,8 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			if (options->AudioOptions->AudioInputDevice != nullptr) {
 				lRec->SetInputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioInputDevice));
 			}
+			lRec->SetInputVolume(options->AudioOptions->InputVolume);
+			lRec->SetOutputVolume(options->AudioOptions->OutputVolume);
 		}
 		if (options->MouseOptions) {
 			lRec->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled);
@@ -87,6 +89,22 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			lRec->SetLogFilePath(msclr::interop::marshal_as<std::wstring>(options->LogFilePath));
 		}
 		lRec->SetLogSeverityLevel((UINT32)options->LogSeverityLevel);
+	}
+}
+
+void Recorder::SetInputVolume(float volume)
+{
+	if(lRec)
+	{
+		lRec->SetInputVolume(volume);
+	}
+}
+
+void Recorder::SetOutputVolume(float volume)
+{
+	if (lRec)
+	{
+		lRec->SetOutputVolume(volume);
 	}
 }
 

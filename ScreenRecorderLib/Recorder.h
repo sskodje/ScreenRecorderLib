@@ -179,6 +179,8 @@ namespace ScreenRecorderLib {
 			IsInputDeviceEnabled = false;
 			Bitrate = AudioBitrate::bitrate_96kbps;
 			Channels = AudioChannels::Stereo;
+			InputVolume = 1.0f;
+			OutputVolume = 1.0f;
 		}
 		property bool IsAudioEnabled;
 		/// <summary>
@@ -199,6 +201,20 @@ namespace ScreenRecorderLib {
 		///Audio input device to capture audio from. Pass null or empty string to select system default.
 		/// </summary>
 		property String^ AudioInputDevice;
+
+		/// <summary>
+		/// Volume if the input stream. Recommended values are between 0 and 1.
+		/// Value of 0 mutes the stream and value of 1 makes it original volume.
+		/// This value can be changed after the recording is started with SetInputVolume() method.
+		/// </summary>
+		property float InputVolume;
+
+		/// <summary>
+		/// Volume if the output stream. Recommended values are between 0 and 1.
+		/// Value of 0 mutes the stream and value of 1 makes it original volume.
+		/// This value can be changed after the recording is started with SetOutputVolume() method.
+		/// </summary>
+		property float OutputVolume;
 	};
 	public ref class MouseOptions {
 	public:
@@ -354,6 +370,8 @@ namespace ScreenRecorderLib {
 		void Resume();
 		void Stop();
 		void SetOptions(RecorderOptions^ options);
+		void SetInputVolume(float volume);
+		void SetOutputVolume(float volume);
 		static Recorder^ CreateRecorder();
 		static Recorder^ CreateRecorder(RecorderOptions^ options);
 		static Dictionary<String^, String^>^ GetSystemAudioDevices(AudioDeviceSource source);
