@@ -235,7 +235,7 @@ void internal_recorder::SetLogSeverityLevel(int value) {
 	logSeverityLevel = value;
 }
 
-std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vector<BYTE> &second, float firstVolume, float secondVolume)
+std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> const &first, std::vector<BYTE> const &second, float firstVolume, float secondVolume)
 {	
 	std::vector<BYTE> newvector(max(first.size(), second.size()));
 
@@ -1069,7 +1069,7 @@ HRESULT internal_recorder::InitializeDx(_In_opt_ IDXGIOutput * pDxgiOutput, _Out
 	}
 	else
 	{
-		for each (D3D_DRIVER_TYPE type in gDriverTypes)
+		for(D3D_DRIVER_TYPE type : gDriverTypes)
 		{
 			driverTypes.push_back(type);
 		}
@@ -1196,7 +1196,7 @@ HRESULT internal_recorder::GetOutputForDeviceName(std::wstring deviceName, _Outp
 	*ppOutput = nullptr;
 	if (deviceName != L"") {
 		std::vector<CComPtr<IDXGIAdapter>> adapters = EnumDisplayAdapters();
-		for each (CComPtr<IDXGIAdapter> adapter in adapters)
+		for(CComPtr<IDXGIAdapter> adapter : adapters)
 		{
 			IDXGIOutput *pOutput;
 			int i = 0;
@@ -1511,7 +1511,7 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 
 	if (m_RecorderMode == MODE_VIDEO) {
 		hr = WriteFrameToVideo(model.StartPos, model.Duration, m_VideoStreamIndex, model.Frame);
-		bool wroteAudioSample;
+		bool wroteAudioSample=false;
 		if (FAILED(hr)) {
 			_com_error err(hr);
 			ERROR(L"Writing of video frame with start pos %lld ms failed: %s", (HundredNanosToMillis(model.StartPos)), err.ErrorMessage());

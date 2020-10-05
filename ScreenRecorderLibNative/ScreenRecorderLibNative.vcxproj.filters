@@ -15,57 +15,60 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\ScreenRecorderLib\utilities.h">
+    <ClInclude Include="utilities.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\ScreenRecorderLib\WWMFResampler.h">
+    <ClInclude Include="WWMFResampler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\ScreenRecorderLib\string_format.h">
+    <ClInclude Include="string_format.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\ScreenRecorderLib\mouse_pointer.h">
+    <ClInclude Include="mouse_pointer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\ScreenRecorderLib\loopback_capture.h">
+    <ClInclude Include="loopback_capture.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\ScreenRecorderLib\log.h">
+    <ClInclude Include="log.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\ScreenRecorderLib\internal_recorder.h">
+    <ClInclude Include="internal_recorder.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\ScreenRecorderLib\fifo_map.h">
+    <ClInclude Include="fifo_map.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\ScreenRecorderLib\cleanup.h">
+    <ClInclude Include="cleanup.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\ScreenRecorderLib\audio_prefs.h">
+    <ClInclude Include="audio_prefs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="native.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\ScreenRecorderLib\audio_prefs.cpp">
+    <ClCompile Include="audio_prefs.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\ScreenRecorderLib\internal_recorder.cpp">
+    <ClCompile Include="internal_recorder.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\ScreenRecorderLib\loopback_capture.cpp">
+    <ClCompile Include="loopback_capture.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\ScreenRecorderLib\mouse_pointer.cpp">
+    <ClCompile Include="mouse_pointer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\ScreenRecorderLib\WWMFResampler.cpp">
+    <ClCompile Include="WWMFResampler.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="..\ScreenRecorderLib\VertexShader.hlsl" />
-    <FxCompile Include="..\ScreenRecorderLib\PixelShader.hlsl" />
+    <FxCompile Include="VertexShader.hlsl" />
+    <FxCompile Include="PixelShader.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

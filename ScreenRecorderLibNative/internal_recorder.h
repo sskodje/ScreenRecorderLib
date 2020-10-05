@@ -169,7 +169,7 @@ private:
 	//functions
 	std::string CurrentTimeToFormattedString();
 	std::vector<BYTE> GrabAudioFrame(std::unique_ptr<loopback_capture>& pLoopbackCaptureOutputDevice, std::unique_ptr<loopback_capture>& pLoopbackCaptureInputDevice);
-	std::vector<BYTE> MixAudio(std::vector<BYTE> &first, std::vector<BYTE> &second, float firstVolume, float secondVolume);
+	std::vector<BYTE> MixAudio(std::vector<BYTE> const &first, std::vector<BYTE> const &second, float firstVolume, float secondVolume);
 	void SetDebugName(ID3D11DeviceChild* child, const std::string& name);
 	void SetViewPort(ID3D11DeviceContext *deviceContext, UINT Width, UINT Height);
 	std::wstring GetImageExtension();

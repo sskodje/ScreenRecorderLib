@@ -3,9 +3,7 @@
 #include <memory>
 #include <msclr\marshal.h>
 #include <msclr\marshal_cppstd.h>
-#include "cleanup.h"
 #include "ManagedIStream.h"
-#include "internal_recorder.h"
 using namespace ScreenRecorderLib;
 using namespace nlohmann;
 

@@ -1,7 +1,6 @@
 // prefs.cpp
 //https://github.com/mvaneerde/blog/tree/master/loopback-capture
 #include <stdio.h>
-
 #include <windows.h>
 #include <avrt.h>
 #include <mmdeviceapi.h>
@@ -185,7 +184,7 @@ HRESULT CPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wstring
 		}
 		PropVariantClearOnExit clearPv(&pv);
 
-		LPWSTR deviceID = L"";
+		LPWSTR deviceID;
 		hr = pMMDevice->GetId(&deviceID);
 		if (FAILED(hr)) {
 			ERROR(L"IMMDevice->GetId(deviceID) failed: hr = 0x%08x", hr);
@@ -254,7 +253,7 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 		ReleaseOnExit releaseMMDevice(pMMDevice);
 
 		// get device id
-		LPWSTR deviceID = L"";
+		LPWSTR deviceID;
 		hr = pMMDevice->GetId(&deviceID);
 		if (FAILED(hr)) {
 			ERROR(L"IMMDevice->GetId(deviceID) failed: hr = 0x%08x", hr);

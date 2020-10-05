@@ -47,9 +47,9 @@ public:
 		UINT32 channels,
 		LPCWSTR tag
 	);
-	std::vector<BYTE> loopback_capture::PeakRecordedBytes();
-	std::vector<BYTE> loopback_capture::GetRecordedBytes();
-	std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount);
+	std::vector<BYTE> PeakRecordedBytes();
+	std::vector<BYTE> GetRecordedBytes();
+	std::vector<BYTE> GetRecordedBytes(int byteCount);
 	UINT32 GetInputSampleRate();
 private:
 	bool m_IsDestructed = false;

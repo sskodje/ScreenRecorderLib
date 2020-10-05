@@ -4,8 +4,7 @@
 #include <atlbase.h>
 #include <vcclr.h>
 #include <vector>
-#include "fifo_map.h"
-#include "internal_recorder.h"
+#include "../ScreenRecorderLibNative/Native.h"
 #include "ManagedIStream.h"
 using namespace System;
 using namespace System::Runtime::InteropServices;
