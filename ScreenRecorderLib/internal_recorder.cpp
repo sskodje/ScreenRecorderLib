@@ -980,9 +980,9 @@ std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_cap
 		}
 	}
 	else if (m_IsOutputDeviceEnabled && pLoopbackCaptureOutputDevice)
-		return std::move(pLoopbackCaptureOutputDevice->GetRecordedBytes());
+		return std::move(MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), std::vector<BYTE>(), m_OutputVolumeModifier, 1.0));
 	else if (m_IsInputDeviceEnabled && pLoopbackCaptureInputDevice)
-		return std::move(pLoopbackCaptureInputDevice->GetRecordedBytes());
+		return std::move(MixAudio(std::vector<BYTE>(), pLoopbackCaptureInputDevice->GetRecordedBytes(), 1.0, m_InputVolumeModifier));
 	else
 		return std::vector<BYTE>();
 }
