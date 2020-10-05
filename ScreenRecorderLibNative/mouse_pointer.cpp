@@ -1,7 +1,11 @@
 #include "mouse_pointer.h"
 #include "log.h"
+#include "utilities.h"
 #include <comdef.h>
+#include <mfapi.h>
 #include <Dxgiformat.h>
+#include "PixelShader.h"
+#include "VertexShader.h"
 using namespace DirectX;
 
 HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device)

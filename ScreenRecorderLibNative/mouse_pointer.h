@@ -1,15 +1,12 @@
 #pragma once
 #include <windows.h>
+#include <string>
+#include <vector>
 #include <d3d11.h>
 #include <DirectXMath.h>
 #include <dxgi1_2.h>
-#include <mfapi.h>
-#include <atlbase.h>
-#include "utilities.h"
-#include "PixelShader.h"
-#include "VertexShader.h"
 #include <d2d1.h>
-#include <vector>
+#include <atlbase.h>
 
 #pragma comment(lib, "D2d1.lib")
 
