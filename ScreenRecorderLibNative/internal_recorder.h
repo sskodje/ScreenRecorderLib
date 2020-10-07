@@ -64,40 +64,50 @@ public:
 	void EndRecording();
 	void PauseRecording();
 	void ResumeRecording();
-	void SetVideoFps(UINT32 fps);
-	void SetVideoBitrate(UINT32 bitrate);
-	void SetVideoQuality(UINT32 quality);
-	void SetVideoBitrateMode(UINT32 mode);
-	void SetAudioBitrate(UINT32 bitrate);
-	void SetAudioChannels(UINT32 channels);
-	void SetOutputDevice(std::wstring& string);
-	void SetInputDevice(std::wstring& string);
-	void SetAudioEnabled(bool value);
-	void SetOutputDeviceEnabled(bool value);
-	void SetInputDeviceEnabled(bool value);
-	void SetMousePointerEnabled(bool value);
-	void SetDestRectangle(RECT rect);
-	void SetInputVolume(float volume);
-	void SetOutputVolume(float volume);
-	
+	void SetVideoFps(UINT32 fps) { m_VideoFps = fps; }
+	void SetVideoBitrate(UINT32 bitrate) { m_VideoBitrate = bitrate; }
+	void SetVideoQuality(UINT32 quality) { m_VideoQuality = quality; }
+	void SetVideoBitrateMode(UINT32 mode) { m_VideoBitrateControlMode = mode; }
+	void SetAudioBitrate(UINT32 bitrate) { m_AudioBitrate = bitrate; }
+	void SetAudioChannels(UINT32 channels) { m_AudioChannels = channels; }
+	void SetOutputDevice(std::wstring& string) { m_AudioOutputDevice = string; }
+	void SetInputDevice(std::wstring& string) { m_AudioInputDevice = string; }
+	void SetAudioEnabled(bool value) { m_IsAudioEnabled = value; }
+	void SetOutputDeviceEnabled(bool value) { m_IsOutputDeviceEnabled = value; }
+	void SetInputDeviceEnabled(bool value) { m_IsInputDeviceEnabled = value; }
+	void SetMousePointerEnabled(bool value) { m_IsMousePointerEnabled = value; }
+	void SetDestRectangle(RECT rect) {
+		if (rect.left % 2 != 0)
+			rect.left += 1;
+		if (rect.top % 2 != 0)
+			rect.top += 1;
+		if (rect.right % 2 != 0)
+			rect.right += 1;
+		if (rect.bottom % 2 != 0)
+			rect.bottom += 1;
+		m_DestRect = rect;
+	}
+	void SetInputVolume(float volume) { m_InputVolumeModifier = volume; }
+	void SetOutputVolume(float volume){ m_OutputVolumeModifier = volume; }	
 	[[deprecated]]
-	void SetDisplayOutput(UINT32 output);
-	void SetDisplayOutput(std::wstring output);
-	void SetRecorderMode(UINT32 mode);
-	void SetFixedFramerate(bool value);
-	void SetIsThrottlingDisabled(bool value);
-	void SetH264EncoderProfile(UINT32 value);
-	void SetIsFastStartEnabled(bool value);
-	void SetIsFragmentedMp4Enabled(bool value);
-	void SetIsHardwareEncodingEnabled(bool value);
-	void SetIsLowLatencyModeEnabled(bool value);
-	void SetDetectMouseClicks(bool value);
-	void SetMouseClickDetectionLMBColor(std::string value);
-	void SetMouseClickDetectionRMBColor(std::string value);
-	void SetMouseClickDetectionRadius(int value);
-	void SetMouseClickDetectionDuration(int value);
-	void SetMouseClickDetectionMode(UINT32 value);
-	void SetSnapshotSaveFormat(GUID value);
+	void SetDisplayOutput(UINT32 output) { m_DisplayOutput = output; }
+	void SetDisplayOutput(std::wstring output) { m_DisplayOutputName = output; }
+	void SetRecorderMode(UINT32 mode) { m_RecorderMode = mode; }
+	void SetRecorderApi(UINT32 api) { m_RecorderApi = api; }
+	void SetFixedFramerate(bool value) { m_IsFixedFramerate = value; }
+	void SetIsThrottlingDisabled(bool value) { m_IsThrottlingDisabled = value; }
+	void SetH264EncoderProfile(UINT32 value) { m_H264Profile = value; }
+	void SetIsFastStartEnabled(bool value) { m_IsMp4FastStartEnabled = value; }
+	void SetIsFragmentedMp4Enabled(bool value) { m_IsFragmentedMp4Enabled = value; }
+	void SetIsHardwareEncodingEnabled(bool value) { m_IsHardwareEncodingEnabled = value; }
+	void SetIsLowLatencyModeEnabled(bool value) { m_IsLowLatencyModeEnabled = value; }
+	void SetDetectMouseClicks(bool value) { m_IsMouseClicksDetected = value; }
+	void SetMouseClickDetectionLMBColor(std::string value) { m_MouseClickDetectionLMBColor = value; }
+	void SetMouseClickDetectionRMBColor(std::string value) { m_MouseClickDetectionRMBColor = value; }
+	void SetMouseClickDetectionRadius(int value) { m_MouseClickDetectionRadius = value; }
+	void SetMouseClickDetectionDuration(int value) { g_MouseClickDetectionDurationMillis = value; }
+	void SetMouseClickDetectionMode(UINT32 value) { m_MouseClickDetectionMode = value; }
+	void SetSnapshotSaveFormat(GUID value) { m_ImageEncoderFormat = value; }
 	void SetIsLogEnabled(bool value);
 	void SetLogFilePath(std::wstring value);
 	void SetLogSeverityLevel(int value);
