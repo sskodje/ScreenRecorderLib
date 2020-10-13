@@ -103,7 +103,6 @@ public:
 private:
 	IUnknown *m_p;
 };
-
 class SetEventOnExit {
 public:
 	SetEventOnExit(HANDLE h) : m_h(h) {}
@@ -119,8 +118,9 @@ private:
 class WaitForSingleObjectOnExit {
 public:
 	WaitForSingleObjectOnExit(HANDLE h) : m_h(h) {}
+	WaitForSingleObjectOnExit(HANDLE h, DWORD timeoutMillis) : m_h(h), m_millis(timeoutMillis){}
 	~WaitForSingleObjectOnExit() {
-		DWORD dwWaitResult = WaitForSingleObject(m_h, INFINITE);
+		DWORD dwWaitResult = WaitForSingleObject(m_h, m_millis);
 		if (WAIT_OBJECT_0 != dwWaitResult) {
 			ERROR(L"WaitForSingleObject returned unexpected result 0x%08x, last error is %d", dwWaitResult, GetLastError());
 		}
@@ -128,6 +128,7 @@ public:
 
 private:
 	HANDLE m_h;
+	DWORD m_millis = INFINITE;
 };
 
 class ReleaseWWMFSampleDataOnExit {
