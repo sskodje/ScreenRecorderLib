@@ -444,6 +444,19 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			}
 			CloseHandleOnExit closeOutputCaptureStartedEvent(hOutputCaptureStartedEvent);
 			CloseHandleOnExit closeInputCaptureStartedEvent(hInputCaptureStartedEvent);
+			// create "loopback audio capture has completed" events
+			HANDLE hOutputCaptureCompletedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (nullptr == hOutputCaptureCompletedEvent) {
+				ERROR(L"CreateEvent failed: last error is %u", GetLastError());
+				return E_FAIL;
+			}
+			HANDLE hInputCaptureCompletedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+			if (nullptr == hInputCaptureCompletedEvent) {
+				ERROR(L"CreateEvent failed: last error is %u", GetLastError());
+				return E_FAIL;
+			}
+			CloseHandleOnExit closeOutputCaptureCompletedEvent(hOutputCaptureCompletedEvent);
+			CloseHandleOnExit closeInputCaptureCompletedEvent(hInputCaptureCompletedEvent);
 
 			// create "stop capturing audio now" events
 			HANDLE hOutputCaptureStopEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -478,6 +491,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					threadArgs.bInt16 = prefs.m_bInt16;
 					threadArgs.hFile = prefs.m_hFile;
 					threadArgs.hStartedEvent = hOutputCaptureStartedEvent;
+					threadArgs.hCompletedEvent = hOutputCaptureCompletedEvent;
 					threadArgs.hStopEvent = hOutputCaptureStopEvent;
 					threadArgs.nFrames = 0;
 					threadArgs.flow = eRender;
@@ -516,6 +530,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					threadArgs.bInt16 = prefs.m_bInt16;
 					threadArgs.hFile = prefs.m_hFile;
 					threadArgs.hStartedEvent = hInputCaptureStartedEvent;
+					threadArgs.hCompletedEvent = hInputCaptureCompletedEvent;
 					threadArgs.hStopEvent = hInputCaptureStopEvent;
 					threadArgs.nFrames = 0;
 					threadArgs.flow = eCapture;
@@ -804,6 +819,12 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			}
 			SetEvent(hOutputCaptureStopEvent);
 			SetEvent(hInputCaptureStopEvent);
+			if (recordAudio && m_IsOutputDeviceEnabled) {
+				WaitForSingleObjectEx(hOutputCaptureCompletedEvent, 1000, false);
+			}
+			if (recordAudio && m_IsInputDeviceEnabled) {
+				WaitForSingleObjectEx(hInputCaptureCompletedEvent, 1000, false);
+			}
 
 			if (RecordingStatusChangedCallback != nullptr) {
 				RecordingStatusChangedCallback(STATUS_FINALIZING);
