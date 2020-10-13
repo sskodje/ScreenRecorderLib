@@ -16,6 +16,7 @@ struct LoopbackCaptureThreadFunctionArguments {
 	bool bInt16;
 	HMMIO hFile;
 	HANDLE hStartedEvent;
+	HANDLE hCompletedEvent;
 	HANDLE hStopEvent;
 	UINT32 nFrames;
 	HRESULT hr;
@@ -40,6 +41,7 @@ public:
 		HMMIO hFile,
 		bool bInt16,
 		HANDLE hStartedEvent,
+		HANDLE hCompletedEvent,
 		HANDLE hStopEvent,
 		PUINT32 pnFrames,
 		EDataFlow flow,

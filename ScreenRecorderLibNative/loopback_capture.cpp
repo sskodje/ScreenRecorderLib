@@ -28,6 +28,7 @@ DWORD WINAPI LoopbackCaptureThreadFunction(LPVOID pContext) {
 				pArgs->hFile,
 				pArgs->bInt16,
 				pArgs->hStartedEvent,
+				pArgs->hCompletedEvent,
 				pArgs->hStopEvent,
 				&pArgs->nFrames,
 				pArgs->flow,
@@ -45,6 +46,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	HMMIO hFile,
 	bool bInt16,
 	HANDLE hStartedEvent,
+	HANDLE hCompletedEvent,
 	HANDLE hStopEvent,
 	PUINT32 pnFrames,
 	EDataFlow flow,
@@ -348,6 +350,7 @@ HRESULT loopback_capture::LoopbackCapture(
 			continue; // exits loop
 		}
 	} // capture loop
+	SetEvent(hCompletedEvent);
 	return hr;
 }
 std::vector<BYTE> loopback_capture::PeakRecordedBytes()
