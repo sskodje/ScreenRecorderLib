@@ -129,7 +129,6 @@ private:
 	DWORD m_AudioStreamIndex = 0;
 
 	//Config
-	UINT32 m_MaxStaleFrameTime = 3000 * 1000 * 10;//3 seconds in 100 nanoseconds measure.
 	UINT32 m_MaxFrameLength100Nanos = 1000 * 1000 * 10; //1 second in 100 nanoseconds measure.
 	UINT32 m_RecorderMode = MODE_VIDEO;
 	[[deprecated]]

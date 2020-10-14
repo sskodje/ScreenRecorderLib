@@ -236,7 +236,7 @@ void internal_recorder::SetLogSeverityLevel(int value) {
 }
 
 std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vector<BYTE> &second, float firstVolume, float secondVolume)
-{	
+{
 	std::vector<BYTE> newvector(max(first.size(), second.size()));
 
 	for (size_t i = 0; i < newvector.size(); i += 2) {
@@ -577,7 +577,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 			INT frameTimeout = 0;
 			INT frameNr = 0;
-			INT totalCachedFrameDuration = 0;
 			CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 			std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
 			mouse_pointer::PTR_INFO PtrInfo;
@@ -740,34 +739,22 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 							m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
 							SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
 						}
-						totalCachedFrameDuration = 0;
 					}
 					else if (pPreviousFrameCopy) {
 						m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
-						totalCachedFrameDuration += durationSinceLastFrame100Nanos;
 					}
 
 					SetDebugName(pFrameCopy, "FrameCopy");
 
-					//When this happens, it probably means there is no screen output, so we show black screen instead of stale data.
-					//Desktop duplication sends a frame at the least about every 1 second, so over this it can be interpreted as no output.
-					if (totalCachedFrameDuration > m_MaxStaleFrameTime) {
-						if (pPreviousFrameCopy) {
-							pPreviousFrameCopy.Release();
-							RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
-							DEBUG("Clearing frame copy due to stale data. This most likely means there is no screen output, due to e.g. Windows power saving.");
+					if (gotMousePointer) {
+						hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
+						if (FAILED(hr)) {
+							_com_error err(hr);
+							ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
+							//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
 						}
 					}
-					else {
-						if (gotMousePointer) {
-							hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
-							if (FAILED(hr)) {
-								_com_error err(hr);
-								ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
-								//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
-							}
-						}
-					}
+
 					if (token.is_canceled()) {
 						DEBUG("Recording task was cancelled");
 						hr = S_OK;
