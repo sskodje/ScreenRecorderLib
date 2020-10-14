@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Win32Interop.WinHandles;
 using WindowsDisplayAPI;
 
 namespace TestApp
@@ -95,6 +96,20 @@ namespace TestApp
             }
         }
 
+        private RecorderApi _currentRecordingApi;
+        public RecorderApi CurrentRecordingApi
+        {
+            get { return _currentRecordingApi; }
+            set
+            {
+                if (_currentRecordingApi != value)
+                {
+                    _currentRecordingApi = value;
+                    RaisePropertyChanged("CurrentRecordingApi");
+                }
+            }
+        }
+
         private BitrateControlMode _currentVideoBitrateMode = BitrateControlMode.Quality;
         public BitrateControlMode CurrentVideoBitrateMode
         {
@@ -148,6 +163,11 @@ namespace TestApp
             {
                 this.ScreenComboBox.Items.Add(target);
             }
+            this.WindowComboBox.Items.Add(Tuple.Create("-- No window selected --", new WindowHandle(IntPtr.Zero)));
+            foreach (var window in TopLevelWindowUtils.FindWindows(x => IsValidWindow(x)))
+            {
+                this.WindowComboBox.Items.Add(Tuple.Create(window.GetWindowText(), window));
+            }
             AudioOutputsList.Add("", "Default playback device");
             AudioInputsList.Add("", "Default recording device");
             foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices))
@@ -163,8 +183,14 @@ namespace TestApp
             RaisePropertyChanged("AudioInputsList");
 
             ScreenComboBox.SelectedIndex = 0;
+            WindowComboBox.SelectedIndex = 0;
             AudioOutputsComboBox.SelectedIndex = 0;
             AudioInputsComboBox.SelectedIndex = 0;
+        }
+
+        private bool IsValidWindow(WindowHandle window)
+        {
+            return window.IsVisible() && window.IsValid && !String.IsNullOrEmpty(window.GetWindowText());
         }
 
         protected void RaisePropertyChanged(string propertyName)
@@ -220,12 +246,15 @@ namespace TestApp
 
             Display selectedDisplay = (Display)this.ScreenComboBox.SelectedItem;
 
+            IntPtr selectedWindowHandle = this.WindowComboBox.Items.Count > 0 ? ((Tuple<string, WindowHandle>)this.WindowComboBox.SelectedItem).Item2.RawPtr : IntPtr.Zero;
+
             string audioOutputDevice = AudioOutputsComboBox.SelectedValue as string;
             string audioInputDevice = AudioInputsComboBox.SelectedValue as string;
 
             RecorderOptions options = new RecorderOptions
             {
                 RecorderMode = CurrentRecordingMode,
+                RecorderApi = CurrentRecordingApi,
                 IsThrottlingDisabled = this.IsThrottlingDisabled,
                 IsHardwareEncodingEnabled = this.IsHardwareEncodingEnabled,
                 IsLowLatencyEnabled = this.IsLowLatencyEnabled,
@@ -257,7 +286,15 @@ namespace TestApp
                     EncoderProfile = this.CurrentH264Profile,
                     SnapshotFormat = CurrentImageFormat
                 },
-                DisplayOptions = new DisplayOptions(selectedDisplay.DisplayName, left, top, right, bottom),
+                DisplayOptions = new DisplayOptions
+                {
+                    MonitorDeviceName = selectedDisplay.DisplayName,
+                    WindowHandle = selectedWindowHandle,
+                    Left = left,
+                    Top = top,
+                    Right = right,
+                    Bottom = bottom
+                },
                 MouseOptions = new MouseOptions
                 {
                     IsMouseClicksDetected = this.IsMouseClicksDetected,
@@ -506,7 +543,7 @@ namespace TestApp
             {
                 _rec.SetInputVolume((float)e.NewValue);
             }
-            
+
         }
 
         private void OnOutputVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -515,6 +552,11 @@ namespace TestApp
             {
                 _rec.SetOutputVolume((float)e.NewValue);
             }
+        }
+
+        private void RecordingApiComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            this.WindowComboBox.Visibility = CurrentRecordingApi == RecorderApi.WindowsGraphicsCapture ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 }

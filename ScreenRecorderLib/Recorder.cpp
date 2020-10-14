@@ -46,9 +46,9 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			rect.right = options->DisplayOptions->Right;
 			rect.bottom = options->DisplayOptions->Bottom;
 			lRec->SetDestRectangle(rect);
-			if (options->DisplayOptions->MonitorDeviceName != nullptr) {
-				lRec->SetDisplayOutput(msclr::interop::marshal_as<std::wstring>(options->DisplayOptions->MonitorDeviceName));
-			}
+			lRec->SetDisplayOutput(options->DisplayOptions->MonitorDeviceName ? msclr::interop::marshal_as<std::wstring>(options->DisplayOptions->MonitorDeviceName) : L"");
+			if (options->DisplayOptions->WindowHandle != IntPtr::Zero)
+				lRec->SetWindowHandle((HWND)options->DisplayOptions->WindowHandle.ToPointer());
 		}
 
 		if (options->AudioOptions) {
@@ -77,6 +77,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		}
 
 		lRec->SetRecorderMode((UINT32)options->RecorderMode);
+		lRec->SetRecorderApi((UINT32)options->RecorderApi);
 		lRec->SetIsThrottlingDisabled(options->IsThrottlingDisabled);
 		lRec->SetIsLowLatencyModeEnabled(options->IsLowLatencyEnabled);
 		lRec->SetIsFastStartEnabled(options->IsMp4FastStartEnabled);
@@ -92,7 +93,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 
 void Recorder::SetInputVolume(float volume)
 {
-	if(lRec)
+	if (lRec)
 	{
 		lRec->SetInputVolume(volume);
 	}

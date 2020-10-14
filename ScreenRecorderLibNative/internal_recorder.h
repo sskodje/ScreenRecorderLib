@@ -15,6 +15,7 @@
 #include <evr.h>
 #include <DirectXMath.h>
 #include <mfreadwrite.h>
+#include <winrt/Windows.Graphics.Capture.h>
 #include "fifo_map.h"
 #include "audio_prefs.h"
 #include "mouse_pointer.h"
@@ -33,6 +34,9 @@ typedef void(__stdcall *CallbackErrorFunction)(std::wstring);
 
 #define MOUSE_DETECTION_MODE_POLLING 0
 #define MOUSE_DETECTION_MODE_HOOK 1
+
+#define API_DESKTOP_DUPLICATION 0
+#define API_GRAPHICS_CAPTURE 1
 
 class loopback_capture;
 
@@ -77,21 +81,14 @@ public:
 	void SetInputDeviceEnabled(bool value) { m_IsInputDeviceEnabled = value; }
 	void SetMousePointerEnabled(bool value) { m_IsMousePointerEnabled = value; }
 	void SetDestRectangle(RECT rect) {
-		if (rect.left % 2 != 0)
-			rect.left += 1;
-		if (rect.top % 2 != 0)
-			rect.top += 1;
-		if (rect.right % 2 != 0)
-			rect.right += 1;
-		if (rect.bottom % 2 != 0)
-			rect.bottom += 1;
-		m_DestRect = rect;
+		m_DestRect = MakeRectEven(rect);
 	}
 	void SetInputVolume(float volume) { m_InputVolumeModifier = volume; }
-	void SetOutputVolume(float volume){ m_OutputVolumeModifier = volume; }	
+	void SetOutputVolume(float volume) { m_OutputVolumeModifier = volume; }
 	[[deprecated]]
 	void SetDisplayOutput(UINT32 output) { m_DisplayOutput = output; }
 	void SetDisplayOutput(std::wstring output) { m_DisplayOutputName = output; }
+	void SetWindowHandle(HWND handle) { m_WindowHandle = handle; }
 	void SetRecorderMode(UINT32 mode) { m_RecorderMode = mode; }
 	void SetRecorderApi(UINT32 api) { m_RecorderApi = api; }
 	void SetFixedFramerate(bool value) { m_IsFixedFramerate = value; }
@@ -105,7 +102,7 @@ public:
 	void SetMouseClickDetectionLMBColor(std::string value) { m_MouseClickDetectionLMBColor = value; }
 	void SetMouseClickDetectionRMBColor(std::string value) { m_MouseClickDetectionRMBColor = value; }
 	void SetMouseClickDetectionRadius(int value) { m_MouseClickDetectionRadius = value; }
-	void SetMouseClickDetectionDuration(int value) { g_MouseClickDetectionDurationMillis = value; }
+	void SetMouseClickDetectionDuration(int value);
 	void SetMouseClickDetectionMode(UINT32 value) { m_MouseClickDetectionMode = value; }
 	void SetSnapshotSaveFormat(GUID value) { m_ImageEncoderFormat = value; }
 	void SetIsLogEnabled(bool value);
@@ -132,6 +129,7 @@ private:
 	bool m_LastFrameHadAudio = false;
 	HRESULT m_EncoderResult = S_FALSE;
 	HHOOK m_Mousehook;
+
 	std::wstring m_OutputFolder = L"";
 	std::wstring m_OutputFullPath = L"";
 	nlohmann::fifo_map<std::wstring, int> m_FrameDelays;
@@ -139,12 +137,14 @@ private:
 	DWORD m_AudioStreamIndex = 0;
 
 	//Config
-	UINT32 m_MaxStaleFrameTime = 3000 * 1000 * 10;//3 seconds in 100 nanoseconds measure.
+	UINT32 m_MaxStaleFrameTime = 30000 * 1000 * 10;//3 seconds in 100 nanoseconds measure.
 	UINT32 m_MaxFrameLength100Nanos = 1000 * 1000 * 10; //1 second in 100 nanoseconds measure.
 	UINT32 m_RecorderMode = MODE_VIDEO;
+	UINT32 m_RecorderApi = API_DESKTOP_DUPLICATION;
 	[[deprecated]]
 	UINT m_DisplayOutput = 0; //Display output, where 0 is primary display.
 	std::wstring m_DisplayOutputName = L""; //Display output device name, e.g. \\.\DISPLAY1
+	HWND m_WindowHandle = nullptr;
 	RECT m_DestRect = { 0,0,0,0 };
 	std::wstring m_AudioOutputDevice = L"";
 	std::wstring m_AudioInputDevice = L"";
@@ -182,6 +182,7 @@ private:
 	std::vector<BYTE> MixAudio(std::vector<BYTE> const &first, std::vector<BYTE> const &second, float firstVolume, float secondVolume);
 	void SetDebugName(ID3D11DeviceChild* child, const std::string& name);
 	void SetViewPort(ID3D11DeviceContext *deviceContext, UINT Width, UINT Height);
+	RECT MakeRectEven(RECT rect);
 	std::wstring GetImageExtension();
 	std::wstring GetVideoExtension();
 	HRESULT RenderFrame(FrameWriteModel& model);
@@ -198,4 +199,5 @@ private:
 	HRESULT CreateInputMediaTypeFromOutput(_In_ IMFMediaType *pType, const GUID& subtype, _Outptr_ IMFMediaType **ppType);
 	HRESULT DrawMousePointer(ID3D11Texture2D *frame, mouse_pointer *pointer, mouse_pointer::PTR_INFO ptrInfo, DXGI_MODE_ROTATION screenRotation, INT64 durationSinceLastFrame100Nanos);
 	ID3D11Texture2D* CropFrame(ID3D11Texture2D *frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect);
+	HRESULT CreateCaptureItem(_Out_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem *captureItem);
 };

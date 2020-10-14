@@ -87,6 +87,12 @@ namespace ScreenRecorderLib {
 		///<summary>Quality-based VBR encoding. The encoder selects the bit rate to match a specified quality level. Set Quality level in VideoOptions from 1-100. Default is 70. </summary>
 		Quality
 	};
+	public enum class RecorderApi {
+		///<summary>Desktop Duplication is supported on all Windows 8 and 10 versions. This API supports recording of a whole screen or an area of a screen set in DisplayOptions.</summary>
+		DesktopDuplication = 0,
+		///<summary>WindowsGraphicsCapture requires Windows 10 version 1803 or newer. This API supports recording single windows in addition to whole screens, by setting WindowHandle in DisplayOptions.</summary>
+		WindowsGraphicsCapture = 1,
+	};
 	public ref class FrameData {
 	public:
 		property String^ Path;
@@ -100,6 +106,7 @@ namespace ScreenRecorderLib {
 	public ref class DisplayOptions {
 	public:
 		property String^ MonitorDeviceName;
+		property IntPtr WindowHandle;
 		property int Left;
 		property int Top;
 		property int Right;
@@ -108,17 +115,14 @@ namespace ScreenRecorderLib {
 
 		}
 		DisplayOptions(int left, int top, int right, int bottom) {
-			Left = left;
-			Top = top;
-			Right = right;
-			Bottom = bottom;
+			this->DisplayOptions::DisplayOptions("", left, top, right, bottom);
 		}
 
 		/// <summary>
 		///Select monitor to record via device name, e.g.\\.\DISPLAY1
 		/// </summary>
 		DisplayOptions(String^ monitorDeviceName) {
-			MonitorDeviceName = monitorDeviceName;
+			this->DisplayOptions::DisplayOptions(monitorDeviceName, 0, 0, 0, 0);
 		}
 
 		/// <summary>
@@ -130,6 +134,12 @@ namespace ScreenRecorderLib {
 			Top = top;
 			Right = right;
 			Bottom = bottom;
+		}
+		/// <summary>
+		///Select monitor to record via device name, e.g.\\.\DISPLAY1, and the rectangle to record on that monitor.
+		/// </summary>
+		DisplayOptions(IntPtr windowHandle) {
+			WindowHandle = windowHandle;
 		}
 	};
 
@@ -259,6 +269,8 @@ namespace ScreenRecorderLib {
 	public ref class RecorderOptions {
 	public:
 		RecorderOptions() {
+			RecorderMode = ScreenRecorderLib::RecorderMode::Video;
+			RecorderApi = ScreenRecorderLib::RecorderApi::DesktopDuplication;
 			IsThrottlingDisabled = false;
 			IsLowLatencyEnabled = false;
 			IsHardwareEncodingEnabled = true;
@@ -272,6 +284,7 @@ namespace ScreenRecorderLib {
 #endif
 		}
 		property RecorderMode RecorderMode;
+		property RecorderApi RecorderApi;
 		/// <summary>
 		///Disable throttling of video renderer. If this is disabled, all frames are sent to renderer as fast as they come. Can cause out of memory crashes.
 		/// </summary>
