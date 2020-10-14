@@ -1021,7 +1021,7 @@ HRESULT internal_recorder::initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out
 	D3D11_TEXTURE2D_DESC sourceFrameDesc;
 	sourceFrameDesc.Width = monitorWidth;
 	sourceFrameDesc.Height = monitorHeight;
-	sourceFrameDesc.Format = outputDuplDesc.ModeDesc.Format;
+	sourceFrameDesc.Format = DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM;
 	sourceFrameDesc.ArraySize = 1;
 	sourceFrameDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
 	sourceFrameDesc.MiscFlags = 0;
@@ -1034,7 +1034,7 @@ HRESULT internal_recorder::initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out
 	D3D11_TEXTURE2D_DESC destFrameDesc;
 	destFrameDesc.Width = destRect.right - destRect.left;
 	destFrameDesc.Height = destRect.bottom - destRect.top;
-	destFrameDesc.Format = outputDuplDesc.ModeDesc.Format;
+	destFrameDesc.Format = DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM;
 	destFrameDesc.ArraySize = 1;
 	destFrameDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
 	destFrameDesc.MiscFlags = 0;
