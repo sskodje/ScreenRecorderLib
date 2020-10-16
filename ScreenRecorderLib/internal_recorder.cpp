@@ -422,6 +422,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			DXGI_MODE_ROTATION screenRotation = outputDuplDesc.Rotation;
 			D3D11_TEXTURE2D_DESC sourceFrameDesc;
 			D3D11_TEXTURE2D_DESC destFrameDesc;
+			D3D11_TEXTURE2D_DESC curFrameDesc;
 			RECT sourceRect, destRect;
 
 			RtlZeroMemory(&destFrameDesc, sizeof(destFrameDesc));
@@ -744,6 +745,9 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					if (pDesktopResource != nullptr) {
 						CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
 						RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
+						pAcquiredDesktopImage->GetDesc(&curFrameDesc);
+						TRACE(L"Current frame format: %d", curFrameDesc.Format);
+
 						m_ImmediateContext->CopyResource(pFrameCopy, pAcquiredDesktopImage);
 						if (pPreviousFrameCopy) {
 							pPreviousFrameCopy.Release();
