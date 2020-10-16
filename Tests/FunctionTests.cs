@@ -540,7 +540,7 @@ namespace ScreenRecorderLib
                 {
                     RecorderOptions options = new RecorderOptions();
                     options.VideoOptions = new VideoOptions { Framerate = 60, IsFixedFramerate = false };
-                    options.AudioOptions = new AudioOptions { IsAudioEnabled = true };
+                    options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled=true, IsOutputDeviceEnabled=true };
                     using (var rec = Recorder.CreateRecorder(options))
                     {
                         string error = "";
@@ -581,7 +581,7 @@ namespace ScreenRecorderLib
             AutoResetEvent resetEvent = new AutoResetEvent(false);
             RecorderOptions options = new RecorderOptions();
             options.VideoOptions = new VideoOptions { Framerate = 60, IsFixedFramerate = false };
-            options.AudioOptions = new AudioOptions { IsAudioEnabled = true };
+            options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled=true, IsOutputDeviceEnabled=true };
             using (var rec = Recorder.CreateRecorder(options))
             {
                 rec.OnRecordingComplete += (s, args) =>

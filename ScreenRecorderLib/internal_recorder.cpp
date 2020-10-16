@@ -36,6 +36,26 @@ using namespace std::chrono;
 using namespace concurrency;
 using namespace DirectX;
 
+
+class LoopbackCaptureStopOnExit {
+public:
+	LoopbackCaptureStopOnExit(loopback_capture *p) : m_p(p) {}
+	~LoopbackCaptureStopOnExit() {
+		if (m_p) {
+			HRESULT hr = m_p->StopCapture();
+			if (FAILED(hr)) {
+				ERROR(L"loopback_capture::StopCapture failed: hr = 0x%08x", hr);
+			}
+			else {
+				DEBUG(L"stopped loopback_capture");
+			}
+}
+	}
+
+private:
+	loopback_capture *m_p;
+};
+
 #if _DEBUG
 bool isLoggingEnabled = true;
 int logSeverityLevel = LOG_LVL_DEBUG;
@@ -263,8 +283,8 @@ std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vec
 			buf2B = (short)(buf2B & 0xff);
 		}
 
-		short buf1C = (short) round(buf1A * firstVolume + buf1B * secondVolume);
-		short buf2C = (short) round(buf2A * firstVolume + buf2B * secondVolume);
+		short buf1C = (short)round(buf1A * firstVolume + buf1B * secondVolume);
+		short buf2C = (short)round(buf2A * firstVolume + buf2B * secondVolume);
 
 		short res = (short)(buf1C + buf2C);
 
@@ -413,8 +433,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			RtlZeroMemory(&outputDuplDesc, sizeof(outputDuplDesc));
 			CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
 			std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
-			std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = make_unique<loopback_capture>();
-			std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = make_unique<loopback_capture>();
+			loopback_capture *pLoopbackCaptureOutputDevice = nullptr;
+			loopback_capture *pLoopbackCaptureInputDevice = nullptr;
 			CComPtr<IDXGIOutput> pSelectedOutput = nullptr;
 			hr = GetOutputForDeviceName(m_DisplayOutputName, &pSelectedOutput);
 			RETURN_ON_BAD_HR(hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &m_Device));
@@ -431,136 +451,38 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 			RETURN_ON_BAD_HR(hr = initializeDesc(outputDuplDesc, &sourceFrameDesc, &destFrameDesc, &sourceRect, &destRect));
 			bool isDestRectEqualToSourceRect = EqualRect(&sourceRect, &destRect);
-			// create "loopback audio capture has started" events
-			HANDLE hOutputCaptureStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-			if (nullptr == hOutputCaptureStartedEvent) {
-				ERROR(L"CreateEvent failed: last error is %u", GetLastError());
-				return E_FAIL;
-			}
-			HANDLE hInputCaptureStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-			if (nullptr == hInputCaptureStartedEvent) {
-				ERROR(L"CreateEvent failed: last error is %u", GetLastError());
-				return E_FAIL;
-			}
-			CloseHandleOnExit closeOutputCaptureStartedEvent(hOutputCaptureStartedEvent);
-			CloseHandleOnExit closeInputCaptureStartedEvent(hInputCaptureStartedEvent);
-			// create "loopback audio capture has completed" events
-			HANDLE hOutputCaptureCompletedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-			if (nullptr == hOutputCaptureCompletedEvent) {
-				ERROR(L"CreateEvent failed: last error is %u", GetLastError());
-				return E_FAIL;
-			}
-			HANDLE hInputCaptureCompletedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-			if (nullptr == hInputCaptureCompletedEvent) {
-				ERROR(L"CreateEvent failed: last error is %u", GetLastError());
-				return E_FAIL;
-			}
-			CloseHandleOnExit closeOutputCaptureCompletedEvent(hOutputCaptureCompletedEvent);
-			CloseHandleOnExit closeInputCaptureCompletedEvent(hInputCaptureCompletedEvent);
-
-			// create "stop capturing audio now" events
-			HANDLE hOutputCaptureStopEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-			if (nullptr == hOutputCaptureStopEvent) {
-				ERROR(L"CreateEvent failed: last error is %u", GetLastError());
-				return E_FAIL;
-			}
-			HANDLE hInputCaptureStopEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-			if (nullptr == hInputCaptureStopEvent) {
-				ERROR(L"CreateEvent failed: last error is %u", GetLastError());
-				return E_FAIL;
-			}
-
-			CloseHandleOnExit closeOutputCaptureStopEvent(hOutputCaptureStopEvent);
-			CloseHandleOnExit closeInputCaptureStopEvent(hInputCaptureStopEvent);
 
 			bool recordAudio = m_RecorderMode == MODE_VIDEO && m_IsAudioEnabled;
-			if (recordAudio && m_IsOutputDeviceEnabled)
-			{
-				bool isDeviceEmpty = m_AudioOutputDevice.empty();
-				LPCWSTR argv[3] = { L"", L"--device", m_AudioOutputDevice.c_str() };
-				int argc = isDeviceEmpty ? 1 : SIZEOF_ARRAY(argv);
-				CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, eRender);
-
-				if (SUCCEEDED(hr)) {
-					prefs.m_bInt16 = true;
-					// create arguments for loopback capture thread
-					LoopbackCaptureThreadFunctionArguments threadArgs;
-					threadArgs.hr = E_UNEXPECTED; // thread will overwrite this
-					threadArgs.pMMDevice = prefs.m_pMMDevice;
-					threadArgs.pCaptureInstance = pLoopbackCaptureOutputDevice.get();
-					threadArgs.bInt16 = prefs.m_bInt16;
-					threadArgs.hFile = prefs.m_hFile;
-					threadArgs.hStartedEvent = hOutputCaptureStartedEvent;
-					threadArgs.hCompletedEvent = hOutputCaptureCompletedEvent;
-					threadArgs.hStopEvent = hOutputCaptureStopEvent;
-					threadArgs.nFrames = 0;
-					threadArgs.flow = eRender;
-					threadArgs.samplerate = 0;
-					threadArgs.channels = m_AudioChannels;
-					threadArgs.tag = L"AudioOutputDevice";
-
-					HANDLE hThread = CreateThread(
-						nullptr, 0,
-						LoopbackCaptureThreadFunction, &threadArgs, 0, nullptr
-					);
-					if (nullptr == hThread) {
-						ERROR(L"CreateThread failed: last error is %u", GetLastError());
-						return E_FAIL;
+			UINT32 inputDeviceSampleRate = 0;
+			if (recordAudio) {
+				if (m_IsOutputDeviceEnabled)
+				{
+					pLoopbackCaptureOutputDevice = new loopback_capture();
+					hr = pLoopbackCaptureOutputDevice->StartCapture(m_AudioChannels, m_AudioOutputDevice, L"AudioOutputDevice");
+					if (SUCCEEDED(hr)) {
+						inputDeviceSampleRate = m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
 					}
-					WaitForSingleObjectEx(hOutputCaptureStartedEvent, 1000, false);
+				}
+
+				if (m_IsInputDeviceEnabled)
+				{
+					pLoopbackCaptureInputDevice =  new loopback_capture();
+					hr = pLoopbackCaptureInputDevice->StartCapture(inputDeviceSampleRate, m_AudioChannels, m_AudioInputDevice, L"AudioInputDevice");
+					if (SUCCEEDED(hr)) {
+						m_InputAudioSamplesPerSecond = pLoopbackCaptureInputDevice->GetInputSampleRate();
+					}
+				}
+
+				if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
+				{
 					m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
-					CloseHandle(hThread);
 				}
 			}
+			LoopbackCaptureStopOnExit stopOutputDeviceCapture(pLoopbackCaptureOutputDevice);
+			//DeleteOnExit DeleteOutputCaptureDevice(pLoopbackCaptureOutputDevice);
 
-			if (recordAudio && m_IsInputDeviceEnabled)
-			{
-				bool isDeviceEmpty = m_AudioInputDevice.empty();
-				LPCWSTR argv[3] = { L"", L"--device", m_AudioInputDevice.c_str() };
-				int argc = isDeviceEmpty ? 1 : SIZEOF_ARRAY(argv);
-				CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, eCapture);
-
-				if (SUCCEEDED(hr)) {
-					prefs.m_bInt16 = true;
-					// create arguments for loopback capture thread
-					LoopbackCaptureThreadFunctionArguments threadArgs;
-					threadArgs.hr = E_UNEXPECTED; // thread will overwrite this
-					threadArgs.pMMDevice = prefs.m_pMMDevice;
-					threadArgs.pCaptureInstance = pLoopbackCaptureInputDevice.get();
-					threadArgs.bInt16 = prefs.m_bInt16;
-					threadArgs.hFile = prefs.m_hFile;
-					threadArgs.hStartedEvent = hInputCaptureStartedEvent;
-					threadArgs.hCompletedEvent = hInputCaptureCompletedEvent;
-					threadArgs.hStopEvent = hInputCaptureStopEvent;
-					threadArgs.nFrames = 0;
-					threadArgs.flow = eCapture;
-					threadArgs.samplerate = 0;
-					threadArgs.channels = m_AudioChannels;
-					threadArgs.tag = L"AudioInputDevice";
-
-					if (m_IsOutputDeviceEnabled)
-					{
-						threadArgs.samplerate = m_InputAudioSamplesPerSecond;
-					}
-
-					HANDLE hThread = CreateThread(
-						nullptr, 0,
-						LoopbackCaptureThreadFunction, &threadArgs, 0, nullptr
-					);
-					if (nullptr == hThread) {
-						ERROR(L"CreateThread failed: last error is %u", GetLastError());
-						return E_FAIL;
-					}
-					WaitForSingleObjectEx(hInputCaptureStartedEvent, 1000, false);
-					m_InputAudioSamplesPerSecond = pLoopbackCaptureInputDevice->GetInputSampleRate();
-					CloseHandle(hThread);
-				}
-			}
-
-			if (recordAudio && m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
-			{
-				m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
-			}
+			LoopbackCaptureStopOnExit stopInputDeviceCapture(pLoopbackCaptureInputDevice);
+			//DeleteOnExit DeleteInputCaptureDevice(pLoopbackCaptureInputDevice);
 
 			// moved this section after sound initialization to get right m_InputAudioSamplesPerSecond from pLoopbackCapture before InitializeVideoSinkWriter
 			if (m_RecorderMode == MODE_VIDEO) {
@@ -584,8 +506,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			g_LastMouseClickDurationRemaining = 0;
 
 			INT64 lastFrameStartPos = 0;
-			pLoopbackCaptureOutputDevice->ClearRecordedBytes();
-			pLoopbackCaptureInputDevice->ClearRecordedBytes();
+			if (pLoopbackCaptureOutputDevice)
+				pLoopbackCaptureOutputDevice->ClearRecordedBytes();
+			if (pLoopbackCaptureInputDevice)
+				pLoopbackCaptureInputDevice->ClearRecordedBytes();
 
 			bool gotMousePointer = false;
 			INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
@@ -612,8 +536,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				if (m_IsPaused) {
 					wait(10);
 					lastFrame = high_resolution_clock::now();
-					pLoopbackCaptureOutputDevice->ClearRecordedBytes();
-					pLoopbackCaptureInputDevice->ClearRecordedBytes();
+					if (pLoopbackCaptureOutputDevice)
+						pLoopbackCaptureOutputDevice->ClearRecordedBytes();
+					if (pLoopbackCaptureInputDevice)
+						pLoopbackCaptureInputDevice->ClearRecordedBytes();
 					continue;
 				}
 				if (pDeskDupl) {
@@ -817,19 +743,19 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				model.FrameNumber = frameNr;
 				hr = m_EncoderResult = RenderFrame(model);
 			}
-			SetEvent(hOutputCaptureStopEvent);
-			SetEvent(hInputCaptureStopEvent);
-			if (recordAudio && m_IsOutputDeviceEnabled) {
-				WaitForSingleObjectEx(hOutputCaptureCompletedEvent, 1000, false);
-			}
-			if (recordAudio && m_IsInputDeviceEnabled) {
-				WaitForSingleObjectEx(hInputCaptureCompletedEvent, 1000, false);
-			}
+			//SetEvent(hOutputCaptureStopEvent);
+			//SetEvent(hInputCaptureStopEvent);
+			//if (recordAudio && m_IsOutputDeviceEnabled) {
+			//	WaitForSingleObjectEx(hOutputCaptureCompletedEvent, 1000, false);
+			//}
+			//if (recordAudio && m_IsInputDeviceEnabled) {
+			//	WaitForSingleObjectEx(hInputCaptureCompletedEvent, 1000, false);
+			//}
 
-			if (RecordingStatusChangedCallback != nullptr) {
-				RecordingStatusChangedCallback(STATUS_FINALIZING);
-				DEBUG("Changed Recording Status to Finalizing");
-			}
+			//if (RecordingStatusChangedCallback != nullptr) {
+			//	RecordingStatusChangedCallback(STATUS_FINALIZING);
+			//	DEBUG("Changed Recording Status to Finalizing");
+			//}
 			if (pDeskDupl)
 				pDeskDupl->ReleaseFrame();
 			if (pPreviousFrameCopy)
@@ -971,8 +897,8 @@ void internal_recorder::ResumeRecording() {
 	}
 }
 
-std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_capture> & pLoopbackCaptureOutputDevice,
-	std::unique_ptr<loopback_capture> & pLoopbackCaptureInputDevice)
+std::vector<BYTE> internal_recorder::GrabAudioFrame(loopback_capture *pLoopbackCaptureOutputDevice,
+	loopback_capture *pLoopbackCaptureInputDevice)
 {
 	if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled && pLoopbackCaptureOutputDevice && pLoopbackCaptureInputDevice) {
 		// mix our audio buffers from output device and input device to get one audio buffer since VideoSinkWriter works only with one Audio sink
