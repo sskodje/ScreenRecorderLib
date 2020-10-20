@@ -36,6 +36,7 @@ namespace TestApp
         public int VideoBitrate { get; set; } = 7000;
         public int VideoFramerate { get; set; } = 60;
         public int VideoQuality { get; set; } = 70;
+        public int SnapshotsIntervalInSec { get; set; } = 10;
         public bool IsAudioEnabled { get; set; } = true;
         public bool IsMousePointerEnabled { get; set; } = true;
         public bool IsFixedFramerate { get; set; } = false;
@@ -76,6 +77,30 @@ namespace TestApp
                     else
                     {
                         this.RecordingModeComboBox.IsEnabled = true;
+                    }
+                }
+            }
+        }
+
+        private bool _snapshotsWithVideo = false;
+        public bool SnapshotsWithVideo
+        {
+            get { return _snapshotsWithVideo; }
+            set
+            {
+                if (_snapshotsWithVideo != value)
+                {
+                    _snapshotsWithVideo = value;
+                    RaisePropertyChanged("SnapshotsWithVideo");
+                    if (value)
+                    {
+                        this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
+                        this.SnapshotsIntervalPanel.Visibility = Visibility.Visible;
+                    }
+                    else
+                    {
+                        this.SnapshotImageFormatPanel.Visibility = Visibility.Collapsed;
+                        this.SnapshotsIntervalPanel.Visibility = Visibility.Collapsed;
                     }
                 }
             }
@@ -255,7 +280,9 @@ namespace TestApp
                     Quality = this.VideoQuality,
                     IsFixedFramerate = this.IsFixedFramerate,
                     EncoderProfile = this.CurrentH264Profile,
-                    SnapshotFormat = CurrentImageFormat
+                    SnapshotFormat = CurrentImageFormat,
+                    SnapshotsWithVideo = this.SnapshotsWithVideo,
+                    SnapshotsInterval = this.SnapshotsIntervalInSec
                 },
                 DisplayOptions = new DisplayOptions(selectedDisplay.DisplayName, left, top, right, bottom),
                 MouseOptions = new MouseOptions
@@ -486,13 +513,15 @@ namespace TestApp
                     case RecorderMode.Video:
                         this.VideoBitrateModePanel.Visibility = Visibility.Visible;
                         this.VideoProfilePanel.Visibility = Visibility.Visible;
-                        this.SnapshotImageFormatPanel.Visibility = Visibility.Collapsed;
+                        this.SnapshotImageFormatPanel.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
+                        this.SnapshotsIntervalPanel.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
                         break;
                     case RecorderMode.Slideshow:
                     case RecorderMode.Snapshot:
                         this.VideoBitrateModePanel.Visibility = Visibility.Collapsed;
                         this.VideoProfilePanel.Visibility = Visibility.Collapsed;
                         this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
+                        this.SnapshotsIntervalPanel.Visibility = Visibility.Collapsed;
                         break;
                     default:
                         break;

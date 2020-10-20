@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Threading;
 using MediaInfo;
@@ -490,6 +491,59 @@ namespace ScreenRecorderLib
             }
         }
 
+        [TestMethod]
+        public void RecordingToFileWithSnapshotsTest()
+        {
+            string filePath = Path.Combine(Path.GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            string snapshotsDir = Path.ChangeExtension(filePath, null);
+            try
+            {
+                RecorderOptions options = new RecorderOptions();
+                options.VideoOptions = new VideoOptions { SnapshotsWithVideo = true, SnapshotsInterval = 1, SnapshotFormat = ImageFormat.JPEG };
+                using (var rec = Recorder.CreateRecorder(options))
+                {
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        resetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        resetEvent.Set();
+                    };
+
+                    rec.Record(filePath);
+                    Thread.Sleep(5900);
+                    rec.Stop();
+                    resetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+
+                    var di = new DirectoryInfo(snapshotsDir);
+                    var snapshots = di.EnumerateFiles();
+                    Assert.AreEqual(6, snapshots.Count());  // First snapshot taken at time 0.
+                    foreach (var snapshot in snapshots)
+                    {
+                        Assert.IsTrue(new MediaInfoWrapper(snapshot.FullName).Format == "JPEG");
+                    }
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+                Directory.Delete(snapshotsDir, recursive: true);
+            }
+        }
+        
         [TestMethod]
         public void DefaultRecordingOneMinuteToFileTest()
         {
