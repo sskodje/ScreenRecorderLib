@@ -42,7 +42,6 @@ using namespace concurrency;
 using namespace DirectX;
 using namespace winrt::Windows::Graphics::DirectX;
 using namespace winrt::Windows::Graphics::Capture;
-using namespace Gdiplus;
 #if _DEBUG
 bool isLoggingEnabled = true;
 int logSeverityLevel = LOG_LVL_DEBUG;
@@ -828,7 +827,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						//When this happens, it probably means there is no screen output, so we show black screen instead of stale data.
 						if (totalCachedFrameDuration > m_MaxStaleFrameTime) {
 							if (pPreviousFrameCopy) {
-								IsMonitorActive(m_DisplayOutputName);
 								pPreviousFrameCopy.Release();
 								RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
 								DEBUG("Clearing frame copy due to stale data. This most likely means there is no screen output, due to e.g. Windows power saving.");

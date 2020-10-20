@@ -230,7 +230,6 @@
 
                     </StackPanel>
 
-
                     <Grid Margin="5,0,0,0"
                           Grid.Column="1">
                         <Grid.RowDefinitions>
@@ -433,7 +432,7 @@
                                 TickFrequency="0.1"
                                 ValueChanged="OnOutputVolumeChanged" />
                         <Label Content="100%"
-                               Grid.Column="2"/>
+                               Grid.Column="2" />
                     </Grid>
                     <Grid Grid.Column="1"
                           Grid.Row="2">
@@ -459,80 +458,39 @@
                 </Grid>
             </StackPanel>
 
-
-            <!--<StackPanel Orientation="Horizontal">-->
-
-
-                <!--<StackPanel Orientation="Vertical">
-                    <Label Content="Input Volume"
-                           Margin="0,10"></Label>
-                    <Label Content="100%"></Label>
-                    <Slider Name="InputVolumeSlider"
-                            Orientation="Vertical"
-                            Margin="10,0"
-                            Foreground="Blue"
-                            Maximum="1"
-                            TickPlacement="BottomRight"
-                            Height="150"
-                            Value="1"
-                            TickFrequency="0.1"
-                            ValueChanged="OnInputVolumeChanged" />
-                    <Label Content="0%"></Label>
-                </StackPanel>
-
-                <StackPanel Orientation="Vertical">
-                    <Label Content="Output Volume"
-                           Margin="0,10"></Label>
-                    <Label Content="100%"></Label>
-                    <Slider Name="OutputVolumeSlider"
-                            Orientation="Vertical"
-                            Margin="10,0"
-                            Foreground="Blue"
-                            Maximum="1"
-                            TickPlacement="BottomRight"
-                            Height="150"
-                            Value="1"
-                            TickFrequency="0.1"
-                            ValueChanged="OnOutputVolumeChanged" />
-                    <Label Content="0%"></Label>
-                </StackPanel>-->
-
-
-                <StackPanel Orientation="Vertical"
-                            x:Name="ControlsPanel">
-                    <TextBlock FontSize="72"
-                               Text="00:00:00"
-                               HorizontalAlignment="Center"
-                               x:Name="TimeStampTextBlock"
-                               Margin="10,0" />
-                    <TextBlock FontSize="42"
-                               Text="Idle"
-                               HorizontalAlignment="Center"
-                               x:Name="StatusTextBlock" />
-                    <TextBlock FontSize="12"
-                               Text=""
-                               Margin="10,0"
-                               TextWrapping="Wrap"
-                               MaxWidth="{Binding ElementName=ControlsPanel,Path=ActualWidth}"
-                               HorizontalAlignment="Center"
-                               x:Name="ErrorTextBlock" />
-                    <Button Height="50"
-                            Width="150"
-                            x:Name="RecordButton"
-                            Content="Record"
-                            FontSize="28"
-                            Click="RecordButton_Click" />
-                    <Button x:Name="PauseButton"
-                            Height="50"
-                            Width="150"
-                            Content="Pause"
-                            FontSize="28"
-                            Visibility="Hidden"
-                            Click="PauseButton_Click" />
-                </StackPanel>
+            <StackPanel Orientation="Vertical"
+                        x:Name="ControlsPanel">
+                <TextBlock FontSize="72"
+                           Text="00:00:00"
+                           HorizontalAlignment="Center"
+                           x:Name="TimeStampTextBlock"
+                           Margin="10,0" />
+                <TextBlock FontSize="42"
+                           Text="Idle"
+                           HorizontalAlignment="Center"
+                           x:Name="StatusTextBlock" />
+                <TextBlock FontSize="12"
+                           Text=""
+                           Margin="10,0"
+                           TextWrapping="Wrap"
+                           MaxWidth="{Binding ElementName=ControlsPanel,Path=ActualWidth}"
+                           HorizontalAlignment="Center"
+                           x:Name="ErrorTextBlock" />
+                <Button Height="50"
+                        Width="150"
+                        x:Name="RecordButton"
+                        Content="Record"
+                        FontSize="28"
+                        Click="RecordButton_Click" />
+                <Button x:Name="PauseButton"
+                        Height="50"
+                        Width="150"
+                        Content="Pause"
+                        FontSize="28"
+                        Visibility="Hidden"
+                        Click="PauseButton_Click" />
             </StackPanel>
-        <!--</StackPanel>-->
-
+        </StackPanel>
 
         <TextBlock Margin="5"
                    TextWrapping="Wrap"
