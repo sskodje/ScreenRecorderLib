@@ -49,6 +49,13 @@ typedef struct
 
 LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
 
+struct WriteFrameToImageThreadFunctionArgs {
+	ID3D11DeviceContext* pDeviceContext;
+	ID3D11Texture2D* pFrameToWrite;
+	GUID imageFormat;
+	wchar_t filePath[512];
+};
+
 class internal_recorder
 {
 public:
@@ -79,6 +86,8 @@ public:
 	void SetDestRectangle(RECT rect);
 	void SetInputVolume(float volume);
 	void SetOutputVolume(float volume);
+	void SetTakeSnapthotsWithVideo(bool isEnabled);
+	void SetSnapthotsWithVideoInterval(UINT32 value);
 	
 	[[deprecated]]
 	void SetDisplayOutput(UINT32 output);
@@ -124,6 +133,7 @@ private:
 	HHOOK m_Mousehook;
 	std::wstring m_OutputFolder = L"";
 	std::wstring m_OutputFullPath = L"";
+	std::wstring m_OutputSnapshotsFolderPath = L"";
 	nlohmann::fifo_map<std::wstring, int> m_FrameDelays;
 	DWORD m_VideoStreamIndex = 0;
 	DWORD m_AudioStreamIndex = 0;
@@ -145,6 +155,7 @@ private:
 	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
 	UINT32 m_InputAudioSamplesPerSecond = AUDIO_SAMPLES_PER_SECOND;
 	UINT32 m_VideoBitrateControlMode = eAVEncCommonRateControlMode_Quality;
+	std::chrono::seconds m_SnapshotsWithVideoInterval = std::chrono::seconds(10);
 	bool m_IsMousePointerEnabled = true;
 	bool m_IsAudioEnabled = false;
 	bool m_IsOutputDeviceEnabled = true;
@@ -158,6 +169,7 @@ private:
 	bool m_IsPaused = false;
 	bool m_IsRecording = false;
 	bool m_IsMouseClicksDetected = false;
+	bool m_TakesSnapshotsWithVideo = false;
 	std::string m_MouseClickDetectionLMBColor = "#FFFF00";
 	std::string m_MouseClickDetectionRMBColor = "#FFFF00";
 	UINT32 m_MouseClickDetectionRadius = 20;
@@ -173,6 +185,7 @@ private:
 	void SetViewPort(ID3D11DeviceContext *deviceContext, UINT Width, UINT Height);
 	std::wstring GetImageExtension();
 	std::wstring GetVideoExtension();
+	bool IsSnapshotsWithVideoEnabled() { return (m_RecorderMode == MODE_VIDEO) && m_TakesSnapshotsWithVideo; }
 	HRESULT RenderFrame(FrameWriteModel& model);
 	HRESULT ConfigureOutputDir(std::wstring path);
 	HRESULT initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out_ D3D11_TEXTURE2D_DESC *pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC *pDestFrameDesc, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect);
@@ -181,6 +194,8 @@ private:
 	HRESULT InitializeVideoSinkWriter(std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device* pDevice, RECT sourceRect, RECT destRect, DXGI_MODE_ROTATION rotation, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex);
 	HRESULT WriteFrameToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ ID3D11Texture2D* pAcquiredDesktopImage);
 	HRESULT WriteFrameToImage(_In_ ID3D11Texture2D* pAcquiredDesktopImage, LPCWSTR filePath);
+	HANDLE WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, LPCWSTR filePath);
+	static DWORD WINAPI WriteFrameToImageThreadFunction(LPVOID pContext);
 	HRESULT WriteAudioSamplesToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ BYTE *pSrc, DWORD cbData);
 	HRESULT GetOutputForDeviceName(std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **adapter);
 	HRESULT SetAttributeU32(_Inout_ ATL::CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value);
