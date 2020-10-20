@@ -263,8 +263,8 @@ std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> &first, std::vec
 			buf2B = (short)(buf2B & 0xff);
 		}
 
-		short buf1C = (short) round(buf1A * firstVolume + buf1B * secondVolume);
-		short buf2C = (short) round(buf2A * firstVolume + buf2B * secondVolume);
+		short buf1C = (short)round(buf1A * firstVolume + buf1B * secondVolume);
+		short buf2C = (short)round(buf2A * firstVolume + buf2B * secondVolume);
 
 		short res = (short)(buf1C + buf2C);
 
@@ -705,14 +705,16 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					bool delay = false;
 					if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
 						if (pDesktopResource != nullptr) {
-							//we got a frame, but it's too soon, so we cache it and see if there are more changes.
-							if (pPreviousFrameCopy == nullptr) {
-								RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
+							if (FrameInfo.AccumulatedFrames > 0) {
+								//we got a frame, but it's too soon, so we cache it and see if there are more changes.
+								if (pPreviousFrameCopy == nullptr) {
+									RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
+								}
+								CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
+								RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
+									m_ImmediateContext->CopyResource(pPreviousFrameCopy, pAcquiredDesktopImage);
+								pAcquiredDesktopImage.Release();
 							}
-							CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
-							RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
-							m_ImmediateContext->CopyResource(pPreviousFrameCopy, pAcquiredDesktopImage);
-							pAcquiredDesktopImage.Release();
 						}
 						delay = true;
 					}
@@ -739,11 +741,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				{
 					CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
 					RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopy));
-
-
-					if (pDesktopResource != nullptr) {
-						CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
+					CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
+					if (pDesktopResource != nullptr && FrameInfo.AccumulatedFrames > 0) {
 						RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
+					}
+					if (pAcquiredDesktopImage != nullptr) {
 						m_ImmediateContext->CopyResource(pFrameCopy, pAcquiredDesktopImage);
 						if (pPreviousFrameCopy) {
 							pPreviousFrameCopy.Release();
@@ -1021,7 +1023,7 @@ HRESULT internal_recorder::initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out
 	D3D11_TEXTURE2D_DESC sourceFrameDesc;
 	sourceFrameDesc.Width = monitorWidth;
 	sourceFrameDesc.Height = monitorHeight;
-	sourceFrameDesc.Format = outputDuplDesc.ModeDesc.Format;
+	sourceFrameDesc.Format = DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM;
 	sourceFrameDesc.ArraySize = 1;
 	sourceFrameDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
 	sourceFrameDesc.MiscFlags = 0;
@@ -1034,7 +1036,7 @@ HRESULT internal_recorder::initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out
 	D3D11_TEXTURE2D_DESC destFrameDesc;
 	destFrameDesc.Width = destRect.right - destRect.left;
 	destFrameDesc.Height = destRect.bottom - destRect.top;
-	destFrameDesc.Format = outputDuplDesc.ModeDesc.Format;
+	destFrameDesc.Format = DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM;
 	destFrameDesc.ArraySize = 1;
 	destFrameDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
 	destFrameDesc.MiscFlags = 0;
@@ -1111,8 +1113,8 @@ HRESULT internal_recorder::InitializeDx(_In_opt_ IDXGIOutput * pDxgiOutput, _Out
 #endif
 			// Device creation success, no need to loop anymore
 			break;
-		}
 	}
+}
 
 	RETURN_ON_BAD_HR(hr);
 	CComPtr<ID3D10Multithread> pMulti = nullptr;
