@@ -153,6 +153,8 @@ namespace ScreenRecorderLib {
 			EncoderProfile = H264Profile::Baseline;
 			BitrateMode = BitrateControlMode::Quality;
 			SnapshotFormat = ImageFormat::PNG;
+			SnapshotsWithVideo = false;
+			SnapshotsInterval = 10;
 		}
 		property H264Profile EncoderProfile;
 		/// <summary>
@@ -179,6 +181,14 @@ namespace ScreenRecorderLib {
 		///Image format for snapshots. This is only used with Snapshot and Slideshow modes.
 		/// </summary>
 		property ImageFormat SnapshotFormat;
+		/// <summary>
+		///Whether to take snapshots in a video recording. This is only used with Video mode.
+		/// </summary>
+		property bool SnapshotsWithVideo;
+		/// <summary>
+		///Interval in second for taking snapshots in a video recording. This is only used with Video mode AND SnapshotsWithVideo enabled.
+		/// </summary>
+		property int SnapshotsInterval;
 	};
 	public ref class AudioOptions {
 	public:
