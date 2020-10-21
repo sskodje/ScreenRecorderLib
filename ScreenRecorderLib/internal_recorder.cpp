@@ -245,6 +245,12 @@ void internal_recorder::SetMouseClickDetectionMode(UINT32 value) {
 void internal_recorder::SetSnapshotSaveFormat(GUID value) {
 	m_ImageEncoderFormat = value;
 }
+void internal_recorder::SetTakeSnapthotsWithVideo(bool isEnabled) {
+	m_TakesSnapshotsWithVideo = isEnabled;
+}
+void internal_recorder::SetSnapthotsWithVideoInterval(UINT32 value) {
+	m_SnapshotsWithVideoInterval = std::chrono::seconds(value);
+}
 void internal_recorder::SetIsLogEnabled(bool value) {
 	isLoggingEnabled = value;
 }
@@ -347,6 +353,11 @@ HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
 		if (pStrExtension == nullptr || pStrExtension[0] == 0)
 		{
 			m_OutputFullPath = m_OutputFolder + L"\\" + s2ws(CurrentTimeToFormattedString()) + ext;
+		}
+		if (IsSnapshotsWithVideoEnabled()) {
+			// Snapshots will be saved in a folder named as video file name without extension. 
+			m_OutputSnapshotsFolderPath = m_OutputFullPath.substr(0, m_OutputFullPath.find_last_of(L"."));
+			std::filesystem::create_directory(m_OutputSnapshotsFolderPath);
 		}
 	}
 	return S_OK;
@@ -517,7 +528,9 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			INT frameTimeout = 0;
 			INT frameNr = 0;
 			CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
+			CComPtr<ID3D11Texture2D> pFrameCopyForSnapshotsWithVideo = nullptr;
 			std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
+			std::chrono::system_clock::time_point previousTimeSnapshotTaken = std::chrono::system_clock::from_time_t(0);
 			mouse_pointer::PTR_INFO PtrInfo;
 			RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
 
@@ -631,14 +644,16 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					bool delay = false;
 					if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
 						if (pDesktopResource != nullptr) {
-							//we got a frame, but it's too soon, so we cache it and see if there are more changes.
-							if (pPreviousFrameCopy == nullptr) {
-								RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
+							if (FrameInfo.AccumulatedFrames > 0) {
+								//we got a frame, but it's too soon, so we cache it and see if there are more changes.
+								if (pPreviousFrameCopy == nullptr) {
+									RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
+								}
+								CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
+								RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
+									m_ImmediateContext->CopyResource(pPreviousFrameCopy, pAcquiredDesktopImage);
+								pAcquiredDesktopImage.Release();
 							}
-							CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
-							RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
-							m_ImmediateContext->CopyResource(pPreviousFrameCopy, pAcquiredDesktopImage);
-							pAcquiredDesktopImage.Release();
 						}
 						delay = true;
 					}
@@ -665,11 +680,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				{
 					CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
 					RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopy));
-
-
-					if (pDesktopResource != nullptr) {
-						CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
+					CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
+					if (pDesktopResource != nullptr && FrameInfo.AccumulatedFrames > 0) {
 						RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
+					}
+					if (pAcquiredDesktopImage != nullptr) {
 						m_ImmediateContext->CopyResource(pFrameCopy, pAcquiredDesktopImage);
 						if (pPreviousFrameCopy) {
 							pPreviousFrameCopy.Release();
@@ -686,6 +701,23 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					}
 
 					SetDebugName(pFrameCopy, "FrameCopy");
+
+					// Take screenshots in a video recording, if video recording is file mode.
+					if (IsSnapshotsWithVideoEnabled() && !m_OutputSnapshotsFolderPath.empty()) {
+						const auto now = std::chrono::system_clock::now();
+						if (previousTimeSnapshotTaken == std::chrono::system_clock::from_time_t(0) || 
+							now - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval) {
+							previousTimeSnapshotTaken = now;
+							if (pFrameCopyForSnapshotsWithVideo == nullptr)
+								RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopyForSnapshotsWithVideo));
+							wstring snapshotPath = m_OutputSnapshotsFolderPath + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetImageExtension();
+
+							// Copy the current frame for a separate thread to write it to a file asynchronously.
+							// Assuming previous file writing is already done.
+							m_ImmediateContext->CopyResource(pFrameCopyForSnapshotsWithVideo, pFrameCopy);
+							WriteFrameToImageAsync(pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str());
+						}
+					}
 
 					if (gotMousePointer) {
 						hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
@@ -760,6 +792,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				pDeskDupl->ReleaseFrame();
 			if (pPreviousFrameCopy)
 				pPreviousFrameCopy.Release();
+			if (pFrameCopyForSnapshotsWithVideo)
+				pFrameCopyForSnapshotsWithVideo.Release();
 			if (pMousePointer) {
 				pMousePointer->CleanupResources();
 			}
@@ -947,7 +981,7 @@ HRESULT internal_recorder::initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out
 	D3D11_TEXTURE2D_DESC sourceFrameDesc;
 	sourceFrameDesc.Width = monitorWidth;
 	sourceFrameDesc.Height = monitorHeight;
-	sourceFrameDesc.Format = outputDuplDesc.ModeDesc.Format;
+	sourceFrameDesc.Format = DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM;
 	sourceFrameDesc.ArraySize = 1;
 	sourceFrameDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
 	sourceFrameDesc.MiscFlags = 0;
@@ -960,7 +994,7 @@ HRESULT internal_recorder::initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out
 	D3D11_TEXTURE2D_DESC destFrameDesc;
 	destFrameDesc.Width = destRect.right - destRect.left;
 	destFrameDesc.Height = destRect.bottom - destRect.top;
-	destFrameDesc.Format = outputDuplDesc.ModeDesc.Format;
+	destFrameDesc.Format = DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM;
 	destFrameDesc.ArraySize = 1;
 	destFrameDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
 	destFrameDesc.MiscFlags = 0;
@@ -1037,8 +1071,8 @@ HRESULT internal_recorder::InitializeDx(_In_opt_ IDXGIOutput * pDxgiOutput, _Out
 #endif
 			// Device creation success, no need to loop anymore
 			break;
-		}
 	}
+}
 
 	RETURN_ON_BAD_HR(hr);
 	CComPtr<ID3D10Multithread> pMulti = nullptr;
@@ -1530,6 +1564,34 @@ HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D * pAcquiredDes
 {
 	HRESULT hr = SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage,
 		m_ImageEncoderFormat, filePath, nullptr);
+	return hr;
+}
+
+HANDLE internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, LPCWSTR filePath)
+{
+	WriteFrameToImageThreadFunctionArgs* threadArgs = new WriteFrameToImageThreadFunctionArgs();
+	threadArgs->pDeviceContext = m_ImmediateContext;
+	threadArgs->pFrameToWrite = pAcquiredDesktopImage;
+	threadArgs->imageFormat = m_ImageEncoderFormat;
+	wcscpy_s(threadArgs->filePath, _countof(threadArgs->filePath), filePath);
+	
+	return CreateThread(
+		nullptr, 0,
+		WriteFrameToImageThreadFunction, threadArgs, 0, nullptr
+	);
+}
+
+DWORD WINAPI internal_recorder::WriteFrameToImageThreadFunction(LPVOID pContext)
+{
+	WriteFrameToImageThreadFunctionArgs* pArgs =
+		(WriteFrameToImageThreadFunctionArgs*)pContext;
+	if (!pArgs)
+		return S_FALSE;
+
+	HRESULT hr = SaveWICTextureToFile(pArgs->pDeviceContext, pArgs->pFrameToWrite, pArgs->imageFormat, pArgs->filePath, nullptr);
+	DEBUG(L"Wrote snapshot to %s. Return code: %d", pArgs->filePath, hr);
+	//Cannot call here pArgs->pFrameToWrite->Release();
+	delete pArgs;
 	return hr;
 }
 

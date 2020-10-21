@@ -145,6 +145,10 @@
                                   x:Name="CheckBoxRecordToStream"
                                   IsChecked="{Binding ElementName=MainWin,Path=RecordToStream}"
                                   Margin="0" />
+                        <CheckBox Content="Take snapshots with Video"
+                                  x:Name="CheckBoxSnapshotsWithVideo"
+                                  IsChecked="{Binding ElementName=MainWin,Path=SnapshotsWithVideo}"
+                                  Margin="0" />
                         <StackPanel Orientation="Horizontal">
                             <Label Content="Mode"
                                    Width="85"
@@ -170,6 +174,20 @@
                                       ItemsSource="{Binding Source={StaticResource ImageFormatData}}"
                                       SelectedItem="{Binding ElementName=MainWin,Path=CurrentImageFormat}"
                                       VerticalAlignment="Top" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal"
+                                    x:Name="SnapshotsIntervalPanel"
+                                    Visibility="Collapsed">
+                            <Label Content="Snapshots interval"
+                                   Width="120"
+                                   VerticalAlignment="Center" />
+                            <TextBox x:Name="SnapshotsIntervalTextBox"
+                                     Width="30"
+                                     Text="{Binding ElementName=MainWin,Path=SnapshotsIntervalInSec}"
+                                     HorizontalAlignment="Left"
+                                     VerticalAlignment="Center" />
+                            <Label Content="second" />
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal"
