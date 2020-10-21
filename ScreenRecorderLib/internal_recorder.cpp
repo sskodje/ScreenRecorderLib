@@ -20,7 +20,6 @@
 #include "cleanup.h"
 #include "string_format.h"
 
-
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "D3D11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -49,7 +48,7 @@ public:
 			else {
 				DEBUG(L"stopped loopback_capture");
 			}
-}
+		}
 	}
 
 private:
@@ -444,8 +443,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			RtlZeroMemory(&outputDuplDesc, sizeof(outputDuplDesc));
 			CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
 			std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
-			loopback_capture *pLoopbackCaptureOutputDevice = nullptr;
-			loopback_capture *pLoopbackCaptureInputDevice = nullptr;
+			std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = nullptr;
+			std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = nullptr;
 			CComPtr<IDXGIOutput> pSelectedOutput = nullptr;
 			hr = GetOutputForDeviceName(m_DisplayOutputName, &pSelectedOutput);
 			RETURN_ON_BAD_HR(hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &m_Device));
@@ -468,8 +467,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			if (recordAudio) {
 				if (m_IsOutputDeviceEnabled)
 				{
-					pLoopbackCaptureOutputDevice = new loopback_capture();
-					hr = pLoopbackCaptureOutputDevice->StartCapture(m_AudioChannels, m_AudioOutputDevice, L"AudioOutputDevice");
+					pLoopbackCaptureOutputDevice = make_unique<loopback_capture>(L"AudioOutputDevice");
+					hr = pLoopbackCaptureOutputDevice->StartCapture(m_AudioChannels, m_AudioOutputDevice);
 					if (SUCCEEDED(hr)) {
 						inputDeviceSampleRate = m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
 					}
@@ -477,8 +476,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 				if (m_IsInputDeviceEnabled)
 				{
-					pLoopbackCaptureInputDevice =  new loopback_capture();
-					hr = pLoopbackCaptureInputDevice->StartCapture(inputDeviceSampleRate, m_AudioChannels, m_AudioInputDevice, L"AudioInputDevice");
+					pLoopbackCaptureInputDevice = make_unique<loopback_capture>(L"AudioInputDevice");
+					hr = pLoopbackCaptureInputDevice->StartCapture(inputDeviceSampleRate, m_AudioChannels, m_AudioInputDevice);
 					if (SUCCEEDED(hr)) {
 						m_InputAudioSamplesPerSecond = pLoopbackCaptureInputDevice->GetInputSampleRate();
 					}
@@ -489,11 +488,8 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
 				}
 			}
-			LoopbackCaptureStopOnExit stopOutputDeviceCapture(pLoopbackCaptureOutputDevice);
-			//DeleteOnExit DeleteOutputCaptureDevice(pLoopbackCaptureOutputDevice);
-
-			LoopbackCaptureStopOnExit stopInputDeviceCapture(pLoopbackCaptureInputDevice);
-			//DeleteOnExit DeleteInputCaptureDevice(pLoopbackCaptureInputDevice);
+			LoopbackCaptureStopOnExit stopOutputDeviceCapture(pLoopbackCaptureOutputDevice.get());
+			LoopbackCaptureStopOnExit stopInputDeviceCapture(pLoopbackCaptureInputDevice.get());
 
 			// moved this section after sound initialization to get right m_InputAudioSamplesPerSecond from pLoopbackCapture before InitializeVideoSinkWriter
 			if (m_RecorderMode == MODE_VIDEO) {
@@ -651,7 +647,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 								}
 								CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
 								RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
-									m_ImmediateContext->CopyResource(pPreviousFrameCopy, pAcquiredDesktopImage);
+								m_ImmediateContext->CopyResource(pPreviousFrameCopy, pAcquiredDesktopImage);
 								pAcquiredDesktopImage.Release();
 							}
 						}
@@ -705,7 +701,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					// Take screenshots in a video recording, if video recording is file mode.
 					if (IsSnapshotsWithVideoEnabled() && !m_OutputSnapshotsFolderPath.empty()) {
 						const auto now = std::chrono::system_clock::now();
-						if (previousTimeSnapshotTaken == std::chrono::system_clock::from_time_t(0) || 
+						if (previousTimeSnapshotTaken == std::chrono::system_clock::from_time_t(0) ||
 							now - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval) {
 							previousTimeSnapshotTaken = now;
 							if (pFrameCopyForSnapshotsWithVideo == nullptr)
@@ -741,7 +737,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					model.Frame = pFrameCopy;
 					model.Duration = durationSinceLastFrame100Nanos;
 					model.StartPos = lastFrameStartPos;
-					model.Audio = recordAudio ? GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice) : std::vector<BYTE>();
+					model.Audio = recordAudio ? GrabAudioFrame(pLoopbackCaptureOutputDevice.get(), pLoopbackCaptureInputDevice.get()) : std::vector<BYTE>();
 					model.FrameNumber = frameNr;
 					RETURN_ON_BAD_HR(hr = m_EncoderResult = RenderFrame(model));
 
@@ -771,23 +767,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				model.Frame = pPreviousFrameCopy;
 				model.Duration = duration;
 				model.StartPos = lastFrameStartPos;
-				model.Audio = recordAudio ? GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice) : std::vector<BYTE>();
+				model.Audio = recordAudio ? GrabAudioFrame(pLoopbackCaptureOutputDevice.get(), pLoopbackCaptureInputDevice.get()) : std::vector<BYTE>();
 				model.FrameNumber = frameNr;
 				hr = m_EncoderResult = RenderFrame(model);
 			}
-			//SetEvent(hOutputCaptureStopEvent);
-			//SetEvent(hInputCaptureStopEvent);
-			//if (recordAudio && m_IsOutputDeviceEnabled) {
-			//	WaitForSingleObjectEx(hOutputCaptureCompletedEvent, 1000, false);
-			//}
-			//if (recordAudio && m_IsInputDeviceEnabled) {
-			//	WaitForSingleObjectEx(hInputCaptureCompletedEvent, 1000, false);
-			//}
 
-			//if (RecordingStatusChangedCallback != nullptr) {
-			//	RecordingStatusChangedCallback(STATUS_FINALIZING);
-			//	DEBUG("Changed Recording Status to Finalizing");
-			//}
 			if (pDeskDupl)
 				pDeskDupl->ReleaseFrame();
 			if (pPreviousFrameCopy)
@@ -1071,8 +1055,8 @@ HRESULT internal_recorder::InitializeDx(_In_opt_ IDXGIOutput * pDxgiOutput, _Out
 #endif
 			// Device creation success, no need to loop anymore
 			break;
+		}
 	}
-}
 
 	RETURN_ON_BAD_HR(hr);
 	CComPtr<ID3D10Multithread> pMulti = nullptr;
@@ -1574,7 +1558,7 @@ HANDLE internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquired
 	threadArgs->pFrameToWrite = pAcquiredDesktopImage;
 	threadArgs->imageFormat = m_ImageEncoderFormat;
 	wcscpy_s(threadArgs->filePath, _countof(threadArgs->filePath), filePath);
-	
+
 	return CreateThread(
 		nullptr, 0,
 		WriteFrameToImageThreadFunction, threadArgs, 0, nullptr
