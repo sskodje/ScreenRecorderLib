@@ -1308,19 +1308,19 @@ void internal_recorder::SetViewPort(ID3D11DeviceContext * deviceContext, UINT Wi
 	deviceContext->RSSetViewports(1, &VP);
 }
 /// <summary>
-/// MFSinkWriter crashes if source or destination dimensions are odd numbers. This method forces the dimensions of a RECT to be even by adding one pixel if odd.
+/// MFSinkWriter crashes if source or destination dimensions are odd numbers. This method forces the dimensions of a RECT to be even by subtracting one pixel if odd.
 /// </summary>
 /// <param name="rect"></param>
 RECT internal_recorder::MakeRectEven(RECT rect)
 {
 	if (rect.left % 2 != 0)
-		rect.left += 1;
+		rect.left -= 1;
 	if (rect.top % 2 != 0)
-		rect.top += 1;
+		rect.top -= 1;
 	if (rect.right % 2 != 0)
-		rect.right += 1;
+		rect.right -= 1;
 	if (rect.bottom % 2 != 0)
-		rect.bottom += 1;
+		rect.bottom -= 1;
 	return rect;
 }
 
