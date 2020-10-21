@@ -21,8 +21,6 @@ loopback_capture::loopback_capture()
 }
 loopback_capture::~loopback_capture()
 {
-	if (prefs)
-		delete prefs;
 	CloseHandle(m_CaptureStopEvent);
 	CloseHandle(m_CaptureStartedEvent);
 }
@@ -383,8 +381,7 @@ HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, 
 	bool isDeviceEmpty = device.empty();
 	LPCWSTR argv[3] = { L"", L"--device", device.c_str() };
 	int argc = isDeviceEmpty ? 1 : SIZEOF_ARRAY(argv);
-	//CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, eRender);
-	prefs = new CPrefs(argc, isDeviceEmpty ? nullptr : argv, hr, eRender);
+	CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, eRender);
 	if (SUCCEEDED(hr)) {
 		m_CaptureStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 		if (nullptr == m_CaptureStartedEvent) {
@@ -397,11 +394,11 @@ HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, 
 			ERROR(L"CreateEvent failed: last error is %u", GetLastError());
 			return E_FAIL;
 		}
-
-		prefs->m_bInt16 = true;
-		m_CaptureTask = concurrency::create_task([this, sampleRate, audioChannels]() {
-			LoopbackCapture(prefs->m_pMMDevice,
-				prefs->m_hFile,
+		IMMDevice *device = prefs.m_pMMDevice;
+		auto file = prefs.m_hFile;
+		m_CaptureTask = concurrency::create_task([this, sampleRate, audioChannels, device, file]() {
+			LoopbackCapture(device,
+				file,
 				true,
 				m_CaptureStartedEvent,
 				m_CaptureStopEvent,

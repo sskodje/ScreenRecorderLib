@@ -49,7 +49,6 @@ private:
 	HANDLE m_CaptureStartedEvent = nullptr;
 	HANDLE m_CaptureStopEvent = nullptr;
 
-	CPrefs *prefs=nullptr;
 	WWMFResampler m_Resampler;
 	WWMFPcmFormat m_InputFormat;
 	WWMFPcmFormat m_OutputFormat;
