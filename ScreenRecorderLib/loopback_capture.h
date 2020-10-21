@@ -15,6 +15,7 @@
 class loopback_capture
 {
 public:
+	loopback_capture(std::wstring tag);
 	loopback_capture();
 	~loopback_capture();
 	void ClearRecordedBytes();
@@ -32,8 +33,8 @@ public:
 	std::vector<BYTE> loopback_capture::PeakRecordedBytes();
 	std::vector<BYTE> loopback_capture::GetRecordedBytes();
 	std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount);
-	HRESULT StartCapture(UINT32 audioChannels, std::wstring device, std::wstring tag) { return StartCapture(0, audioChannels, device, tag); }
-	HRESULT StartCapture(UINT32 sampleRate, UINT32 audioChannels, std::wstring device, std::wstring tag);
+	HRESULT StartCapture(UINT32 audioChannels, std::wstring device) { return StartCapture(0, audioChannels, device); }
+	HRESULT StartCapture(UINT32 sampleRate, UINT32 audioChannels, std::wstring device);
 	HRESULT StopCapture();
 	UINT32 GetInputSampleRate();
 
