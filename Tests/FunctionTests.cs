@@ -21,22 +21,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(outStream);
-                    Thread.Sleep(3000);
+                    recordingResetEvent.WaitOne(3000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -56,22 +58,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(outStream);
-                    Thread.Sleep(3000);
+                    recordingResetEvent.WaitOne(3000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -85,22 +89,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(outStream);
-                    Thread.Sleep(3000);
+                    recordingResetEvent.WaitOne(3000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -108,7 +114,7 @@ namespace ScreenRecorderLib
                     lowestQualitySize = outStream.Length;
                 }
             }
-            Assert.IsTrue(fullQualitySize > lowestQualitySize*2);
+            Assert.IsTrue(fullQualitySize > lowestQualitySize * 2);
         }
 
         [TestMethod]
@@ -122,22 +128,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(outStream);
-                    Thread.Sleep(3000);
+                    recordingResetEvent.WaitOne(3000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -157,22 +165,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(outStream);
-                    Thread.Sleep(3000);
+                    recordingResetEvent.WaitOne(3000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -192,22 +202,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(outStream);
-                    Thread.Sleep(3000);
+                    recordingResetEvent.WaitOne(3000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -227,22 +239,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(outStream);
-                    Thread.Sleep(3000);
+                    recordingResetEvent.WaitOne(3000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -262,22 +276,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(outStream);
-                    Thread.Sleep(3000);
+                    recordingResetEvent.WaitOne(3000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -297,22 +313,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(outStream);
-                    Thread.Sleep(3000);
+                    recordingResetEvent.WaitOne(3000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -336,22 +354,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(outStream);
-                    Thread.Sleep(3000);
+                    recordingResetEvent.WaitOne(3000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -372,22 +392,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(filePath);
-                    Thread.Sleep(3000);
+                    recordingResetEvent.WaitOne(3000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -417,22 +439,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(directoryPath);
-                    Thread.Sleep(1000);
+                    recordingResetEvent.WaitOne(1000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -460,22 +484,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(filePath);
-                    Thread.Sleep(3000);
+                    recordingResetEvent.WaitOne(3000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -504,22 +530,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(filePath);
-                    Thread.Sleep(5900);
+                    recordingResetEvent.WaitOne(5900);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
+                    finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
@@ -543,7 +571,7 @@ namespace ScreenRecorderLib
                 Directory.Delete(snapshotsDir, recursive: true);
             }
         }
-        
+
         [TestMethod]
         public void DefaultRecordingOneMinuteToFileTest()
         {
@@ -554,23 +582,24 @@ namespace ScreenRecorderLib
                 {
                     bool isError = false;
                     bool isComplete = false;
-                    ManualResetEvent resetEvent = new ManualResetEvent(false);
+                    ManualResetEvent finalizingResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        resetEvent.Set();
+                        finalizingResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
-                        resetEvent.Set();
+                        finalizingResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
 
                     rec.Record(filePath);
-                    Thread.Sleep(60 * 1000);
+                    recordingResetEvent.WaitOne(60 * 1000);
                     rec.Stop();
-                    resetEvent.WaitOne(5000);
-
+                    finalizingResetEvent.WaitOne(5000);
                     Assert.IsFalse(isError);
                     Assert.IsTrue(isComplete);
                     Assert.IsTrue(new FileInfo(filePath).Length > 0);
@@ -594,30 +623,32 @@ namespace ScreenRecorderLib
                 {
                     RecorderOptions options = new RecorderOptions();
                     options.VideoOptions = new VideoOptions { Framerate = 60, IsFixedFramerate = false };
-                    options.AudioOptions = new AudioOptions { IsAudioEnabled = true };
+                    options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled = true, IsOutputDeviceEnabled = true };
                     using (var rec = Recorder.CreateRecorder(options))
                     {
                         string error = "";
                         bool isError = false;
                         bool isComplete = false;
-                        ManualResetEvent resetEvent = new ManualResetEvent(false);
+                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                         rec.OnRecordingComplete += (s, args) =>
                         {
                             isComplete = true;
-                            resetEvent.Set();
+                            finalizeResetEvent.Set();
                         };
                         rec.OnRecordingFailed += (s, args) =>
                         {
                             isError = true;
                             error = args.Error;
-                            resetEvent.Set();
+                            finalizeResetEvent.Set();
+                            recordingResetEvent.Set();
                         };
 
                         rec.Record(outStream);
-                        Thread.Sleep(2000);
+                        recordingResetEvent.WaitOne(2000);
                         rec.Stop();
 
-                        Assert.IsTrue(resetEvent.WaitOne(5000), $"[{i}] Recording finalize timed out");
+                        Assert.IsTrue(finalizeResetEvent.WaitOne(5000), $"[{i}] Recording finalize timed out");
                         Assert.IsNotNull(outStream, $"[{i}] Outstream is null");
                         Assert.IsFalse(isError, $"[{i}] Recording error: " + error);
                         Assert.IsTrue(isComplete, $"[{i}] Recording not complete");
@@ -632,22 +663,24 @@ namespace ScreenRecorderLib
             string error = "";
             bool isError = false;
             bool isComplete = false;
-            AutoResetEvent resetEvent = new AutoResetEvent(false);
+            AutoResetEvent finalizeResetEvent = new AutoResetEvent(false);
+            ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
             RecorderOptions options = new RecorderOptions();
             options.VideoOptions = new VideoOptions { Framerate = 60, IsFixedFramerate = false };
-            options.AudioOptions = new AudioOptions { IsAudioEnabled = true };
+            options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled = true, IsOutputDeviceEnabled = true };
             using (var rec = Recorder.CreateRecorder(options))
             {
                 rec.OnRecordingComplete += (s, args) =>
                 {
                     isComplete = true;
-                    resetEvent.Set();
+                    finalizeResetEvent.Set();
                 };
                 rec.OnRecordingFailed += (s, args) =>
                 {
                     isError = true;
                     error = args.Error;
-                    resetEvent.Set();
+                    finalizeResetEvent.Set();
+                    recordingResetEvent.Set();
                 };
                 for (int i = 0; i < 50; i++)
                 {
@@ -656,10 +689,10 @@ namespace ScreenRecorderLib
                         isError = false;
                         isComplete = false;
                         rec.Record(outStream);
-                        Thread.Sleep(2000);
+                        recordingResetEvent.WaitOne(2000);
                         rec.Stop();
 
-                        Assert.IsTrue(resetEvent.WaitOne(5000), $"[{i}] Recording finalize timed out");
+                        Assert.IsTrue(finalizeResetEvent.WaitOne(5000), $"[{i}] Recording finalize timed out");
                         Assert.IsNotNull(outStream, $"[{i}] Outstream is null");
                         Assert.IsFalse(isError, $"[{i}] Recording error: " + error);
                         Assert.IsTrue(isComplete, $"[{i}] Recording not complete");

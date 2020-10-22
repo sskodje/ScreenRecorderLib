@@ -10,6 +10,9 @@ template <class T> void SafeRelease(T **ppT)
 		*ppT = nullptr;
 	}
 }
+
+
+
 class AudioClientStopOnExit {
 public:
 	AudioClientStopOnExit(IAudioClient *p) : m_p(p) {}
@@ -103,6 +106,18 @@ public:
 private:
 	IUnknown *m_p;
 };
+
+class DeleteOnExit {
+public:
+	DeleteOnExit(void *p) : m_p(p) {}
+	~DeleteOnExit() {
+		delete m_p;
+	}
+
+private:
+	void *m_p;
+};
+
 class SetEventOnExit {
 public:
 	SetEventOnExit(HANDLE h) : m_h(h) {}

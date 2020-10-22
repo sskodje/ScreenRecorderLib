@@ -5,40 +5,26 @@
 #include "loopback_capture.h"
 #include "log.h"
 #include "cleanup.h"
+#include "audio_prefs.h"
+#include <thread>
 
 using namespace std;
+loopback_capture::loopback_capture(std::wstring tag)
+{
+	std::mutex(mtx);
+	m_Tag = tag;
+}
 loopback_capture::loopback_capture()
 {
 	std::mutex(mtx);
+	m_Tag = L"";
 }
-
 loopback_capture::~loopback_capture()
 {
-	m_IsDestructed = true;
-	Cleanup();
-}
-DWORD WINAPI LoopbackCaptureThreadFunction(LPVOID pContext) {
-	LoopbackCaptureThreadFunctionArguments *pArgs =
-		(LoopbackCaptureThreadFunctionArguments*)pContext;
-	if (pArgs) {
-		loopback_capture *capture = (loopback_capture*)pArgs->pCaptureInstance;
-		if (capture) {
-			pArgs->hr = capture->LoopbackCapture(
-				pArgs->pMMDevice,
-				pArgs->hFile,
-				pArgs->bInt16,
-				pArgs->hStartedEvent,
-				pArgs->hCompletedEvent,
-				pArgs->hStopEvent,
-				&pArgs->nFrames,
-				pArgs->flow,
-				pArgs->samplerate,
-				pArgs->channels,
-				pArgs->tag
-			);
-		}
-	}
-	return 0;
+	StopCapture();
+	CloseHandle(m_CaptureStopEvent);
+	CloseHandle(m_CaptureStartedEvent);
+	m_Resampler.Finalize();
 }
 
 HRESULT loopback_capture::LoopbackCapture(
@@ -46,15 +32,11 @@ HRESULT loopback_capture::LoopbackCapture(
 	HMMIO hFile,
 	bool bInt16,
 	HANDLE hStartedEvent,
-	HANDLE hCompletedEvent,
 	HANDLE hStopEvent,
-	PUINT32 pnFrames,
 	EDataFlow flow,
 	UINT32 samplerate,
-	UINT32 channels,
-	LPCWSTR tag
+	UINT32 channels
 ) {
-	m_Tag = tag;
 	HRESULT hr;
 	if (pMMDevice == nullptr) {
 		ERROR(L"IMMDevice is NULL");
@@ -68,7 +50,7 @@ HRESULT loopback_capture::LoopbackCapture(
 		(void**)&pAudioClient
 	);
 	if (FAILED(hr)) {
-		ERROR(L"IMMDevice::Activate(IAudioClient) failed on %s: hr = 0x%08x", tag, hr);
+		ERROR(L"IMMDevice::Activate(IAudioClient) failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
 		return hr;
 	}
 	ReleaseOnExit releaseAudioClient(pAudioClient);
@@ -77,7 +59,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	REFERENCE_TIME hnsDefaultDevicePeriod;
 	hr = pAudioClient->GetDevicePeriod(&hnsDefaultDevicePeriod, NULL);
 	if (FAILED(hr)) {
-		ERROR(L"IAudioClient::GetDevicePeriod failed on %s: hr = 0x%08x", tag, hr);
+		ERROR(L"IAudioClient::GetDevicePeriod failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
 		return hr;
 	}
 
@@ -85,7 +67,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	WAVEFORMATEX *pwfx;
 	hr = pAudioClient->GetMixFormat(&pwfx);
 	if (FAILED(hr)) {
-		ERROR(L"IAudioClient::GetMixFormat failed on %s: hr = 0x%08x", tag, hr);
+		ERROR(L"IAudioClient::GetMixFormat failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
 		return hr;
 	}
 	CoTaskMemFreeOnExit freeMixFormat(pwfx);
@@ -143,25 +125,25 @@ HRESULT loopback_capture::LoopbackCapture(
 		}
 	}
 
-	inputFormat.nChannels = pwfx->nChannels;
-	inputFormat.bits = pwfx->wBitsPerSample;
-	inputFormat.sampleRate = pwfx->nSamplesPerSec;
-	inputFormat.dwChannelMask = 0;
-	inputFormat.validBitsPerSample = pwfx->wBitsPerSample;
-	inputFormat.sampleFormat = WWMFBitFormatInt;
+	m_InputFormat.nChannels = pwfx->nChannels;
+	m_InputFormat.bits = pwfx->wBitsPerSample;
+	m_InputFormat.sampleRate = pwfx->nSamplesPerSec;
+	m_InputFormat.dwChannelMask = 0;
+	m_InputFormat.validBitsPerSample = pwfx->wBitsPerSample;
+	m_InputFormat.sampleFormat = WWMFBitFormatInt;
 
-	outputFormat = inputFormat;
-	outputFormat.sampleRate = m_SamplesPerSec;
-	outputFormat.nChannels = channels;
+	m_OutputFormat = m_InputFormat;
+	m_OutputFormat.sampleRate = m_SamplesPerSec;
+	m_OutputFormat.nChannels = channels;
 
 	// initialize resampler if sample rate differs from 44.1kHz or 48kHz
 	if (requiresResampling()) {
-		DEBUG("Resampler (bits): %u -> %u", inputFormat.bits, outputFormat.bits);
-		DEBUG("Resampler (channels): %u -> %u", inputFormat.nChannels, outputFormat.nChannels);
-		DEBUG("Resampler (sampleFormat): %i -> %i", inputFormat.sampleFormat, outputFormat.sampleFormat);
-		DEBUG("Resampler (sampleRate): %lu -> %lu", inputFormat.sampleRate, outputFormat.sampleRate);
-		DEBUG("Resampler (validBitsPerSample): %u -> %u", inputFormat.validBitsPerSample, outputFormat.validBitsPerSample);
-		resampler.Initialize(inputFormat, outputFormat, 60);
+		DEBUG("Resampler (bits): %u -> %u", m_InputFormat.bits, m_OutputFormat.bits);
+		DEBUG("Resampler (channels): %u -> %u", m_InputFormat.nChannels, m_OutputFormat.nChannels);
+		DEBUG("Resampler (sampleFormat): %i -> %i", m_InputFormat.sampleFormat, m_OutputFormat.sampleFormat);
+		DEBUG("Resampler (sampleRate): %lu -> %lu", m_InputFormat.sampleRate, m_OutputFormat.sampleRate);
+		DEBUG("Resampler (validBitsPerSample): %u -> %u", m_InputFormat.validBitsPerSample, m_OutputFormat.validBitsPerSample);
+		m_Resampler.Initialize(m_InputFormat, m_OutputFormat, 60);
 	}
 	else
 	{
@@ -178,7 +160,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	CloseHandleOnExit closeWakeUp(hWakeUp);
 
 	UINT32 nBlockAlign = pwfx->nBlockAlign;
-	*pnFrames = 0;
+	UINT32 nFrames = 0;
 	long audioClientBuffer = 200 * 10000;
 	// call IAudioClient::Initialize
 	// note that AUDCLNT_STREAMFLAGS_LOOPBACK and AUDCLNT_STREAMFLAGS_EVENTCALLBACK
@@ -198,7 +180,7 @@ HRESULT loopback_capture::LoopbackCapture(
 		break;
 	}
 	if (FAILED(hr)) {
-		ERROR(L"IAudioClient::Initialize failed on %s: hr = 0x%08x", tag, hr);
+		ERROR(L"IAudioClient::Initialize failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
 		return hr;
 	}
 
@@ -209,7 +191,7 @@ HRESULT loopback_capture::LoopbackCapture(
 		(void**)&pAudioCaptureClient
 	);
 	if (FAILED(hr)) {
-		ERROR(L"IAudioClient::GetService(IAudioCaptureClient) failed on %s: hr = 0x%08x", tag, hr);
+		ERROR(L"IAudioClient::GetService(IAudioCaptureClient) failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
 		return hr;
 	}
 	ReleaseOnExit releaseAudioCaptureClient(pAudioCaptureClient);
@@ -219,7 +201,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	HANDLE hTask = AvSetMmThreadCharacteristics(L"Audio", &nTaskIndex);
 	if (NULL == hTask) {
 		DWORD dwErr = GetLastError();
-		ERROR(L"AvSetMmThreadCharacteristics failed on %s: last error = %u", tag, dwErr);
+		ERROR(L"AvSetMmThreadCharacteristics failed on %ls: last error = %u", m_Tag.c_str(), dwErr);
 		return HRESULT_FROM_WIN32(dwErr);
 	}
 	AvRevertMmThreadCharacteristicsOnExit unregisterMmcss(hTask);
@@ -236,7 +218,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	);
 	if (!bOK) {
 		DWORD dwErr = GetLastError();
-		ERROR(L"SetWaitableTimer failed on %s: last error = %u", tag, dwErr);
+		ERROR(L"SetWaitableTimer failed on %ls: last error = %u", m_Tag.c_str(), dwErr);
 		return HRESULT_FROM_WIN32(dwErr);
 	}
 	CancelWaitableTimerOnExit cancelWakeUp(hWakeUp);
@@ -244,7 +226,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	// call IAudioClient::Start
 	hr = pAudioClient->Start();
 	if (FAILED(hr)) {
-		ERROR(L"IAudioClient::Start failed on %s: hr = 0x%08x", tag, hr);
+		ERROR(L"IAudioClient::Start failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
 		return hr;
 	}
 	AudioClientStopOnExit stopAudioClient(pAudioClient);
@@ -280,23 +262,23 @@ HRESULT loopback_capture::LoopbackCapture(
 				NULL
 			);
 			if (FAILED(hr)) {
-				ERROR(L"IAudioCaptureClient::GetBuffer failed on pass %u after %u frames on %s: hr = 0x%08x", nPasses, *pnFrames, tag, hr);
+				ERROR(L"IAudioCaptureClient::GetBuffer failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, m_Tag.c_str(), hr);
 				bDone = true;
 				continue; // exits loop
 			}
 
 			if (bFirstPacket && AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY == dwFlags) {
-				DEBUG(L"Probably spurious glitch reported on first packet on %s", tag);
+				DEBUG(L"Probably spurious glitch reported on first packet on %ls", m_Tag.c_str());
 			}
 			else if (AUDCLNT_BUFFERFLAGS_SILENT == dwFlags) {
 				//INFO(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames", dwFlags, nPasses, *pnFrames);
 			}
 			else if (0 != dwFlags) {
-				DEBUG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames on %s", dwFlags, nPasses, *pnFrames, tag);
+				DEBUG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames on %ls", dwFlags, nPasses, nFrames, m_Tag.c_str());
 			}
 
 			if (0 == nNumFramesToRead) {
-				ERROR(L"IAudioCaptureClient::GetBuffer said to read 0 frames on pass %u after %u frames on %s", nPasses, *pnFrames, tag);
+				ERROR(L"IAudioCaptureClient::GetBuffer said to read 0 frames on pass %u after %u frames on %ls", nPasses, nFrames, m_Tag.c_str());
 				hr = E_UNEXPECTED;
 				bDone = true;
 				continue; // exits loop
@@ -305,20 +287,18 @@ HRESULT loopback_capture::LoopbackCapture(
 			LONG lBytesToWrite = nNumFramesToRead * nBlockAlign;
 #pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
 
-			if (m_IsDestructed) { return E_ABORT; }
-
-			mtx.lock();
+			m_Mutex.lock();
 			int size = lBytesToWrite;
 			if (m_RecordedBytes.size() == 0)
 				m_RecordedBytes.reserve(size);
 			m_RecordedBytes.insert(m_RecordedBytes.end(), &pData[0], &pData[size]);
-			mtx.unlock();
+			m_Mutex.unlock();
 
-			*pnFrames += nNumFramesToRead;
+			nFrames += nNumFramesToRead;
 
 			hr = pAudioCaptureClient->ReleaseBuffer(nNumFramesToRead);
 			if (FAILED(hr)) {
-				ERROR(L"IAudioCaptureClient::ReleaseBuffer failed on pass %u after %u frames on %s: hr = 0x%08x", nPasses, *pnFrames, tag, hr);
+				ERROR(L"IAudioCaptureClient::ReleaseBuffer failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, m_Tag.c_str(), hr);
 				bDone = true;
 				continue; // exits loop
 			}
@@ -327,7 +307,7 @@ HRESULT loopback_capture::LoopbackCapture(
 		}
 		m_IsCapturing = false;
 		if (FAILED(hr)) {
-			ERROR(L"IAudioCaptureClient::GetNextPacketSize failed on pass %u after %u frames on %s: hr = 0x%08x", nPasses, *pnFrames, tag, hr);
+			ERROR(L"IAudioCaptureClient::GetNextPacketSize failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, m_Tag.c_str(), hr);
 			bDone = true;
 			continue; // exits loop
 		}
@@ -338,19 +318,18 @@ HRESULT loopback_capture::LoopbackCapture(
 		);
 
 		if (WAIT_OBJECT_0 == dwWaitResult) {
-			DEBUG(L"Received stop event after %u passes and %u frames on %s", nPasses, *pnFrames, tag);
+			DEBUG(L"Received stop event after %u passes and %u frames on %ls", nPasses, nFrames, m_Tag.c_str());
 			bDone = true;
 			continue; // exits loop
 		}
 
 		if (WAIT_OBJECT_0 + 1 != dwWaitResult) {
-			ERROR(L"Unexpected WaitForMultipleObjects return value %u on pass %u after %u frames on %s", dwWaitResult, nPasses, *pnFrames, tag);
+			ERROR(L"Unexpected WaitForMultipleObjects return value %u on pass %u after %u frames on %ls", dwWaitResult, nPasses, nFrames, m_Tag.c_str());
 			hr = E_UNEXPECTED;
 			bDone = true;
 			continue; // exits loop
 		}
 	} // capture loop
-	SetEvent(hCompletedEvent);
 	return hr;
 }
 std::vector<BYTE> loopback_capture::PeakRecordedBytes()
@@ -366,7 +345,7 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount)
 {
 	if (byteCount > 0) {
 		while (m_RecordedBytes.size() < byteCount && m_IsCapturing) {
-			TRACE(L"Waiting for more audio on %s", m_Tag);
+			TRACE(L"Waiting for more audio on %ls", m_Tag.c_str());
 			Sleep(1);
 		}
 		byteCount = min(byteCount, m_RecordedBytes.size());
@@ -374,29 +353,71 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount)
 	else if (byteCount <= 0) {
 		byteCount = m_RecordedBytes.size();
 	}
-	mtx.lock();
+	m_Mutex.lock();
 
 	std::vector<BYTE> newvector(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
 	// convert audio
 	if (requiresResampling()) {
-
-		HRESULT hr = resampler.Resample(newvector.data(), newvector.size(), &sampleData);
+		HRESULT hr = m_Resampler.Resample(newvector.data(), newvector.size(), &m_SampleData);
 		if (SUCCEEDED(hr)) {
-			TRACE(L"Resampled audio from %dch %uhz to %dch %uhz", inputFormat.nChannels, inputFormat.sampleRate, outputFormat.nChannels, outputFormat.sampleRate);
+			TRACE(L"Resampled audio from %dch %uhz to %dch %uhz", m_InputFormat.nChannels, m_InputFormat.sampleRate, m_OutputFormat.nChannels, m_OutputFormat.sampleRate);
 		}
 		else {
 			ERROR(L"Resampling of audio failed: hr = 0x%08x", hr);
 		}
 		newvector.clear();
 
-		newvector.insert(newvector.end(), &sampleData.data[0], &sampleData.data[sampleData.bytes]);
+		newvector.insert(newvector.end(), &m_SampleData.data[0], &m_SampleData.data[m_SampleData.bytes]);
 
-		sampleData.Release();
+		m_SampleData.Release();
 	}
 	m_RecordedBytes.erase(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
-	//	INFO(L"Got %d bytes from loopback_capture %s. %d bytes remaining", newvector.size(), m_Tag, m_RecordedBytes.size());
-	mtx.unlock();
+	TRACE(L"Got %d bytes from loopback_capture %ls. %d bytes remaining", newvector.size(), m_Tag.c_str(), m_RecordedBytes.size());
+	m_Mutex.unlock();
 	return newvector;
+}
+
+HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, std::wstring device)
+{
+	HRESULT hr = E_FAIL;
+	bool isDeviceEmpty = device.empty();
+	LPCWSTR argv[3] = { L"", L"--device", device.c_str() };
+	int argc = isDeviceEmpty ? 1 : SIZEOF_ARRAY(argv);
+	CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, eRender);
+	if (SUCCEEDED(hr)) {
+		m_CaptureStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+		if (nullptr == m_CaptureStartedEvent) {
+			ERROR(L"CreateEvent failed: last error is %u", GetLastError());
+			return E_FAIL;
+		}
+
+		m_CaptureStopEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+		if (nullptr == m_CaptureStopEvent) {
+			ERROR(L"CreateEvent failed: last error is %u", GetLastError());
+			return E_FAIL;
+		}
+		IMMDevice *device = prefs.m_pMMDevice;
+		auto file = prefs.m_hFile;
+		m_CaptureTask = concurrency::create_task([this, sampleRate, audioChannels, device, file]() {
+			LoopbackCapture(device,
+				file,
+				true,
+				m_CaptureStartedEvent,
+				m_CaptureStopEvent,
+				eRender,
+				sampleRate,
+				audioChannels);
+		});
+		hr = WaitForSingleObjectEx(m_CaptureStartedEvent, 1000, false);
+	}
+	return hr;
+}
+
+HRESULT loopback_capture::StopCapture()
+{
+	SetEvent(m_CaptureStopEvent);
+	m_CaptureTask.wait();
+	return S_OK;
 }
 
 UINT32 loopback_capture::GetInputSampleRate() {
@@ -405,7 +426,7 @@ UINT32 loopback_capture::GetInputSampleRate() {
 
 bool loopback_capture::requiresResampling()
 {
-	return inputFormat.sampleRate != outputFormat.sampleRate || outputFormat.nChannels != inputFormat.nChannels;
+	return m_InputFormat.sampleRate != m_OutputFormat.sampleRate || m_OutputFormat.nChannels != m_InputFormat.nChannels;
 }
 
 bool loopback_capture::IsCapturing() {
@@ -414,16 +435,7 @@ bool loopback_capture::IsCapturing() {
 
 void loopback_capture::ClearRecordedBytes()
 {
-	mtx.lock();
+	m_Mutex.lock();
 	m_RecordedBytes.clear();
-	mtx.unlock();
-}
-
-void loopback_capture::Cleanup()
-{
-	if (requiresResampling()) {
-		resampler.Finalize();
-	}
-	m_RecordedBytes.clear();
-	vector<BYTE>().swap(m_RecordedBytes);
+	m_Mutex.unlock();
 }
