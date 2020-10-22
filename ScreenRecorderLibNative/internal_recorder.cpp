@@ -530,7 +530,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					lastFrameStartPos += durationSinceLastFrame100Nanos;
 					if (m_IsFixedFramerate)
 					{
-						wait(static_cast<UINT32>(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::high_resolution_clock::now() - lastFrame).count()));
+						wait(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::high_resolution_clock::now() - lastFrame).count(),0)));
 					}
 				}
 			}
@@ -796,7 +796,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 						lastFrameStartPos += durationSinceLastFrame100Nanos;
 						if (m_IsFixedFramerate)
 						{
-							wait(static_cast<UINT32>(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::high_resolution_clock::now() - lastFrame).count()));
+							wait(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::high_resolution_clock::now() - lastFrame).count(),0)));
 						}
 					}
 				}
