@@ -11,7 +11,7 @@
 using namespace std;
 loopback_capture::loopback_capture(std::wstring tag)
 {
-	loopback_capture();
+	std::mutex(mtx);
 	m_Tag = tag;
 }
 loopback_capture::loopback_capture()
@@ -21,8 +21,10 @@ loopback_capture::loopback_capture()
 }
 loopback_capture::~loopback_capture()
 {
+	StopCapture();
 	CloseHandle(m_CaptureStopEvent);
 	CloseHandle(m_CaptureStartedEvent);
+	m_Resampler.Finalize();
 }
 
 HRESULT loopback_capture::LoopbackCapture(
@@ -414,9 +416,6 @@ HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, 
 HRESULT loopback_capture::StopCapture()
 {
 	SetEvent(m_CaptureStopEvent);
-	if (requiresResampling()) {
-		m_Resampler.Finalize();
-	}
 	m_CaptureTask.wait();
 	return S_OK;
 }

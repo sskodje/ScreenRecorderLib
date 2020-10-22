@@ -35,26 +35,6 @@ using namespace std::chrono;
 using namespace concurrency;
 using namespace DirectX;
 
-
-class LoopbackCaptureStopOnExit {
-public:
-	LoopbackCaptureStopOnExit(loopback_capture *p) : m_p(p) {}
-	~LoopbackCaptureStopOnExit() {
-		if (m_p) {
-			HRESULT hr = m_p->StopCapture();
-			if (FAILED(hr)) {
-				ERROR(L"loopback_capture::StopCapture failed: hr = 0x%08x", hr);
-			}
-			else {
-				DEBUG(L"stopped loopback_capture");
-			}
-		}
-	}
-
-private:
-	loopback_capture *m_p;
-};
-
 #if _DEBUG
 bool isLoggingEnabled = true;
 int logSeverityLevel = LOG_LVL_DEBUG;
@@ -86,7 +66,7 @@ D3D_FEATURE_LEVEL m_FeatureLevels[] =
 };
 
 struct internal_recorder::TaskWrapper {
-	Concurrency::task<void> m_RecordTask;
+	Concurrency::task<void> m_RecordTask = concurrency::task_from_result();
 	Concurrency::cancellation_token_source m_RecordTaskCts;
 };
 
@@ -387,6 +367,10 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				DEBUG("Changed Recording Status to Recording");
 			}
 		}
+		std::wstring error = L"Recording is already in progress, aborting";
+		WARN("%ls", error.c_str());
+		if (RecordingFailedCallback != nullptr)
+			RecordingFailedCallback(error);
 		return S_FALSE;
 	}
 	m_EncoderResult = S_FALSE;
@@ -436,6 +420,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 	}
 	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, token, stream]() {
 		INFO(L"Starting recording task");
+		m_IsRecording = true;
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 		RETURN_ON_BAD_HR(hr = MFStartup(MF_VERSION, MFSTARTUP_LITE));
 		{
@@ -449,6 +434,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			hr = GetOutputForDeviceName(m_DisplayOutputName, &pSelectedOutput);
 			RETURN_ON_BAD_HR(hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &m_Device));
 			RETURN_ON_BAD_HR(hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc));
+			DEBUG("Initialized Desktop Duplication");
 			DXGI_MODE_ROTATION screenRotation = outputDuplDesc.Rotation;
 			D3D11_TEXTURE2D_DESC sourceFrameDesc;
 			D3D11_TEXTURE2D_DESC destFrameDesc;
@@ -461,7 +447,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 
 			RETURN_ON_BAD_HR(hr = initializeDesc(outputDuplDesc, &sourceFrameDesc, &destFrameDesc, &sourceRect, &destRect));
 			bool isDestRectEqualToSourceRect = EqualRect(&sourceRect, &destRect);
-
 			bool recordAudio = m_RecorderMode == MODE_VIDEO && m_IsAudioEnabled;
 			UINT32 inputDeviceSampleRate = 0;
 			if (recordAudio) {
@@ -488,8 +473,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 					m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
 				}
 			}
-			LoopbackCaptureStopOnExit stopOutputDeviceCapture(pLoopbackCaptureOutputDevice.get());
-			LoopbackCaptureStopOnExit stopInputDeviceCapture(pLoopbackCaptureInputDevice.get());
 
 			// moved this section after sound initialization to get right m_InputAudioSamplesPerSecond from pLoopbackCapture before InitializeVideoSinkWriter
 			if (m_RecorderMode == MODE_VIDEO) {
@@ -501,7 +484,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, outputDuplDesc.Rotation, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 			}
 
-			m_IsRecording = true;
 			if (RecordingStatusChangedCallback != nullptr) {
 				RecordingStatusChangedCallback(STATUS_RECORDING);
 				DEBUG("Changed Recording Status to Recording");
@@ -529,7 +511,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			std::chrono::system_clock::time_point previousTimeSnapshotTaken = std::chrono::system_clock::from_time_t(0);
 			mouse_pointer::PTR_INFO PtrInfo;
 			RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
-
 			while (true)
 			{
 				CComPtr<IDXGIResource> pDesktopResource = nullptr;
@@ -771,25 +752,11 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				model.FrameNumber = frameNr;
 				hr = m_EncoderResult = RenderFrame(model);
 			}
-
-			if (pDeskDupl)
-				pDeskDupl->ReleaseFrame();
-			if (pPreviousFrameCopy)
-				pPreviousFrameCopy.Release();
-			if (pFrameCopyForSnapshotsWithVideo)
-				pFrameCopyForSnapshotsWithVideo.Release();
-			if (pMousePointer) {
-				pMousePointer->CleanupResources();
-			}
-			if (PtrInfo.PtrShapeBuffer)
-				delete PtrInfo.PtrShapeBuffer;
-			PtrInfo.PtrShapeBuffer = nullptr;
 		}
 		INFO("Exiting recording task");
 		return hr;
 	})
 		.then([this, token](HRESULT recordingResult) {
-		m_IsRecording = false;
 		INFO("Cleaning up resources");
 		HRESULT cleanupResult = S_OK;
 		if (m_SinkWriter) {
@@ -832,6 +799,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 	{
 		MFShutdown();
 		CoUninitialize();
+		UnhookWindowsHookEx(m_Mousehook);
 		INFO(L"Media Foundation shut down");
 		std::wstring errMsg = L"";
 		bool success = false;
@@ -856,8 +824,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			RecordingStatusChangedCallback(STATUS_IDLE);
 			DEBUG("Changed Recording Status to Idle");
 		}
-
-
+		m_IsRecording = false;
 		if (success) {
 			if (RecordingCompleteCallback)
 				RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);
@@ -881,10 +848,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				DEBUG("Sent Recording Failed callback");
 			}
 		}
-
-		UnhookWindowsHookEx(m_Mousehook);
 	});
-
 	return S_OK;
 }
 

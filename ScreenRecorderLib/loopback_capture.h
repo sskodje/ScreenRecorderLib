@@ -39,13 +39,12 @@ public:
 	UINT32 GetInputSampleRate();
 
 private:
-	Concurrency::task<void> m_CaptureTask;
+	Concurrency::task<void> m_CaptureTask = concurrency::task_from_result();
 	bool m_IsCapturing = false;
 	std::vector<BYTE> m_RecordedBytes = {};
 	std::wstring m_Tag;
 	UINT32 m_SamplesPerSec = 0;
 	std::mutex m_Mutex;           // mutex for critical section
-	std::thread m_CaptureThread;
 	HANDLE m_CaptureStartedEvent = nullptr;
 	HANDLE m_CaptureStopEvent = nullptr;
 
