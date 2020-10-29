@@ -6,7 +6,6 @@
 #include <comdef.h>
 #include <Mferror.h>
 #include <wrl.h>
-#include <ScreenGrab.h>
 #include <concrt.h>
 #include <mfidl.h>
 #include <VersionHelpers.h>
@@ -19,7 +18,7 @@
 #include "utilities.h"
 #include "cleanup.h"
 #include "string_format.h"
-
+#include "screengrab.h"
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "D3D11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -33,7 +32,6 @@
 using namespace std;
 using namespace std::chrono;
 using namespace concurrency;
-using namespace DirectX;
 
 #if _DEBUG
 bool isLoggingEnabled = true;
@@ -1510,8 +1508,7 @@ std::string internal_recorder::CurrentTimeToFormattedString()
 }
 HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D * pAcquiredDesktopImage, LPCWSTR filePath)
 {
-	HRESULT hr = SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage,
-		m_ImageEncoderFormat, filePath, nullptr);
+	HRESULT hr = SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage, m_ImageEncoderFormat, filePath);
 	return hr;
 }
 
@@ -1536,7 +1533,7 @@ DWORD WINAPI internal_recorder::WriteFrameToImageThreadFunction(LPVOID pContext)
 	if (!pArgs)
 		return S_FALSE;
 
-	HRESULT hr = SaveWICTextureToFile(pArgs->pDeviceContext, pArgs->pFrameToWrite, pArgs->imageFormat, pArgs->filePath, nullptr);
+	HRESULT hr = SaveWICTextureToFile(pArgs->pDeviceContext, pArgs->pFrameToWrite, pArgs->imageFormat, pArgs->filePath);
 	DEBUG(L"Wrote snapshot to %s. Return code: %d", pArgs->filePath, hr);
 	//Cannot call here pArgs->pFrameToWrite->Release();
 	delete pArgs;

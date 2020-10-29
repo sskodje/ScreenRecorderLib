@@ -57,6 +57,9 @@
     <ClInclude Include="string_format.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="screengrab.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AssemblyInfo.cpp">
@@ -80,6 +83,9 @@
     <ClCompile Include="WWMFResampler.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="screengrab.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Image Include="app.ico">
@@ -94,8 +100,5 @@
     <ResourceCompile Include="app.rc">
       <Filter>Resource Files</Filter>
     </ResourceCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="packages.config" />
   </ItemGroup>
 </Project>
