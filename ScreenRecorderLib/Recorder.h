@@ -15,6 +15,7 @@ using namespace System::Collections::Generic;
 delegate void InternalStatusCallbackDelegate(int status);
 delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fifo_map<std::wstring, int>);
 delegate void InternalErrorCallbackDelegate(std::wstring path);
+delegate void InternalSnapshotCallbackDelegate(std::wstring path);
 
 namespace ScreenRecorderLib {
 	public enum class LogLevel
@@ -71,7 +72,7 @@ namespace ScreenRecorderLib {
 		Video = MODE_VIDEO,
 		///<summary>Record one PNG picture for each frame. </summary>
 		Slideshow = MODE_SLIDESHOW,
-		///<summary>Make a snapshot of the screen. </summary>
+		///<summary>Create a screenshot. This can not be used on a video recording in progress. Set a snapshot interval in VideoOptions to get snapshots from a runnning Recorder instance.</summary>
 		Snapshot = MODE_SNAPSHOT
 	};
 	public enum class H264Profile
@@ -345,23 +346,35 @@ namespace ScreenRecorderLib {
 			Error = error;
 		}
 	};
+
+	public ref class SnapshotSavedEventArgs :System::EventArgs {
+	public:
+		property String^ SnapshotPath;
+		SnapshotSavedEventArgs(String^ path) {
+			SnapshotPath = path;
+		}
+	};
+
 	public ref class Recorder {
 	private:
 		Recorder(RecorderOptions^ options);
 		~Recorder();
 		!Recorder();
 		RecorderStatus _status;
-		void createErrorCallback();
-		void createCompletionCallback();
-		void createStatusCallback();
+		void CreateErrorCallback();
+		void CreateCompletionCallback();
+		void CreateStatusCallback();
+		void CreateSnapshotCallback();
 		void EventComplete(std::wstring str, nlohmann::fifo_map<std::wstring, int> delays);
 		void EventFailed(std::wstring str);
 		void EventStatusChanged(int status);
+		void EventSnapshotCreated(std::wstring str);
 		void SetupCallbacks();
 		void ClearCallbacks();
 		GCHandle _statusChangedDelegateGcHandler;
 		GCHandle _errorDelegateGcHandler;
 		GCHandle _completedDelegateGcHandler;
+		GCHandle _snapshotDelegateGcHandler;
 	public:
 		property RecorderStatus Status {
 			RecorderStatus get() {
@@ -388,6 +401,7 @@ namespace ScreenRecorderLib {
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;
+		event EventHandler<SnapshotSavedEventArgs^>^ OnSnapshotSaved;
 		ManagedIStream *m_ManagedStream;
 	};
 }

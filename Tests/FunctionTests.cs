@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -381,7 +382,7 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void SnapshotTest()
+        public void ScreenshotTest()
         {
             RecorderOptions options = new RecorderOptions();
             options.RecorderMode = RecorderMode.Snapshot;
@@ -528,6 +529,7 @@ namespace ScreenRecorderLib
                 options.VideoOptions = new VideoOptions { SnapshotsWithVideo = true, SnapshotsInterval = 1, SnapshotFormat = ImageFormat.JPEG };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
+                    List<string> snapshotCallbackList = new List<string>();
                     bool isError = false;
                     bool isComplete = false;
                     ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
@@ -543,7 +545,10 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-
+                    rec.OnSnapshotSaved += (s, args) =>
+                    {
+                        snapshotCallbackList.Add(args.SnapshotPath);
+                    };
                     rec.Record(filePath);
                     recordingResetEvent.WaitOne(5900);
                     rec.Stop();
@@ -556,12 +561,12 @@ namespace ScreenRecorderLib
                     Assert.IsTrue(mediaInfo.Format == "MPEG-4");
                     Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
 
-                    var di = new DirectoryInfo(snapshotsDir);
-                    var snapshots = di.EnumerateFiles();
-                    Assert.AreEqual(6, snapshots.Count());  // First snapshot taken at time 0.
-                    foreach (var snapshot in snapshots)
+                    var snapshotsOnDisk = Directory.GetFiles(snapshotsDir);
+                    Assert.AreEqual(6, snapshotsOnDisk.Count());  // First snapshot taken at time 0.
+                    Assert.IsTrue(Enumerable.SequenceEqual(snapshotCallbackList, snapshotsOnDisk));
+                    foreach (var snapshot in snapshotsOnDisk)
                     {
-                        Assert.IsTrue(new MediaInfoWrapper(snapshot.FullName).Format == "JPEG");
+                        Assert.IsTrue(new MediaInfoWrapper(snapshot).Format == "JPEG");
                     }
                 }
             }

@@ -1508,8 +1508,7 @@ std::string internal_recorder::CurrentTimeToFormattedString()
 }
 HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D * pAcquiredDesktopImage, std::wstring filePath)
 {
-	HRESULT hr = SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage, m_ImageEncoderFormat, filePath.c_str());
-	return hr;
+	return SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage, m_ImageEncoderFormat, filePath.c_str());
 }
 
 void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath)
@@ -1523,6 +1522,9 @@ void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDe
 			bool success = SUCCEEDED(hr);
 			if (success) {
 				TRACE(L"Wrote snapshot to %s", filePath.c_str());
+				if (RecordingSnapshotCreatedCallback!= nullptr) {
+					RecordingSnapshotCreatedCallback(filePath);
+				}
 			}else {
 				_com_error err(hr);
 				ERROR("Error saving snapshot: %s", err.ErrorMessage());

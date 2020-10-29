@@ -303,6 +303,7 @@ namespace TestApp
                 _rec.OnRecordingComplete += Rec_OnRecordingComplete;
                 _rec.OnRecordingFailed += Rec_OnRecordingFailed;
                 _rec.OnStatusChanged += _rec_OnStatusChanged;
+                _rec.OnSnapshotSaved += _rec_OnSnapshotSaved;
             }
             else
             {
@@ -381,7 +382,10 @@ namespace TestApp
                 CleanupResources();
             }));
         }
-
+        private void _rec_OnSnapshotSaved(object sender, SnapshotSavedEventArgs e)
+        {
+            string filepath = e.SnapshotPath;
+        }
         private void CleanupResources()
         {
             _outputStream?.Flush();
