@@ -340,6 +340,7 @@ namespace TestApp
                 _rec.OnRecordingComplete += Rec_OnRecordingComplete;
                 _rec.OnRecordingFailed += Rec_OnRecordingFailed;
                 _rec.OnStatusChanged += _rec_OnStatusChanged;
+                _rec.OnSnapshotSaved += _rec_OnSnapshotSaved;
             }
             else
             {
@@ -418,7 +419,10 @@ namespace TestApp
                 CleanupResources();
             }));
         }
-
+        private void _rec_OnSnapshotSaved(object sender, SnapshotSavedEventArgs e)
+        {
+            string filepath = e.SnapshotPath;
+        }
         private void CleanupResources()
         {
             _outputStream?.Flush();
@@ -519,7 +523,15 @@ namespace TestApp
                 MessageBox.Show("An error occured while deleting files: " + ex.Message);
             }
         }
-
+        private void OpenRecordedFilesFolderButton_Click(object sender, RoutedEventArgs e)
+        {
+            string directory = Path.Combine(Path.GetTempPath(), "ScreenRecorder");
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            Process.Start(directory);
+        }
         private void RecordingBitrateModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (VideoQualityPanel != null)

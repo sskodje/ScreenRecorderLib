@@ -21,6 +21,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TestConsoleAppCpp", "TestConsoleAppCpp\TestConsoleAppCpp.vcxproj", "{B56F1482-CBEC-4ACA-9B12-2C0C845C5CF9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestConsoleAppDotNetCore", "TestConsoleAppDotNetCore\TestConsoleAppDotNetCore.csproj", "{84B6CB2B-23DE-431C-A2FF-795F5F68DFD8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestAppWinforms", "TestAppWinforms\TestAppWinforms.csproj", "{551CBE22-2BB4-40A5-AF62-E5334CED17B7}"
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ScreenRecorderLibNative", "ScreenRecorderLibNative\ScreenRecorderLibNative.vcxproj", "{F2652FD6-EAF0-466D-B1CF-A7D19C1540EA}"
 EndProject
 Global
@@ -101,6 +105,30 @@ Global
 		{F2652FD6-EAF0-466D-B1CF-A7D19C1540EA}.Release|x64.Build.0 = Release|x64
 		{F2652FD6-EAF0-466D-B1CF-A7D19C1540EA}.Release|x86.ActiveCfg = Release|Win32
 		{F2652FD6-EAF0-466D-B1CF-A7D19C1540EA}.Release|x86.Build.0 = Release|Win32
+		{84B6CB2B-23DE-431C-A2FF-795F5F68DFD8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{84B6CB2B-23DE-431C-A2FF-795F5F68DFD8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{84B6CB2B-23DE-431C-A2FF-795F5F68DFD8}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{84B6CB2B-23DE-431C-A2FF-795F5F68DFD8}.Debug|x64.Build.0 = Debug|Any CPU
+		{84B6CB2B-23DE-431C-A2FF-795F5F68DFD8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{84B6CB2B-23DE-431C-A2FF-795F5F68DFD8}.Debug|x86.Build.0 = Debug|Any CPU
+		{84B6CB2B-23DE-431C-A2FF-795F5F68DFD8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{84B6CB2B-23DE-431C-A2FF-795F5F68DFD8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{84B6CB2B-23DE-431C-A2FF-795F5F68DFD8}.Release|x64.ActiveCfg = Release|Any CPU
+		{84B6CB2B-23DE-431C-A2FF-795F5F68DFD8}.Release|x64.Build.0 = Release|Any CPU
+		{84B6CB2B-23DE-431C-A2FF-795F5F68DFD8}.Release|x86.ActiveCfg = Release|Any CPU
+		{84B6CB2B-23DE-431C-A2FF-795F5F68DFD8}.Release|x86.Build.0 = Release|Any CPU
+		{551CBE22-2BB4-40A5-AF62-E5334CED17B7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{551CBE22-2BB4-40A5-AF62-E5334CED17B7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{551CBE22-2BB4-40A5-AF62-E5334CED17B7}.Debug|x64.ActiveCfg = Debug|x64
+		{551CBE22-2BB4-40A5-AF62-E5334CED17B7}.Debug|x64.Build.0 = Debug|x64
+		{551CBE22-2BB4-40A5-AF62-E5334CED17B7}.Debug|x86.ActiveCfg = Debug|x86
+		{551CBE22-2BB4-40A5-AF62-E5334CED17B7}.Debug|x86.Build.0 = Debug|x86
+		{551CBE22-2BB4-40A5-AF62-E5334CED17B7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{551CBE22-2BB4-40A5-AF62-E5334CED17B7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{551CBE22-2BB4-40A5-AF62-E5334CED17B7}.Release|x64.ActiveCfg = Release|Any CPU
+		{551CBE22-2BB4-40A5-AF62-E5334CED17B7}.Release|x64.Build.0 = Release|Any CPU
+		{551CBE22-2BB4-40A5-AF62-E5334CED17B7}.Release|x86.ActiveCfg = Release|Any CPU
+		{551CBE22-2BB4-40A5-AF62-E5334CED17B7}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

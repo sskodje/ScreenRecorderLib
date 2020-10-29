@@ -6,7 +6,6 @@
 #include <comdef.h>
 #include <Mferror.h>
 #include <wrl.h>
-#include <ScreenGrab.h>
 #include <concrt.h>
 #include <mfidl.h>
 #include <VersionHelpers.h>
@@ -19,6 +18,7 @@
 #include "utilities.h"
 #include "cleanup.h"
 #include "string_format.h"
+#include "screengrab.h"
 #include "graphics_capture.h"
 #include "graphics_capture.util.h"
 #include "monitor_list.h"
@@ -1574,7 +1574,7 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 	}
 	else if (m_RecorderMode == MODE_SLIDESHOW) {
 		wstring	path = m_OutputFolder + L"\\" + to_wstring(model.FrameNumber) + GetImageExtension();
-		hr = WriteFrameToImage(model.Frame, path.c_str());
+		hr = WriteFrameToImage(model.Frame, path);
 		INT64 startposMs = HundredNanosToMillis(model.StartPos);
 		INT64 durationMs = HundredNanosToMillis(model.Duration);
 		if (FAILED(hr)) {
@@ -1589,7 +1589,7 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 		}
 	}
 	else if (m_RecorderMode == MODE_SNAPSHOT) {
-		hr = WriteFrameToImage(model.Frame, m_OutputFullPath.c_str());
+		hr = WriteFrameToImage(model.Frame, m_OutputFullPath);
 		TRACE(L"Wrote snapshot to %s", m_OutputFullPath.c_str());
 	}
 	model.Frame.Release();
@@ -1613,39 +1613,36 @@ std::string internal_recorder::CurrentTimeToFormattedString()
 	std::replace(time.begin(), time.end(), ':', '-');
 	return time;
 }
-HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D * pAcquiredDesktopImage, LPCWSTR filePath)
+HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D * pAcquiredDesktopImage, std::wstring filePath)
 {
-	HRESULT hr = SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage,
-		m_ImageEncoderFormat, filePath, nullptr);
-	return hr;
+	return SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage, m_ImageEncoderFormat, filePath.c_str());
 }
 
-HANDLE internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D * pAcquiredDesktopImage, LPCWSTR filePath)
+void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath)
 {
-	WriteFrameToImageThreadFunctionArgs* threadArgs = new WriteFrameToImageThreadFunctionArgs();
-	threadArgs->pDeviceContext = m_ImmediateContext;
-	threadArgs->pFrameToWrite = pAcquiredDesktopImage;
-	threadArgs->imageFormat = m_ImageEncoderFormat;
-	wcscpy_s(threadArgs->filePath, _countof(threadArgs->filePath), filePath);
-
-	return CreateThread(
-		nullptr, 0,
-		WriteFrameToImageThreadFunction, threadArgs, 0, nullptr
-	);
-}
-
-DWORD WINAPI internal_recorder::WriteFrameToImageThreadFunction(LPVOID pContext)
-{
-	WriteFrameToImageThreadFunctionArgs* pArgs =
-		(WriteFrameToImageThreadFunctionArgs*)pContext;
-	if (!pArgs)
-		return S_FALSE;
-
-	HRESULT hr = SaveWICTextureToFile(pArgs->pDeviceContext, pArgs->pFrameToWrite, pArgs->imageFormat, pArgs->filePath, nullptr);
-	DEBUG(L"Wrote snapshot to %s. Return code: %d", pArgs->filePath, hr);
-	//Cannot call here pArgs->pFrameToWrite->Release();
-	delete pArgs;
-	return hr;
+	concurrency::create_task([this, pAcquiredDesktopImage, filePath]() {
+		return WriteFrameToImage(pAcquiredDesktopImage, filePath);
+	}).then([this, filePath](concurrency::task<HRESULT> t)
+	{
+		try {
+			HRESULT hr = t.get();
+			bool success = SUCCEEDED(hr);
+			if (success) {
+				TRACE(L"Wrote snapshot to %s", filePath.c_str());
+				if (RecordingSnapshotCreatedCallback!= nullptr) {
+					RecordingSnapshotCreatedCallback(filePath);
+				}
+			}else {
+				_com_error err(hr);
+				ERROR("Error saving snapshot: %s", err.ErrorMessage());
+			}
+			// if .get() didn't throw and the HRESULT succeeded, there are no errors.
+		}
+		catch (const exception & e) {
+			// handle error
+			ERROR(L"Exception saving snapshot: %s", e.what());
+		}
+	});
 }
 
 HRESULT internal_recorder::WriteFrameToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ ID3D11Texture2D * pAcquiredDesktopImage)

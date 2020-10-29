@@ -385,6 +385,10 @@
                                     Margin="0,5"
                                     Click="DeleteTempFilesButton_Click"
                                     VerticalAlignment="Top" />
+                            <Button Content="Open recorded files folder"
+                                    Margin="0,5"
+                                    Click="OpenRecordedFilesFolderButton_Click"
+                                    VerticalAlignment="Top" />
                         </StackPanel>
                     </Grid>
 
