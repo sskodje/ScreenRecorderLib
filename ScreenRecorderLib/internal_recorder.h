@@ -49,13 +49,6 @@ typedef struct
 
 LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
 
-struct WriteFrameToImageThreadFunctionArgs {
-	ID3D11DeviceContext* pDeviceContext;
-	ID3D11Texture2D* pFrameToWrite;
-	GUID imageFormat;
-	wchar_t filePath[512];
-};
-
 class internal_recorder
 {
 public:
@@ -193,9 +186,8 @@ private:
 	HRESULT InitializeDesktopDupl(_In_ ID3D11Device *pDevice, _In_opt_ IDXGIOutput *pDxgiOutput, _Outptr_ IDXGIOutputDuplication **ppDesktopDupl, _Out_ DXGI_OUTDUPL_DESC *pOutputDuplDesc);
 	HRESULT InitializeVideoSinkWriter(std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device* pDevice, RECT sourceRect, RECT destRect, DXGI_MODE_ROTATION rotation, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex);
 	HRESULT WriteFrameToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ ID3D11Texture2D* pAcquiredDesktopImage);
-	HRESULT WriteFrameToImage(_In_ ID3D11Texture2D* pAcquiredDesktopImage, LPCWSTR filePath);
-	HANDLE WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, LPCWSTR filePath);
-	static DWORD WINAPI WriteFrameToImageThreadFunction(LPVOID pContext);
+	HRESULT WriteFrameToImage(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath);
+	void WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath);
 	HRESULT WriteAudioSamplesToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ BYTE *pSrc, DWORD cbData);
 	HRESULT GetOutputForDeviceName(std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **adapter);
 	HRESULT SetAttributeU32(_Inout_ ATL::CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value);
