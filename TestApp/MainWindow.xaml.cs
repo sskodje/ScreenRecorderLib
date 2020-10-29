@@ -486,7 +486,15 @@ namespace TestApp
                 MessageBox.Show("An error occured while deleting files: " + ex.Message);
             }
         }
-
+        private void OpenRecordedFilesFolderButton_Click(object sender, RoutedEventArgs e)
+        {
+            string directory = Path.Combine(Path.GetTempPath(), "ScreenRecorder");
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            Process.Start(directory);
+        }
         private void RecordingBitrateModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (VideoQualityPanel != null)
