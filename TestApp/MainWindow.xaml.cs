@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -188,11 +189,14 @@ namespace TestApp
             {
                 this.ScreenComboBox.Items.Add(target);
             }
-            this.WindowComboBox.Items.Add(Tuple.Create("-- No window selected --", new WindowHandle(IntPtr.Zero)));
-            foreach (var window in TopLevelWindowUtils.FindWindows(x => IsValidWindow(x)))
+
+            this.WindowComboBox.Items.Add(new RecordableWindow("-- No window selected --", IntPtr.Zero));
+
+            foreach (RecordableWindow window in Recorder.GetWindows())
             {
-                this.WindowComboBox.Items.Add(Tuple.Create(window.GetWindowText(), window));
+                this.WindowComboBox.Items.Add(window);
             }
+
             AudioOutputsList.Add("", "Default playback device");
             AudioInputsList.Add("", "Default recording device");
             foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices))
@@ -271,7 +275,7 @@ namespace TestApp
 
             Display selectedDisplay = (Display)this.ScreenComboBox.SelectedItem;
 
-            IntPtr selectedWindowHandle = this.WindowComboBox.Items.Count > 0 ? ((Tuple<string, WindowHandle>)this.WindowComboBox.SelectedItem).Item2.RawPtr : IntPtr.Zero;
+            IntPtr selectedWindowHandle = this.WindowComboBox.Items.Count > 0 ? ((RecordableWindow)this.WindowComboBox.SelectedItem).Handle : IntPtr.Zero;
 
             string audioOutputDevice = AudioOutputsComboBox.SelectedValue as string;
             string audioInputDevice = AudioInputsComboBox.SelectedValue as string;
@@ -374,16 +378,6 @@ namespace TestApp
                 case ImageFormat.PNG:
                     return ".png";
             }
-        }
-
-        private string GetDeviceId(Dictionary<string, string> dictionary, string name)
-        {
-            foreach (var value in dictionary.Where(value => value.Value == name))
-            {
-                return value.Key;
-            }
-
-            return string.Empty;
         }
 
         private void Rec_OnRecordingFailed(object sender, RecordingFailedEventArgs e)
@@ -494,11 +488,22 @@ namespace TestApp
 
         private void ScreenComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            var screen = WindowsDisplayAPI.Display.GetDisplays().ToList()[this.ScreenComboBox.SelectedIndex];
-            this.RecordingAreaRightTextBox.Text = screen.CurrentSetting.Resolution.Width.ToString();
-            this.RecordingAreaBottomTextBox.Text = screen.CurrentSetting.Resolution.Height.ToString();
-            this.RecordingAreaLeftTextBox.Text = 0.ToString();
-            this.RecordingAreaTopTextBox.Text = 0.ToString();
+            if (this.WindowComboBox.SelectedIndex==0)
+            {
+                SetScreenRect();
+            }
+        }
+
+        private void SetScreenRect()
+        {
+            if (this.ScreenComboBox.SelectedIndex >= 0 && WindowsDisplayAPI.Display.GetDisplays().Count() > this.ScreenComboBox.SelectedIndex)
+            {
+                var screen = WindowsDisplayAPI.Display.GetDisplays().ToList()[this.ScreenComboBox.SelectedIndex];
+                this.RecordingAreaRightTextBox.Text = screen.CurrentSetting.Resolution.Width.ToString();
+                this.RecordingAreaBottomTextBox.Text = screen.CurrentSetting.Resolution.Height.ToString();
+                this.RecordingAreaLeftTextBox.Text = 0.ToString();
+                this.RecordingAreaTopTextBox.Text = 0.ToString();
+            }
         }
 
         private void Hyperlink_Click(object sender, RoutedEventArgs e)
@@ -597,7 +602,55 @@ namespace TestApp
 
         private void RecordingApiComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (CurrentRecordingApi == RecorderApi.DesktopDuplication)
+            {
+                this.WindowComboBox.Visibility = Visibility.Collapsed;
+                this.CoordinatesPanel.IsEnabled = true;
+                SetScreenRect();
+            }
+            else if (CurrentRecordingApi == RecorderApi.WindowsGraphicsCapture)
+            {
+                this.WindowComboBox.Visibility = Visibility.Visible;
+                this.CoordinatesPanel.IsEnabled = false;
+            }
+
             this.WindowComboBox.Visibility = CurrentRecordingApi == RecorderApi.WindowsGraphicsCapture ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void WindowComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            var window = this.WindowComboBox.Items[this.WindowComboBox.SelectedIndex] as RecordableWindow;
+            if (window.Handle == IntPtr.Zero)
+            {
+                SetScreenRect();
+            }
+            else
+            {
+                NativeMethods.RECT windowRect;
+                if (NativeMethods.GetWindowRect(window.Handle, out windowRect))
+                {
+                    this.RecordingAreaRightTextBox.Text = windowRect.Right.ToString();
+                    this.RecordingAreaBottomTextBox.Text = windowRect.Bottom.ToString();
+                    this.RecordingAreaLeftTextBox.Text = windowRect.Left.ToString();
+                    this.RecordingAreaTopTextBox.Text = windowRect.Top.ToString();
+                }
+            }
+        }
+    }
+
+    internal class NativeMethods
+    {
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left;        // x position of upper-left corner
+            public int Top;         // y position of upper-left corner
+            public int Right;       // x position of lower-right corner
+            public int Bottom;      // y position of lower-right corner
         }
     }
 }

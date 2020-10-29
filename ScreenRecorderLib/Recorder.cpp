@@ -171,6 +171,16 @@ Recorder^ Recorder::CreateRecorder(RecorderOptions ^ options)
 	Recorder^ rec = gcnew Recorder(options);
 	return rec;
 }
+List<RecordableWindow^>^ ScreenRecorderLib::Recorder::GetWindows()
+{
+	List<RecordableWindow^>^ windows = gcnew List<RecordableWindow^>();
+	for each (Window win in EnumerateWindows())
+	{
+		RecordableWindow^ recordableWin = gcnew RecordableWindow(gcnew String(win.Title().c_str()),IntPtr(win.Hwnd())); 
+		windows->Add(recordableWin);
+	}
+	return windows;
+}
 void Recorder::Record(System::Runtime::InteropServices::ComTypes::IStream^ stream) {
 	SetupCallbacks();
 	IStream *pNativeStream = (IStream*)Marshal::GetComInterfaceForObject(stream, System::Runtime::InteropServices::ComTypes::IStream::typeid).ToPointer();

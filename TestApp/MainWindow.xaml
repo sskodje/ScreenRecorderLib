@@ -89,17 +89,19 @@
                 </ComboBox>
                 <ComboBox x:Name="WindowComboBox"
                           Margin="5"
-                          Visibility="Collapsed">
+                          Visibility="Collapsed"
+                          SelectionChanged="WindowComboBox_SelectionChanged">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding Item1, Mode=OneTime}" />
+                                <TextBlock Text="{Binding Title, Mode=OneTime}" />
                             </StackPanel>
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
                 <StackPanel Orientation="Horizontal"
-                            Margin="5,0">
+                            Margin="5,0"
+                            x:Name="CoordinatesPanel">
 
                     <Label Content="left" />
                     <TextBox x:Name="RecordingAreaLeftTextBox"

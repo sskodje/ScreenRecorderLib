@@ -6,6 +6,7 @@
 #include <vector>
 #include "../ScreenRecorderLibNative/Native.h"
 #include "ManagedIStream.h"
+#include "Win32WindowEnumeration.h"
 using namespace System;
 using namespace System::Runtime::InteropServices;
 using namespace System::Collections::Generic;
@@ -359,6 +360,14 @@ namespace ScreenRecorderLib {
 		}
 	};
 
+	public ref class RecordableWindow {
+	public:
+		RecordableWindow(String^ title, IntPtr handle) { Title = title; Handle = handle; }
+		property String^ Title;
+		property IntPtr Handle;
+	};
+
+
 	public ref class SnapshotSavedEventArgs :System::EventArgs {
 	public:
 		property String^ SnapshotPath;
@@ -409,6 +418,7 @@ namespace ScreenRecorderLib {
 		void SetOutputVolume(float volume);
 		static Recorder^ CreateRecorder();
 		static Recorder^ CreateRecorder(RecorderOptions^ options);
+		static List<RecordableWindow^>^ GetWindows();
 		static Dictionary<String^, String^>^ GetSystemAudioDevices(AudioDeviceSource source);
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
