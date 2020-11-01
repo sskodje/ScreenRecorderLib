@@ -422,10 +422,11 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 	auto isCaptureSupported = winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported();
 	if (!isCaptureSupported)
 	{
-		wstring error = L"failed to create output folder";
+		wstring error = L"Windows Graphics Capture API is not supported on this version of Windows";
 		ERROR(L"%ls", error.c_str());
 		if (RecordingFailedCallback != nullptr)
 			RecordingFailedCallback(error);
+		return E_FAIL;
 	}
 	std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
 	std::chrono::system_clock::time_point previousTimeSnapshotTaken = std::chrono::system_clock::from_time_t(0);
