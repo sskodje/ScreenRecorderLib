@@ -254,577 +254,43 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			RecordingFailedCallback(error);
 		return S_FALSE;
 	}
+
 	m_EncoderResult = S_FALSE;
 	m_LastFrameHadAudio = false;
 	m_FrameDelays.clear();
 	if (!path.empty()) {
 		RETURN_ON_BAD_HR(ConfigureOutputDir(path));
 	}
+
 	m_TaskWrapperImpl->m_RecordTaskCts = cancellation_token_source();
-	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
-
-	if (m_IsMouseClicksDetected) {
-		switch (m_MouseClickDetectionMode)
-		{
-		default:
-		case MOUSE_DETECTION_MODE_POLLING: {
-			concurrency::create_task([this, token]() {
-				INFO("Starting mouse click polling task");
-				while (true) {
-					if (GetKeyState(VK_LBUTTON) < 0)
-					{
-						//If left mouse button is held, reset the duration of click duration
-						g_LastMouseClickButton = VK_LBUTTON;
-						g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-					}
-					else if (GetKeyState(VK_RBUTTON) < 0)
-					{
-						//If right mouse button is held, reset the duration of click duration
-						g_LastMouseClickButton = VK_RBUTTON;
-						g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-					}
-
-					if (token.is_canceled()) {
-						break;
-					}
-					wait(1);
-				}
-				INFO("Exiting mouse click polling task");
-			});
-			break;
-		}
-		case MOUSE_DETECTION_MODE_HOOK: {
-			m_Mousehook = SetWindowsHookEx(WH_MOUSE_LL, MouseHookProc, nullptr, 0);
-			break;
-		}
-		}
-	}
-	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, token, stream]() {
+	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, stream]() {
 		INFO(L"Starting recording task");
 		m_IsRecording = true;
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 		RETURN_ON_BAD_HR(hr);
 		RETURN_ON_BAD_HR(hr = MFStartup(MF_VERSION, MFSTARTUP_LITE));
-		{
-			CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
-			std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
-			std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = nullptr;
-			std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = nullptr;
-			CComPtr<IDXGIOutput> pSelectedOutput = nullptr;
-			hr = GetOutputForDeviceName(m_DisplayOutputName, &pSelectedOutput);
-			RETURN_ON_BAD_HR(hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &m_Device));
+		InitializeMouseClickDetection();
+		CComPtr<IDXGIOutput> pSelectedOutput = nullptr;
+		hr = GetOutputForDeviceName(m_DisplayOutputName, &pSelectedOutput);
+		RETURN_ON_BAD_HR(hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &m_Device));
 
-			bool recordAudio = m_RecorderMode == MODE_VIDEO && m_IsAudioEnabled;
-			UINT32 inputDeviceSampleRate = 0;
-			if (recordAudio) {
-				if (m_IsOutputDeviceEnabled)
-				{
-					pLoopbackCaptureOutputDevice = make_unique<loopback_capture>(L"AudioOutputDevice");
-					hr = pLoopbackCaptureOutputDevice->StartCapture(m_AudioChannels, m_AudioOutputDevice);
-					if (SUCCEEDED(hr)) {
-						inputDeviceSampleRate = m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
-					}
-				}
+		if (RecordingStatusChangedCallback != nullptr) {
+			RecordingStatusChangedCallback(STATUS_RECORDING);
+			DEBUG("Changed Recording Status to Recording");
+		}
 
-				if (m_IsInputDeviceEnabled)
-				{
-					pLoopbackCaptureInputDevice = make_unique<loopback_capture>(L"AudioInputDevice");
-					hr = pLoopbackCaptureInputDevice->StartCapture(inputDeviceSampleRate, m_AudioChannels, m_AudioInputDevice);
-					if (SUCCEEDED(hr)) {
-						m_InputAudioSamplesPerSecond = pLoopbackCaptureInputDevice->GetInputSampleRate();
-					}
-				}
+		g_LastMouseClickDurationRemaining = 0;
 
-				if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
-				{
-					m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
-				}
-			}
-
-			if (RecordingStatusChangedCallback != nullptr) {
-				RecordingStatusChangedCallback(STATUS_RECORDING);
-				DEBUG("Changed Recording Status to Recording");
-			}
-
-			g_LastMouseClickDurationRemaining = 0;
-
-			INT64 lastFrameStartPos = 0;
-			if (pLoopbackCaptureOutputDevice)
-				pLoopbackCaptureOutputDevice->ClearRecordedBytes();
-			if (pLoopbackCaptureInputDevice)
-				pLoopbackCaptureInputDevice->ClearRecordedBytes();
-
-			INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
-			INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
-			INT frameTimeout = 0;
-			INT frameNr = 0;
-			CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
-
-			CComPtr<ID3D11Texture2D> pFrameCopyForSnapshotsWithVideo = nullptr;
-			std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
-			std::chrono::system_clock::time_point previousTimeSnapshotTaken = std::chrono::system_clock::from_time_t(0);
-			int totalCachedFrameDuration = 0;
-
-			if (m_RecorderApi == API_GRAPHICS_CAPTURE) {
-				auto isCaptureSupported = winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported();
-				if (!isCaptureSupported)
-				{
-					wstring error = L"failed to create output folder";
-					ERROR(L"%ls", error.c_str());
-					if (RecordingFailedCallback != nullptr)
-						RecordingFailedCallback(error);
-				}
-				std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
-				CComPtr<IDXGIDevice> pDxgiDevice;
-				RETURN_ON_BAD_HR(hr = m_Device->QueryInterface(IID_PPV_ARGS(&pDxgiDevice)));
-				auto pDevice = capture::util::CreateDirect3DDevice(pDxgiDevice);
-				GraphicsCaptureItem captureItem = nullptr;
-				RETURN_ON_BAD_HR(hr = CreateCaptureItem(&captureItem));
-				auto pCapture = std::make_unique<graphics_capture>(pDevice, captureItem, DirectXPixelFormat::B8G8R8A8UIntNormalized, nullptr);
-				pCapture->StartCapture();
-				D3D11_TEXTURE2D_DESC sourceFrameDesc;
-				RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
-
-				RECT sourceRect, destRect;
-				RtlZeroMemory(&sourceRect, sizeof(sourceRect));
-				RtlZeroMemory(&destRect, sizeof(destRect));
-				sourceRect.left = 0;
-				sourceRect.top = 0;
-				sourceRect.right = captureItem.Size().Width;
-				sourceRect.bottom = captureItem.Size().Height;
-				sourceRect = MakeRectEven(sourceRect);
-				destRect = sourceRect;
-				if (m_RecorderMode == MODE_VIDEO) {
-					CComPtr<IMFByteStream> outputStream = nullptr;
-					if (stream != nullptr) {
-						RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(stream, &outputStream));
-					}
-					RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, DXGI_MODE_ROTATION_UNSPECIFIED, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
-				}
-
-				while (true) {
-					if (token.is_canceled()) {
-						DEBUG("Recording task was cancelled");
-						hr = S_OK;
-						break;
-					}
-					if (m_IsPaused) {
-						wait(10);
-						lastFrame = high_resolution_clock::now();
-						pLoopbackCaptureOutputDevice->ClearRecordedBytes();
-						pLoopbackCaptureInputDevice->ClearRecordedBytes();
-						pCapture->ClearFrameBuffer();
-						continue;
-					}
-					auto frame = pCapture->TryGetNextFrame();
-					winrt::com_ptr<ID3D11Texture2D> surfaceTexture = nullptr;
-
-					if (frame) {
-						surfaceTexture = capture::util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
-						surfaceTexture->GetDesc(&sourceFrameDesc);
-						// Clear flags that we don't need
-						sourceFrameDesc.Usage = D3D11_USAGE_DEFAULT;
-						sourceFrameDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
-						sourceFrameDesc.CPUAccessFlags = 0;
-						sourceFrameDesc.MiscFlags = 0;
-					}
-					else if (pPreviousFrameCopy == nullptr) {
-						continue;
-					}
-
-					INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100, 0);
-
-					//Delay frames that comes quicker than selected framerate to see if we can skip them.
-					if (frameNr > 0 //always draw first frame 
-						&& !m_IsFixedFramerate)
-					{
-						bool delay = false;
-						if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
-							if (surfaceTexture) {
-								//we got a frame, but it's too soon, so we cache it and see if there are more changes.
-								if (pPreviousFrameCopy == nullptr) {
-									RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
-								}
-								m_ImmediateContext->CopyResource(pPreviousFrameCopy, surfaceTexture.get());
-							}
-							delay = true;
-						}
-						else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-							if (durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) {
-								delay = true;
-							}
-						}
-						if (delay) {
-							UINT64 delay = 1;
-							if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
-								delay = HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
-							}
-							wait(delay);
-							continue;
-						}
-					}
-
-					lastFrame = high_resolution_clock::now();
-					CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
-					RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopy));
-
-					if (surfaceTexture != nullptr) {
-						m_ImmediateContext->CopyResource(pFrameCopy, surfaceTexture.get());
-						if (pPreviousFrameCopy) {
-							pPreviousFrameCopy.Release();
-						}
-						//Copy new frame to pPreviousFrameCopy
-						if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
-							RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
-							m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
-							SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
-						}
-						totalCachedFrameDuration = 0;
-					}
-					else if (pPreviousFrameCopy) {
-						m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
-						totalCachedFrameDuration += durationSinceLastFrame100Nanos;
-					}
-
-					SetDebugName(pFrameCopy, "FrameCopy");
-
-					// Take screenshots in a video recording, if video recording is file mode.
-					if (IsSnapshotsWithVideoEnabled() && !m_OutputSnapshotsFolderPath.empty()) {
-						const auto now = std::chrono::system_clock::now();
-						if (previousTimeSnapshotTaken == std::chrono::system_clock::from_time_t(0) ||
-							now - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval) {
-							previousTimeSnapshotTaken = now;
-							if (pFrameCopyForSnapshotsWithVideo == nullptr)
-								RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopyForSnapshotsWithVideo));
-							wstring snapshotPath = m_OutputSnapshotsFolderPath + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetImageExtension();
-
-							// Copy the current frame for a separate thread to write it to a file asynchronously.
-							// Assuming previous file writing is already done.
-							m_ImmediateContext->CopyResource(pFrameCopyForSnapshotsWithVideo, pFrameCopy);
-							WriteFrameToImageAsync(pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str());
-						}
-					}
-
-					if (token.is_canceled()) {
-						DEBUG("Recording task was cancelled");
-						hr = S_OK;
-						break;
-					}
-					//TODO: Add support for cropping API_GRAPHICS_CAPTURE
-					//if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
-					//	pFrameCopy = CropFrame(pFrameCopy, destFrameDesc, destRect);
-					//}
-					FrameWriteModel model;
-					RtlZeroMemory(&model, sizeof(model));
-					model.Frame = pFrameCopy;
-					model.Duration = durationSinceLastFrame100Nanos;
-					model.StartPos = lastFrameStartPos;
-					model.Audio = recordAudio ? GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice) : std::vector<BYTE>();
-					model.FrameNumber = frameNr;
-					RETURN_ON_BAD_HR(hr = m_EncoderResult = RenderFrame(model));
-
-					if (m_RecorderMode == MODE_SNAPSHOT) {
-						break;
-					}
-					frameNr++;
-					lastFrameStartPos += durationSinceLastFrame100Nanos;
-					if (m_IsFixedFramerate)
-					{
-						wait(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::high_resolution_clock::now() - lastFrame).count(),0)));
-					}
-				}
-			}
-			else if (m_RecorderApi == API_DESKTOP_DUPLICATION) {
-				CComPtr<IDXGIResource> pDesktopResource = nullptr;
-				DXGI_OUTDUPL_FRAME_INFO FrameInfo;
-				RtlZeroMemory(&FrameInfo, sizeof(FrameInfo));
-
-				bool gotMousePointer = false;
-				DXGI_OUTDUPL_DESC outputDuplDesc;
-				RtlZeroMemory(&outputDuplDesc, sizeof(outputDuplDesc));
-				CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
-				RETURN_ON_BAD_HR(hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc));
-				DXGI_MODE_ROTATION screenRotation = outputDuplDesc.Rotation;
-				D3D11_TEXTURE2D_DESC sourceFrameDesc;
-				D3D11_TEXTURE2D_DESC destFrameDesc;
-				RECT sourceRect, destRect;
-
-				RtlZeroMemory(&destFrameDesc, sizeof(destFrameDesc));
-				RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
-				RtlZeroMemory(&sourceRect, sizeof(sourceRect));
-				RtlZeroMemory(&destRect, sizeof(destRect));
-
-				RETURN_ON_BAD_HR(hr = initializeDesc(outputDuplDesc, &sourceFrameDesc, &destFrameDesc, &sourceRect, &destRect));
-				bool isDestRectEqualToSourceRect = EqualRect(&sourceRect, &destRect);
-
-				std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
-				RETURN_ON_BAD_HR(hr = pMousePointer->Initialize(m_ImmediateContext, m_Device));
-				SetViewPort(m_ImmediateContext, sourceRect.right - sourceRect.left, sourceRect.bottom - sourceRect.top);
-				std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
-
-				mouse_pointer::PTR_INFO PtrInfo;
-				RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
-
-				if (m_RecorderMode == MODE_VIDEO) {
-					CComPtr<IMFByteStream> outputStream = nullptr;
-					if (stream != nullptr) {
-						RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(stream, &outputStream));
-					}
-					RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, outputDuplDesc.Rotation, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
-				}
-
-				while (true)
-				{
-					CComPtr<IDXGIResource> pDesktopResource = nullptr;
-					DXGI_OUTDUPL_FRAME_INFO FrameInfo;
-					RtlZeroMemory(&FrameInfo, sizeof(FrameInfo));
-
-					if (token.is_canceled()) {
-						DEBUG("Recording task was cancelled");
-						hr = S_OK;
-						break;
-					}
-
-					if (m_IsPaused) {
-						wait(10);
-						lastFrame = high_resolution_clock::now();
-						if (pLoopbackCaptureOutputDevice)
-							pLoopbackCaptureOutputDevice->ClearRecordedBytes();
-						if (pLoopbackCaptureInputDevice)
-							pLoopbackCaptureInputDevice->ClearRecordedBytes();
-						continue;
-					}
-					if (pDeskDupl) {
-						pDeskDupl->ReleaseFrame();
-						// Get new frame
-						hr = pDeskDupl->AcquireNextFrame(
-							frameTimeout,
-							&FrameInfo,
-							&pDesktopResource);
-
-						// Get mouse info
-						gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, &(FrameInfo), sourceRect, pDeskDupl));
-					}
-					if (FAILED(hr)) {
-						_com_error err(hr);
-						TRACE(L"Error getting next frame due to: %s", err.ErrorMessage());
-					}
-
-					if (pDeskDupl == nullptr
-						|| hr == DXGI_ERROR_ACCESS_LOST) {
-						if (pDeskDupl == nullptr) {
-							DEBUG(L"Error getting next frame due to Desktop Duplication instance is NULL, reinitializing");
-						}
-						else if (hr == DXGI_ERROR_ACCESS_LOST) {
-							_com_error err(hr);
-							DEBUG(L"Error getting next frame due to DXGI_ERROR_ACCESS_LOST, reinitializing: %s", err.ErrorMessage());
-
-						}
-						if (pDeskDupl) {
-							pDeskDupl->ReleaseFrame();
-							pDeskDupl.Release();
-						}
-						hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
-						if (FAILED(hr))
-						{
-							_com_error err(hr);
-							switch (hr)
-							{
-							case DXGI_ERROR_DEVICE_REMOVED:
-							case DXGI_ERROR_DEVICE_RESET:
-								return m_Device->GetDeviceRemovedReason();
-							case E_ACCESSDENIED:
-							case DXGI_ERROR_MODE_CHANGE_IN_PROGRESS:
-							case DXGI_ERROR_SESSION_DISCONNECTED:
-								//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application is launching, or similar.
-								//We continue the recording, and instead of desktop texture just add a blank texture instead.
-								hr = S_OK;
-								if (pPreviousFrameCopy) {
-									pPreviousFrameCopy.Release();
-									RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
-								}
-								else {
-									//We are just recording empty frames now. Slow down the framerate and rate of reconnect retry attempts to save resources.
-									wait(200);
-								}
-								WARN(L"Desktop duplication temporarily unavailable: %s", err.ErrorMessage());
-								break;
-							case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
-								ERROR(L"Error reinitializing desktop duplication with DXGI_ERROR_NOT_CURRENTLY_AVAILABLE. This means DXGI reached the limit on the maximum number of concurrent duplication applications (default of four). Therefore, the calling application cannot create any desktop duplication interfaces until the other applications close");
-								return hr;
-							default:
-								//Unexpected error, return.
-								ERROR(L"Error reinitializing desktop duplication with unexpected error, aborting: %s", err.ErrorMessage());
-								return hr;
-							}
-						}
-						else {
-							DEBUG("Desktop duplication reinitialized");
-							continue;
-						}
-					}
-					else if (FAILED(hr) && hr != DXGI_ERROR_WAIT_TIMEOUT) {
-						return hr;
-					}
-
-					if (m_RecorderMode == MODE_SLIDESHOW
-						|| m_RecorderMode == MODE_SNAPSHOT) {
-
-						if (frameNr == 0 && FrameInfo.AccumulatedFrames == 0) {
-							continue;
-						}
-					}
-
-					INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100, 0);
-
-					//Delay frames that comes quicker than selected framerate to see if we can skip them.
-					if (frameNr > 0 //always draw first frame 
-						&& !m_IsFixedFramerate
-						&& (!m_IsMousePointerEnabled || FrameInfo.PointerShapeBufferSize == 0)//always redraw when pointer changes if we draw pointer
-						&& ((hr == DXGI_ERROR_WAIT_TIMEOUT && durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) //don't wait on timeout if the frame duration is > m_MaxFrameLength100Nanos
-							|| durationSinceLastFrame100Nanos < videoFrameDuration100Nanos)) //wait if frame timeouted or duration is under our chosen framerate
-					{
-						bool delay = false;
-						if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
-							if (pDesktopResource != nullptr) {
-								if (FrameInfo.AccumulatedFrames > 0) {
-									//we got a frame, but it's too soon, so we cache it and see if there are more changes.
-									if (pPreviousFrameCopy == nullptr) {
-										RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
-									}
-									CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
-									RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
-									m_ImmediateContext->CopyResource(pPreviousFrameCopy, pAcquiredDesktopImage);
-									pAcquiredDesktopImage.Release();
-								}
-							}
-							delay = true;
-						}
-						else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-							if (durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) {
-								delay = true;
-							}
-						}
-						if (delay) {
-							UINT64 delay = 1;
-							if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
-								delay = HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
-							}
-							wait(delay);
-							continue;
-						}
-					}
-
-					if (hr != DXGI_ERROR_WAIT_TIMEOUT) {
-						RETURN_ON_BAD_HR(hr);
-					}
-
-					lastFrame = high_resolution_clock::now();
-					{
-						CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
-						RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopy));
-						CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
-						if (pDesktopResource != nullptr && FrameInfo.AccumulatedFrames > 0) {
-							RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
-						}
-						if (pAcquiredDesktopImage != nullptr) {
-							m_ImmediateContext->CopyResource(pFrameCopy, pAcquiredDesktopImage);
-							if (pPreviousFrameCopy) {
-								pPreviousFrameCopy.Release();
-							}
-							//Copy new frame to pPreviousFrameCopy
-							if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
-								RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
-								m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
-								SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
-							}
-						}
-						else if (pPreviousFrameCopy) {
-							m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
-						}
-
-						SetDebugName(pFrameCopy, "FrameCopy");
-
-						if (gotMousePointer) {
-							hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
-							if (FAILED(hr)) {
-								_com_error err(hr);
-								ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
-								//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
-							}
-						}
-						if (token.is_canceled()) {
-							DEBUG("Recording task was cancelled");
-							hr = S_OK;
-							break;
-						}
-
-						if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
-							pFrameCopy = CropFrame(pFrameCopy, destFrameDesc, destRect);
-						}
-
-						// Take screenshots in a video recording, if video recording is file mode.
-						if (IsSnapshotsWithVideoEnabled() && !m_OutputSnapshotsFolderPath.empty()) {
-							const auto now = std::chrono::system_clock::now();
-							if (previousTimeSnapshotTaken == std::chrono::system_clock::from_time_t(0) ||
-								now - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval) {
-								previousTimeSnapshotTaken = now;
-								if (pFrameCopyForSnapshotsWithVideo == nullptr)
-									RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopyForSnapshotsWithVideo));
-								wstring snapshotPath = m_OutputSnapshotsFolderPath + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetImageExtension();
-
-								// Copy the current frame for a separate thread to write it to a file asynchronously.
-								// Assuming previous file writing is already done.
-								m_ImmediateContext->CopyResource(pFrameCopyForSnapshotsWithVideo, pFrameCopy);
-								WriteFrameToImageAsync(pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str());
-							}
-						}
-
-						FrameWriteModel model;
-						RtlZeroMemory(&model, sizeof(model));
-						model.Frame = pFrameCopy;
-						model.Duration = durationSinceLastFrame100Nanos;
-						model.StartPos = lastFrameStartPos;
-						model.Audio = recordAudio ? GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice) : std::vector<BYTE>();
-						model.FrameNumber = frameNr;
-						RETURN_ON_BAD_HR(hr = m_EncoderResult = RenderFrame(model));
-
-						if (m_RecorderMode == MODE_SNAPSHOT) {
-							break;
-						}
-						frameNr++;
-						lastFrameStartPos += durationSinceLastFrame100Nanos;
-						if (m_IsFixedFramerate)
-						{
-							wait(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::high_resolution_clock::now() - lastFrame).count(),0)));
-						}
-					}
-				}
-
-				//Push the last frame waiting to be recorded to the sink writer.
-				if (pPreviousFrameCopy != nullptr) {
-					INT64 duration = duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100;
-					if (gotMousePointer) {
-						DrawMousePointer(pPreviousFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, duration);
-					}
-					if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
-						pPreviousFrameCopy = CropFrame(pPreviousFrameCopy, destFrameDesc, destRect);
-					}
-					FrameWriteModel model;
-					RtlZeroMemory(&model, sizeof(model));
-					model.Frame = pPreviousFrameCopy;
-					model.Duration = duration;
-					model.StartPos = lastFrameStartPos;
-					model.Audio = recordAudio ? GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice) : std::vector<BYTE>();
-					model.FrameNumber = frameNr;
-					hr = m_EncoderResult = RenderFrame(model);
-				}
-			}
+		if (m_RecorderApi == API_GRAPHICS_CAPTURE) {
+			RETURN_ON_BAD_HR(hr = StartGraphicsCaptureRecorderLoop(stream));
+		}
+		else if (m_RecorderApi == API_DESKTOP_DUPLICATION) {
+			RETURN_ON_BAD_HR(hr = StartDesktopDuplicationRecorderLoop(stream, pSelectedOutput));
 		}
 		INFO("Exiting recording task");
 		return hr;
 	})
-		.then([this, token](HRESULT recordingResult) {
+		.then([this](HRESULT recordingResult) {
 		INFO("Cleaning up resources");
 		HRESULT cleanupResult = S_OK;
 		if (m_SinkWriter) {
@@ -947,6 +413,498 @@ void internal_recorder::ResumeRecording() {
 	}
 }
 
+HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
+{
+	std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = nullptr;
+	std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = nullptr;
+	CComPtr<ID3D11Texture2D> pFrameCopyForSnapshotsWithVideo = nullptr;
+	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
+	auto isCaptureSupported = winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported();
+	if (!isCaptureSupported)
+	{
+		wstring error = L"failed to create output folder";
+		ERROR(L"%ls", error.c_str());
+		if (RecordingFailedCallback != nullptr)
+			RecordingFailedCallback(error);
+	}
+	std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
+	std::chrono::system_clock::time_point previousTimeSnapshotTaken = std::chrono::system_clock::from_time_t(0);
+	int totalCachedFrameDuration = 0;
+	HRESULT hr;
+	CComPtr<IDXGIDevice> pDxgiDevice;
+	RETURN_ON_BAD_HR(hr = m_Device->QueryInterface(IID_PPV_ARGS(&pDxgiDevice)));
+	auto pDevice = capture::util::CreateDirect3DDevice(pDxgiDevice);
+	GraphicsCaptureItem captureItem = nullptr;
+	RETURN_ON_BAD_HR(hr = CreateCaptureItem(&captureItem));
+	auto pCapture = std::make_unique<graphics_capture>(pDevice, captureItem, DirectXPixelFormat::B8G8R8A8UIntNormalized, nullptr);
+	pCapture->StartCapture();
+	D3D11_TEXTURE2D_DESC sourceFrameDesc;
+	RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
+
+	RECT sourceRect, destRect;
+	RtlZeroMemory(&sourceRect, sizeof(sourceRect));
+	RtlZeroMemory(&destRect, sizeof(destRect));
+	sourceRect.left = 0;
+	sourceRect.top = 0;
+	sourceRect.right = captureItem.Size().Width;
+	sourceRect.bottom = captureItem.Size().Height;
+	sourceRect = MakeRectEven(sourceRect);
+	destRect = sourceRect;
+
+	if (m_RecorderMode == MODE_VIDEO) {
+		hr = InitializeAudioCapture(&pLoopbackCaptureOutputDevice, &pLoopbackCaptureOutputDevice);
+		if (FAILED(hr)) {
+			ERROR(L"Audio capture failed to start: hr = 0x%08x", hr);
+		}
+		CComPtr<IMFByteStream> outputStream = nullptr;
+		if (pStream != nullptr) {
+			RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &outputStream));
+		}
+		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, DXGI_MODE_ROTATION_UNSPECIFIED, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+	}
+
+	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
+	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
+	INT frameTimeout = 0;
+	INT frameNr = 0;
+	INT64 lastFrameStartPos = 0;
+	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
+	while (true) {
+		if (token.is_canceled()) {
+			DEBUG("Recording task was cancelled");
+			hr = S_OK;
+			break;
+		}
+		if (m_IsPaused) {
+			wait(10);
+			lastFrame = high_resolution_clock::now();
+			pLoopbackCaptureOutputDevice->ClearRecordedBytes();
+			pLoopbackCaptureInputDevice->ClearRecordedBytes();
+			pCapture->ClearFrameBuffer();
+			continue;
+		}
+		auto frame = pCapture->TryGetNextFrame();
+		winrt::com_ptr<ID3D11Texture2D> surfaceTexture = nullptr;
+
+		if (frame) {
+			surfaceTexture = capture::util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
+			surfaceTexture->GetDesc(&sourceFrameDesc);
+			// Clear flags that we don't need
+			sourceFrameDesc.Usage = D3D11_USAGE_DEFAULT;
+			sourceFrameDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
+			sourceFrameDesc.CPUAccessFlags = 0;
+			sourceFrameDesc.MiscFlags = 0;
+		}
+		else if (pPreviousFrameCopy == nullptr) {
+			continue;
+		}
+
+		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100, 0);
+
+		//Delay frames that comes quicker than selected framerate to see if we can skip them.
+		if (frameNr > 0 //always draw first frame 
+			&& !m_IsFixedFramerate)
+		{
+			bool delay = false;
+			if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
+				if (surfaceTexture) {
+					//we got a frame, but it's too soon, so we cache it and see if there are more changes.
+					if (pPreviousFrameCopy == nullptr) {
+						RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
+					}
+					m_ImmediateContext->CopyResource(pPreviousFrameCopy, surfaceTexture.get());
+				}
+				delay = true;
+			}
+			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+				if (durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) {
+					delay = true;
+				}
+			}
+			if (delay) {
+				UINT64 delay = 1;
+				if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
+					delay = HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
+				}
+				wait(delay);
+				continue;
+			}
+		}
+
+		lastFrame = high_resolution_clock::now();
+		CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
+		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopy));
+
+		if (surfaceTexture != nullptr) {
+			m_ImmediateContext->CopyResource(pFrameCopy, surfaceTexture.get());
+			if (pPreviousFrameCopy) {
+				pPreviousFrameCopy.Release();
+			}
+			//Copy new frame to pPreviousFrameCopy
+			if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
+				RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
+				m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
+				SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
+			}
+			totalCachedFrameDuration = 0;
+		}
+		else if (pPreviousFrameCopy) {
+			m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
+			totalCachedFrameDuration += durationSinceLastFrame100Nanos;
+		}
+
+		SetDebugName(pFrameCopy, "FrameCopy");
+
+		// Take screenshots in a video recording, if video recording is file mode.
+		if (IsSnapshotsWithVideoEnabled() && !m_OutputSnapshotsFolderPath.empty()) {
+			const auto now = std::chrono::system_clock::now();
+			if (previousTimeSnapshotTaken == std::chrono::system_clock::from_time_t(0) ||
+				now - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval) {
+				previousTimeSnapshotTaken = now;
+				if (pFrameCopyForSnapshotsWithVideo == nullptr)
+					RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopyForSnapshotsWithVideo));
+				wstring snapshotPath = m_OutputSnapshotsFolderPath + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetImageExtension();
+
+				// Copy the current frame for a separate thread to write it to a file asynchronously.
+				// Assuming previous file writing is already done.
+				m_ImmediateContext->CopyResource(pFrameCopyForSnapshotsWithVideo, pFrameCopy);
+				WriteFrameToImageAsync(pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str());
+			}
+		}
+
+		if (token.is_canceled()) {
+			DEBUG("Recording task was cancelled");
+			hr = S_OK;
+			break;
+		}
+		FrameWriteModel model;
+		RtlZeroMemory(&model, sizeof(model));
+		model.Frame = pFrameCopy;
+		model.Duration = durationSinceLastFrame100Nanos;
+		model.StartPos = lastFrameStartPos;
+		model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
+		model.FrameNumber = frameNr;
+		RETURN_ON_BAD_HR(hr = m_EncoderResult = RenderFrame(model));
+
+		if (m_RecorderMode == MODE_SNAPSHOT) {
+			break;
+		}
+		frameNr++;
+		lastFrameStartPos += durationSinceLastFrame100Nanos;
+		if (m_IsFixedFramerate)
+		{
+			wait(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::high_resolution_clock::now() - lastFrame).count(), 0)));
+		}
+	}
+}
+
+HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream, IDXGIOutput *pSelectedOutput)
+{
+	std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = nullptr;
+	std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = nullptr;
+	CComPtr<ID3D11Texture2D> pFrameCopyForSnapshotsWithVideo = nullptr;
+	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
+	CComPtr<IDXGIResource> pDesktopResource = nullptr;
+	bool gotMousePointer = false;
+	int totalCachedFrameDuration = 0;
+
+	HRESULT hr;
+	DXGI_OUTDUPL_FRAME_INFO FrameInfo;
+	RtlZeroMemory(&FrameInfo, sizeof(FrameInfo));
+	DXGI_OUTDUPL_DESC outputDuplDesc;
+	RtlZeroMemory(&outputDuplDesc, sizeof(outputDuplDesc));
+	CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
+	RETURN_ON_BAD_HR(hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc));
+	DXGI_MODE_ROTATION screenRotation = outputDuplDesc.Rotation;
+	D3D11_TEXTURE2D_DESC sourceFrameDesc;
+	D3D11_TEXTURE2D_DESC destFrameDesc;
+	RECT sourceRect, destRect;
+
+	RtlZeroMemory(&destFrameDesc, sizeof(destFrameDesc));
+	RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
+	RtlZeroMemory(&sourceRect, sizeof(sourceRect));
+	RtlZeroMemory(&destRect, sizeof(destRect));
+
+	RETURN_ON_BAD_HR(hr = InitializeDesc(outputDuplDesc, &sourceFrameDesc, &destFrameDesc, &sourceRect, &destRect));
+	bool isDestRectEqualToSourceRect = EqualRect(&sourceRect, &destRect);
+
+	std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
+	RETURN_ON_BAD_HR(hr = pMousePointer->Initialize(m_ImmediateContext, m_Device));
+	SetViewPort(m_ImmediateContext, sourceRect.right - sourceRect.left, sourceRect.bottom - sourceRect.top);
+	std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
+	std::chrono::system_clock::time_point previousTimeSnapshotTaken = std::chrono::system_clock::from_time_t(0);
+
+	mouse_pointer::PTR_INFO PtrInfo;
+	RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
+
+	if (m_RecorderMode == MODE_VIDEO) {
+		hr = InitializeAudioCapture(&pLoopbackCaptureOutputDevice, &pLoopbackCaptureOutputDevice);
+		if (FAILED(hr)) {
+			ERROR(L"Audio capture failed to start: hr = 0x%08x", hr);
+		}
+		CComPtr<IMFByteStream> outputStream = nullptr;
+		if (pStream != nullptr) {
+			RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &outputStream));
+		}
+		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, outputDuplDesc.Rotation, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+	}
+
+	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
+	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
+	INT frameTimeout = 0;
+	INT frameNr = 0;
+	INT64 lastFrameStartPos = 0;
+	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
+	while (true)
+	{
+		CComPtr<IDXGIResource> pDesktopResource = nullptr;
+		DXGI_OUTDUPL_FRAME_INFO FrameInfo;
+		RtlZeroMemory(&FrameInfo, sizeof(FrameInfo));
+
+		if (token.is_canceled()) {
+			DEBUG("Recording task was cancelled");
+			hr = S_OK;
+			break;
+		}
+
+		if (m_IsPaused) {
+			wait(10);
+			lastFrame = high_resolution_clock::now();
+			if (pLoopbackCaptureOutputDevice)
+				pLoopbackCaptureOutputDevice->ClearRecordedBytes();
+			if (pLoopbackCaptureInputDevice)
+				pLoopbackCaptureInputDevice->ClearRecordedBytes();
+			continue;
+		}
+		if (pDeskDupl) {
+			pDeskDupl->ReleaseFrame();
+			// Get new frame
+			hr = pDeskDupl->AcquireNextFrame(
+				frameTimeout,
+				&FrameInfo,
+				&pDesktopResource);
+
+			// Get mouse info
+			gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, &(FrameInfo), sourceRect, pDeskDupl));
+		}
+		if (FAILED(hr)) {
+			_com_error err(hr);
+			TRACE(L"Error getting next frame due to: %s", err.ErrorMessage());
+		}
+
+		if (pDeskDupl == nullptr
+			|| hr == DXGI_ERROR_ACCESS_LOST) {
+			if (pDeskDupl == nullptr) {
+				DEBUG(L"Error getting next frame due to Desktop Duplication instance is NULL, reinitializing");
+			}
+			else if (hr == DXGI_ERROR_ACCESS_LOST) {
+				_com_error err(hr);
+				DEBUG(L"Error getting next frame due to DXGI_ERROR_ACCESS_LOST, reinitializing: %s", err.ErrorMessage());
+
+			}
+			if (pDeskDupl) {
+				pDeskDupl->ReleaseFrame();
+				pDeskDupl.Release();
+			}
+			hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
+			if (FAILED(hr))
+			{
+				_com_error err(hr);
+				switch (hr)
+				{
+				case DXGI_ERROR_DEVICE_REMOVED:
+				case DXGI_ERROR_DEVICE_RESET:
+					return m_Device->GetDeviceRemovedReason();
+				case E_ACCESSDENIED:
+				case DXGI_ERROR_MODE_CHANGE_IN_PROGRESS:
+				case DXGI_ERROR_SESSION_DISCONNECTED:
+					//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application is launching, or similar.
+					//We continue the recording, and instead of desktop texture just add a blank texture instead.
+					hr = S_OK;
+					if (pPreviousFrameCopy) {
+						pPreviousFrameCopy.Release();
+						RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
+					}
+					else {
+						//We are just recording empty frames now. Slow down the framerate and rate of reconnect retry attempts to save resources.
+						wait(200);
+					}
+					WARN(L"Desktop duplication temporarily unavailable: %s", err.ErrorMessage());
+					break;
+				case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
+					ERROR(L"Error reinitializing desktop duplication with DXGI_ERROR_NOT_CURRENTLY_AVAILABLE. This means DXGI reached the limit on the maximum number of concurrent duplication applications (default of four). Therefore, the calling application cannot create any desktop duplication interfaces until the other applications close");
+					return hr;
+				default:
+					//Unexpected error, return.
+					ERROR(L"Error reinitializing desktop duplication with unexpected error, aborting: %s", err.ErrorMessage());
+					return hr;
+				}
+			}
+			else {
+				DEBUG("Desktop duplication reinitialized");
+				continue;
+			}
+		}
+		else if (FAILED(hr) && hr != DXGI_ERROR_WAIT_TIMEOUT) {
+			return hr;
+		}
+
+		if (m_RecorderMode == MODE_SLIDESHOW
+			|| m_RecorderMode == MODE_SNAPSHOT) {
+
+			if (frameNr == 0 && FrameInfo.AccumulatedFrames == 0) {
+				continue;
+			}
+		}
+
+		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100, 0);
+
+		//Delay frames that comes quicker than selected framerate to see if we can skip them.
+		if (frameNr > 0 //always draw first frame 
+			&& !m_IsFixedFramerate
+			&& (!m_IsMousePointerEnabled || FrameInfo.PointerShapeBufferSize == 0)//always redraw when pointer changes if we draw pointer
+			&& ((hr == DXGI_ERROR_WAIT_TIMEOUT && durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) //don't wait on timeout if the frame duration is > m_MaxFrameLength100Nanos
+				|| durationSinceLastFrame100Nanos < videoFrameDuration100Nanos)) //wait if frame timeouted or duration is under our chosen framerate
+		{
+			bool delay = false;
+			if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
+				if (pDesktopResource != nullptr) {
+					if (FrameInfo.AccumulatedFrames > 0) {
+						//we got a frame, but it's too soon, so we cache it and see if there are more changes.
+						if (pPreviousFrameCopy == nullptr) {
+							RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
+						}
+						CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
+						RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
+						m_ImmediateContext->CopyResource(pPreviousFrameCopy, pAcquiredDesktopImage);
+						pAcquiredDesktopImage.Release();
+					}
+				}
+				delay = true;
+			}
+			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+				if (durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) {
+					delay = true;
+				}
+			}
+			if (delay) {
+				UINT64 delay = 1;
+				if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
+					delay = HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
+				}
+				wait(delay);
+				continue;
+			}
+		}
+
+		if (hr != DXGI_ERROR_WAIT_TIMEOUT) {
+			RETURN_ON_BAD_HR(hr);
+		}
+
+		lastFrame = high_resolution_clock::now();
+		{
+			CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
+			RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopy));
+			CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
+			if (pDesktopResource != nullptr && FrameInfo.AccumulatedFrames > 0) {
+				RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
+			}
+			if (pAcquiredDesktopImage != nullptr) {
+				m_ImmediateContext->CopyResource(pFrameCopy, pAcquiredDesktopImage);
+				if (pPreviousFrameCopy) {
+					pPreviousFrameCopy.Release();
+				}
+				//Copy new frame to pPreviousFrameCopy
+				if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
+					RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
+					m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
+					SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
+				}
+			}
+			else if (pPreviousFrameCopy) {
+				m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
+			}
+
+			SetDebugName(pFrameCopy, "FrameCopy");
+
+			if (gotMousePointer) {
+				hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
+				if (FAILED(hr)) {
+					_com_error err(hr);
+					ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
+					//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
+				}
+			}
+			if (token.is_canceled()) {
+				DEBUG("Recording task was cancelled");
+				hr = S_OK;
+				break;
+			}
+
+			if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
+				pFrameCopy = CropFrame(pFrameCopy, destFrameDesc, destRect);
+			}
+
+			// Take screenshots in a video recording, if video recording is file mode.
+			if (IsSnapshotsWithVideoEnabled() && !m_OutputSnapshotsFolderPath.empty()) {
+				const auto now = std::chrono::system_clock::now();
+				if (previousTimeSnapshotTaken == std::chrono::system_clock::from_time_t(0) ||
+					now - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval) {
+					previousTimeSnapshotTaken = now;
+					if (pFrameCopyForSnapshotsWithVideo == nullptr)
+						RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopyForSnapshotsWithVideo));
+					wstring snapshotPath = m_OutputSnapshotsFolderPath + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetImageExtension();
+
+					// Copy the current frame for a separate thread to write it to a file asynchronously.
+					// Assuming previous file writing is already done.
+					m_ImmediateContext->CopyResource(pFrameCopyForSnapshotsWithVideo, pFrameCopy);
+					WriteFrameToImageAsync(pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str());
+				}
+			}
+
+			FrameWriteModel model;
+			RtlZeroMemory(&model, sizeof(model));
+			model.Frame = pFrameCopy;
+			model.Duration = durationSinceLastFrame100Nanos;
+			model.StartPos = lastFrameStartPos;
+			model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
+			model.FrameNumber = frameNr;
+			RETURN_ON_BAD_HR(hr = m_EncoderResult = RenderFrame(model));
+
+			if (m_RecorderMode == MODE_SNAPSHOT) {
+				break;
+			}
+			frameNr++;
+			lastFrameStartPos += durationSinceLastFrame100Nanos;
+			if (m_IsFixedFramerate)
+			{
+				wait(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::high_resolution_clock::now() - lastFrame).count(), 0)));
+			}
+		}
+	}
+
+	//Push the last frame waiting to be recorded to the sink writer.
+	if (pPreviousFrameCopy != nullptr) {
+		INT64 duration = duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100;
+		if (gotMousePointer) {
+			DrawMousePointer(pPreviousFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, duration);
+		}
+		if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
+			pPreviousFrameCopy = CropFrame(pPreviousFrameCopy, destFrameDesc, destRect);
+		}
+		FrameWriteModel model;
+		RtlZeroMemory(&model, sizeof(model));
+		model.Frame = pPreviousFrameCopy;
+		model.Duration = duration;
+		model.StartPos = lastFrameStartPos;
+		model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
+		model.FrameNumber = frameNr;
+		hr = m_EncoderResult = RenderFrame(model);
+	}
+	return hr;
+}
+
+
 std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_capture> & pLoopbackCaptureOutputDevice,
 	std::unique_ptr<loopback_capture> & pLoopbackCaptureInputDevice)
 {
@@ -971,7 +929,7 @@ std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_cap
 		return std::vector<BYTE>();
 }
 
-HRESULT internal_recorder::initializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out_ D3D11_TEXTURE2D_DESC * pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC * pDestFrameDesc, _Out_ RECT * pSourceRect, _Out_ RECT * pDestRect) {
+HRESULT internal_recorder::InitializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out_ D3D11_TEXTURE2D_DESC * pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC * pDestFrameDesc, _Out_ RECT * pSourceRect, _Out_ RECT * pDestRect) {
 	UINT monitorWidth = (outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE90 || outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE270)
 		? outputDuplDesc.ModeDesc.Height : outputDuplDesc.ModeDesc.Width;
 
@@ -1401,6 +1359,86 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	return S_OK;
 }
 
+HRESULT internal_recorder::InitializeAudioCapture(unique_ptr<loopback_capture> *outputAudioCapture, unique_ptr<loopback_capture> *inputAudioCapture)
+{
+	loopback_capture *pLoopbackCaptureOutputDevice = nullptr;
+	loopback_capture *pLoopbackCaptureInputDevice = nullptr;
+	HRESULT hr;
+	bool recordAudio = m_RecorderMode == MODE_VIDEO && m_IsAudioEnabled;
+	UINT32 inputDeviceSampleRate = 0;
+	if (recordAudio && (m_IsOutputDeviceEnabled || m_IsOutputDeviceEnabled)) {
+		if (m_IsOutputDeviceEnabled)
+		{
+			pLoopbackCaptureOutputDevice = new loopback_capture(L"AudioOutputDevice");
+			hr = pLoopbackCaptureOutputDevice->StartCapture(m_AudioChannels, m_AudioOutputDevice);
+			if (SUCCEEDED(hr)) {
+				inputDeviceSampleRate = m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
+			}
+		}
+
+		if (m_IsInputDeviceEnabled)
+		{
+			pLoopbackCaptureInputDevice = new loopback_capture(L"AudioInputDevice");
+			hr = pLoopbackCaptureInputDevice->StartCapture(inputDeviceSampleRate, m_AudioChannels, m_AudioInputDevice);
+			if (SUCCEEDED(hr)) {
+				m_InputAudioSamplesPerSecond = pLoopbackCaptureInputDevice->GetInputSampleRate();
+			}
+		}
+
+		if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
+		{
+			m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
+		}
+	}
+	else {
+		hr = S_FALSE;
+	}
+	inputAudioCapture->reset(pLoopbackCaptureOutputDevice);
+	inputAudioCapture->reset(pLoopbackCaptureInputDevice);
+	return hr;
+}
+
+void internal_recorder::InitializeMouseClickDetection()
+{
+	if (m_IsMouseClicksDetected) {
+		switch (m_MouseClickDetectionMode)
+		{
+		default:
+		case MOUSE_DETECTION_MODE_POLLING: {
+			cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
+			concurrency::create_task([this, token]() {
+				INFO("Starting mouse click polling task");
+				while (true) {
+					if (GetKeyState(VK_LBUTTON) < 0)
+					{
+						//If left mouse button is held, reset the duration of click duration
+						g_LastMouseClickButton = VK_LBUTTON;
+						g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
+					}
+					else if (GetKeyState(VK_RBUTTON) < 0)
+					{
+						//If right mouse button is held, reset the duration of click duration
+						g_LastMouseClickButton = VK_RBUTTON;
+						g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
+					}
+
+					if (token.is_canceled()) {
+						break;
+					}
+					wait(1);
+				}
+				INFO("Exiting mouse click polling task");
+			});
+			break;
+		}
+		case MOUSE_DETECTION_MODE_HOOK: {
+			m_Mousehook = SetWindowsHookEx(WH_MOUSE_LL, MouseHookProc, nullptr, 0);
+			break;
+		}
+		}
+	}
+}
+
 HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
 	_In_ IMFMediaType * pType,    // Pointer to an encoded video type.
 	const GUID & subtype,    // Uncompressed subtype (eg, RGB-32, AYUV)
@@ -1499,12 +1537,11 @@ ID3D11Texture2D * internal_recorder::CropFrame(ID3D11Texture2D * frame, D3D11_TE
 
 HRESULT internal_recorder::CreateCaptureItem(GraphicsCaptureItem * item)
 {
-	auto pMonitorList = std::make_unique<monitor_list>(false);
-
 	if (m_WindowHandle != nullptr) {
 		*item = capture::util::CreateCaptureItemForWindow(m_WindowHandle);
 	}
 	else {
+		auto pMonitorList = std::make_unique<monitor_list>(false);
 		auto monitor = pMonitorList->GetMonitorForDisplayName(m_DisplayOutputName);
 		if (!monitor.has_value()) {
 			if (pMonitorList->GetCurrentMonitors().size() == 0) {
@@ -1629,10 +1666,11 @@ void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDe
 			bool success = SUCCEEDED(hr);
 			if (success) {
 				TRACE(L"Wrote snapshot to %s", filePath.c_str());
-				if (RecordingSnapshotCreatedCallback!= nullptr) {
+				if (RecordingSnapshotCreatedCallback != nullptr) {
 					RecordingSnapshotCreatedCallback(filePath);
 				}
-			}else {
+			}
+			else {
 				_com_error err(hr);
 				ERROR("Error saving snapshot: %s", err.ErrorMessage());
 			}
