@@ -597,6 +597,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 			wait(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::high_resolution_clock::now() - lastFrame).count(), 0)));
 		}
 	}
+	return hr;
 }
 
 HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream, IDXGIOutput *pSelectedOutput)
@@ -1200,7 +1201,7 @@ std::vector<CComPtr<IDXGIAdapter>> internal_recorder::EnumDisplayAdapters()
 	return vAdapters;
 }
 
-HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_ IMFByteStream * pOutStream, _In_ ID3D11Device * pDevice, RECT sourceRect, RECT destRect, DXGI_MODE_ROTATION rotation, _Outptr_ IMFSinkWriter * *ppWriter, _Out_ DWORD * pVideoStreamIndex, _Out_ DWORD * pAudioStreamIndex)
+HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device *pDevice, RECT sourceRect, RECT destRect, DXGI_MODE_ROTATION rotation, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex, _Outptr_opt_ IMFMediaType **pVideoMediaTypeOutput, _Outptr_opt_ IMFMediaType **pVideoMediaTypeInput)
 {
 	*ppWriter = nullptr;
 	*pVideoStreamIndex = 0;
@@ -1239,15 +1240,6 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	{
 		RETURN_ON_BAD_HR(MFCreateFile(MF_ACCESSMODE_READWRITE, MF_OPENMODE_FAIL_IF_EXIST, MF_FILEFLAGS_NONE, pathString, &pOutStream));
 	};
-	// Passing 6 as the argument to save re-allocations
-	RETURN_ON_BAD_HR(MFCreateAttributes(&pAttributes, 6));
-	RETURN_ON_BAD_HR(pAttributes->SetGUID(MF_TRANSCODE_CONTAINERTYPE, MFTranscodeContainerType_MPEG4));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, m_IsHardwareEncodingEnabled));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_MPEG4SINK_MOOV_BEFORE_MDAT, m_IsMp4FastStartEnabled));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, m_IsLowLatencyModeEnabled));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, m_IsThrottlingDisabled));
-	// Add device manager to attributes. This enables hardware encoding.
-	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_D3D_MANAGER, pDeviceManager));
 
 	UINT sourceWidth = max(0, sourceRect.right - sourceRect.left);
 	UINT sourceHeight = max(0, sourceRect.bottom - sourceRect.top);
@@ -1255,44 +1247,8 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	UINT destWidth = max(0, destRect.right - destRect.left);
 	UINT destHeight = max(0, destRect.bottom - destRect.top);
 
-	// Set the output video type.
-	RETURN_ON_BAD_HR(MFCreateMediaType(&pVideoMediaTypeOut));
-	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
-	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetGUID(MF_MT_SUBTYPE, VIDEO_ENCODING_FORMAT));
-	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_AVG_BITRATE, m_VideoBitrate));
-	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
-	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_MPEG2_PROFILE, m_H264Profile));
-	RETURN_ON_BAD_HR(pVideoMediaTypeOut->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT601));
-	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeOut, MF_MT_FRAME_SIZE, destWidth, destHeight));
-	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeOut, MF_MT_FRAME_RATE, m_VideoFps, 1));
-	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaTypeOut, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
-
-	// Set the input video type.
-	CreateInputMediaTypeFromOutput(pVideoMediaTypeOut, VIDEO_INPUT_FORMAT, &pVideoMediaTypeIn);
-	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaTypeIn, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
-	pVideoMediaTypeIn->SetUINT32(MF_MT_VIDEO_ROTATION, rotationFormat);
-
-	bool isAudioEnabled = m_IsAudioEnabled
-		&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
-
-	if (isAudioEnabled) {
-		// Set the output audio type.
-		RETURN_ON_BAD_HR(MFCreateMediaType(&pAudioMediaTypeOut));
-		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
-		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetGUID(MF_MT_SUBTYPE, AUDIO_ENCODING_FORMAT));
-		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, m_AudioChannels));
-		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, AUDIO_BITS_PER_SAMPLE));
-		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, m_InputAudioSamplesPerSecond));
-		RETURN_ON_BAD_HR(pAudioMediaTypeOut->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, m_AudioBitrate));
-
-		// Set the input audio type.
-		RETURN_ON_BAD_HR(MFCreateMediaType(&pAudioMediaTypeIn));
-		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
-		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM));
-		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, AUDIO_BITS_PER_SAMPLE));
-		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, m_InputAudioSamplesPerSecond));
-		RETURN_ON_BAD_HR(pAudioMediaTypeIn->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, m_AudioChannels));
-	}
+	RETURN_ON_BAD_HR(ConfigureOutputMediaTypes(destWidth, destHeight, &pVideoMediaTypeOut, &pAudioMediaTypeOut));
+	RETURN_ON_BAD_HR(ConfigureInputMediaTypes(sourceWidth, sourceHeight, rotationFormat, pVideoMediaTypeOut, &pVideoMediaTypeIn, &pAudioMediaTypeIn));
 
 	//Creates a streaming writer
 	CComPtr<IMFMediaSink> pMp4StreamSink = nullptr;
@@ -1303,13 +1259,25 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 		RETURN_ON_BAD_HR(MFCreateMPEG4MediaSink(pOutStream, pVideoMediaTypeOut, pAudioMediaTypeOut, &pMp4StreamSink));
 	}
 	pAudioMediaTypeOut.Release();
-	pVideoMediaTypeOut.Release();
+
+
+	// Passing 6 as the argument to save re-allocations
+	RETURN_ON_BAD_HR(MFCreateAttributes(&pAttributes, 6));
+	RETURN_ON_BAD_HR(pAttributes->SetGUID(MF_TRANSCODE_CONTAINERTYPE, MFTranscodeContainerType_MPEG4));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, m_IsHardwareEncodingEnabled));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_MPEG4SINK_MOOV_BEFORE_MDAT, m_IsMp4FastStartEnabled));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, m_IsLowLatencyModeEnabled));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, m_IsThrottlingDisabled));
+	// Add device manager to attributes. This enables hardware encoding.
+	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_D3D_MANAGER, pDeviceManager));
 	RETURN_ON_BAD_HR(MFCreateSinkWriterFromMediaSink(pMp4StreamSink, pAttributes, &pSinkWriter));
 	pMp4StreamSink.Release();
 	videoStreamIndex = 0;
 	audioStreamIndex = 1;
 	RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(videoStreamIndex, pVideoMediaTypeIn, nullptr));
-	pVideoMediaTypeIn.Release();
+	bool isAudioEnabled = m_IsAudioEnabled
+		&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
+
 	if (isAudioEnabled) {
 		RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, nullptr));
 		pAudioMediaTypeIn.Release();
@@ -1355,8 +1323,84 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	// Return the pointer to the caller.
 	*ppWriter = pSinkWriter;
 	(*ppWriter)->AddRef();
+	if (pVideoMediaTypeOutput) {
+		*pVideoMediaTypeOutput = pVideoMediaTypeOut;
+		(*pVideoMediaTypeOutput)->AddRef();
+	}
+	if (pVideoMediaTypeInput) {
+		*pVideoMediaTypeInput = pVideoMediaTypeIn;
+		(*pVideoMediaTypeInput)->AddRef();
+	}
 	*pVideoStreamIndex = videoStreamIndex;
 	*pAudioStreamIndex = audioStreamIndex;
+	return S_OK;
+}
+
+HRESULT internal_recorder::ConfigureOutputMediaTypes(UINT destWidth, UINT destHeight, IMFMediaType **pVideoMediaTypeOut, IMFMediaType **pAudioMediaTypeOut)
+{
+	CComPtr<IMFMediaType> pVideoMediaType = nullptr;
+	CComPtr<IMFMediaType> pAudioMediaType = nullptr;
+	// Set the output video type.
+	RETURN_ON_BAD_HR(MFCreateMediaType(&pVideoMediaType));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_SUBTYPE, VIDEO_ENCODING_FORMAT));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_AVG_BITRATE, m_VideoBitrate));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_MPEG2_PROFILE, m_H264Profile));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT601));
+	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, destWidth, destHeight));
+	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, m_VideoFps, 1));
+	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
+
+	bool isAudioEnabled = m_IsAudioEnabled
+		&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
+
+	if (isAudioEnabled) {
+		// Set the output audio type.
+		RETURN_ON_BAD_HR(MFCreateMediaType(&pAudioMediaType));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_SUBTYPE, AUDIO_ENCODING_FORMAT));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, m_AudioChannels));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, AUDIO_BITS_PER_SAMPLE));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, m_InputAudioSamplesPerSecond));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, m_AudioBitrate));
+
+		*pAudioMediaTypeOut = pAudioMediaType;
+		(*pAudioMediaTypeOut)->AddRef();
+	}
+
+	*pVideoMediaTypeOut = pVideoMediaType;
+	(*pVideoMediaTypeOut)->AddRef();
+	return S_OK;
+}
+
+HRESULT internal_recorder::ConfigureInputMediaTypes(UINT sourceWidth, UINT sourceHeight, MFVideoRotationFormat rotationFormat, IMFMediaType *pVideoMediaTypeOut, IMFMediaType **pVideoMediaTypeIn, IMFMediaType **pAudioMediaTypeIn)
+{
+	CComPtr<IMFMediaType> pVideoMediaType = nullptr;
+	CComPtr<IMFMediaType> pAudioMediaType = nullptr;
+	// Set the input video type.
+	CreateInputMediaTypeFromOutput(pVideoMediaTypeOut, VIDEO_INPUT_FORMAT, &pVideoMediaType);
+	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
+	pVideoMediaType->SetUINT32(MF_MT_VIDEO_ROTATION, rotationFormat);
+
+	bool isAudioEnabled = m_IsAudioEnabled
+		&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
+
+	if (isAudioEnabled) {
+		// Set the input audio type.
+		RETURN_ON_BAD_HR(MFCreateMediaType(&pAudioMediaType));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, AUDIO_BITS_PER_SAMPLE));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, m_InputAudioSamplesPerSecond));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, m_AudioChannels));
+
+		*pAudioMediaTypeIn = pAudioMediaType;
+		(*pAudioMediaTypeIn)->AddRef();
+	}
+
+	*pVideoMediaTypeIn = pVideoMediaType;
+	(*pVideoMediaTypeIn)->AddRef();
 	return S_OK;
 }
 
