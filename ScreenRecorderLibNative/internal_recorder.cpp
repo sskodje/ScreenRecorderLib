@@ -689,10 +689,6 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			// Get mouse info
 			gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, &(FrameInfo), sourceRect, pDeskDupl));
 		}
-		if (FAILED(hr)) {
-			_com_error err(hr);
-			TRACE(L"Error getting next frame due to: %s", err.ErrorMessage());
-		}
 
 		if (pDeskDupl == nullptr
 			|| hr == DXGI_ERROR_ACCESS_LOST) {
