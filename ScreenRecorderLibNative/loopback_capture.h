@@ -33,8 +33,8 @@ public:
 	std::vector<BYTE> PeakRecordedBytes();
 	std::vector<BYTE> GetRecordedBytes();
 	std::vector<BYTE> GetRecordedBytes(int byteCount);
-	HRESULT StartCapture(UINT32 audioChannels, std::wstring device) { return StartCapture(0, audioChannels, device); }
-	HRESULT StartCapture(UINT32 sampleRate, UINT32 audioChannels, std::wstring device);
+	HRESULT StartCapture(UINT32 audioChannels, std::wstring device, EDataFlow flow) { return StartCapture(0, audioChannels, device, flow); }
+	HRESULT StartCapture(UINT32 sampleRate, UINT32 audioChannels, std::wstring device, EDataFlow flow);
 	HRESULT StopCapture();
 	UINT32 GetInputSampleRate();
 
