@@ -377,13 +377,13 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount)
 	return newvector;
 }
 
-HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, std::wstring device)
+HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, std::wstring device, EDataFlow flow)
 {
 	HRESULT hr = E_FAIL;
 	bool isDeviceEmpty = device.empty();
 	LPCWSTR argv[3] = { L"", L"--device", device.c_str() };
 	int argc = isDeviceEmpty ? 1 : SIZEOF_ARRAY(argv);
-	CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, eRender);
+	CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, flow);
 	if (SUCCEEDED(hr)) {
 		m_CaptureStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 		if (nullptr == m_CaptureStartedEvent) {
@@ -398,13 +398,13 @@ HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, 
 		}
 		IMMDevice *device = prefs.m_pMMDevice;
 		auto file = prefs.m_hFile;
-		m_CaptureTask = concurrency::create_task([this, sampleRate, audioChannels, device, file]() {
+		m_CaptureTask = concurrency::create_task([this, flow, sampleRate, audioChannels, device, file]() {
 			LoopbackCapture(device,
 				file,
 				true,
 				m_CaptureStartedEvent,
 				m_CaptureStopEvent,
-				eRender,
+				flow,
 				sampleRate,
 				audioChannels);
 		});
