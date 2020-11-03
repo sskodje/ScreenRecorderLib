@@ -451,7 +451,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				if (m_IsOutputDeviceEnabled)
 				{
 					pLoopbackCaptureOutputDevice = make_unique<loopback_capture>(L"AudioOutputDevice");
-					hr = pLoopbackCaptureOutputDevice->StartCapture(m_AudioChannels, m_AudioOutputDevice);
+					hr = pLoopbackCaptureOutputDevice->StartCapture(m_AudioChannels, m_AudioOutputDevice, eRender);
 					if (SUCCEEDED(hr)) {
 						inputDeviceSampleRate = m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
 					}
@@ -460,7 +460,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 				if (m_IsInputDeviceEnabled)
 				{
 					pLoopbackCaptureInputDevice = make_unique<loopback_capture>(L"AudioInputDevice");
-					hr = pLoopbackCaptureInputDevice->StartCapture(inputDeviceSampleRate, m_AudioChannels, m_AudioInputDevice);
+					hr = pLoopbackCaptureInputDevice->StartCapture(inputDeviceSampleRate, m_AudioChannels, m_AudioInputDevice, eCapture);
 					if (SUCCEEDED(hr)) {
 						m_InputAudioSamplesPerSecond = pLoopbackCaptureInputDevice->GetInputSampleRate();
 					}
