@@ -453,8 +453,14 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 	destRect = sourceRect;
 
 	if (m_RecorderMode == MODE_VIDEO) {
-		hr = InitializeAudioCapture(&pLoopbackCaptureOutputDevice, &pLoopbackCaptureOutputDevice);
-		if (FAILED(hr)) {
+		loopback_capture *outputCapture = nullptr;
+		loopback_capture *inputCapture = nullptr;
+		hr = InitializeAudioCapture(&outputCapture, &inputCapture);
+		if (SUCCEEDED(hr)) {
+			pLoopbackCaptureOutputDevice = std::unique_ptr<loopback_capture>(outputCapture);
+			pLoopbackCaptureInputDevice = std::unique_ptr<loopback_capture>(inputCapture);
+		}
+		else {
 			ERROR(L"Audio capture failed to start: hr = 0x%08x", hr);
 		}
 		CComPtr<IMFByteStream> outputStream = nullptr;
@@ -640,8 +646,14 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 	RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
 
 	if (m_RecorderMode == MODE_VIDEO) {
-		hr = InitializeAudioCapture(&pLoopbackCaptureOutputDevice, &pLoopbackCaptureOutputDevice);
-		if (FAILED(hr)) {
+		loopback_capture *outputCapture = nullptr;
+		loopback_capture *inputCapture = nullptr;
+		hr = InitializeAudioCapture(&outputCapture, &inputCapture);
+		if (SUCCEEDED(hr)) {
+			pLoopbackCaptureOutputDevice = std::unique_ptr<loopback_capture>(outputCapture);
+			pLoopbackCaptureInputDevice = std::unique_ptr<loopback_capture>(inputCapture);
+		}
+		else {
 			ERROR(L"Audio capture failed to start: hr = 0x%08x", hr);
 		}
 		CComPtr<IMFByteStream> outputStream = nullptr;
@@ -1400,7 +1412,7 @@ HRESULT internal_recorder::ConfigureInputMediaTypes(UINT sourceWidth, UINT sourc
 	return S_OK;
 }
 
-HRESULT internal_recorder::InitializeAudioCapture(unique_ptr<loopback_capture> *outputAudioCapture, unique_ptr<loopback_capture> *inputAudioCapture)
+HRESULT internal_recorder::InitializeAudioCapture(loopback_capture **outputAudioCapture, loopback_capture **inputAudioCapture)
 {
 	loopback_capture *pLoopbackCaptureOutputDevice = nullptr;
 	loopback_capture *pLoopbackCaptureInputDevice = nullptr;
@@ -1434,8 +1446,8 @@ HRESULT internal_recorder::InitializeAudioCapture(unique_ptr<loopback_capture> *
 	else {
 		hr = S_FALSE;
 	}
-	inputAudioCapture->reset(pLoopbackCaptureOutputDevice);
-	inputAudioCapture->reset(pLoopbackCaptureInputDevice);
+	*outputAudioCapture = pLoopbackCaptureOutputDevice;
+	*inputAudioCapture = pLoopbackCaptureInputDevice;
 	return hr;
 }
 

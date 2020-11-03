@@ -205,7 +205,7 @@ private:
 	HRESULT InitializeVideoSinkWriter(std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device* pDevice, RECT sourceRect, RECT destRect, DXGI_MODE_ROTATION rotation, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex, _Outptr_opt_ IMFMediaType **pVideoMediaTypeOutput = nullptr, _Outptr_opt_ IMFMediaType **pVideoMediaTypeInput = nullptr);
 	HRESULT ConfigureOutputMediaTypes(_In_ UINT destWidth, _In_ UINT destHeight, _Outptr_ IMFMediaType **pVideoMediaTypeOut, _Outptr_ IMFMediaType **pAudioMediaTypeOut);
 	HRESULT ConfigureInputMediaTypes(_In_ UINT sourceWidth, _In_ UINT sourceHeight, MFVideoRotationFormat rotationFormat, _In_ IMFMediaType *pVideoMediaTypeOut, _Outptr_ IMFMediaType **pVideoMediaTypeIn, _Outptr_ IMFMediaType **pAudioMediaTypeIn);
-	HRESULT InitializeAudioCapture(_Outptr_ std::unique_ptr<loopback_capture> *outputAudioCapture, _Outptr_ std::unique_ptr<loopback_capture> *inputAudioCapture);
+	HRESULT InitializeAudioCapture(_Outptr_ loopback_capture **outputAudioCapture, _Outptr_ loopback_capture **inputAudioCapture);
 	void InitializeMouseClickDetection();
 	HRESULT WriteFrameToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ ID3D11Texture2D* pAcquiredDesktopImage);
 	HRESULT WriteFrameToImage(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath);
