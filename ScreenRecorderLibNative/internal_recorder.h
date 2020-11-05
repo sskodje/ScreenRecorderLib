@@ -19,6 +19,7 @@
 #include "fifo_map.h"
 #include "audio_prefs.h"
 #include "mouse_pointer.h"
+#include "log.h"
 typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_map<std::wstring, int>);
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
 typedef void(__stdcall *CallbackErrorFunction)(std::wstring);
