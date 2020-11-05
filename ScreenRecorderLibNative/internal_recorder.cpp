@@ -1272,7 +1272,7 @@ std::vector<CComPtr<IDXGIAdapter>> internal_recorder::EnumDisplayAdapters()
 	return vAdapters;
 }
 
-HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device *pDevice, RECT sourceRect, RECT destRect, DXGI_MODE_ROTATION rotation, IMFSinkWriterCallback *pCallback, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex, _Outptr_opt_ IMFMediaType **pVideoMediaTypeOutput, _Outptr_opt_ IMFMediaType **pVideoMediaTypeInput)
+HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device *pDevice, RECT sourceRect, RECT destRect, DXGI_MODE_ROTATION rotation, IMFSinkWriterCallback *pCallback, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex)
 {
 	*ppWriter = nullptr;
 	*pVideoStreamIndex = 0;
@@ -1386,14 +1386,6 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	// Return the pointer to the caller.
 	*ppWriter = pSinkWriter;
 	(*ppWriter)->AddRef();
-	if (pVideoMediaTypeOutput) {
-		*pVideoMediaTypeOutput = pVideoMediaTypeOut;
-		(*pVideoMediaTypeOutput)->AddRef();
-	}
-	if (pVideoMediaTypeInput) {
-		*pVideoMediaTypeInput = pVideoMediaTypeIn;
-		(*pVideoMediaTypeInput)->AddRef();
-	}
 	*pVideoStreamIndex = videoStreamIndex;
 	*pAudioStreamIndex = audioStreamIndex;
 	return S_OK;
