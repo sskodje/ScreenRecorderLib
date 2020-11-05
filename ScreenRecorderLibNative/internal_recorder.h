@@ -41,6 +41,55 @@ typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
 
 class loopback_capture;
 
+class CMFSinkWriterCallback : public IMFSinkWriterCallback {
+
+public:
+	CMFSinkWriterCallback(HANDLE hFinalizeEvent, HANDLE hMarkerEvent) : m_nRefCount(1), m_hFinalizeEvent(hFinalizeEvent), m_hMarkerEvent(hMarkerEvent){}
+	virtual ~CMFSinkWriterCallback() {}
+	// IMFSinkWriterCallback methods
+	STDMETHODIMP OnFinalize(HRESULT hrStatus) {
+		DEBUG(L"CMFSinkWriterCallback::OnFinalize");
+		if (m_hFinalizeEvent != NULL) {
+			SetEvent(m_hFinalizeEvent);
+		}
+		return hrStatus;
+	}
+
+	STDMETHODIMP OnMarker(DWORD dwStreamIndex, LPVOID pvContext) {
+		DEBUG(L"CMFSinkWriterCallback::OnMarker");
+		if (m_hMarkerEvent != NULL) {
+			SetEvent(m_hMarkerEvent);
+		}
+		return S_OK;
+	}
+
+	// IUnknown methods
+	STDMETHODIMP QueryInterface(REFIID riid, void** ppv) {
+		static const QITAB qit[] = {
+			QITABENT(CMFSinkWriterCallback, IMFSinkWriterCallback),
+		{0}
+		};
+		return QISearch(this, qit, riid, ppv);
+	}
+
+	STDMETHODIMP_(ULONG) AddRef() {
+		return InterlockedIncrement(&m_nRefCount);
+	}
+
+	STDMETHODIMP_(ULONG) Release() {
+		ULONG refCount = InterlockedDecrement(&m_nRefCount);
+		if (refCount == 0) {
+			delete this;
+		}
+		return refCount;
+	}
+
+private:
+	volatile long m_nRefCount;
+	HANDLE m_hFinalizeEvent;
+	HANDLE m_hMarkerEvent;
+};
+
 typedef struct
 {
 	INT FrameNumber;
@@ -142,7 +191,7 @@ private:
 	nlohmann::fifo_map<std::wstring, int> m_FrameDelays;
 	DWORD m_VideoStreamIndex = 0;
 	DWORD m_AudioStreamIndex = 0;
-
+	HANDLE m_FinalizeEvent = nullptr;
 	//Config
 	UINT32 m_MaxFrameLength100Nanos = 1000 * 1000 * 10; //1 second in 100 nanoseconds measure.
 	UINT32 m_RecorderMode = MODE_VIDEO;
@@ -202,7 +251,7 @@ private:
 	HRESULT InitializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out_ D3D11_TEXTURE2D_DESC *pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC *pDestFrameDesc, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect);
 	HRESULT InitializeDx(_In_opt_ IDXGIOutput *pDxgiOutput, _Outptr_ ID3D11DeviceContext **ppContext, _Outptr_ ID3D11Device **ppDevice);
 	HRESULT InitializeDesktopDupl(_In_ ID3D11Device *pDevice, _In_opt_ IDXGIOutput *pDxgiOutput, _Outptr_ IDXGIOutputDuplication **ppDesktopDupl, _Out_ DXGI_OUTDUPL_DESC *pOutputDuplDesc);
-	HRESULT InitializeVideoSinkWriter(std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device* pDevice, RECT sourceRect, RECT destRect, DXGI_MODE_ROTATION rotation, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex, _Outptr_opt_ IMFMediaType **pVideoMediaTypeOutput = nullptr, _Outptr_opt_ IMFMediaType **pVideoMediaTypeInput = nullptr);
+	HRESULT InitializeVideoSinkWriter(std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device* pDevice, RECT sourceRect, RECT destRect, DXGI_MODE_ROTATION rotation, _In_ IMFSinkWriterCallback *pCallback, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex, _Outptr_opt_ IMFMediaType **pVideoMediaTypeOutput = nullptr, _Outptr_opt_ IMFMediaType **pVideoMediaTypeInput = nullptr);
 	HRESULT ConfigureOutputMediaTypes(_In_ UINT destWidth, _In_ UINT destHeight, _Outptr_ IMFMediaType **pVideoMediaTypeOut, _Outptr_ IMFMediaType **pAudioMediaTypeOut);
 	HRESULT ConfigureInputMediaTypes(_In_ UINT sourceWidth, _In_ UINT sourceHeight, MFVideoRotationFormat rotationFormat, _In_ IMFMediaType *pVideoMediaTypeOut, _Outptr_ IMFMediaType **pVideoMediaTypeIn, _Outptr_ IMFMediaType **pAudioMediaTypeIn);
 	HRESULT InitializeAudioCapture(_Outptr_ loopback_capture **outputAudioCapture, _Outptr_ loopback_capture **inputAudioCapture);
@@ -217,4 +266,5 @@ private:
 	HRESULT DrawMousePointer(ID3D11Texture2D *frame, mouse_pointer *pointer, mouse_pointer::PTR_INFO ptrInfo, DXGI_MODE_ROTATION screenRotation, INT64 durationSinceLastFrame100Nanos);
 	ID3D11Texture2D* CropFrame(ID3D11Texture2D *frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect);
 	HRESULT CreateCaptureItem(_Out_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem *captureItem);
+	HRESULT GetVideoProcessor(IMFSinkWriter *pSinkWriter, DWORD streamIndex, IMFVideoProcessorControl **pVideoProcessor);
 };

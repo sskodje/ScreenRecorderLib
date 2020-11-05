@@ -295,6 +295,9 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		HRESULT cleanupResult = S_OK;
 		if (m_SinkWriter) {
 			cleanupResult = m_SinkWriter->Finalize();
+			if (m_FinalizeEvent) {
+				WaitForSingleObject(m_FinalizeEvent, INFINITE);
+			}
 			if (FAILED(cleanupResult)) {
 				ERROR("Failed to finalize sink writer");
 			}
@@ -415,10 +418,6 @@ void internal_recorder::ResumeRecording() {
 
 HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 {
-	std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = nullptr;
-	std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = nullptr;
-	CComPtr<ID3D11Texture2D> pFrameCopyForSnapshotsWithVideo = nullptr;
-	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 	auto isCaptureSupported = winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported();
 	if (!isCaptureSupported)
 	{
@@ -428,30 +427,58 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 			RecordingFailedCallback(error);
 		return E_FAIL;
 	}
-	std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
-	std::chrono::system_clock::time_point previousTimeSnapshotTaken = std::chrono::system_clock::from_time_t(0);
-	int totalCachedFrameDuration = 0;
+
 	HRESULT hr;
-	CComPtr<IDXGIDevice> pDxgiDevice;
+	std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = nullptr;
+	std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = nullptr;
+	CComPtr<ID3D11Texture2D> pFrameCopyForSnapshotsWithVideo = nullptr;
+	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
+	CComPtr<IMFSinkWriterCallback> pCallBack = nullptr;
+	CComPtr<IDXGIDevice> pDxgiDevice = nullptr;
 	RETURN_ON_BAD_HR(hr = m_Device->QueryInterface(IID_PPV_ARGS(&pDxgiDevice)));
 	auto pDevice = capture::util::CreateDirect3DDevice(pDxgiDevice);
 	GraphicsCaptureItem captureItem = nullptr;
 	RETURN_ON_BAD_HR(hr = CreateCaptureItem(&captureItem));
+
 	auto pCapture = std::make_unique<graphics_capture>(pDevice, captureItem, DirectXPixelFormat::B8G8R8A8UIntNormalized, nullptr);
 	pCapture->StartCapture();
 	D3D11_TEXTURE2D_DESC sourceFrameDesc;
 	RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
-
-	RECT sourceRect, destRect;
+	int sourceWidth = 0;
+	int sourceHeight = 0;
+	//We try get the first frame now, because the dimensions for the captureItem is sometimes wrong, causing black borders around the recording, while the dimensions for a frame is always correct.
+	Direct3D11CaptureFrame firstFrame = NULL;
+	for (int i = 0; i < 10; i++) {
+		firstFrame = pCapture->TryGetNextFrame();
+		if (firstFrame) {
+			break;
+		}
+		wait(10);
+	}
+	if (firstFrame) {
+		sourceWidth = firstFrame.ContentSize().Width;
+		sourceHeight = firstFrame.ContentSize().Height;
+		firstFrame.Close();
+	}
+	else {
+		sourceWidth = captureItem.Size().Width;
+		sourceHeight = captureItem.Size().Height;
+	}
+	RECT sourceRect, destRect, previousDestRect;
 	RtlZeroMemory(&sourceRect, sizeof(sourceRect));
 	RtlZeroMemory(&destRect, sizeof(destRect));
+	RtlZeroMemory(&previousDestRect, sizeof(previousDestRect));
 	sourceRect.left = 0;
 	sourceRect.top = 0;
-	sourceRect.right = captureItem.Size().Width;
-	sourceRect.bottom = captureItem.Size().Height;
+	sourceRect.right = sourceWidth;
+	sourceRect.bottom = sourceHeight;
 	sourceRect = MakeRectEven(sourceRect);
 	destRect = sourceRect;
-
+	//Differing input and output dimensions of the mediatype initializes the videp processor with the sink writer so we can use it for resizing the input.
+	sourceRect.right += 2;
+	sourceRect.bottom += 2;
+	HANDLE hMarkEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	if (m_RecorderMode == MODE_VIDEO) {
 		loopback_capture *outputCapture = nullptr;
 		loopback_capture *inputCapture = nullptr;
@@ -467,9 +494,19 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		if (pStream != nullptr) {
 			RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &outputStream));
 		}
-		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, DXGI_MODE_ROTATION_UNSPECIFIED, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+		pCallBack = new (std::nothrow)CMFSinkWriterCallback(m_FinalizeEvent, hMarkEvent);
+		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, DXGI_MODE_ROTATION_UNSPECIFIED, pCallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
 
+	pCapture->ClearFrameBuffer();
+	if (pLoopbackCaptureOutputDevice)
+		pLoopbackCaptureOutputDevice->ClearRecordedBytes();
+	if (pLoopbackCaptureInputDevice)
+		pLoopbackCaptureInputDevice->ClearRecordedBytes();
+
+	std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
+	std::chrono::system_clock::time_point previousTimeSnapshotTaken = std::chrono::system_clock::from_time_t(0);
+	int totalCachedFrameDuration = 0;
 	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 	INT frameTimeout = 0;
@@ -494,6 +531,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		winrt::com_ptr<ID3D11Texture2D> surfaceTexture = nullptr;
 
 		if (frame) {
+			auto contentSize = frame.ContentSize();
 			surfaceTexture = capture::util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
 			surfaceTexture->GetDesc(&sourceFrameDesc);
 			// Clear flags that we don't need
@@ -501,9 +539,38 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 			sourceFrameDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
 			sourceFrameDesc.CPUAccessFlags = 0;
 			sourceFrameDesc.MiscFlags = 0;
+
+			destRect.right = contentSize.Width - destRect.left;
+			destRect.bottom = contentSize.Height - destRect.top;
+			destRect = MakeRectEven(destRect);
+			if (!EqualRect(&destRect, &previousDestRect)) {
+				//A marker is placed in the stream and then we wait for the sink writer to trigger it. This ensures all pending frames are encoded before the input is resized to the new size.
+				//The timeout is one frame @ 30fps, because it is preferable to avoid having the framerate drop too much if the encoder is busy.
+				RETURN_ON_BAD_HR(m_SinkWriter->PlaceMarker(m_VideoStreamIndex, nullptr));
+				if (WaitForSingleObject(hMarkEvent, 33) != WAIT_OBJECT_0) {
+					WARN("Wait for encoder marker failed");
+				}
+
+				CComPtr<IMFVideoProcessorControl> videoProcessor = nullptr;
+				GetVideoProcessor(m_SinkWriter, m_VideoStreamIndex, &videoProcessor);
+				if (videoProcessor) {
+					//The source rectangle is the portion of the input frame that is blitted to the destination surface.
+					videoProcessor->SetSourceRectangle(&destRect);
+					//The destination rectangle is the portion of the output surface where the source rectangle is blitted.
+					videoProcessor->SetDestinationRectangle(&sourceRect);
+					TRACE("Changing video processor surface rect: source=%dx%d, dest = %dx%d", destRect.right - destRect.left, destRect.bottom - destRect.top, sourceRect.right - sourceRect.left, sourceRect.bottom - sourceRect.top);
+				}
+				previousDestRect = destRect;
+			}
+			frame.Close();
 		}
-		else if (pPreviousFrameCopy == nullptr) {
+		else if (sourceFrameDesc.Width == 0) {
+			//There is no first frame yet, so retry.
 			continue;
+		}
+		else if (m_WindowHandle != nullptr && IsIconic(m_WindowHandle)) {
+			//The targeted window is minimized and not rendered, so it cannot be recorded. The previous frame copy is deleted to make it record a black frame instead.
+			pPreviousFrameCopy = nullptr;
 		}
 
 		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100, 0);
@@ -660,7 +727,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 		if (pStream != nullptr) {
 			RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &outputStream));
 		}
-		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, outputDuplDesc.Rotation, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, outputDuplDesc.Rotation, nullptr, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
 
 	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
@@ -1148,13 +1215,9 @@ void internal_recorder::SetViewPort(ID3D11DeviceContext * deviceContext, UINT Wi
 /// <param name="rect"></param>
 RECT internal_recorder::MakeRectEven(RECT rect)
 {
-	if (rect.left % 2 != 0)
-		rect.left -= 1;
-	if (rect.top % 2 != 0)
-		rect.top -= 1;
-	if (rect.right % 2 != 0)
+	if ((rect.right - rect.left) % 2 != 0)
 		rect.right -= 1;
-	if (rect.bottom % 2 != 0)
+	if ((rect.bottom - rect.top) % 2 != 0)
 		rect.bottom -= 1;
 	return rect;
 }
@@ -1209,7 +1272,7 @@ std::vector<CComPtr<IDXGIAdapter>> internal_recorder::EnumDisplayAdapters()
 	return vAdapters;
 }
 
-HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device *pDevice, RECT sourceRect, RECT destRect, DXGI_MODE_ROTATION rotation, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex, _Outptr_opt_ IMFMediaType **pVideoMediaTypeOutput, _Outptr_opt_ IMFMediaType **pVideoMediaTypeInput)
+HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device *pDevice, RECT sourceRect, RECT destRect, DXGI_MODE_ROTATION rotation, IMFSinkWriterCallback *pCallback, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex, _Outptr_opt_ IMFMediaType **pVideoMediaTypeOutput, _Outptr_opt_ IMFMediaType **pVideoMediaTypeInput)
 {
 	*ppWriter = nullptr;
 	*pVideoStreamIndex = 0;
@@ -1270,7 +1333,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 
 
 	// Passing 6 as the argument to save re-allocations
-	RETURN_ON_BAD_HR(MFCreateAttributes(&pAttributes, 6));
+	RETURN_ON_BAD_HR(MFCreateAttributes(&pAttributes, 7));
 	RETURN_ON_BAD_HR(pAttributes->SetGUID(MF_TRANSCODE_CONTAINERTYPE, MFTranscodeContainerType_MPEG4));
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, m_IsHardwareEncodingEnabled));
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_MPEG4SINK_MOOV_BEFORE_MDAT, m_IsMp4FastStartEnabled));
@@ -1278,6 +1341,8 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, m_IsThrottlingDisabled));
 	// Add device manager to attributes. This enables hardware encoding.
 	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_D3D_MANAGER, pDeviceManager));
+	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_ASYNC_CALLBACK, pCallback));
+
 	RETURN_ON_BAD_HR(MFCreateSinkWriterFromMediaSink(pMp4StreamSink, pAttributes, &pSinkWriter));
 	pMp4StreamSink.Release();
 	videoStreamIndex = 0;
@@ -1305,21 +1370,11 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	}
 
 	if (destWidth != sourceWidth || destHeight != sourceHeight) {
-		GUID transformType;
-		DWORD transformIndex = 0;
+
 		CComPtr<IMFVideoProcessorControl> videoProcessor = nullptr;
-		CComPtr<IMFSinkWriterEx>      pSinkWriterEx = nullptr;
-		RETURN_ON_BAD_HR(pSinkWriter->QueryInterface(&pSinkWriterEx));
-		while (true) {
-			CComPtr<IMFTransform> transform = nullptr;
-			RETURN_ON_BAD_HR(pSinkWriterEx->GetTransformForStream(videoStreamIndex, transformIndex, &transformType, &transform));
-			if (transformType == MFT_CATEGORY_VIDEO_PROCESSOR) {
-				RETURN_ON_BAD_HR(transform->QueryInterface(&videoProcessor));
-				break;
-			}
-			transformIndex++;
-		}
+		GetVideoProcessor(pSinkWriter, videoStreamIndex, &videoProcessor);
 		if (videoProcessor) {
+			//The source rectangle is the portion of the input frame that is blitted to the destination surface.
 			videoProcessor->SetSourceRectangle(&destRect);
 			videoProcessor->SetRotation(ROTATION_NORMAL);
 		}
@@ -1588,7 +1643,7 @@ ID3D11Texture2D * internal_recorder::CropFrame(ID3D11Texture2D * frame, D3D11_TE
 	return pCroppedFrameCopy;
 }
 
-HRESULT internal_recorder::CreateCaptureItem(GraphicsCaptureItem * item)
+HRESULT internal_recorder::CreateCaptureItem(GraphicsCaptureItem *item)
 {
 	if (m_WindowHandle != nullptr) {
 		*item = capture::util::CreateCaptureItemForWindow(m_WindowHandle);
@@ -1607,6 +1662,27 @@ HRESULT internal_recorder::CreateCaptureItem(GraphicsCaptureItem * item)
 		*item = capture::util::CreateCaptureItemForMonitor(monitor->MonitorHandle);
 	}
 	return S_OK;
+}
+
+HRESULT internal_recorder::GetVideoProcessor(IMFSinkWriter *pSinkWriter, DWORD streamIndex, IMFVideoProcessorControl **pVideoProcessor)
+{
+	HRESULT hr;
+	GUID transformType;
+	DWORD transformIndex = 0;
+	CComPtr<IMFVideoProcessorControl> videoProcessor = nullptr;
+	CComPtr<IMFSinkWriterEx>      pSinkWriterEx = nullptr;
+	RETURN_ON_BAD_HR(hr = pSinkWriter->QueryInterface(&pSinkWriterEx));
+	while (true) {
+		CComPtr<IMFTransform> transform = nullptr;
+		RETURN_ON_BAD_HR(hr = pSinkWriterEx->GetTransformForStream(streamIndex, transformIndex, &transformType, &transform));
+		if (transformType == MFT_CATEGORY_VIDEO_PROCESSOR) {
+			RETURN_ON_BAD_HR(transform->QueryInterface(&videoProcessor));
+			break;
+		}
+		transformIndex++;
+	}
+	*pVideoProcessor = videoProcessor;
+	(*pVideoProcessor)->AddRef();
 }
 
 HRESULT internal_recorder::SetAttributeU32(_Inout_ CComPtr<ICodecAPI> & codec, const GUID & guid, UINT32 value)
