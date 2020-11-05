@@ -1668,13 +1668,14 @@ HRESULT internal_recorder::GetVideoProcessor(IMFSinkWriter *pSinkWriter, DWORD s
 		CComPtr<IMFTransform> transform = nullptr;
 		RETURN_ON_BAD_HR(hr = pSinkWriterEx->GetTransformForStream(streamIndex, transformIndex, &transformType, &transform));
 		if (transformType == MFT_CATEGORY_VIDEO_PROCESSOR) {
-			RETURN_ON_BAD_HR(transform->QueryInterface(&videoProcessor));
+			RETURN_ON_BAD_HR(hr = transform->QueryInterface(&videoProcessor));
 			break;
 		}
 		transformIndex++;
 	}
 	*pVideoProcessor = videoProcessor;
 	(*pVideoProcessor)->AddRef();
+	return hr;
 }
 
 HRESULT internal_recorder::SetAttributeU32(_Inout_ CComPtr<ICodecAPI> & codec, const GUID & guid, UINT32 value)
