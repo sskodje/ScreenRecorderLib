@@ -428,6 +428,8 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		return E_FAIL;
 	}
 
+	DEBUG("Starting Windows Graphics Capture recorder loop");
+
 	HRESULT hr;
 	std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = nullptr;
 	std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = nullptr;
@@ -512,6 +514,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 	INT frameTimeout = 0;
 	INT frameNr = 0;
 	INT64 lastFrameStartPos = 0;
+	bool haveCachedPrematureFrame = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
 	while (true) {
 		if (token.is_canceled()) {
@@ -574,7 +577,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		}
 
 		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100, 0);
-
+		INT64 durationSinceLastFrameMillis = HundredNanosToMillis(durationSinceLastFrame100Nanos);
 		//Delay frames that comes quicker than selected framerate to see if we can skip them.
 		if (frameNr > 0 //always draw first frame 
 			&& !m_IsFixedFramerate)
@@ -589,9 +592,13 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 					m_ImmediateContext->CopyResource(pPreviousFrameCopy, surfaceTexture.get());
 				}
 				delay = true;
+				haveCachedPrematureFrame = true;
 			}
 			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-				if (durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) {
+				if (haveCachedPrematureFrame && durationSinceLastFrameMillis < videoFrameDurationMillis) {
+					delay = true;
+				}
+				else if (!haveCachedPrematureFrame && durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) {
 					delay = true;
 				}
 			}
@@ -659,7 +666,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
 		model.FrameNumber = frameNr;
 		RETURN_ON_BAD_HR(hr = m_EncoderResult = RenderFrame(model));
-
+		haveCachedPrematureFrame = false;
 		if (m_RecorderMode == MODE_SNAPSHOT) {
 			break;
 		}
@@ -675,6 +682,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 
 HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream, IDXGIOutput *pSelectedOutput)
 {
+	DEBUG("Starting Desktop Duplication recorder loop");
 	std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = nullptr;
 	std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = nullptr;
 	CComPtr<ID3D11Texture2D> pFrameCopyForSnapshotsWithVideo = nullptr;
@@ -706,8 +714,6 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 	std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
 	RETURN_ON_BAD_HR(hr = pMousePointer->Initialize(m_ImmediateContext, m_Device));
 	SetViewPort(m_ImmediateContext, sourceRect.right - sourceRect.left, sourceRect.bottom - sourceRect.top);
-	std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
-	std::chrono::system_clock::time_point previousTimeSnapshotTaken = std::chrono::system_clock::from_time_t(0);
 
 	mouse_pointer::PTR_INFO PtrInfo;
 	RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
@@ -730,11 +736,14 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, outputDuplDesc.Rotation, nullptr, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
 
+	std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
+	std::chrono::system_clock::time_point previousTimeSnapshotTaken = std::chrono::system_clock::from_time_t(0);
 	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 	INT frameTimeout = 0;
 	INT frameNr = 0;
 	INT64 lastFrameStartPos = 0;
+	bool haveCachedPrematureFrame = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
 	while (true)
 	{
@@ -835,7 +844,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 		}
 
 		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100, 0);
-
+		INT64 durationSinceLastFrameMillis = HundredNanosToMillis(durationSinceLastFrame100Nanos);
 		//Delay frames that comes quicker than selected framerate to see if we can skip them.
 		if (frameNr > 0 //always draw first frame 
 			&& !m_IsFixedFramerate
@@ -858,15 +867,19 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 					}
 				}
 				delay = true;
+				haveCachedPrematureFrame = true;
 			}
 			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-				if (durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) {
+				if (haveCachedPrematureFrame && durationSinceLastFrameMillis < videoFrameDurationMillis) {
+					delay = true;
+				}
+				else if (!haveCachedPrematureFrame && durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) {
 					delay = true;
 				}
 			}
 			if (delay) {
 				UINT64 delay = 1;
-				if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
+				if (durationSinceLastFrameMillis < videoFrameDurationMillis) {
 					delay = HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
 				}
 				wait(delay);
@@ -947,7 +960,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
 			model.FrameNumber = frameNr;
 			RETURN_ON_BAD_HR(hr = m_EncoderResult = RenderFrame(model));
-
+			haveCachedPrematureFrame = false;
 			if (m_RecorderMode == MODE_SNAPSHOT) {
 				break;
 			}
