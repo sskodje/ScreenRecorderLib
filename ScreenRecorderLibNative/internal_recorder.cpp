@@ -124,40 +124,25 @@ void internal_recorder::SetLogSeverityLevel(int value) {
 std::vector<BYTE> internal_recorder::MixAudio(std::vector<BYTE> const &first, std::vector<BYTE> const &second, float firstVolume, float secondVolume)
 {
 	std::vector<BYTE> newvector(max(first.size(), second.size()));
-
+	bool clipped = false;
 	for (size_t i = 0; i < newvector.size(); i += 2) {
-
-		short buf1A = 0;
-		short buf2A = 0;
-
-		if (i + 1 < first.size())
-		{
-			buf1A = first[i + 1];
-			buf2A = first[i];
-			buf1A = (short)((buf1A & 0xff) << 8);
-			buf2A = (short)(buf2A & 0xff);
+		short firstSample = first.size() > i + 1 ? static_cast<short>(first[i] | first[i + 1] << 8) : 0;
+		short secondSample = second.size() > i + 1 ? static_cast<short>(second[i] | second[i + 1] << 8) : 0;
+		auto out = reinterpret_cast<short*>(&newvector[i]);
+		int mixedSample = int(round((firstSample)*firstVolume + (secondSample)*secondVolume));
+		if (mixedSample > MAXSHORT) {
+			clipped = true;
+			mixedSample = MAXSHORT;
 		}
-
-		short buf1B = 0;
-		short buf2B = 0;
-
-		if (i + 1 < second.size())
-		{
-			buf1B = second[i + 1];
-			buf2B = second[i];
-			buf1B = (short)((buf1B & 0xff) << 8);
-			buf2B = (short)(buf2B & 0xff);
+		else if (mixedSample < -MAXSHORT) {
+			clipped = true;
+			mixedSample = -MAXSHORT;
 		}
-
-		short buf1C = (short)round(buf1A * firstVolume + buf1B * secondVolume);
-		short buf2C = (short)round(buf2A * firstVolume + buf2B * secondVolume);
-
-		short res = (short)(buf1C + buf2C);
-
-		newvector[i] = (BYTE)res;
-		newvector[i + 1] = (BYTE)(res >> 8);
+		*out = (short)mixedSample;
 	}
-
+	if (clipped) {
+		WARN("Audio clipped during mixing");
+	}
 	return newvector;
 }
 
@@ -735,6 +720,10 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 		}
 		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, outputDuplDesc.Rotation, nullptr, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
+	if (pLoopbackCaptureInputDevice)
+		pLoopbackCaptureInputDevice->ClearRecordedBytes();
+	if (pLoopbackCaptureOutputDevice)
+		pLoopbackCaptureOutputDevice->ClearRecordedBytes();
 
 	std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
 	std::chrono::system_clock::time_point previousTimeSnapshotTaken = std::chrono::system_clock::from_time_t(0);
@@ -994,20 +983,46 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 	return hr;
 }
 
-
-std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_capture> & pLoopbackCaptureOutputDevice,
-	std::unique_ptr<loopback_capture> & pLoopbackCaptureInputDevice)
+std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_capture> &pLoopbackCaptureOutputDevice,
+	std::unique_ptr<loopback_capture> &pLoopbackCaptureInputDevice)
 {
 	if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled && pLoopbackCaptureOutputDevice && pLoopbackCaptureInputDevice) {
-		// mix our audio buffers from output device and input device to get one audio buffer since VideoSinkWriter works only with one Audio sink
+
+		auto returnAudioOverflowToBuffer = [&](auto &outputDeviceData, auto &inputDeviceData) {
+			if (outputDeviceData.size() > 0 && inputDeviceData.size() > 0) {
+				if (outputDeviceData.size() > inputDeviceData.size()) {
+					int diff = outputDeviceData.size() - inputDeviceData.size();
+					std::vector<BYTE> overflow(outputDeviceData.end() - diff, outputDeviceData.end());
+					outputDeviceData.resize(outputDeviceData.size() - diff);
+					pLoopbackCaptureOutputDevice->ReturnAudioBytesToBuffer(overflow);
+				}
+				else if (inputDeviceData.size() > outputDeviceData.size()) {
+					int n = inputDeviceData.size() - outputDeviceData.size();
+					std::vector<BYTE> overflow(inputDeviceData.end() - n, inputDeviceData.end());
+					inputDeviceData.resize(inputDeviceData.size() - n);
+					pLoopbackCaptureInputDevice->ReturnAudioBytesToBuffer(overflow);
+				}
+			}
+		};
+
 		if (pLoopbackCaptureOutputDevice->PeakRecordedBytes().size() > 0) {
-			std::vector<BYTE> outputDeviceData = pLoopbackCaptureOutputDevice->GetRecordedBytes(0);
+			std::vector<BYTE> outputDeviceData = pLoopbackCaptureOutputDevice->GetRecordedBytes();
 			std::vector<BYTE> inputDeviceData = pLoopbackCaptureInputDevice->GetRecordedBytes(outputDeviceData.size());
+			returnAudioOverflowToBuffer(outputDeviceData, inputDeviceData);
+			if (inputDeviceData.size() > 0 && outputDeviceData.size() && inputDeviceData.size() != outputDeviceData.size()) {
+				ERROR(L"Mixing audio byte arrays with differing sizes");
+			}
+
 			return std::move(MixAudio(outputDeviceData, inputDeviceData, m_OutputVolumeModifier, m_InputVolumeModifier));
 		}
 		else {
 			std::vector<BYTE> inputDeviceData = pLoopbackCaptureInputDevice->GetRecordedBytes();
 			std::vector<BYTE> outputDeviceData = pLoopbackCaptureOutputDevice->GetRecordedBytes(inputDeviceData.size());
+			returnAudioOverflowToBuffer(outputDeviceData, inputDeviceData);
+			if (inputDeviceData.size() > 0 && outputDeviceData.size() && inputDeviceData.size() != outputDeviceData.size()) {
+				ERROR(L"Mixing audio byte arrays with differing sizes");
+			}
+
 			return std::move(MixAudio(outputDeviceData, inputDeviceData, m_OutputVolumeModifier, m_InputVolumeModifier));
 		}
 	}
@@ -1430,7 +1445,7 @@ HRESULT internal_recorder::ConfigureOutputMediaTypes(UINT destWidth, UINT destHe
 		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_SUBTYPE, AUDIO_ENCODING_FORMAT));
 		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, m_AudioChannels));
 		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, AUDIO_BITS_PER_SAMPLE));
-		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, m_InputAudioSamplesPerSecond));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, AUDIO_SAMPLES_PER_SECOND));
 		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, m_AudioBitrate));
 
 		*pAudioMediaTypeOut = pAudioMediaType;
@@ -1460,7 +1475,7 @@ HRESULT internal_recorder::ConfigureInputMediaTypes(UINT sourceWidth, UINT sourc
 		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
 		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM));
 		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, AUDIO_BITS_PER_SAMPLE));
-		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, m_InputAudioSamplesPerSecond));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, AUDIO_SAMPLES_PER_SECOND));
 		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, m_AudioChannels));
 
 		*pAudioMediaTypeIn = pAudioMediaType;
@@ -1478,29 +1493,17 @@ HRESULT internal_recorder::InitializeAudioCapture(loopback_capture **outputAudio
 	loopback_capture *pLoopbackCaptureInputDevice = nullptr;
 	HRESULT hr;
 	bool recordAudio = m_RecorderMode == MODE_VIDEO && m_IsAudioEnabled;
-	UINT32 inputDeviceSampleRate = 0;
-	if (recordAudio && (m_IsOutputDeviceEnabled || m_IsOutputDeviceEnabled)) {
+	if (recordAudio && (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled)) {
 		if (m_IsOutputDeviceEnabled)
 		{
 			pLoopbackCaptureOutputDevice = new loopback_capture(L"AudioOutputDevice");
-			hr = pLoopbackCaptureOutputDevice->StartCapture(m_AudioChannels, m_AudioOutputDevice, eRender);
-			if (SUCCEEDED(hr)) {
-				inputDeviceSampleRate = m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
-			}
+			hr = pLoopbackCaptureOutputDevice->StartCapture(AUDIO_SAMPLES_PER_SECOND, m_AudioChannels, m_AudioOutputDevice, eRender);
 		}
 
 		if (m_IsInputDeviceEnabled)
 		{
 			pLoopbackCaptureInputDevice = new loopback_capture(L"AudioInputDevice");
-			hr = pLoopbackCaptureInputDevice->StartCapture(inputDeviceSampleRate, m_AudioChannels, m_AudioInputDevice, eCapture);
-			if (SUCCEEDED(hr)) {
-				m_InputAudioSamplesPerSecond = pLoopbackCaptureInputDevice->GetInputSampleRate();
-			}
-		}
-
-		if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled)
-		{
-			m_InputAudioSamplesPerSecond = pLoopbackCaptureOutputDevice->GetInputSampleRate();
+			hr = pLoopbackCaptureInputDevice->StartCapture(AUDIO_SAMPLES_PER_SECOND, m_AudioChannels, m_AudioInputDevice, eCapture);
 		}
 	}
 	else {
@@ -1719,7 +1722,7 @@ HRESULT internal_recorder::RenderFrame(FrameWriteModel & model) {
 		 * and inserting silence between two frames that has audio leads to glitching. */
 		if (isAudioEnabled && model.Audio.size() == 0 && model.Duration > 0) {
 			if (!m_LastFrameHadAudio) {
-				int frameCount = int(ceil(m_InputAudioSamplesPerSecond * HundredNanosToMillis(model.Duration) / 1000));
+				int frameCount = int(ceil(AUDIO_SAMPLES_PER_SECOND * HundredNanosToMillis(model.Duration) / 1000));
 				int byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8) * m_AudioChannels;
 				model.Audio.insert(model.Audio.end(), byteCount, 0);
 				paddedAudio = true;

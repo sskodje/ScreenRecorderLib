@@ -26,6 +26,7 @@ public:
 		bool bInt16,
 		HANDLE hStartedEvent,
 		HANDLE hStopEvent,
+		HANDLE hCaptureEvent,
 		EDataFlow flow,
 		UINT32 samplerate,
 		UINT32 channels
@@ -36,23 +37,24 @@ public:
 	HRESULT StartCapture(UINT32 audioChannels, std::wstring device, EDataFlow flow) { return StartCapture(0, audioChannels, device, flow); }
 	HRESULT StartCapture(UINT32 sampleRate, UINT32 audioChannels, std::wstring device, EDataFlow flow);
 	HRESULT StopCapture();
-	UINT32 GetInputSampleRate();
+	int ReturnAudioBytesToBuffer(std::vector<BYTE> bytes);
 
 private:
 	Concurrency::task<void> m_CaptureTask = concurrency::task_from_result();
 	bool m_IsCapturing = false;
+	std::vector<BYTE> m_OverflowBytes = {};
 	std::vector<BYTE> m_RecordedBytes = {};
 	std::wstring m_Tag;
-	UINT32 m_SamplesPerSec = 0;
 	std::mutex m_Mutex;           // mutex for critical section
 	HANDLE m_CaptureStartedEvent = nullptr;
 	HANDLE m_CaptureStopEvent = nullptr;
+	HANDLE m_AudioCapturedEvent = nullptr;
 
 	WWMFResampler m_Resampler;
 	WWMFPcmFormat m_InputFormat;
 	WWMFPcmFormat m_OutputFormat;
-	WWMFSampleData m_SampleData;
 
 	bool requiresResampling();
+	int GetByteCountAdjustedForResampling(int byteCount);
 };
 

@@ -169,7 +169,7 @@ private:
 	const GUID   VIDEO_ENCODING_FORMAT = MFVideoFormat_H264;
 	const GUID	 AUDIO_ENCODING_FORMAT = MFAudioFormat_AAC;
 	const UINT32 AUDIO_BITS_PER_SAMPLE = 16; //Audio bits per sample must be 16.
-	const UINT32 AUDIO_SAMPLES_PER_SECOND = 44100;//Audio samples per seconds must be 44100.
+	const UINT32 AUDIO_SAMPLES_PER_SECOND = 48000;//Audio samples per seconds must be 44100 or 48000.
 	const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_ARGB32;
 
 	struct TaskWrapper;
@@ -210,7 +210,6 @@ private:
 	UINT32 m_H264Profile = eAVEncH264VProfile_Main; //Supported H264 profiles for the encoder are Baseline, Main and High.
 	UINT32 m_AudioBitrate = (96 / 8) * 1000; //Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
 	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
-	UINT32 m_InputAudioSamplesPerSecond = AUDIO_SAMPLES_PER_SECOND;
 	UINT32 m_VideoBitrateControlMode = eAVEncCommonRateControlMode_Quality;
 	std::chrono::seconds m_SnapshotsWithVideoInterval = std::chrono::seconds(10);
 	bool m_IsMousePointerEnabled = true;

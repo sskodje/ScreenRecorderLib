@@ -33,6 +33,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	bool bInt16,
 	HANDLE hStartedEvent,
 	HANDLE hStopEvent,
+	HANDLE hCaptureEvent,
 	EDataFlow flow,
 	UINT32 samplerate,
 	UINT32 channels
@@ -107,21 +108,21 @@ HRESULT loopback_capture::LoopbackCapture(
 			return E_UNEXPECTED;
 		}
 	}
-
+	UINT32 outputSampleRate;
 	// set resampler options
 	if (samplerate != 0)
 	{
-		m_SamplesPerSec = samplerate;
+		outputSampleRate = samplerate;
 	}
 	else
 	{
 		if (pwfx->nSamplesPerSec >= 48000)
 		{
-			m_SamplesPerSec = 48000;
+			outputSampleRate = 48000;
 		}
 		else
 		{
-			m_SamplesPerSec = 44100;
+			outputSampleRate = 44100;
 		}
 	}
 
@@ -133,7 +134,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	m_InputFormat.sampleFormat = WWMFBitFormatInt;
 
 	m_OutputFormat = m_InputFormat;
-	m_OutputFormat.sampleRate = m_SamplesPerSec;
+	m_OutputFormat.sampleRate = outputSampleRate;
 	m_OutputFormat.nChannels = channels;
 
 	// initialize resampler if sample rate differs from 44.1kHz or 48kHz
@@ -293,6 +294,7 @@ HRESULT loopback_capture::LoopbackCapture(
 				m_RecordedBytes.reserve(size);
 			m_RecordedBytes.insert(m_RecordedBytes.end(), &pData[0], &pData[size]);
 			m_Mutex.unlock();
+			SetEvent(hCaptureEvent);
 
 			nFrames += nNumFramesToRead;
 
@@ -344,21 +346,29 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes()
 std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount)
 {
 	if (byteCount > 0) {
+		if (requiresResampling()) {
+			byteCount = GetByteCountAdjustedForResampling(byteCount);
+		}
 		while (m_RecordedBytes.size() < byteCount && m_IsCapturing) {
 			TRACE(L"Waiting for more audio on %ls", m_Tag.c_str());
-			Sleep(1);
+			WaitForSingleObject(m_AudioCapturedEvent, 1);
 		}
 		byteCount = min(byteCount, m_RecordedBytes.size());
 	}
-	else if (byteCount <= 0) {
+	else {
 		byteCount = m_RecordedBytes.size();
 	}
 	m_Mutex.lock();
 
 	std::vector<BYTE> newvector(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
+	if (m_OverflowBytes.size() > 0) {
+		newvector.insert(newvector.begin(), m_OverflowBytes.begin(), m_OverflowBytes.end());
+		m_OverflowBytes.clear();
+	}
 	// convert audio
-	if (requiresResampling()) {
-		HRESULT hr = m_Resampler.Resample(newvector.data(), newvector.size(), &m_SampleData);
+	if (requiresResampling() && byteCount > 0) {
+		WWMFSampleData sampleData;
+		HRESULT hr = m_Resampler.Resample(newvector.data(), newvector.size(), &sampleData);
 		if (SUCCEEDED(hr)) {
 			TRACE(L"Resampled audio from %dch %uhz to %dch %uhz", m_InputFormat.nChannels, m_InputFormat.sampleRate, m_OutputFormat.nChannels, m_OutputFormat.sampleRate);
 		}
@@ -366,10 +376,8 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount)
 			ERROR(L"Resampling of audio failed: hr = 0x%08x", hr);
 		}
 		newvector.clear();
-
-		newvector.insert(newvector.end(), &m_SampleData.data[0], &m_SampleData.data[m_SampleData.bytes]);
-
-		m_SampleData.Release();
+		newvector.insert(newvector.end(), &sampleData.data[0], &sampleData.data[sampleData.bytes]);
+		sampleData.Release();
 	}
 	m_RecordedBytes.erase(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
 	TRACE(L"Got %d bytes from loopback_capture %ls. %d bytes remaining", newvector.size(), m_Tag.c_str(), m_RecordedBytes.size());
@@ -396,6 +404,13 @@ HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, 
 			ERROR(L"CreateEvent failed: last error is %u", GetLastError());
 			return E_FAIL;
 		}
+
+		m_AudioCapturedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+		if (nullptr == m_AudioCapturedEvent) {
+			ERROR(L"CreateEvent failed: last error is %u", GetLastError());
+			return E_FAIL;
+		}
+
 		IMMDevice *device = prefs.m_pMMDevice;
 		auto file = prefs.m_hFile;
 		m_CaptureTask = concurrency::create_task([this, flow, sampleRate, audioChannels, device, file]() {
@@ -404,6 +419,7 @@ HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, 
 				true,
 				m_CaptureStartedEvent,
 				m_CaptureStopEvent,
+				m_AudioCapturedEvent,
 				flow,
 				sampleRate,
 				audioChannels);
@@ -420,8 +436,19 @@ HRESULT loopback_capture::StopCapture()
 	return S_OK;
 }
 
-UINT32 loopback_capture::GetInputSampleRate() {
-	return m_SamplesPerSec;
+int loopback_capture::ReturnAudioBytesToBuffer(std::vector<BYTE> bytes)
+{
+	m_OverflowBytes.swap(bytes);
+	TRACE(L"Returned %d bytes to buffer in loopback_capture %ls", m_OverflowBytes.size(), m_Tag.c_str());
+	return m_OverflowBytes.size();
+}
+
+int loopback_capture::GetByteCountAdjustedForResampling(int byteCount)
+{
+	byteCount = byteCount * (m_InputFormat.BytesPerSec() / m_OutputFormat.BytesPerSec());//m_Resampler.GetOutputByteCount(byteCount);
+	// cbOutputBytes must be product of frambytes
+	byteCount = (byteCount + (m_OutputFormat.FrameBytes() - 1)) / m_OutputFormat.FrameBytes() * m_OutputFormat.FrameBytes();
+	return byteCount;
 }
 
 bool loopback_capture::requiresResampling()
