@@ -564,11 +564,15 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100, 0);
 		INT64 durationSinceLastFrameMillis = HundredNanosToMillis(durationSinceLastFrame100Nanos);
 		//Delay frames that comes quicker than selected framerate to see if we can skip them.
-		if (frameNr > 0 //always draw first frame 
-			&& !m_IsFixedFramerate)
+		if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) //attempt to wait if frame timeouted or duration is under our chosen framerate
 		{
 			bool delay = false;
-			if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
+			if (frameNr == 0 //never delay the first frame 
+				|| m_IsFixedFramerate) //or if the framerate is fixed
+			{
+				delay = false;
+			}
+			else if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
 				if (surfaceTexture) {
 					//we got a frame, but it's too soon, so we cache it and see if there are more changes.
 					if (pPreviousFrameCopy == nullptr) {
@@ -835,14 +839,16 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100, 0);
 		INT64 durationSinceLastFrameMillis = HundredNanosToMillis(durationSinceLastFrame100Nanos);
 		//Delay frames that comes quicker than selected framerate to see if we can skip them.
-		if (frameNr > 0 //always draw first frame 
-			&& !m_IsFixedFramerate
-			&& (!m_IsMousePointerEnabled || FrameInfo.PointerShapeBufferSize == 0)//always redraw when pointer changes if we draw pointer
-			&& ((hr == DXGI_ERROR_WAIT_TIMEOUT && durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) //don't wait on timeout if the frame duration is > m_MaxFrameLength100Nanos
-				|| durationSinceLastFrame100Nanos < videoFrameDuration100Nanos)) //wait if frame timeouted or duration is under our chosen framerate
+		if (hr == DXGI_ERROR_WAIT_TIMEOUT || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) //attempt to wait if frame timeouted or duration is under our chosen framerate
 		{
 			bool delay = false;
-			if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
+			if (frameNr == 0 //never delay the first frame 
+				|| m_IsFixedFramerate //or if the framerate is fixed
+				|| (m_IsMousePointerEnabled && FrameInfo.PointerShapeBufferSize != 0))//and never delay when pointer changes if we draw pointer
+			{
+				delay = false;
+			}
+			else if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
 				if (pDesktopResource != nullptr) {
 					if (FrameInfo.AccumulatedFrames > 0) {
 						//we got a frame, but it's too soon, so we cache it and see if there are more changes.
