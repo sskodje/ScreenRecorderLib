@@ -233,6 +233,7 @@ private:
 	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;
 	float m_InputVolumeModifier = 1;
 	float m_OutputVolumeModifier = 1;
+
 	//functions
 	std::string CurrentTimeToFormattedString();
 	std::vector<BYTE> GrabAudioFrame(std::unique_ptr<loopback_capture>& pLoopbackCaptureOutputDevice, std::unique_ptr<loopback_capture>& pLoopbackCaptureInputDevice);
@@ -244,6 +245,9 @@ private:
 	std::wstring GetVideoExtension();
 	bool IsSnapshotsWithVideoEnabled() { return (m_RecorderMode == MODE_VIDEO) && m_TakesSnapshotsWithVideo; }
 
+	HRESULT FinalizeRecording();
+	void CleanupResourcesAndShutDownMF();
+	void SetRecordingCompleteStatus(HRESULT hr);
 	HRESULT StartGraphicsCaptureRecorderLoop(IStream *pStream);
 	HRESULT StartDesktopDuplicationRecorderLoop(IStream *pStream, IDXGIOutput *pSelectedOutput);
 	HRESULT RenderFrame(FrameWriteModel& model);

@@ -240,6 +240,7 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		return S_FALSE;
 	}
 
+	g_LastMouseClickDurationRemaining = 0;
 	m_EncoderResult = S_FALSE;
 	m_LastFrameHadAudio = false;
 	m_FrameDelays.clear();
@@ -264,8 +265,6 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 			DEBUG("Changed Recording Status to Recording");
 		}
 
-		g_LastMouseClickDurationRemaining = 0;
-
 		if (m_RecorderApi == API_GRAPHICS_CAPTURE) {
 			RETURN_ON_BAD_HR(hr = StartGraphicsCaptureRecorderLoop(stream));
 		}
@@ -274,102 +273,29 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		}
 		INFO("Exiting recording task");
 		return hr;
-	})
-		.then([this](HRESULT recordingResult) {
-		INFO("Cleaning up resources");
-		HRESULT cleanupResult = S_OK;
-		if (m_SinkWriter) {
-			cleanupResult = m_SinkWriter->Finalize();
-			if (m_FinalizeEvent) {
-				WaitForSingleObject(m_FinalizeEvent, INFINITE);
-			}
-			if (FAILED(cleanupResult)) {
-				ERROR("Failed to finalize sink writer");
-			}
-			//Dispose of MPEG4MediaSink 
-			IMFMediaSink *pSink;
-			if (SUCCEEDED(m_SinkWriter->GetServiceForStream(MF_SINK_WRITER_MEDIASINK, GUID_NULL, IID_PPV_ARGS(&pSink)))) {
-				cleanupResult = pSink->Shutdown();
-				if (FAILED(cleanupResult)) {
-					ERROR("Failed to shut down IMFMediaSink");
-				}
-				else {
-					DEBUG("Shut down IMFMediaSink");
-				}
-			};
-
-			SafeRelease(&m_SinkWriter);
-			DEBUG("Released IMFSinkWriter");
-		}
-		SafeRelease(&m_ImmediateContext);
-		DEBUG("Released ID3D11DeviceContext");
-		SafeRelease(&m_Device);
-		DEBUG("Released ID3D11Device");
-#if _DEBUG
-		if (m_Debug) {
-			m_Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
-			SafeRelease(&m_Debug);
-			DEBUG("Released ID3D11Debug");
-		}
-#endif
-		if (SUCCEEDED(recordingResult) && FAILED(cleanupResult))
-			return cleanupResult;
+	}).then([this](HRESULT recordingResult) {
+		HRESULT finalizeResult = FinalizeRecording();
+		if (SUCCEEDED(recordingResult) && FAILED(finalizeResult))
+			return finalizeResult;
 		else
 			return recordingResult;
-	})
-		.then([this](concurrency::task<HRESULT> t)
+	}).then([this](concurrency::task<HRESULT> t)
 	{
-		MFShutdown();
-		CoUninitialize();
-		UnhookWindowsHookEx(m_Mousehook);
-		INFO(L"Media Foundation shut down");
-		std::wstring errMsg = L"";
-		bool success = false;
+		m_IsRecording = false;
+		CleanupResourcesAndShutDownMF();
+		HRESULT hr = E_FAIL;
 		try {
-			HRESULT hr = t.get();
-			success = SUCCEEDED(hr);
-			if (!success) {
-				_com_error err(hr);
-				errMsg = err.ErrorMessage();
-			}
+			hr = t.get();
 			// if .get() didn't throw and the HRESULT succeeded, there are no errors.
 		}
-		catch (const exception & e) {
+		catch (const exception &e) {
 			// handle error
 			ERROR(L"Exception in RecordTask: %s", e.what());
 		}
 		catch (...) {
 			ERROR(L"Exception in RecordTask");
 		}
-
-		if (RecordingStatusChangedCallback) {
-			RecordingStatusChangedCallback(STATUS_IDLE);
-			DEBUG("Changed Recording Status to Idle");
-		}
-		m_IsRecording = false;
-		if (success) {
-			if (RecordingCompleteCallback)
-				RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);
-			DEBUG("Sent Recording Complete callback");
-		}
-		else {
-			if (RecordingFailedCallback) {
-				if (FAILED(m_EncoderResult)) {
-					_com_error encoderFailure(m_EncoderResult);
-					errMsg = string_format(L"Write error (0x%lx) in video encoder: %s", m_EncoderResult, encoderFailure.ErrorMessage());
-					if (m_IsHardwareEncodingEnabled) {
-						errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
-					}
-				}
-				else {
-					if (errMsg.empty()) {
-						errMsg = GetLastErrorStdWstr();
-					}
-				}
-				RecordingFailedCallback(errMsg);
-				DEBUG("Sent Recording Failed callback");
-			}
-		}
+		SetRecordingCompleteStatus(hr);
 	});
 	return S_OK;
 }
@@ -397,6 +323,96 @@ void internal_recorder::ResumeRecording() {
 				RecordingStatusChangedCallback(STATUS_RECORDING);
 				DEBUG("Changed Recording Status to Recording");
 			}
+		}
+	}
+}
+
+HRESULT internal_recorder::FinalizeRecording()
+{
+	INFO("Cleaning up resources");
+	INFO("Finalizing recording");
+	HRESULT finalizeResult = S_OK;
+	if (m_SinkWriter) {
+		if (RecordingStatusChangedCallback != nullptr) {
+			RecordingStatusChangedCallback(STATUS_FINALIZING);
+		}
+		finalizeResult = m_SinkWriter->Finalize();
+		if (m_FinalizeEvent) {
+			WaitForSingleObject(m_FinalizeEvent, INFINITE);
+		}
+		if (FAILED(finalizeResult)) {
+			ERROR("Failed to finalize sink writer");
+		}
+		//Dispose of MPEG4MediaSink 
+		IMFMediaSink *pSink;
+		if (SUCCEEDED(m_SinkWriter->GetServiceForStream(MF_SINK_WRITER_MEDIASINK, GUID_NULL, IID_PPV_ARGS(&pSink)))) {
+			finalizeResult = pSink->Shutdown();
+			if (FAILED(finalizeResult)) {
+				ERROR("Failed to shut down IMFMediaSink");
+			}
+			else {
+				DEBUG("Shut down IMFMediaSink");
+			}
+		};
+	}
+	return finalizeResult;
+}
+
+void internal_recorder::CleanupResourcesAndShutDownMF()
+{
+	SafeRelease(&m_SinkWriter);
+	DEBUG("Released IMFSinkWriter");
+	SafeRelease(&m_ImmediateContext);
+	DEBUG("Released ID3D11DeviceContext");
+	SafeRelease(&m_Device);
+	DEBUG("Released ID3D11Device");
+#if _DEBUG
+	if (m_Debug) {
+		m_Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
+		SafeRelease(&m_Debug);
+		DEBUG("Released ID3D11Debug");
+	}
+#endif
+	MFShutdown();
+	CoUninitialize();
+	UnhookWindowsHookEx(m_Mousehook);
+	INFO(L"Media Foundation shut down");
+}
+
+void internal_recorder::SetRecordingCompleteStatus(HRESULT hr)
+{
+	std::wstring errMsg = L"";
+	bool isSuccess = SUCCEEDED(hr);
+	if (!isSuccess) {
+		_com_error err(hr);
+		errMsg = err.ErrorMessage();
+	}
+
+	if (RecordingStatusChangedCallback) {
+		RecordingStatusChangedCallback(STATUS_IDLE);
+		DEBUG("Changed Recording Status to Idle");
+	}
+	if (isSuccess) {
+		if (RecordingCompleteCallback)
+			RecordingCompleteCallback(m_OutputFullPath, m_FrameDelays);
+		DEBUG("Sent Recording Complete callback");
+	}
+	else {
+		if (RecordingFailedCallback) {
+			if (FAILED(m_EncoderResult)) {
+				_com_error encoderFailure(m_EncoderResult);
+				errMsg = string_format(L"Write error (0x%lx) in video encoder: %s", m_EncoderResult, encoderFailure.ErrorMessage());
+				if (m_IsHardwareEncodingEnabled) {
+					errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
+				}
+			}
+			else {
+				if (errMsg.empty()) {
+					errMsg = GetLastErrorStdWstr();
+				}
+			}
+			RecordingFailedCallback(errMsg);
+			DEBUG("Sent Recording Failed callback");
 		}
 	}
 }
