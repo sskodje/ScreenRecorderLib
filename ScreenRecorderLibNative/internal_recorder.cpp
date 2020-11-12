@@ -491,8 +491,8 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 	if (pLoopbackCaptureInputDevice)
 		pLoopbackCaptureInputDevice->ClearRecordedBytes();
 
-	std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
-	std::chrono::system_clock::time_point previousTimeSnapshotTaken = std::chrono::system_clock::from_time_t(0);
+	std::chrono::steady_clock::time_point	lastFrame = std::chrono::steady_clock::now();
+	std::chrono::steady_clock::time_point previousTimeSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
 	int totalCachedFrameDuration = 0;
 	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
@@ -509,7 +509,8 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		}
 		if (m_IsPaused) {
 			wait(10);
-			lastFrame = high_resolution_clock::now();
+			lastFrame = steady_clock::now();
+			previousTimeSnapshotTaken = steady_clock::now();
 			pLoopbackCaptureOutputDevice->ClearRecordedBytes();
 			pLoopbackCaptureInputDevice->ClearRecordedBytes();
 			pCapture->ClearFrameBuffer();
@@ -561,14 +562,15 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 			pPreviousFrameCopy = nullptr;
 		}
 
-		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100, 0);
+		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::steady_clock::now() - lastFrame).count() / 100, 0);
 		INT64 durationSinceLastFrameMillis = HundredNanosToMillis(durationSinceLastFrame100Nanos);
 		//Delay frames that comes quicker than selected framerate to see if we can skip them.
 		if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) //attempt to wait if frame timeouted or duration is under our chosen framerate
 		{
 			bool delay = false;
 			if (frameNr == 0 //never delay the first frame 
-				|| m_IsFixedFramerate) //or if the framerate is fixed
+				|| m_IsFixedFramerate //or if the framerate is fixed
+				|| (IsSnapshotsWithVideoEnabled() && chrono::steady_clock::now() - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval)) // Or if we need to write a snapshot 
 			{
 				delay = false;
 			}
@@ -601,7 +603,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 			}
 		}
 
-		lastFrame = high_resolution_clock::now();
+		lastFrame = steady_clock::now();
 		CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
 		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopy));
 
@@ -627,8 +629,8 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 
 		// Take screenshots in a video recording, if video recording is file mode.
 		if (IsSnapshotsWithVideoEnabled() && !m_OutputSnapshotsFolderPath.empty()) {
-			const auto now = std::chrono::system_clock::now();
-			if (previousTimeSnapshotTaken == std::chrono::system_clock::from_time_t(0) ||
+			const auto now = steady_clock::now();
+			if (previousTimeSnapshotTaken == (steady_clock::time_point::min)() ||
 				now - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval) {
 				previousTimeSnapshotTaken = now;
 				if (pFrameCopyForSnapshotsWithVideo == nullptr)
@@ -663,7 +665,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		lastFrameStartPos += durationSinceLastFrame100Nanos;
 		if (m_IsFixedFramerate)
 		{
-			wait(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::high_resolution_clock::now() - lastFrame).count(), 0)));
+			wait(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::steady_clock::now() - lastFrame).count(), 0)));
 		}
 	}
 	return hr;
@@ -729,8 +731,8 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 	if (pLoopbackCaptureOutputDevice)
 		pLoopbackCaptureOutputDevice->ClearRecordedBytes();
 
-	std::chrono::high_resolution_clock::time_point	lastFrame = std::chrono::high_resolution_clock::now();
-	std::chrono::system_clock::time_point previousTimeSnapshotTaken = std::chrono::system_clock::from_time_t(0);
+	std::chrono::steady_clock::time_point	lastFrame = std::chrono::steady_clock::now();
+	std::chrono::steady_clock::time_point previousTimeSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
 	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 	INT frameTimeout = 0;
@@ -752,7 +754,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 
 		if (m_IsPaused) {
 			wait(10);
-			lastFrame = high_resolution_clock::now();
+			lastFrame = steady_clock::now();
 			if (pLoopbackCaptureOutputDevice)
 				pLoopbackCaptureOutputDevice->ClearRecordedBytes();
 			if (pLoopbackCaptureInputDevice)
@@ -836,7 +838,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			}
 		}
 
-		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100, 0);
+		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::steady_clock::now() - lastFrame).count() / 100, 0);
 		INT64 durationSinceLastFrameMillis = HundredNanosToMillis(durationSinceLastFrame100Nanos);
 		//Delay frames that comes quicker than selected framerate to see if we can skip them.
 		if (hr == DXGI_ERROR_WAIT_TIMEOUT || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) //attempt to wait if frame timeouted or duration is under our chosen framerate
@@ -844,7 +846,8 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			bool delay = false;
 			if (frameNr == 0 //never delay the first frame 
 				|| m_IsFixedFramerate //or if the framerate is fixed
-				|| (m_IsMousePointerEnabled && FrameInfo.PointerShapeBufferSize != 0))//and never delay when pointer changes if we draw pointer
+				|| (m_IsMousePointerEnabled && FrameInfo.PointerShapeBufferSize != 0)//and never delay when pointer changes if we draw pointer
+				|| (IsSnapshotsWithVideoEnabled() && chrono::steady_clock::now() - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval)) // Or if we need to write a snapshot 
 			{
 				delay = false;
 			}
@@ -886,7 +889,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			RETURN_ON_BAD_HR(hr);
 		}
 
-		lastFrame = high_resolution_clock::now();
+		lastFrame = steady_clock::now();
 		{
 			CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
 			RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopy));
@@ -932,8 +935,8 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 
 			// Take screenshots in a video recording, if video recording is file mode.
 			if (IsSnapshotsWithVideoEnabled() && !m_OutputSnapshotsFolderPath.empty()) {
-				const auto now = std::chrono::system_clock::now();
-				if (previousTimeSnapshotTaken == std::chrono::system_clock::from_time_t(0) ||
+				const auto now = std::chrono::steady_clock::now();
+				if (previousTimeSnapshotTaken == (std::chrono::steady_clock::time_point::min)() ||
 					now - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval) {
 					previousTimeSnapshotTaken = now;
 					if (pFrameCopyForSnapshotsWithVideo == nullptr)
@@ -963,14 +966,14 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			lastFrameStartPos += durationSinceLastFrame100Nanos;
 			if (m_IsFixedFramerate)
 			{
-				wait(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::high_resolution_clock::now() - lastFrame).count(), 0)));
+				wait(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::steady_clock::now() - lastFrame).count(), 0)));
 			}
 		}
 	}
 
 	//Push the last frame waiting to be recorded to the sink writer.
 	if (pPreviousFrameCopy != nullptr) {
-		INT64 duration = duration_cast<nanoseconds>(chrono::high_resolution_clock::now() - lastFrame).count() / 100;
+		INT64 duration = duration_cast<nanoseconds>(chrono::steady_clock::now() - lastFrame).count() / 100;
 		if (gotMousePointer) {
 			DrawMousePointer(pPreviousFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, duration);
 		}
