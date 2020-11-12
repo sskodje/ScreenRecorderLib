@@ -131,7 +131,7 @@ To select audio device to record, query from Recorder and use as input in AudioO
 If recording both an input device like a microphone and and the system output audio, the gain should be set using the volume options. By default, both sources are mixed together at 100%, which can lead to the audio clipping depending on the loudness of the source:
 ```csharp
 	    //Here both sources are set to 50% gain, which will result in a quieter recording but with guaranteed no clipping.
-	    //You can configure this how you want from 0.0 to 1.0 for both sources.
+	    //You can configure this how you want for both sources, from 0.0 to 1.0 (or above).
 	    AudioOptions = new AudioOptions
             {
 		InputVolume = 0.5,
