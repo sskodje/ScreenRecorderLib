@@ -467,19 +467,20 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		sourceWidth = captureItem.Size().Width;
 		sourceHeight = captureItem.Size().Height;
 	}
-	RECT sourceRect, destRect, previousDestRect;
-	RtlZeroMemory(&sourceRect, sizeof(sourceRect));
-	RtlZeroMemory(&destRect, sizeof(destRect));
-	RtlZeroMemory(&previousDestRect, sizeof(previousDestRect));
-	sourceRect.left = 0;
-	sourceRect.top = 0;
-	sourceRect.right = sourceWidth;
-	sourceRect.bottom = sourceHeight;
-	sourceRect = MakeRectEven(sourceRect);
-	destRect = sourceRect;
-	//Differing input and output dimensions of the mediatype initializes the videp processor with the sink writer so we can use it for resizing the input.
-	sourceRect.right += 2;
-	sourceRect.bottom += 2;
+	RECT videoOutputFrameRect, videoInputFrameRect, previousInputFrameRect;
+	RtlZeroMemory(&videoOutputFrameRect, sizeof(videoOutputFrameRect));
+	RtlZeroMemory(&videoInputFrameRect, sizeof(videoInputFrameRect));
+	RtlZeroMemory(&previousInputFrameRect, sizeof(previousInputFrameRect));
+	videoOutputFrameRect.left = 0;
+	videoOutputFrameRect.top = 0;
+	videoOutputFrameRect.right = sourceWidth;
+	videoOutputFrameRect.bottom = sourceHeight;
+	videoOutputFrameRect = MakeRectEven(videoOutputFrameRect);
+	videoInputFrameRect = videoOutputFrameRect;
+	//Differing input and output dimensions of the mediatype initializes the video processor with the sink writer so we can use it for resizing the input.
+	//These values will be overwritten on a frame by frame basis.
+	videoInputFrameRect.right += 2;
+	videoInputFrameRect.bottom += 2;
 	HANDLE hMarkEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	if (m_RecorderMode == MODE_VIDEO) {
@@ -498,7 +499,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 			RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &outputStream));
 		}
 		pCallBack = new (std::nothrow)CMFSinkWriterCallback(m_FinalizeEvent, hMarkEvent);
-		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, DXGI_MODE_ROTATION_UNSPECIFIED, pCallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, videoInputFrameRect, videoOutputFrameRect, DXGI_MODE_ROTATION_UNSPECIFIED, pCallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
 
 	pCapture->ClearFrameBuffer();
@@ -545,10 +546,10 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 			sourceFrameDesc.CPUAccessFlags = 0;
 			sourceFrameDesc.MiscFlags = 0;
 
-			destRect.right = contentSize.Width - destRect.left;
-			destRect.bottom = contentSize.Height - destRect.top;
-			destRect = MakeRectEven(destRect);
-			if (!EqualRect(&destRect, &previousDestRect)) {
+			videoInputFrameRect.right = contentSize.Width - videoInputFrameRect.left;
+			videoInputFrameRect.bottom = contentSize.Height - videoInputFrameRect.top;
+			videoInputFrameRect = MakeRectEven(videoInputFrameRect);
+			if (!EqualRect(&videoInputFrameRect, &previousInputFrameRect)) {
 				//A marker is placed in the stream and then we wait for the sink writer to trigger it. This ensures all pending frames are encoded before the input is resized to the new size.
 				//The timeout is one frame @ 30fps, because it is preferable to avoid having the framerate drop too much if the encoder is busy.
 				RETURN_ON_BAD_HR(m_SinkWriter->PlaceMarker(m_VideoStreamIndex, nullptr));
@@ -560,12 +561,12 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 				GetVideoProcessor(m_SinkWriter, m_VideoStreamIndex, &videoProcessor);
 				if (videoProcessor) {
 					//The source rectangle is the portion of the input frame that is blitted to the destination surface.
-					videoProcessor->SetSourceRectangle(&destRect);
+					videoProcessor->SetSourceRectangle(&videoInputFrameRect);
 					//The destination rectangle is the portion of the output surface where the source rectangle is blitted.
-					videoProcessor->SetDestinationRectangle(&sourceRect);
-					TRACE("Changing video processor surface rect: source=%dx%d, dest = %dx%d", destRect.right - destRect.left, destRect.bottom - destRect.top, sourceRect.right - sourceRect.left, sourceRect.bottom - sourceRect.top);
+					videoProcessor->SetDestinationRectangle(&videoOutputFrameRect);
+					TRACE("Changing video processor surface rect: source=%dx%d, dest = %dx%d", videoInputFrameRect.right - videoInputFrameRect.left, videoInputFrameRect.bottom - videoInputFrameRect.top, videoOutputFrameRect.right - videoOutputFrameRect.left, videoOutputFrameRect.bottom - videoOutputFrameRect.top);
 				}
-				previousDestRect = destRect;
+				previousInputFrameRect = videoInputFrameRect;
 			}
 			frame.Close();
 		}
@@ -708,19 +709,19 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 	DXGI_MODE_ROTATION screenRotation = outputDuplDesc.Rotation;
 	D3D11_TEXTURE2D_DESC sourceFrameDesc;
 	D3D11_TEXTURE2D_DESC destFrameDesc;
-	RECT sourceRect, destRect;
+	RECT videoInputFrameRect, videoOutputFrameRect;
 
 	RtlZeroMemory(&destFrameDesc, sizeof(destFrameDesc));
 	RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
-	RtlZeroMemory(&sourceRect, sizeof(sourceRect));
-	RtlZeroMemory(&destRect, sizeof(destRect));
+	RtlZeroMemory(&videoInputFrameRect, sizeof(videoInputFrameRect));
+	RtlZeroMemory(&videoOutputFrameRect, sizeof(videoOutputFrameRect));
 
-	RETURN_ON_BAD_HR(hr = InitializeDesc(outputDuplDesc, &sourceFrameDesc, &destFrameDesc, &sourceRect, &destRect));
-	bool isDestRectEqualToSourceRect = EqualRect(&sourceRect, &destRect);
+	RETURN_ON_BAD_HR(hr = InitializeDesc(outputDuplDesc, &sourceFrameDesc, &destFrameDesc, &videoInputFrameRect, &videoOutputFrameRect));
+	bool isDestRectEqualToSourceRect = EqualRect(&videoInputFrameRect, &videoOutputFrameRect);
 
 	std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
 	RETURN_ON_BAD_HR(hr = pMousePointer->Initialize(m_ImmediateContext, m_Device));
-	SetViewPort(m_ImmediateContext, sourceRect.right - sourceRect.left, sourceRect.bottom - sourceRect.top);
+	SetViewPort(m_ImmediateContext, videoInputFrameRect.right - videoInputFrameRect.left, videoInputFrameRect.bottom - videoInputFrameRect.top);
 
 	mouse_pointer::PTR_INFO PtrInfo;
 	RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
@@ -740,7 +741,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 		if (pStream != nullptr) {
 			RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &outputStream));
 		}
-		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, sourceRect, destRect, outputDuplDesc.Rotation, nullptr, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, videoInputFrameRect, videoOutputFrameRect, outputDuplDesc.Rotation, nullptr, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
 	if (pLoopbackCaptureInputDevice)
 		pLoopbackCaptureInputDevice->ClearRecordedBytes();
@@ -786,7 +787,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 				&pDesktopResource);
 
 			// Get mouse info
-			gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, &(FrameInfo), sourceRect, pDeskDupl));
+			gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, &(FrameInfo), videoInputFrameRect, pDeskDupl));
 		}
 
 		if (pDeskDupl == nullptr
@@ -946,7 +947,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			}
 
 			if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
-				pFrameCopy = CropFrame(pFrameCopy, destFrameDesc, destRect);
+				pFrameCopy = CropFrame(pFrameCopy, destFrameDesc, videoOutputFrameRect);
 			}
 
 			// Take screenshots in a video recording, if video recording is file mode.
@@ -994,7 +995,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			DrawMousePointer(pPreviousFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, duration);
 		}
 		if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
-			pPreviousFrameCopy = CropFrame(pPreviousFrameCopy, destFrameDesc, destRect);
+			pPreviousFrameCopy = CropFrame(pPreviousFrameCopy, destFrameDesc, videoOutputFrameRect);
 		}
 		FrameWriteModel model;
 		RtlZeroMemory(&model, sizeof(model));
