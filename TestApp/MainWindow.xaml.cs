@@ -185,36 +185,8 @@ namespace TestApp
         public MainWindow()
         {
             InitializeComponent();
-            foreach (var target in WindowsDisplayAPI.Display.GetDisplays())
-            {
-                this.ScreenComboBox.Items.Add(target);
-            }
 
-            this.WindowComboBox.Items.Add(new RecordableWindow("-- No window selected --", IntPtr.Zero));
-
-            foreach (RecordableWindow window in Recorder.GetWindows())
-            {
-                this.WindowComboBox.Items.Add(window);
-            }
-
-            AudioOutputsList.Add("", "Default playback device");
-            AudioInputsList.Add("", "Default recording device");
-            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices))
-            {
-                AudioOutputsList.Add(kvp.Key, kvp.Value);
-            }
-            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices))
-            {
-                AudioInputsList.Add(kvp.Key, kvp.Value);
-            }
-
-            RaisePropertyChanged("AudioOutputsList");
-            RaisePropertyChanged("AudioInputsList");
-
-            ScreenComboBox.SelectedIndex = 0;
-            WindowComboBox.SelectedIndex = 0;
-            AudioOutputsComboBox.SelectedIndex = 0;
-            AudioInputsComboBox.SelectedIndex = 0;
+            RefreshCaptureTargetItems();
         }
 
         private bool IsValidWindow(WindowHandle window)
@@ -384,7 +356,7 @@ namespace TestApp
         {
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
             {
-                PauseButton.Visibility = Visibility.Hidden;
+                PauseButton.Visibility = Visibility.Collapsed;
                 RecordButton.Content = "Record";
                 RecordButton.IsEnabled = true;
                 StatusTextBlock.Text = "Error:";
@@ -405,7 +377,7 @@ namespace TestApp
                 }
 
                 OutputResultTextBlock.Text = filePath;
-                PauseButton.Visibility = Visibility.Hidden;
+                PauseButton.Visibility = Visibility.Collapsed;
                 RecordButton.Content = "Record";
                 RecordButton.IsEnabled = true;
                 this.StatusTextBlock.Text = "Completed";
@@ -458,7 +430,7 @@ namespace TestApp
                         this.StatusTextBlock.Text = "Paused";
                         break;
                     case RecorderStatus.Finishing:
-                        PauseButton.Visibility = Visibility.Hidden;
+                        PauseButton.Visibility = Visibility.Collapsed;
                         this.StatusTextBlock.Text = "Finalizing video";
                         break;
                     default:
@@ -488,6 +460,9 @@ namespace TestApp
 
         private void ScreenComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (e.AddedItems.Count == 0)
+                return;
+
             if (this.WindowComboBox.SelectedIndex==0)
             {
                 SetScreenRect();
@@ -613,12 +588,13 @@ namespace TestApp
                 this.WindowComboBox.Visibility = Visibility.Visible;
                 this.CoordinatesPanel.IsEnabled = false;
             }
-
-            this.WindowComboBox.Visibility = CurrentRecordingApi == RecorderApi.WindowsGraphicsCapture ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void WindowComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (e.AddedItems.Count == 0)
+                return;
+            
             var window = this.WindowComboBox.Items[this.WindowComboBox.SelectedIndex] as RecordableWindow;
             if (window.Handle == IntPtr.Zero)
             {
@@ -635,6 +611,65 @@ namespace TestApp
                     this.RecordingAreaTopTextBox.Text = windowRect.Top.ToString();
                 }
             }
+        }
+        private void RefreshButton_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshCaptureTargetItems();
+        }
+        private void RefreshCaptureTargetItems()
+        {
+            RefreshScreenComboBox();
+            RefreshWindowComboBox();
+            RefreshAudioComboBoxes();
+        }
+        private void RefreshScreenComboBox()
+        {
+            this.ScreenComboBox.Items.Clear();
+
+            foreach (var target in WindowsDisplayAPI.Display.GetDisplays())
+            {
+                this.ScreenComboBox.Items.Add(target);
+            }
+
+            ScreenComboBox.SelectedIndex = 0;
+        }
+        private void RefreshWindowComboBox()
+        {
+            this.WindowComboBox.Items.Clear();
+            this.WindowComboBox.Items.Add(new RecordableWindow("-- No window selected --", IntPtr.Zero));
+
+            foreach (RecordableWindow window in Recorder.GetWindows())
+            {
+                this.WindowComboBox.Items.Add(window);
+            }
+
+            WindowComboBox.SelectedIndex = 0;
+        }
+        private void RefreshAudioComboBoxes()
+        {
+            AudioOutputsList.Clear();
+            AudioInputsList.Clear();
+
+            AudioOutputsList.Add("", "Default playback device");
+            AudioInputsList.Add("", "Default recording device");
+            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices))
+            {
+                AudioOutputsList.Add(kvp.Key, kvp.Value);
+            }
+            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices))
+            {
+                AudioInputsList.Add(kvp.Key, kvp.Value);
+            }
+
+            // Since Dictionary is not "observable", reset the reference.
+            AudioOutputsComboBox.ItemsSource = null;
+            AudioInputsComboBox.ItemsSource = null;
+
+            AudioOutputsComboBox.ItemsSource = AudioOutputsList;
+            AudioInputsComboBox.ItemsSource = AudioInputsList;
+
+            AudioOutputsComboBox.SelectedIndex = 0;
+            AudioInputsComboBox.SelectedIndex = 0;
         }
     }
 
