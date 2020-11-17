@@ -74,7 +74,7 @@
             <StackPanel x:Name="SettingsPanel">
 
                 <ComboBox x:Name="ScreenComboBox"
-                          Margin="5"
+                          Margin="0,5"
                           SelectionChanged="ScreenComboBox_SelectionChanged">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
@@ -88,7 +88,7 @@
                     </ComboBox.ItemTemplate>
                 </ComboBox>
                 <ComboBox x:Name="WindowComboBox"
-                          Margin="5"
+                          Margin="0,5"
                           Visibility="Collapsed"
                           SelectionChanged="WindowComboBox_SelectionChanged">
                     <ComboBox.ItemTemplate>
@@ -99,34 +99,38 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <StackPanel Orientation="Horizontal"
-                            Margin="5,0"
+
+                <DockPanel Margin="0,5">
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal"
                             x:Name="CoordinatesPanel">
-
-                    <Label Content="left" />
-                    <TextBox x:Name="RecordingAreaLeftTextBox"
+                        <Label Content="left" />
+                        <TextBox x:Name="RecordingAreaLeftTextBox"
                              VerticalContentAlignment="Center"
                              GotFocus="TextBox_GotFocus"
                              MinWidth="
                          30" />
-                    <Label Content="top" />
-                    <TextBox x:Name="RecordingAreaTopTextBox"
+                        <Label Content="top" />
+                        <TextBox x:Name="RecordingAreaTopTextBox"
                              VerticalContentAlignment="Center"
                              GotFocus="TextBox_GotFocus"
                              MinWidth="30" />
-                    <Label Content="right" />
-                    <TextBox x:Name="RecordingAreaRightTextBox"
+                        <Label Content="right" />
+                        <TextBox x:Name="RecordingAreaRightTextBox"
                              VerticalContentAlignment="Center"
                              GotFocus="TextBox_GotFocus"
                              MinWidth="
                          30" />
-                    <Label Content="bottom" />
-                    <TextBox x:Name="RecordingAreaBottomTextBox"
+                        <Label Content="bottom" />
+                        <TextBox x:Name="RecordingAreaBottomTextBox"
                              VerticalContentAlignment="Center"
                              GotFocus="TextBox_GotFocus"
                              MinWidth="30" />
+                    </StackPanel>
+                    <Button HorizontalAlignment="Right" Margin="0,2" MinWidth="90"
+                            Content="Refresh targets"
+                            Click="RefreshButton_Click"/>
+                </DockPanel>
 
-                </StackPanel>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -511,12 +515,12 @@
                         Width="150"
                         Content="Pause"
                         FontSize="28"
-                        Visibility="Hidden"
+                        Visibility="Collapsed"
                         Click="PauseButton_Click" />
             </StackPanel>
         </StackPanel>
 
-        <TextBlock Margin="5"
+        <TextBlock Margin="10"
                    TextWrapping="Wrap"
                    Grid.Row="1"
                    HorizontalAlignment="Center">

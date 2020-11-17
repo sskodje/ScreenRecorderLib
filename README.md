@@ -128,19 +128,63 @@ To select audio device to record, query from Recorder and use as input in AudioO
             }	   	    
 ```
 
-To only record a portion of the screen, or a different monitor than the main monitor, you can also set DisplayOptions:
+If recording both an input device like a microphone and and the system output audio, the gain should be set using the volume options. By default, both sources are mixed together at 100%, which can lead to the audio clipping depending on the loudness of the source:
 ```csharp
-            //crop to a 400x400 pixel square at x=400,y=400. Passing 0 for these values will default to full screen recording.
+	    //Here both sources are set to 50% gain, which will result in a quieter recording but with guaranteed no clipping.
+	    //You can configure this how you want for both sources, from 0.0 to 1.0 (or above).
+	    AudioOptions = new AudioOptions
+            {
+		InputVolume = 0.5,
+		OutputVolume = 0.5
+            }	   	    
+```
+
+To record a single window, you can set the RecorderApi in RecorderOptions to WindowsGraphicsCapture and pass a HWND to the window you wish to record. For convenience, if you want to list all recordable windows, you can get them with the static method Recorder.GetWindows():
+```csharp
+            List<RecordableWindow> windows = Recorder.GetWindows();
+            RecorderOptions options = new RecorderOptions
+            {
+               DisplayOptions = new DisplayOptions
+	       {
+		   WindowHandle = windows[0].Handle
+	       },
+	       RecorderApi = WindowsGraphicsCapture
+            }
+```
+
+
+To select a monitor to record, you can pass the device name of the monitor. This works for both DesktopDuplication and WindowsGraphicsCapture API:
+```csharp
+	    //DeviceName in the form \\.\DISPLAY1. Typically you would enumerate system monitors and select one. 
+	    //Default monitor is used if no valid input is given.
+            string monitorDeviceName= System.Windows.Forms.Screen.PrimaryScreen.DeviceName; 
+            RecorderOptions options = new RecorderOptions
+            {
+                DisplayOptions = new DisplayOptions
+                {
+                    MonitorDeviceName = monitorDeviceName
+                },
+            }
+```
+
+To only record a fixed portion of the screen, you can also set cropping in DisplayOptions. Note that cropping is only supported using DesktopDuplication API:
+```csharp
+            //crop to a 400x400px square at x=400,y=400. Passing 0 for these values will default to full screen recording.
             int left = 400;
             int top = 400;
             int right = 800;
             int bottom=800;
-	    //DeviceName in the form \\.\DISPLAY1. Typically you would enumerate system monitors and select one. Default monitor is used if no valid input is given.
-            string monitorDeviceName= System.Windows.Forms.Screen.PrimaryScreen.DeviceName; 
             RecorderOptions options = new RecorderOptions
             {
-               DisplayOptions = new DisplayOptions(monitorDeviceName, left, top, right, bottom)
+                DisplayOptions = new DisplayOptions
+                {
+                    Left = left,
+                    Top = top,
+                    Right = right,
+                    Bottom = bottom
+                },
+	       RecorderApi =DesktopDuplication
             }
 ```
 
-See the sample project for a full implementation.
+See the sample project for an implementation of all options.
