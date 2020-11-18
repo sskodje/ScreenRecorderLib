@@ -190,6 +190,7 @@ HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
 	ID3D11Resource* pSource,
 	REFGUID guidContainerFormat,
 	const wchar_t* fileName,
+	UINT widthCrop, UINT heightCrop,
 	const GUID* targetFormat,
 	std::function<void(IPropertyBag2*)> setCustomProps)
 {
@@ -201,6 +202,10 @@ HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
 	HRESULT hr = CaptureTexture(pContext, pSource, desc, pStaging);
 	if (FAILED(hr))
 		return hr;
+
+	// In case the frame size is larger than the actual content, crop it for writing. 
+	UINT width = (widthCrop != 0 && widthCrop < desc.Width) ? widthCrop : desc.Width;
+	UINT height = (heightCrop != 0 && heightCrop < desc.Height) ? heightCrop : desc.Height;
 
 	// Determine source format's WIC equivalent
 	WICPixelFormatGUID pfGuid;
@@ -302,7 +307,7 @@ HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
 	if (FAILED(hr))
 		return hr;
 
-	hr = frame->SetSize(desc.Width, desc.Height);
+	hr = frame->SetSize(width, height);
 	if (FAILED(hr))
 		return hr;
 
@@ -410,8 +415,8 @@ HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
 	{
 		// Conversion required to write
 		CComPtr<IWICBitmap> source;
-		hr = pWIC->CreateBitmapFromMemory(desc.Width, desc.Height, pfGuid,
-			mapped.RowPitch, mapped.RowPitch * desc.Height,
+		hr = pWIC->CreateBitmapFromMemory(width, height, pfGuid,
+			mapped.RowPitch, mapped.RowPitch * height,
 			reinterpret_cast<BYTE*>(mapped.pData), &source);
 		if (FAILED(hr))
 		{
@@ -441,7 +446,7 @@ HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
 			return hr;
 		}
 
-		WICRect rect = { 0, 0, static_cast<INT>(desc.Width), static_cast<INT>(desc.Height) };
+		WICRect rect = { 0, 0, static_cast<INT>(width), static_cast<INT>(height) };
 		hr = frame->WriteSource(FC, &rect);
 		if (FAILED(hr))
 		{
@@ -452,7 +457,7 @@ HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
 	else
 	{
 		// No conversion required
-		hr = frame->WritePixels(desc.Height, mapped.RowPitch, mapped.RowPitch * desc.Height, reinterpret_cast<BYTE*>(mapped.pData));
+		hr = frame->WritePixels(height, mapped.RowPitch, mapped.RowPitch * height, reinterpret_cast<BYTE*>(mapped.pData));
 		if (FAILED(hr))
 			return hr;
 	}

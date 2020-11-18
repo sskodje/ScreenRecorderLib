@@ -434,7 +434,6 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 	HRESULT hr;
 	std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = nullptr;
 	std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = nullptr;
-	CComPtr<ID3D11Texture2D> pFrameCopyForSnapshotsWithVideo = nullptr;
 	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 	CComPtr<IMFSinkWriterCallback> pCallBack = nullptr;
 	CComPtr<IDXGIDevice> pDxgiDevice = nullptr;
@@ -509,7 +508,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		pLoopbackCaptureInputDevice->ClearRecordedBytes();
 
 	std::chrono::steady_clock::time_point	lastFrame = std::chrono::steady_clock::now();
-	std::chrono::steady_clock::time_point previousTimeSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
+	m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
 	int totalCachedFrameDuration = 0;
 	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
@@ -527,7 +526,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		if (m_IsPaused) {
 			wait(10);
 			lastFrame = steady_clock::now();
-			previousTimeSnapshotTaken = steady_clock::now();
+			m_previousSnapshotTaken = steady_clock::now();
 			pLoopbackCaptureOutputDevice->ClearRecordedBytes();
 			pLoopbackCaptureInputDevice->ClearRecordedBytes();
 			pCapture->ClearFrameBuffer();
@@ -536,6 +535,8 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		auto frame = pCapture->TryGetNextFrame();
 		winrt::com_ptr<ID3D11Texture2D> surfaceTexture = nullptr;
 
+		UINT contentWidth = 0;
+		UINT contentHeight = 0;
 		if (frame) {
 			auto contentSize = frame.ContentSize();
 			surfaceTexture = capture::util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
@@ -545,6 +546,9 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 			sourceFrameDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
 			sourceFrameDesc.CPUAccessFlags = 0;
 			sourceFrameDesc.MiscFlags = 0;
+
+			contentWidth = contentSize.Width;
+			contentHeight = contentSize.Height;
 
 			videoInputFrameRect.right = contentSize.Width - videoInputFrameRect.left;
 			videoInputFrameRect.bottom = contentSize.Height - videoInputFrameRect.top;
@@ -587,7 +591,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 			bool delay = false;
 			if (frameNr == 0 //never delay the first frame 
 				|| m_IsFixedFramerate //or if the framerate is fixed
-				|| (IsSnapshotsWithVideoEnabled() && chrono::steady_clock::now() - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval)) // Or if we need to write a snapshot 
+				|| (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot())) // Or if we need to write a snapshot 
 			{
 				delay = false;
 			}
@@ -644,22 +648,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 
 		SetDebugName(pFrameCopy, "FrameCopy");
 
-		// Take screenshots in a video recording, if video recording is file mode.
-		if (IsSnapshotsWithVideoEnabled() && !m_OutputSnapshotsFolderPath.empty()) {
-			const auto now = steady_clock::now();
-			if (previousTimeSnapshotTaken == (steady_clock::time_point::min)() ||
-				now - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval) {
-				previousTimeSnapshotTaken = now;
-				if (pFrameCopyForSnapshotsWithVideo == nullptr)
-					RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopyForSnapshotsWithVideo));
-				wstring snapshotPath = m_OutputSnapshotsFolderPath + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetImageExtension();
-
-				// Copy the current frame for a separate thread to write it to a file asynchronously.
-				// Assuming previous file writing is already done.
-				m_ImmediateContext->CopyResource(pFrameCopyForSnapshotsWithVideo, pFrameCopy);
-				WriteFrameToImageAsync(pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str());
-			}
-		}
+		TakeSnapshotsWithVideo(pFrameCopy, sourceFrameDesc, contentWidth, contentHeight);
 
 		if (token.is_canceled()) {
 			DEBUG("Recording task was cancelled");
@@ -749,7 +738,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 		pLoopbackCaptureOutputDevice->ClearRecordedBytes();
 
 	std::chrono::steady_clock::time_point	lastFrame = std::chrono::steady_clock::now();
-	std::chrono::steady_clock::time_point previousTimeSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
+	m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
 	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 	INT frameTimeout = 0;
@@ -864,7 +853,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			if (frameNr == 0 //never delay the first frame 
 				|| m_IsFixedFramerate //or if the framerate is fixed
 				|| (m_IsMousePointerEnabled && FrameInfo.PointerShapeBufferSize != 0)//and never delay when pointer changes if we draw pointer
-				|| (IsSnapshotsWithVideoEnabled() && chrono::steady_clock::now() - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval)) // Or if we need to write a snapshot 
+				|| IsTimeToTakeSnapshot()) // Or if we need to write a snapshot 
 			{
 				delay = false;
 			}
@@ -950,22 +939,8 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 				pFrameCopy = CropFrame(pFrameCopy, destFrameDesc, videoOutputFrameRect);
 			}
 
-			// Take screenshots in a video recording, if video recording is file mode.
-			if (IsSnapshotsWithVideoEnabled() && !m_OutputSnapshotsFolderPath.empty()) {
-				const auto now = std::chrono::steady_clock::now();
-				if (previousTimeSnapshotTaken == (std::chrono::steady_clock::time_point::min)() ||
-					now - previousTimeSnapshotTaken > m_SnapshotsWithVideoInterval) {
-					previousTimeSnapshotTaken = now;
-					if (pFrameCopyForSnapshotsWithVideo == nullptr)
-						RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopyForSnapshotsWithVideo));
-					wstring snapshotPath = m_OutputSnapshotsFolderPath + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetImageExtension();
-
-					// Copy the current frame for a separate thread to write it to a file asynchronously.
-					// Assuming previous file writing is already done.
-					m_ImmediateContext->CopyResource(pFrameCopyForSnapshotsWithVideo, pFrameCopy);
-					WriteFrameToImageAsync(pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str());
-				}
-			}
+			//TODO: Snapshots are not cropped when video cropping is enabled.
+			TakeSnapshotsWithVideo(pFrameCopy, sourceFrameDesc);
 
 			FrameWriteModel model;
 			RtlZeroMemory(&model, sizeof(model));
@@ -1802,15 +1777,15 @@ std::string internal_recorder::CurrentTimeToFormattedString()
 	std::replace(time.begin(), time.end(), ':', '-');
 	return time;
 }
-HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D * pAcquiredDesktopImage, std::wstring filePath)
+HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D * pAcquiredDesktopImage, std::wstring filePath, UINT widthCrop, UINT heightCrop)
 {
-	return SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage, m_ImageEncoderFormat, filePath.c_str());
+	return SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage, m_ImageEncoderFormat, filePath.c_str(), widthCrop, heightCrop);
 }
 
-void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath)
+void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath, UINT widthCrop, UINT heightCrop)
 {
-	concurrency::create_task([this, pAcquiredDesktopImage, filePath]() {
-		return WriteFrameToImage(pAcquiredDesktopImage, filePath);
+	concurrency::create_task([this, pAcquiredDesktopImage, filePath, widthCrop, heightCrop]() {
+		return WriteFrameToImage(pAcquiredDesktopImage, filePath, widthCrop, heightCrop);
 	}).then([this, filePath](concurrency::task<HRESULT> t)
 	{
 		try {
@@ -1833,6 +1808,30 @@ void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDe
 			ERROR(L"Exception saving snapshot: %s", e.what());
 		}
 	});
+}
+/// <summary>
+/// Take screenshots in a video recording, if video recording is file mode.
+/// </summary>
+void internal_recorder::TakeSnapshotsWithVideo(ID3D11Texture2D* frame, D3D11_TEXTURE2D_DESC frameDesc, UINT widthCrop, UINT heightCrop)
+{
+	if (!IsSnapshotsWithVideoEnabled() || m_OutputSnapshotsFolderPath.empty())
+		return;
+	
+	if (!IsTimeToTakeSnapshot())
+		return;
+
+	m_previousSnapshotTaken = steady_clock::now();
+	// Assuming previous file writing is already done.
+	if (m_pFrameCopyForSnapshotsWithVideo) {
+		m_pFrameCopyForSnapshotsWithVideo.Release();
+	}
+	m_pFrameCopyForSnapshotsWithVideo = nullptr;
+	m_Device->CreateTexture2D(&frameDesc, nullptr, &m_pFrameCopyForSnapshotsWithVideo);
+	wstring snapshotPath = m_OutputSnapshotsFolderPath + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetImageExtension();
+
+	// Copy the current frame for a separate thread to write it to a file asynchronously.
+	m_ImmediateContext->CopyResource(m_pFrameCopyForSnapshotsWithVideo, frame);
+	WriteFrameToImageAsync(m_pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str(), widthCrop, heightCrop);
 }
 
 HRESULT internal_recorder::WriteFrameToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ ID3D11Texture2D * pAcquiredDesktopImage)

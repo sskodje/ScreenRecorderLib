@@ -526,7 +526,7 @@ namespace ScreenRecorderLib
             try
             {
                 RecorderOptions options = new RecorderOptions();
-                options.VideoOptions = new VideoOptions { SnapshotsWithVideo = true, SnapshotsInterval = 1, SnapshotFormat = ImageFormat.JPEG };
+                options.VideoOptions = new VideoOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
                     List<string> snapshotCallbackList = new List<string>();
@@ -550,7 +550,7 @@ namespace ScreenRecorderLib
                         snapshotCallbackList.Add(args.SnapshotPath);
                     };
                     rec.Record(filePath);
-                    recordingResetEvent.WaitOne(5900);
+                    recordingResetEvent.WaitOne(11900); // 10 < x < 12 sec
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
 
