@@ -361,10 +361,6 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount)
 	m_Mutex.lock();
 
 	std::vector<BYTE> newvector(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
-	if (m_OverflowBytes.size() > 0) {
-		newvector.insert(newvector.begin(), m_OverflowBytes.begin(), m_OverflowBytes.end());
-		m_OverflowBytes.clear();
-	}
 	// convert audio
 	if (requiresResampling() && byteCount > 0) {
 		WWMFSampleData sampleData;
@@ -378,6 +374,10 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount)
 		newvector.clear();
 		newvector.insert(newvector.end(), &sampleData.data[0], &sampleData.data[sampleData.bytes]);
 		sampleData.Release();
+	}
+	if (m_OverflowBytes.size() > 0) {
+		newvector.insert(newvector.begin(), m_OverflowBytes.begin(), m_OverflowBytes.end());
+		m_OverflowBytes.clear();
 	}
 	m_RecordedBytes.erase(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
 	TRACE(L"Got %d bytes from loopback_capture %ls. %d bytes remaining", newvector.size(), m_Tag.c_str(), m_RecordedBytes.size());
