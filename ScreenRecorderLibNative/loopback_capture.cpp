@@ -240,7 +240,7 @@ HRESULT loopback_capture::LoopbackCapture(
 
 	bool bDone = false;
 	bool bFirstPacket = true;
-
+	UINT64 nLastDevicePosition = 0;
 	for (UINT32 nPasses = 0; !bDone; nPasses++) {
 		// drain data while it is available
 		UINT32 nNextPacketSize;
@@ -253,13 +253,13 @@ HRESULT loopback_capture::LoopbackCapture(
 			BYTE *pData;
 			UINT32 nNumFramesToRead;
 			DWORD dwFlags;
+			UINT64 nDevicePosition;
 			m_IsCapturing = true;
 			hr = pAudioCaptureClient->GetBuffer(
 				&pData,
 				&nNumFramesToRead,
 				&dwFlags,
-
-				NULL,
+				&nDevicePosition,
 				NULL
 			);
 			if (FAILED(hr)) {
@@ -267,12 +267,20 @@ HRESULT loopback_capture::LoopbackCapture(
 				bDone = true;
 				continue; // exits loop
 			}
-
-			if (bFirstPacket && AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY == dwFlags) {
-				DEBUG(L"Probably spurious glitch reported on first packet on %ls", m_Tag.c_str());
+			bool isDiscontinuity = false;
+			if ((dwFlags & (AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY)) != 0) {
+				if (bFirstPacket) {
+					DEBUG(L"Probably spurious glitch reported on first packet on %ls", m_Tag.c_str());
+				}
+				else {
+					DEBUG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames on %ls", dwFlags, nPasses, nFrames, m_Tag.c_str());
+					isDiscontinuity = true;
+				}
 			}
-			else if (AUDCLNT_BUFFERFLAGS_SILENT == dwFlags) {
-				//INFO(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames", dwFlags, nPasses, *pnFrames);
+			else if ((dwFlags & AUDCLNT_BUFFERFLAGS_SILENT) != 0) {
+				//Captured data should be replaced with silence as according to https://docs.microsoft.com/en-us/windows/win32/coreaudio/capturing-a-stream
+				DEBUG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames on %ls", dwFlags, nPasses, nFrames, m_Tag.c_str());
+				memset(pData, 0, sizeof(pData));
 			}
 			else if (0 != dwFlags) {
 				DEBUG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames on %ls", dwFlags, nPasses, nFrames, m_Tag.c_str());
@@ -293,6 +301,14 @@ HRESULT loopback_capture::LoopbackCapture(
 			if (m_RecordedBytes.size() == 0)
 				m_RecordedBytes.reserve(size);
 			m_RecordedBytes.insert(m_RecordedBytes.end(), &pData[0], &pData[size]);
+			//This should reduce glitching if there is discontinuity in the audio stream.
+			if (isDiscontinuity) {
+				int frameDiff = nDevicePosition - nLastDevicePosition;
+				if (frameDiff != nNumFramesToRead) {
+					m_RecordedBytes.insert(m_RecordedBytes.begin(), frameDiff * nBlockAlign, 0);
+					DEBUG(L"Discontinuity detected, padded audio bytes with %d bytes of silence on %ls", frameDiff, m_Tag.c_str());
+				}
+			}
 			m_Mutex.unlock();
 			SetEvent(hCaptureEvent);
 
@@ -304,8 +320,8 @@ HRESULT loopback_capture::LoopbackCapture(
 				bDone = true;
 				continue; // exits loop
 			}
-
 			bFirstPacket = false;
+			nLastDevicePosition = nDevicePosition;
 		}
 		m_IsCapturing = false;
 		if (FAILED(hr)) {
