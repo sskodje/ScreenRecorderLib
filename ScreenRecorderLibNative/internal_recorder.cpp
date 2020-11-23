@@ -1017,40 +1017,28 @@ std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_cap
 		auto returnAudioOverflowToBuffer = [&](auto &outputDeviceData, auto &inputDeviceData) {
 			if (outputDeviceData.size() > 0 && inputDeviceData.size() > 0) {
 				if (outputDeviceData.size() > inputDeviceData.size()) {
-					int diff = outputDeviceData.size() - inputDeviceData.size();
+					auto diff = outputDeviceData.size() - inputDeviceData.size();
 					std::vector<BYTE> overflow(outputDeviceData.end() - diff, outputDeviceData.end());
 					outputDeviceData.resize(outputDeviceData.size() - diff);
 					pLoopbackCaptureOutputDevice->ReturnAudioBytesToBuffer(overflow);
 				}
 				else if (inputDeviceData.size() > outputDeviceData.size()) {
-					int n = inputDeviceData.size() - outputDeviceData.size();
-					std::vector<BYTE> overflow(inputDeviceData.end() - n, inputDeviceData.end());
-					inputDeviceData.resize(inputDeviceData.size() - n);
+					auto diff = inputDeviceData.size() - outputDeviceData.size();
+					std::vector<BYTE> overflow(inputDeviceData.end() - diff, inputDeviceData.end());
+					inputDeviceData.resize(inputDeviceData.size() - diff);
 					pLoopbackCaptureInputDevice->ReturnAudioBytesToBuffer(overflow);
 				}
 			}
 		};
 
-		if (pLoopbackCaptureOutputDevice->PeakRecordedBytes().size() > 0) {
-			std::vector<BYTE> outputDeviceData = pLoopbackCaptureOutputDevice->GetRecordedBytes();
-			std::vector<BYTE> inputDeviceData = pLoopbackCaptureInputDevice->GetRecordedBytes(outputDeviceData.size());
-			returnAudioOverflowToBuffer(outputDeviceData, inputDeviceData);
-			if (inputDeviceData.size() > 0 && outputDeviceData.size() && inputDeviceData.size() != outputDeviceData.size()) {
-				ERROR(L"Mixing audio byte arrays with differing sizes");
-			}
-
-			return std::move(MixAudio(outputDeviceData, inputDeviceData, m_OutputVolumeModifier, m_InputVolumeModifier));
+		std::vector<BYTE> outputDeviceData = pLoopbackCaptureOutputDevice->GetRecordedBytes();
+		std::vector<BYTE> inputDeviceData = pLoopbackCaptureInputDevice->GetRecordedBytes();
+		returnAudioOverflowToBuffer(outputDeviceData, inputDeviceData);
+		if (inputDeviceData.size() > 0 && outputDeviceData.size() && inputDeviceData.size() != outputDeviceData.size()) {
+			ERROR(L"Mixing audio byte arrays with differing sizes");
 		}
-		else {
-			std::vector<BYTE> inputDeviceData = pLoopbackCaptureInputDevice->GetRecordedBytes();
-			std::vector<BYTE> outputDeviceData = pLoopbackCaptureOutputDevice->GetRecordedBytes(inputDeviceData.size());
-			returnAudioOverflowToBuffer(outputDeviceData, inputDeviceData);
-			if (inputDeviceData.size() > 0 && outputDeviceData.size() && inputDeviceData.size() != outputDeviceData.size()) {
-				ERROR(L"Mixing audio byte arrays with differing sizes");
-			}
 
-			return std::move(MixAudio(outputDeviceData, inputDeviceData, m_OutputVolumeModifier, m_InputVolumeModifier));
-		}
+		return std::move(MixAudio(outputDeviceData, inputDeviceData, m_OutputVolumeModifier, m_InputVolumeModifier));
 	}
 	else if (m_IsOutputDeviceEnabled && pLoopbackCaptureOutputDevice)
 		return std::move(MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), std::vector<BYTE>(), m_OutputVolumeModifier, 1.0));

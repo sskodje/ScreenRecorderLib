@@ -33,7 +33,6 @@ HRESULT loopback_capture::LoopbackCapture(
 	bool bInt16,
 	HANDLE hStartedEvent,
 	HANDLE hStopEvent,
-	HANDLE hCaptureEvent,
 	EDataFlow flow,
 	UINT32 samplerate,
 	UINT32 channels
@@ -137,8 +136,9 @@ HRESULT loopback_capture::LoopbackCapture(
 	m_OutputFormat.sampleRate = outputSampleRate;
 	m_OutputFormat.nChannels = channels;
 
-	// initialize resampler if sample rate differs from 44.1kHz or 48kHz
+	// initialize resampler if input sample rate or channels are different from output.
 	if (requiresResampling()) {
+		DEBUG("Resampler created for %ls", m_Tag.c_str());
 		DEBUG("Resampler (bits): %u -> %u", m_InputFormat.bits, m_OutputFormat.bits);
 		DEBUG("Resampler (channels): %u -> %u", m_InputFormat.nChannels, m_OutputFormat.nChannels);
 		DEBUG("Resampler (sampleFormat): %i -> %i", m_InputFormat.sampleFormat, m_OutputFormat.sampleFormat);
@@ -162,7 +162,7 @@ HRESULT loopback_capture::LoopbackCapture(
 
 	UINT32 nBlockAlign = pwfx->nBlockAlign;
 	UINT32 nFrames = 0;
-	long audioClientBuffer = 200 * 10000;
+	long audioClientBuffer = 200 * 10000; //200ms in 100-nanosecond units.
 	// call IAudioClient::Initialize
 	// note that AUDCLNT_STREAMFLAGS_LOOPBACK and AUDCLNT_STREAMFLAGS_EVENTCALLBACK
 	// do not work together...
@@ -310,7 +310,6 @@ HRESULT loopback_capture::LoopbackCapture(
 				}
 			}
 			m_Mutex.unlock();
-			SetEvent(hCaptureEvent);
 
 			nFrames += nNumFramesToRead;
 
@@ -357,23 +356,7 @@ std::vector<BYTE> loopback_capture::PeakRecordedBytes()
 
 std::vector<BYTE> loopback_capture::GetRecordedBytes()
 {
-	return GetRecordedBytes(-1);
-}
-std::vector<BYTE> loopback_capture::GetRecordedBytes(int byteCount)
-{
-	if (byteCount > 0) {
-		if (requiresResampling()) {
-			byteCount = GetByteCountAdjustedForResampling(byteCount);
-		}
-		while (m_RecordedBytes.size() < byteCount && m_IsCapturing) {
-			TRACE(L"Waiting for more audio on %ls", m_Tag.c_str());
-			WaitForSingleObject(m_AudioCapturedEvent, 1);
-		}
-		byteCount = min(byteCount, m_RecordedBytes.size());
-	}
-	else {
-		byteCount = m_RecordedBytes.size();
-	}
+	auto byteCount = m_RecordedBytes.size();
 	m_Mutex.lock();
 
 	std::vector<BYTE> newvector(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
@@ -421,12 +404,6 @@ HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, 
 			return E_FAIL;
 		}
 
-		m_AudioCapturedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-		if (nullptr == m_AudioCapturedEvent) {
-			ERROR(L"CreateEvent failed: last error is %u", GetLastError());
-			return E_FAIL;
-		}
-
 		IMMDevice *device = prefs.m_pMMDevice;
 		auto file = prefs.m_hFile;
 		m_CaptureTask = concurrency::create_task([this, flow, sampleRate, audioChannels, device, file]() {
@@ -435,7 +412,6 @@ HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, 
 				true,
 				m_CaptureStartedEvent,
 				m_CaptureStopEvent,
-				m_AudioCapturedEvent,
 				flow,
 				sampleRate,
 				audioChannels);
@@ -452,24 +428,16 @@ HRESULT loopback_capture::StopCapture()
 	return S_OK;
 }
 
-int loopback_capture::ReturnAudioBytesToBuffer(std::vector<BYTE> bytes)
+void loopback_capture::ReturnAudioBytesToBuffer(std::vector<BYTE> bytes)
 {
 	m_OverflowBytes.swap(bytes);
 	TRACE(L"Returned %d bytes to buffer in loopback_capture %ls", m_OverflowBytes.size(), m_Tag.c_str());
-	return m_OverflowBytes.size();
-}
-
-int loopback_capture::GetByteCountAdjustedForResampling(int byteCount)
-{
-	byteCount = byteCount * (m_InputFormat.BytesPerSec() / m_OutputFormat.BytesPerSec());//m_Resampler.GetOutputByteCount(byteCount);
-	// cbOutputBytes must be product of frambytes
-	byteCount = (byteCount + (m_OutputFormat.FrameBytes() - 1)) / m_OutputFormat.FrameBytes() * m_OutputFormat.FrameBytes();
-	return byteCount;
 }
 
 bool loopback_capture::requiresResampling()
 {
-	return m_InputFormat.sampleRate != m_OutputFormat.sampleRate || m_OutputFormat.nChannels != m_InputFormat.nChannels;
+	return m_InputFormat.sampleRate != m_OutputFormat.sampleRate
+		|| m_InputFormat.nChannels != m_OutputFormat.nChannels;
 }
 
 bool loopback_capture::IsCapturing() {
