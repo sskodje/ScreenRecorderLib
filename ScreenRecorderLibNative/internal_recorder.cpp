@@ -1784,9 +1784,10 @@ HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D * pAcquiredDes
 
 void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath, UINT widthCrop, UINT heightCrop)
 {
+	pAcquiredDesktopImage->AddRef();
 	concurrency::create_task([this, pAcquiredDesktopImage, filePath, widthCrop, heightCrop]() {
 		return WriteFrameToImage(pAcquiredDesktopImage, filePath, widthCrop, heightCrop);
-	}).then([this, filePath](concurrency::task<HRESULT> t)
+	}).then([this, filePath, pAcquiredDesktopImage](concurrency::task<HRESULT> t)
 	{
 		try {
 			HRESULT hr = t.get();
@@ -1807,6 +1808,7 @@ void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDe
 			// handle error
 			ERROR(L"Exception saving snapshot: %s", e.what());
 		}
+		pAcquiredDesktopImage->Release();
 	});
 }
 /// <summary>
@@ -1821,14 +1823,9 @@ void internal_recorder::TakeSnapshotsWithVideo(ID3D11Texture2D* frame, D3D11_TEX
 		return;
 
 	m_previousSnapshotTaken = steady_clock::now();
-	// Assuming previous file writing is already done.
-	if (m_pFrameCopyForSnapshotsWithVideo) {
-		m_pFrameCopyForSnapshotsWithVideo.Release();
-	}
-	m_pFrameCopyForSnapshotsWithVideo = nullptr;
+	CComPtr<ID3D11Texture2D> m_pFrameCopyForSnapshotsWithVideo = nullptr;
 	m_Device->CreateTexture2D(&frameDesc, nullptr, &m_pFrameCopyForSnapshotsWithVideo);
 	wstring snapshotPath = m_OutputSnapshotsFolderPath + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetImageExtension();
-
 	// Copy the current frame for a separate thread to write it to a file asynchronously.
 	m_ImmediateContext->CopyResource(m_pFrameCopyForSnapshotsWithVideo, frame);
 	WriteFrameToImageAsync(m_pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str(), widthCrop, heightCrop);

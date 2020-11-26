@@ -234,7 +234,6 @@ private:
 	float m_InputVolumeModifier = 1;
 	float m_OutputVolumeModifier = 1;
 	std::chrono::steady_clock::time_point m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
-	CComPtr<ID3D11Texture2D> m_pFrameCopyForSnapshotsWithVideo = nullptr;
 
 	//functions
 	std::string CurrentTimeToFormattedString();
