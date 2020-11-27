@@ -648,7 +648,9 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 
 		SetDebugName(pFrameCopy, "FrameCopy");
 
-		TakeSnapshotsWithVideo(pFrameCopy, sourceFrameDesc, contentWidth, contentHeight);
+		if (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot()) {
+			TakeSnapshotsWithVideo(pFrameCopy, sourceFrameDesc, videoInputFrameRect);
+		}
 
 		if (token.is_canceled()) {
 			DEBUG("Recording task was cancelled");
@@ -737,7 +739,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 	if (pLoopbackCaptureOutputDevice)
 		pLoopbackCaptureOutputDevice->ClearRecordedBytes();
 
-	std::chrono::steady_clock::time_point	lastFrame = std::chrono::steady_clock::now();
+	std::chrono::steady_clock::time_point lastFrame = std::chrono::steady_clock::now();
 	m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
 	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
@@ -853,7 +855,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			if (frameNr == 0 //never delay the first frame 
 				|| m_IsFixedFramerate //or if the framerate is fixed
 				|| (m_IsMousePointerEnabled && FrameInfo.PointerShapeBufferSize != 0)//and never delay when pointer changes if we draw pointer
-				|| IsTimeToTakeSnapshot()) // Or if we need to write a snapshot 
+				|| (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot())) // Or if we need to write a snapshot 
 			{
 				delay = false;
 			}
@@ -934,13 +936,17 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 				hr = S_OK;
 				break;
 			}
-
-			if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
-				pFrameCopy = CropFrame(pFrameCopy, destFrameDesc, videoOutputFrameRect);
+			
+			if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {			
+				ID3D11Texture2D *pCroppedFrameCopy;
+				RETURN_ON_BAD_HR(hr = CropFrame(pFrameCopy, destFrameDesc, videoOutputFrameRect, &pCroppedFrameCopy));
+				pFrameCopy.Release();
+				pFrameCopy.Attach(pCroppedFrameCopy);
 			}
 
-			//TODO: Snapshots are not cropped when video cropping is enabled.
-			TakeSnapshotsWithVideo(pFrameCopy, sourceFrameDesc);
+			if (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot()) {
+				TakeSnapshotsWithVideo(pFrameCopy, sourceFrameDesc, videoOutputFrameRect);
+			}
 
 			FrameWriteModel model;
 			RtlZeroMemory(&model, sizeof(model));
@@ -970,7 +976,10 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			DrawMousePointer(pPreviousFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, duration);
 		}
 		if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
-			pPreviousFrameCopy = CropFrame(pPreviousFrameCopy, destFrameDesc, videoOutputFrameRect);
+			ID3D11Texture2D *pCroppedFrameCopy;
+			RETURN_ON_BAD_HR(hr = CropFrame(pPreviousFrameCopy, destFrameDesc, videoOutputFrameRect, &pCroppedFrameCopy));
+			pPreviousFrameCopy.Release();
+			pPreviousFrameCopy.Attach(pCroppedFrameCopy);
 		}
 		FrameWriteModel model;
 		RtlZeroMemory(&model, sizeof(model));
@@ -1624,10 +1633,10 @@ HRESULT internal_recorder::DrawMousePointer(ID3D11Texture2D * frame, mouse_point
 	return hr;
 }
 
-ID3D11Texture2D * internal_recorder::CropFrame(ID3D11Texture2D * frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect)
+HRESULT internal_recorder::CropFrame(ID3D11Texture2D *frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect, ID3D11Texture2D **pCroppedFrame)
 {
 	CComPtr<ID3D11Texture2D> pCroppedFrameCopy = nullptr;
-	HRESULT hr = m_Device->CreateTexture2D(&frameDesc, nullptr, &pCroppedFrameCopy);
+	RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&frameDesc, nullptr, &pCroppedFrameCopy));
 	D3D11_BOX sourceRegion;
 	RtlZeroMemory(&sourceRegion, sizeof(sourceRegion));
 	sourceRegion.left = destRect.left;
@@ -1637,7 +1646,9 @@ ID3D11Texture2D * internal_recorder::CropFrame(ID3D11Texture2D * frame, D3D11_TE
 	sourceRegion.front = 0;
 	sourceRegion.back = 1;
 	m_ImmediateContext->CopySubresourceRegion(pCroppedFrameCopy, 0, 0, 0, 0, frame, 0, &sourceRegion);
-	return pCroppedFrameCopy;
+	*pCroppedFrame = pCroppedFrameCopy;
+	(*pCroppedFrame)->AddRef();
+	return S_OK;
 }
 
 HRESULT internal_recorder::CreateCaptureItem(GraphicsCaptureItem *item)
@@ -1777,16 +1788,16 @@ std::string internal_recorder::CurrentTimeToFormattedString()
 	std::replace(time.begin(), time.end(), ':', '-');
 	return time;
 }
-HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D * pAcquiredDesktopImage, std::wstring filePath, UINT widthCrop, UINT heightCrop)
+HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D * pAcquiredDesktopImage, std::wstring filePath)
 {
-	return SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage, m_ImageEncoderFormat, filePath.c_str(), widthCrop, heightCrop);
+	return SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage, m_ImageEncoderFormat, filePath.c_str());
 }
 
-void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath, UINT widthCrop, UINT heightCrop)
+void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath)
 {
 	pAcquiredDesktopImage->AddRef();
-	concurrency::create_task([this, pAcquiredDesktopImage, filePath, widthCrop, heightCrop]() {
-		return WriteFrameToImage(pAcquiredDesktopImage, filePath, widthCrop, heightCrop);
+	concurrency::create_task([this, pAcquiredDesktopImage, filePath]() {
+		return WriteFrameToImage(pAcquiredDesktopImage, filePath);
 	}).then([this, filePath, pAcquiredDesktopImage](concurrency::task<HRESULT> t)
 	{
 		try {
@@ -1814,21 +1825,33 @@ void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDe
 /// <summary>
 /// Take screenshots in a video recording, if video recording is file mode.
 /// </summary>
-void internal_recorder::TakeSnapshotsWithVideo(ID3D11Texture2D* frame, D3D11_TEXTURE2D_DESC frameDesc, UINT widthCrop, UINT heightCrop)
+HRESULT internal_recorder::TakeSnapshotsWithVideo(ID3D11Texture2D* frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect)
 {
-	if (!IsSnapshotsWithVideoEnabled() || m_OutputSnapshotsFolderPath.empty())
-		return;
-	
-	if (!IsTimeToTakeSnapshot())
-		return;
+	if (m_OutputSnapshotsFolderPath.empty())
+		return S_FALSE;
+
+	HRESULT hr = S_OK;
+	CComPtr<ID3D11Texture2D> m_pFrameCopyForSnapshotsWithVideo = nullptr;
+
+	int destWidth = destRect.right - destRect.left;
+	int destHeight = destRect.bottom - destRect.top;
+	if (frameDesc.Width != destWidth
+		|| frameDesc.Height != destHeight) {
+		//If the source frame is larger than the destionation rect, we crop it, to avoid black borders around the snapshots.
+		frameDesc.Width = min(destWidth, frameDesc.Width);
+		frameDesc.Height = min(destHeight, frameDesc.Height);
+		RETURN_ON_BAD_HR(hr = CropFrame(frame, frameDesc, destRect, &m_pFrameCopyForSnapshotsWithVideo));
+	}
+	else {
+		m_Device->CreateTexture2D(&frameDesc, nullptr, &m_pFrameCopyForSnapshotsWithVideo);
+		// Copy the current frame for a separate thread to write it to a file asynchronously.
+		m_ImmediateContext->CopyResource(m_pFrameCopyForSnapshotsWithVideo, frame);
+	}
 
 	m_previousSnapshotTaken = steady_clock::now();
-	CComPtr<ID3D11Texture2D> m_pFrameCopyForSnapshotsWithVideo = nullptr;
-	m_Device->CreateTexture2D(&frameDesc, nullptr, &m_pFrameCopyForSnapshotsWithVideo);
 	wstring snapshotPath = m_OutputSnapshotsFolderPath + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetImageExtension();
-	// Copy the current frame for a separate thread to write it to a file asynchronously.
-	m_ImmediateContext->CopyResource(m_pFrameCopyForSnapshotsWithVideo, frame);
-	WriteFrameToImageAsync(m_pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str(), widthCrop, heightCrop);
+	WriteFrameToImageAsync(m_pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str());
+	return hr;
 }
 
 HRESULT internal_recorder::WriteFrameToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ ID3D11Texture2D * pAcquiredDesktopImage)
