@@ -233,6 +233,7 @@ private:
 	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;
 	float m_InputVolumeModifier = 1;
 	float m_OutputVolumeModifier = 1;
+	std::chrono::steady_clock::time_point m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
 
 	//functions
 	std::string CurrentTimeToFormattedString();
@@ -244,6 +245,12 @@ private:
 	std::wstring GetImageExtension();
 	std::wstring GetVideoExtension();
 	bool IsSnapshotsWithVideoEnabled() { return (m_RecorderMode == MODE_VIDEO) && m_TakesSnapshotsWithVideo; }
+	bool IsTimeToTakeSnapshot()
+	{
+		// The first condition is needed since (now - min) yields negative value because of overflow...
+		return m_previousSnapshotTaken == (std::chrono::steady_clock::time_point::min)() ||
+		(std::chrono::steady_clock::now() - m_previousSnapshotTaken) > m_SnapshotsWithVideoInterval;
+	}
 
 	HRESULT FinalizeRecording();
 	void CleanupResourcesAndShutDownMF();
@@ -263,12 +270,13 @@ private:
 	HRESULT WriteFrameToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ ID3D11Texture2D* pAcquiredDesktopImage);
 	HRESULT WriteFrameToImage(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath);
 	void WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath);
+	HRESULT TakeSnapshotsWithVideo(ID3D11Texture2D* frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect);
 	HRESULT WriteAudioSamplesToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ BYTE *pSrc, DWORD cbData);
 	HRESULT GetOutputForDeviceName(std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **adapter);
 	HRESULT SetAttributeU32(_Inout_ ATL::CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value);
 	HRESULT CreateInputMediaTypeFromOutput(_In_ IMFMediaType *pType, const GUID& subtype, _Outptr_ IMFMediaType **ppType);
 	HRESULT DrawMousePointer(ID3D11Texture2D *frame, mouse_pointer *pointer, mouse_pointer::PTR_INFO ptrInfo, DXGI_MODE_ROTATION screenRotation, INT64 durationSinceLastFrame100Nanos);
-	ID3D11Texture2D* CropFrame(ID3D11Texture2D *frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect);
+	HRESULT CropFrame(ID3D11Texture2D *frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect, _Outptr_ ID3D11Texture2D **pCroppedFrame);
 	HRESULT CreateCaptureItem(_Out_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem *captureItem);
 	HRESULT GetVideoProcessor(IMFSinkWriter *pSinkWriter, DWORD streamIndex, IMFVideoProcessorControl **pVideoProcessor);
 };
