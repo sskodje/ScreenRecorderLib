@@ -327,6 +327,14 @@ void internal_recorder::ResumeRecording() {
 	}
 }
 
+bool internal_recorder::ExcludeFromCapture(HWND hwnd, bool isExcluded) {
+	// The API call causes ugly black window on older builds of Windows, so skip if the contract is down-level. 
+	if (winrt::Windows::Foundation::Metadata::ApiInformation::IsApiContractPresent(L"Windows.Foundation.UniversalApiContract", 9))
+		return (bool)SetWindowDisplayAffinity(hwnd, isExcluded ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);
+	else
+		return false;
+}
+
 HRESULT internal_recorder::FinalizeRecording()
 {
 	INFO("Cleaning up resources");
@@ -444,6 +452,9 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 
 	auto pCapture = std::make_unique<graphics_capture>(pDevice, captureItem, DirectXPixelFormat::B8G8R8A8UIntNormalized, nullptr);
 	pCapture->StartCapture();
+	if (winrt::Windows::Foundation::Metadata::ApiInformation::IsApiContractPresent(L"Windows.Foundation.UniversalApiContract", 9))
+		pCapture->EnableCursorCapture(m_IsMousePointerEnabled);
+
 	D3D11_TEXTURE2D_DESC sourceFrameDesc;
 	RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
 	int sourceWidth = 0;

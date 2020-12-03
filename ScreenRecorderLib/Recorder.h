@@ -416,6 +416,7 @@ namespace ScreenRecorderLib {
 		void SetOptions(RecorderOptions^ options);
 		void SetInputVolume(float volume);
 		void SetOutputVolume(float volume);
+		static bool ExcludeFromCapture(System::IntPtr hwnd, bool isExcluded);
 		static Recorder^ CreateRecorder();
 		static Recorder^ CreateRecorder(RecorderOptions^ options);
 		static List<RecordableWindow^>^ GetWindows();

@@ -488,6 +488,10 @@
 
             <StackPanel Orientation="Vertical"
                         x:Name="ControlsPanel">
+                <CheckBox Content="Exclude this window from capture"
+                                  x:Name="CheckBoxExclude"
+                                  IsChecked="{Binding ElementName=MainWin,Path=IsExcludeWindowEnabled}"
+                                  Margin="0" />
                 <TextBlock FontSize="72"
                            Text="00:00:00"
                            HorizontalAlignment="Center"

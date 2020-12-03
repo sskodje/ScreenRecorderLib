@@ -39,6 +39,7 @@ public:
 	void ClearFrameBuffer() { while (m_framePool.TryGetNextFrame() != nullptr) {}; }
 	winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem() { return m_item; }
 	winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame TryGetNextFrame() { return m_framePool.TryGetNextFrame(); }
+	void EnableCursorCapture(bool isEnabled) { m_session.IsCursorCaptureEnabled(isEnabled); }
 	void Close();
 
 private:
