@@ -109,9 +109,9 @@ void Recorder::SetOutputVolume(float volume)
 	}
 }
 
-bool Recorder::ExcludeFromCapture(System::IntPtr hwnd, bool isExcluded)
+bool Recorder::SetExcludeFromCapture(System::IntPtr hwnd, bool isExcluded)
 {
-	return internal_recorder::ExcludeFromCapture((HWND)hwnd.ToPointer(), isExcluded);
+	return internal_recorder::SetExcludeFromCapture((HWND)hwnd.ToPointer(), isExcluded);
 }
 
 Dictionary<String^, String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)

@@ -327,7 +327,7 @@ void internal_recorder::ResumeRecording() {
 	}
 }
 
-bool internal_recorder::ExcludeFromCapture(HWND hwnd, bool isExcluded) {
+bool internal_recorder::SetExcludeFromCapture(HWND hwnd, bool isExcluded) {
 	// The API call causes ugly black window on older builds of Windows, so skip if the contract is down-level. 
 	if (winrt::Windows::Foundation::Metadata::ApiInformation::IsApiContractPresent(L"Windows.Foundation.UniversalApiContract", 9))
 		return (bool)SetWindowDisplayAffinity(hwnd, isExcluded ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);

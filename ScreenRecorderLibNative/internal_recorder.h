@@ -140,7 +140,7 @@ public:
 	void SetOutputVolume(float volume) { m_OutputVolumeModifier = volume; }
 	void SetTakeSnapthotsWithVideo(bool isEnabled) { m_TakesSnapshotsWithVideo = isEnabled; }
 	void SetSnapthotsWithVideoInterval(UINT32 value) { m_SnapshotsWithVideoInterval = std::chrono::seconds(value); }
-	static bool ExcludeFromCapture(HWND hwnd, bool isExcluded);
+	static bool SetExcludeFromCapture(HWND hwnd, bool isExcluded);
 
 	[[deprecated]]
 	void SetDisplayOutput(UINT32 output) { m_DisplayOutput = output; }
