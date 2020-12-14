@@ -164,7 +164,7 @@ private:
 class WaitForSingleObjectOnExit {
 public:
 	WaitForSingleObjectOnExit(HANDLE h) : m_h(h) {}
-	WaitForSingleObjectOnExit(HANDLE h, DWORD timeoutMillis) : m_h(h), m_millis(timeoutMillis){}
+	WaitForSingleObjectOnExit(HANDLE h, DWORD timeoutMillis) : m_h(h), m_millis(timeoutMillis) {}
 	~WaitForSingleObjectOnExit() {
 		DWORD dwWaitResult = WaitForSingleObject(m_h, m_millis);
 		if (WAIT_OBJECT_0 != dwWaitResult) {
@@ -197,4 +197,15 @@ public:
 
 private:
 	WWMFSampleData *m_p;
+};
+
+class ReleaseDCOnExit {
+public:
+	ReleaseDCOnExit(HDC p) : m_p(p) {}
+	~ReleaseDCOnExit() {
+		ReleaseDC(NULL,m_p);
+	}
+
+private:
+	HDC m_p;
 };

@@ -39,9 +39,10 @@ public:
 
 	HRESULT Initialize(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device);
 
-	HRESULT DrawMousePointer(_In_ PTR_INFO *PtrInfo, _In_ ID3D11DeviceContext *DeviceContext, _In_ ID3D11Device *Device, _In_ ID3D11Texture2D *bgTexture, DXGI_MODE_ROTATION rotation);
+	HRESULT DrawMousePointer(_In_ PTR_INFO *PtrInfo, _In_ ID3D11DeviceContext *DeviceContext, _In_ ID3D11Device *Device, _Inout_ ID3D11Texture2D *bgTexture, DXGI_MODE_ROTATION rotation);
 	HRESULT DrawMouseClick(_In_ PTR_INFO *PtrInfo, _In_ ID3D11Texture2D *bgTexture, std::string colorStr, float radius, DXGI_MODE_ROTATION rotation);
 	HRESULT GetMouse(_Inout_ PTR_INFO *PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO *FrameInfo, RECT screenRect, IDXGIOutputDuplication* DeskDupl);
+	HRESULT GetMouse(_Outptr_ PTR_INFO *PtrInfo, RECT screenRect);
 	void CleanupResources();
 private:
 #pragma region Mouse Drawing
