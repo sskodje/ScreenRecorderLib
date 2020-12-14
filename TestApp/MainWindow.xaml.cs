@@ -8,6 +8,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Win32Interop.WinHandles;
@@ -84,6 +85,22 @@ namespace TestApp
             }
         }
 
+        private bool _isExcludeWindowEnabled = false;
+        public bool IsExcludeWindowEnabled
+        {
+            get { return _isExcludeWindowEnabled; }
+            set
+            {
+                if (_isExcludeWindowEnabled != value)
+                {
+                    _isExcludeWindowEnabled = value;
+                    RaisePropertyChanged("IsExcludeWindowEnabled");
+
+                    IntPtr hwnd = new WindowInteropHelper(this).Handle;
+                    Recorder.ExcludeFromCapture(hwnd, value);
+                }
+            }
+        }
         private bool _snapshotsWithVideo = false;
         public bool SnapshotsWithVideo
         {
