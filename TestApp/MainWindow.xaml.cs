@@ -97,7 +97,7 @@ namespace TestApp
                     RaisePropertyChanged("IsExcludeWindowEnabled");
 
                     IntPtr hwnd = new WindowInteropHelper(this).Handle;
-                    Recorder.ExcludeFromCapture(hwnd, value);
+                    Recorder.SetExcludeFromCapture(hwnd, value);
                 }
             }
         }
