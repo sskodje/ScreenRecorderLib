@@ -453,7 +453,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 	auto pCapture = std::make_unique<graphics_capture>(pDevice, captureItem, DirectXPixelFormat::B8G8R8A8UIntNormalized, nullptr);
 	pCapture->StartCapture();
 	if (winrt::Windows::Foundation::Metadata::ApiInformation::IsApiContractPresent(L"Windows.Foundation.UniversalApiContract", 9))
-		pCapture->EnableCursorCapture(m_IsMousePointerEnabled);
+		pCapture->SetEnableCursorCapture(m_IsMousePointerEnabled);
 
 	D3D11_TEXTURE2D_DESC sourceFrameDesc;
 	RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
