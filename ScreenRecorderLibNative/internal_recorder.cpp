@@ -449,11 +449,13 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 	auto pDevice = capture::util::CreateDirect3DDevice(pDxgiDevice);
 	GraphicsCaptureItem captureItem = nullptr;
 	RETURN_ON_BAD_HR(hr = CreateCaptureItem(&captureItem));
-
+	RECT windowPositionOnDesktop{};
+	GetWindowRect(m_WindowHandle, &windowPositionOnDesktop);
 	auto pCapture = std::make_unique<graphics_capture>(pDevice, captureItem, DirectXPixelFormat::B8G8R8A8UIntNormalized, nullptr);
-	pCapture->StartCapture();
-	if (winrt::Windows::Foundation::Metadata::ApiInformation::IsApiContractPresent(L"Windows.Foundation.UniversalApiContract", 9))
+	if (winrt::Windows::Foundation::Metadata::ApiInformation::IsApiContractPresent(L"Windows.Foundation.UniversalApiContract", 9)) {
 		pCapture->SetEnableCursorCapture(m_IsMousePointerEnabled);
+	}
+	pCapture->StartCapture();
 
 	D3D11_TEXTURE2D_DESC sourceFrameDesc;
 	RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
@@ -512,6 +514,10 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, videoInputFrameRect, videoOutputFrameRect, DXGI_MODE_ROTATION_UNSPECIFIED, pCallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
 
+	std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
+	RETURN_ON_BAD_HR(hr = pMousePointer->Initialize(m_ImmediateContext, m_Device));
+	mouse_pointer::PTR_INFO PtrInfo{};
+
 	pCapture->ClearFrameBuffer();
 	if (pLoopbackCaptureOutputDevice)
 		pLoopbackCaptureOutputDevice->ClearRecordedBytes();
@@ -527,6 +533,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 	INT frameNr = 0;
 	INT64 lastFrameStartPos = 0;
 	bool haveCachedPrematureFrame = false;
+	bool gotMousePointer = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
 	while (true) {
 		if (token.is_canceled()) {
@@ -544,8 +551,8 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 			continue;
 		}
 		auto frame = pCapture->TryGetNextFrame();
-		winrt::com_ptr<ID3D11Texture2D> surfaceTexture = nullptr;
 
+		winrt::com_ptr<ID3D11Texture2D> surfaceTexture = nullptr;
 		UINT contentWidth = 0;
 		UINT contentHeight = 0;
 		if (frame) {
@@ -581,8 +588,11 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 					videoProcessor->SetDestinationRectangle(&videoOutputFrameRect);
 					TRACE("Changing video processor surface rect: source=%dx%d, dest = %dx%d", videoInputFrameRect.right - videoInputFrameRect.left, videoInputFrameRect.bottom - videoInputFrameRect.top, videoOutputFrameRect.right - videoOutputFrameRect.left, videoOutputFrameRect.bottom - videoOutputFrameRect.top);
 				}
+				SetViewPort(m_ImmediateContext, videoInputFrameRect.right - videoInputFrameRect.left, videoInputFrameRect.bottom - videoInputFrameRect.top);
 				previousInputFrameRect = videoInputFrameRect;
 			}
+			// Get mouse info. Windows Graphics Capture includes the mouse cursor on the texture, so we only get the positioning info for mouse click draws.
+			gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, -windowPositionOnDesktop.left, -windowPositionOnDesktop.top, videoInputFrameRect, false));
 			frame.Close();
 		}
 		else if (sourceFrameDesc.Width == 0) {
@@ -592,6 +602,12 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		else if (m_WindowHandle != nullptr && IsIconic(m_WindowHandle)) {
 			//The targeted window is minimized and not rendered, so it cannot be recorded. The previous frame copy is deleted to make it record a black frame instead.
 			pPreviousFrameCopy = nullptr;
+			if (PtrInfo.PtrShapeBuffer)
+			{
+				delete[] PtrInfo.PtrShapeBuffer;
+				PtrInfo.PtrShapeBuffer = nullptr;
+			}
+			RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
 		}
 
 		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::steady_clock::now() - lastFrame).count() / 100, 0);
@@ -655,6 +671,15 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		else if (pPreviousFrameCopy) {
 			m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
 			totalCachedFrameDuration += durationSinceLastFrame100Nanos;
+		}
+
+		if (gotMousePointer) {
+			hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, DXGI_MODE_ROTATION_IDENTITY, durationSinceLastFrame100Nanos);
+			if (FAILED(hr)) {
+				_com_error err(hr);
+				ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
+				//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
+			}
 		}
 
 		SetDebugName(pFrameCopy, "FrameCopy");
@@ -787,9 +812,10 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 				frameTimeout,
 				&FrameInfo,
 				&pDesktopResource);
-
-			// Get mouse info
-			gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, &(FrameInfo), videoInputFrameRect, pDeskDupl));
+			if (SUCCEEDED(hr)) {
+				// Get mouse info
+				gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, &(FrameInfo), videoInputFrameRect, pDeskDupl));
+			}
 		}
 
 		if (pDeskDupl == nullptr
@@ -823,6 +849,11 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 					hr = S_OK;
 					if (pPreviousFrameCopy) {
 						pPreviousFrameCopy.Release();
+						if (PtrInfo.PtrShapeBuffer)
+						{
+							delete[] PtrInfo.PtrShapeBuffer;
+							PtrInfo.PtrShapeBuffer = nullptr;
+						}
 						RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
 					}
 					else {
@@ -947,8 +978,8 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 				hr = S_OK;
 				break;
 			}
-			
-			if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {			
+
+			if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
 				ID3D11Texture2D *pCroppedFrameCopy;
 				RETURN_ON_BAD_HR(hr = CropFrame(pFrameCopy, destFrameDesc, videoOutputFrameRect, &pCroppedFrameCopy));
 				pFrameCopy.Release();

@@ -679,6 +679,28 @@ HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Dev
 	return hr;
 }
 
+HRESULT mouse_pointer::ResizeShapeBuffer(PTR_INFO* PtrInfo, int bufferSize) {
+	// Old buffer too small
+	if (bufferSize > PtrInfo->BufferSize)
+	{
+		if (PtrInfo->PtrShapeBuffer)
+		{
+			delete[] PtrInfo->PtrShapeBuffer;
+			PtrInfo->PtrShapeBuffer = nullptr;
+		}
+		PtrInfo->PtrShapeBuffer = new (std::nothrow) BYTE[bufferSize];
+		if (!PtrInfo->PtrShapeBuffer)
+		{
+			PtrInfo->BufferSize = 0;
+			ERROR(L"Failed to allocate memory for pointer shape in DUPLICATIONMANAGER");
+			return E_OUTOFMEMORY;
+		}
+
+		// Update buffer size
+		PtrInfo->BufferSize = bufferSize;
+	}
+}
+
 //
 // Retrieves mouse info and write it into PtrInfo
 //
@@ -724,25 +746,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 		return S_FALSE;
 	}
 
-	// Old buffer too small
-	if (FrameInfo->PointerShapeBufferSize > PtrInfo->BufferSize)
-	{
-		if (PtrInfo->PtrShapeBuffer)
-		{
-			delete[] PtrInfo->PtrShapeBuffer;
-			PtrInfo->PtrShapeBuffer = nullptr;
-		}
-		PtrInfo->PtrShapeBuffer = new (std::nothrow) BYTE[FrameInfo->PointerShapeBufferSize];
-		if (!PtrInfo->PtrShapeBuffer)
-		{
-			PtrInfo->BufferSize = 0;
-			ERROR(L"Failed to allocate memory for pointer shape in DUPLICATIONMANAGER");
-			return E_OUTOFMEMORY;
-		}
-
-		// Update buffer size
-		PtrInfo->BufferSize = FrameInfo->PointerShapeBufferSize;
-	}
+	RETURN_ON_BAD_HR(ResizeShapeBuffer(PtrInfo, FrameInfo->PointerShapeBufferSize));
 
 	// Get shape
 	UINT BufferSizeRequired;
@@ -760,12 +764,10 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 	return S_OK;
 }
 
-HRESULT mouse_pointer::GetMouse(_Outptr_ PTR_INFO * PtrInfo, RECT screenRect)
+HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, int offsetX, int offsetY, RECT screenRect, bool getShapeBuffer)
 {
-	int offsetX = min(screenRect.left, INT_MAX);
-	int offsetY = min(screenRect.top, INT_MAX);
-
-	PTR_INFO ptrInfo = { 0 };
+	int screenOffsetX = min(screenRect.left, INT_MAX);
+	int screenOffsetY = min(screenRect.top, INT_MAX);
 	CURSORINFO cursorInfo = { 0 };
 	cursorInfo.cbSize = sizeof(CURSORINFO);
 	if (!GetCursorInfo(&cursorInfo)) {
@@ -780,7 +782,6 @@ HRESULT mouse_pointer::GetMouse(_Outptr_ PTR_INFO * PtrInfo, RECT screenRect)
 	LONG width = 0;
 	LONG height = 0;
 	LONG widthBytes = 0;
-	BYTE* pixels = nullptr;
 	LONG cursorType = 0;
 
 	if (iconInfo.hbmColor) {
@@ -791,39 +792,39 @@ HRESULT mouse_pointer::GetMouse(_Outptr_ PTR_INFO * PtrInfo, RECT screenRect)
 		height = cursorBitmap.bmHeight;
 		widthBytes = cursorBitmap.bmWidthBytes;
 		int colorBits = cursorBitmap.bmBitsPixel;
+		if (getShapeBuffer) {
+			HDC dc = GetDC(NULL);
+			ReleaseDCOnExit ReleaseDC(dc);
 
-		HDC dc = GetDC(NULL);
-		ReleaseDCOnExit ReleaseDC(dc);
+			BITMAPINFO bmInfo = { 0 };
+			bmInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+			bmInfo.bmiHeader.biBitCount = 0;    // don't get the color table  
+			if (!GetDIBits(dc, iconInfo.hbmColor, 0, 0, NULL, &bmInfo, DIB_RGB_COLORS))
+			{
+				return E_FAIL;
+			}
 
-		BITMAPINFO bmInfo = { 0 };
-		bmInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-		bmInfo.bmiHeader.biBitCount = 0;    // don't get the color table  
-		if (!GetDIBits(dc, iconInfo.hbmColor, 0, 0, NULL, &bmInfo, DIB_RGB_COLORS))
-		{
-			return E_FAIL;
-		}
+			// Allocate size of bitmap info header plus space for color table:
+			int nBmInfoSize = sizeof(BITMAPINFOHEADER);
+			if (colorBits < 24)
+			{
+				nBmInfoSize += sizeof(RGBQUAD) * (int)(1 << colorBits);
+			}
 
-		// Allocate size of bitmap info header plus space for color table:
-		int nBmInfoSize = sizeof(BITMAPINFOHEADER);
-		if (colorBits < 24)
-		{
-			nBmInfoSize += sizeof(RGBQUAD) * (int)(1 << colorBits);
-		}
+			CAutoVectorPtr<UCHAR> bitmapInfo;
+			bitmapInfo.Allocate(nBmInfoSize);
+			BITMAPINFO* pBmInfo = (BITMAPINFO*)(UCHAR*)bitmapInfo;
+			memcpy(pBmInfo, &bmInfo, sizeof(BITMAPINFOHEADER));
 
-		CAutoVectorPtr<UCHAR> bitmapInfo;
-		bitmapInfo.Allocate(nBmInfoSize);
-		BITMAPINFO* pBmInfo = (BITMAPINFO*)(UCHAR*)bitmapInfo;
-		memcpy(pBmInfo, &bmInfo, sizeof(BITMAPINFOHEADER));
-
-		// Get bitmap data:
-		pixels = new BYTE[bmInfo.bmiHeader.biSizeImage]();
-		RtlZeroMemory(pixels, sizeof(pixels));
-		pBmInfo->bmiHeader.biBitCount = colorBits;
-		pBmInfo->bmiHeader.biCompression = BI_RGB;
-		pBmInfo->bmiHeader.biHeight = -bmInfo.bmiHeader.biHeight;
-		if (!GetDIBits(dc, iconInfo.hbmColor, 0, bmInfo.bmiHeader.biHeight, pixels, pBmInfo, DIB_RGB_COLORS))
-		{
-			return E_FAIL;
+			// Get bitmap data:
+			RETURN_ON_BAD_HR(ResizeShapeBuffer(PtrInfo, bmInfo.bmiHeader.biSizeImage));
+			pBmInfo->bmiHeader.biBitCount = colorBits;
+			pBmInfo->bmiHeader.biCompression = BI_RGB;
+			pBmInfo->bmiHeader.biHeight = -bmInfo.bmiHeader.biHeight;
+			if (!GetDIBits(dc, iconInfo.hbmColor, 0, bmInfo.bmiHeader.biHeight, PtrInfo->PtrShapeBuffer, pBmInfo, DIB_RGB_COLORS))
+			{
+				return E_FAIL;
+			}
 		}
 	}
 	else {
@@ -834,30 +835,30 @@ HRESULT mouse_pointer::GetMouse(_Outptr_ PTR_INFO * PtrInfo, RECT screenRect)
 		height = cursorBitmap.bmHeight;
 		widthBytes = cursorBitmap.bmWidthBytes;
 		int colorBits = cursorBitmap.bmBitsPixel;
+		if (getShapeBuffer) {
+			HDC dc = GetDC(NULL);
+			ReleaseDCOnExit ReleaseDC(dc);
 
-		HDC dc = GetDC(NULL);
-		ReleaseDCOnExit ReleaseDC(dc);
+			BITMAPINFO maskInfo = { 0 };
+			maskInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+			maskInfo.bmiHeader.biBitCount = 0;  // don't get the color table     
+			if (!GetDIBits(dc, iconInfo.hbmMask, 0, 0, NULL, &maskInfo, DIB_RGB_COLORS))
+			{
+				return false;
+			}
 
-		BITMAPINFO maskInfo = { 0 };
-		maskInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-		maskInfo.bmiHeader.biBitCount = 0;  // don't get the color table     
-		if (!GetDIBits(dc, iconInfo.hbmMask, 0, 0, NULL, &maskInfo, DIB_RGB_COLORS))
-		{
-			return false;
-		}
-
-		pixels = new BYTE[maskInfo.bmiHeader.biSizeImage]();
-		RtlZeroMemory(pixels, sizeof(pixels));
-		CAutoVectorPtr<UCHAR> maskInfoBytes;
-		maskInfoBytes.Allocate(sizeof(BITMAPINFO) + 2 * sizeof(RGBQUAD));
-		BITMAPINFO* pMaskInfo = (BITMAPINFO*)(UCHAR*)maskInfoBytes;
-		memcpy(pMaskInfo, &maskInfo, sizeof(maskInfo));
-		pMaskInfo->bmiHeader.biBitCount = colorBits;
-		pMaskInfo->bmiHeader.biCompression = BI_RGB;
-		pMaskInfo->bmiHeader.biHeight = -maskInfo.bmiHeader.biHeight;
-		if (!GetDIBits(dc, iconInfo.hbmMask, 0, maskInfo.bmiHeader.biHeight, pixels, pMaskInfo, DIB_RGB_COLORS))
-		{
-			return false;
+			RETURN_ON_BAD_HR(ResizeShapeBuffer(PtrInfo, maskInfo.bmiHeader.biSizeImage));
+			CAutoVectorPtr<UCHAR> maskInfoBytes;
+			maskInfoBytes.Allocate(sizeof(BITMAPINFO) + 2 * sizeof(RGBQUAD));
+			BITMAPINFO* pMaskInfo = (BITMAPINFO*)(UCHAR*)maskInfoBytes;
+			memcpy(pMaskInfo, &maskInfo, sizeof(maskInfo));
+			pMaskInfo->bmiHeader.biBitCount = colorBits;
+			pMaskInfo->bmiHeader.biCompression = BI_RGB;
+			pMaskInfo->bmiHeader.biHeight = -maskInfo.bmiHeader.biHeight;
+			if (!GetDIBits(dc, iconInfo.hbmMask, 0, maskInfo.bmiHeader.biHeight, PtrInfo->PtrShapeBuffer, pMaskInfo, DIB_RGB_COLORS))
+			{
+				return false;
+			}
 		}
 	}
 
@@ -872,15 +873,12 @@ HRESULT mouse_pointer::GetMouse(_Outptr_ PTR_INFO * PtrInfo, RECT screenRect)
 	shapeInfo.Type = cursorType;
 	shapeInfo.Pitch = widthBytes;
 
-	cursorInfo.ptScreenPos.x = cursorInfo.ptScreenPos.x - offsetX - screenRect.left - hotSpot.x;
-	cursorInfo.ptScreenPos.y = cursorInfo.ptScreenPos.y - offsetY - screenRect.top - hotSpot.y;
-	ptrInfo.Position = cursorInfo.ptScreenPos;
-	ptrInfo.PtrShapeBuffer = pixels;
-	ptrInfo.BufferSize = sizeof(pixels);
-	ptrInfo.ShapeInfo = shapeInfo;
-	ptrInfo.Visible = isVisible;
-	QueryPerformanceCounter(&ptrInfo.LastTimeStamp);
-	*PtrInfo = ptrInfo;
+	cursorInfo.ptScreenPos.x = cursorInfo.ptScreenPos.x + offsetX + screenRect.left - screenOffsetX - hotSpot.x;
+	cursorInfo.ptScreenPos.y = cursorInfo.ptScreenPos.y + offsetY + screenRect.top - screenOffsetY - hotSpot.y;
+	PtrInfo->Position = cursorInfo.ptScreenPos;
+	PtrInfo->ShapeInfo = shapeInfo;
+	PtrInfo->Visible = isVisible;
+	QueryPerformanceCounter(&PtrInfo->LastTimeStamp);
 	return S_OK;
 }
 
