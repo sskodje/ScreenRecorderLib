@@ -6,6 +6,7 @@
 #include <dxgi1_2.h>
 #include <wincodec.h>
 #include "log.h"
+#include "duplication_capture.h"
 template <class T> void SafeRelease(T **ppT)
 {
 	if (*ppT)
@@ -43,6 +44,16 @@ private:
 	ATL::CComPtr<IWICStream>& m_handle;
 };
 
+class DesktopDuplicationCaptureStopOnExit {
+public:
+	DesktopDuplicationCaptureStopOnExit(duplication_capture *p) : m_p(p) {}
+	~DesktopDuplicationCaptureStopOnExit() {
+		m_p->StopCapture();
+	}
+
+private:
+	duplication_capture *m_p;
+};
 
 class AudioClientStopOnExit {
 public:
@@ -208,4 +219,19 @@ public:
 
 private:
 	HDC m_p;
+};
+
+class ReleaseKeyedMutexOnExit {
+public:
+	ReleaseKeyedMutexOnExit(IDXGIKeyedMutex *p, UINT64 key) : m_p(p), m_key(key) {}
+	~ReleaseKeyedMutexOnExit() {
+	
+		if (m_p) {
+			m_p->ReleaseSync(m_key);
+		}
+	}
+
+private:
+	IDXGIKeyedMutex *m_p;
+	UINT64 m_key;
 };

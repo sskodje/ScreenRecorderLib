@@ -5,8 +5,6 @@
 #include <commctrl.h>
 #include <mfapi.h>
 #include <Dxgiformat.h>
-#include "PixelShader.h"
-#include "VertexShader.h"
 #include "cleanup.h"
 using namespace DirectX;
 

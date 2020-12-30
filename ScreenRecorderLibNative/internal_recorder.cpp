@@ -22,6 +22,7 @@
 #include "graphics_capture.h"
 #include "graphics_capture.util.h"
 #include "monitor_list.h"
+#include "duplication_capture.h"
 
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "D3D11.lib")
@@ -516,7 +517,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 
 	std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
 	RETURN_ON_BAD_HR(hr = pMousePointer->Initialize(m_ImmediateContext, m_Device));
-	mouse_pointer::PTR_INFO PtrInfo{};
+	PTR_INFO PtrInfo{};
 
 	pCapture->ClearFrameBuffer();
 	if (pLoopbackCaptureOutputDevice)
@@ -722,36 +723,73 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 	std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = nullptr;
 	CComPtr<ID3D11Texture2D> pFrameCopyForSnapshotsWithVideo = nullptr;
 	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
-	CComPtr<IDXGIResource> pDesktopResource = nullptr;
+	CComPtr<ID3D11Texture2D> pCurrentFrameCopy = nullptr;
+	//CComPtr<IDXGIResource> pDesktopResource = nullptr;
+
+	HRESULT hr;
 	bool gotMousePointer = false;
 	int totalCachedFrameDuration = 0;
 
-	HRESULT hr;
-	DXGI_OUTDUPL_FRAME_INFO FrameInfo;
-	RtlZeroMemory(&FrameInfo, sizeof(FrameInfo));
-	DXGI_OUTDUPL_DESC outputDuplDesc;
-	RtlZeroMemory(&outputDuplDesc, sizeof(outputDuplDesc));
-	CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
-	RETURN_ON_BAD_HR(hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc));
-	DXGI_MODE_ROTATION screenRotation = outputDuplDesc.Rotation;
-	D3D11_TEXTURE2D_DESC sourceFrameDesc;
-	D3D11_TEXTURE2D_DESC destFrameDesc;
-	RECT videoInputFrameRect, videoOutputFrameRect;
+	HANDLE UnexpectedErrorEvent = nullptr;
+	HANDLE ExpectedErrorEvent = nullptr;
+	HANDLE TerminateThreadsEvent = nullptr;
 
-	RtlZeroMemory(&destFrameDesc, sizeof(destFrameDesc));
-	RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
-	RtlZeroMemory(&videoInputFrameRect, sizeof(videoInputFrameRect));
-	RtlZeroMemory(&videoOutputFrameRect, sizeof(videoOutputFrameRect));
+	// Event used by the threads to signal an unexpected error and we want to quit the app
+	UnexpectedErrorEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+	if (nullptr == UnexpectedErrorEvent) {
+		ERROR(L"CreateEvent failed: last error is %u", GetLastError());
+		return E_FAIL;
+	}
+	CloseHandleOnExit closeUnexpectedErrorEvent(UnexpectedErrorEvent);
+	// Event for when a thread encounters an expected error
+	ExpectedErrorEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+	if (nullptr == ExpectedErrorEvent) {
+		ERROR(L"CreateEvent failed: last error is %u", GetLastError());
+		return E_FAIL;
+	}
+	CloseHandleOnExit closeExpectedErrorEvent(ExpectedErrorEvent);
 
-	RETURN_ON_BAD_HR(hr = InitializeDesc(outputDuplDesc, &sourceFrameDesc, &destFrameDesc, &videoInputFrameRect, &videoOutputFrameRect));
+	//// Event to tell spawned threads to quit
+//TerminateThreadsEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+//if (nullptr == TerminateThreadsEvent) {
+//	ERROR(L"CreateEvent failed: last error is %u", GetLastError());
+//	return E_FAIL;
+//}
+//CloseHandleOnExit closeTerminateThreadsEvent(TerminateThreadsEvent);
+
+	std::vector<std::wstring> outputs{};
+	auto pCapture = std::make_unique<duplication_capture>(m_Device, m_ImmediateContext);
+	RETURN_ON_BAD_HR(hr = pCapture->StartCapture(outputs, UnexpectedErrorEvent, ExpectedErrorEvent));
+	DesktopDuplicationCaptureStopOnExit stopCaptureOnExit(pCapture.get());
+	//DXGI_OUTDUPL_FRAME_INFO FrameInfo;
+	//RtlZeroMemory(&FrameInfo, sizeof(FrameInfo));
+	//DXGI_OUTDUPL_DESC outputDuplDesc;
+	//RtlZeroMemory(&outputDuplDesc, sizeof(outputDuplDesc));
+	//CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
+	//RETURN_ON_BAD_HR(hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc));
+
+
+	DXGI_MODE_ROTATION screenRotation = DXGI_MODE_ROTATION_UNSPECIFIED;// outputDuplDesc.Rotation;
+	D3D11_TEXTURE2D_DESC sourceFrameDesc{};
+	D3D11_TEXTURE2D_DESC destFrameDesc{};
+	RECT videoInputFrameRect{};
+	RECT videoOutputFrameRect{};
+
+	//RtlZeroMemory(&destFrameDesc, sizeof(destFrameDesc));
+	//RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
+	//RtlZeroMemory(&videoInputFrameRect, sizeof(videoInputFrameRect));
+	//RtlZeroMemory(&videoOutputFrameRect, sizeof(videoOutputFrameRect));
+
+	RETURN_ON_BAD_HR(hr = InitializeDesc(pCapture->GetOutputRect(), &sourceFrameDesc, &destFrameDesc, &videoInputFrameRect, &videoOutputFrameRect));
 	bool isDestRectEqualToSourceRect = EqualRect(&videoInputFrameRect, &videoOutputFrameRect);
 
 	std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
 	RETURN_ON_BAD_HR(hr = pMousePointer->Initialize(m_ImmediateContext, m_Device));
 	SetViewPort(m_ImmediateContext, videoInputFrameRect.right - videoInputFrameRect.left, videoInputFrameRect.bottom - videoInputFrameRect.top);
 
-	mouse_pointer::PTR_INFO PtrInfo;
-	RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
+	LARGE_INTEGER lastMouseUpdateTime{};
+	PTR_INFO PtrInfo{};
+	//RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
 
 	if (m_RecorderMode == MODE_VIDEO) {
 		loopback_capture *outputCapture = nullptr;
@@ -768,7 +806,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 		if (pStream != nullptr) {
 			RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &outputStream));
 		}
-		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, videoInputFrameRect, videoOutputFrameRect, outputDuplDesc.Rotation, nullptr, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, videoInputFrameRect, videoOutputFrameRect, screenRotation, nullptr, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
 	if (pLoopbackCaptureInputDevice)
 		pLoopbackCaptureInputDevice->ClearRecordedBytes();
@@ -784,11 +822,15 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 	INT64 lastFrameStartPos = 0;
 	bool haveCachedPrematureFrame = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
+
 	while (true)
 	{
-		CComPtr<IDXGIResource> pDesktopResource = nullptr;
-		DXGI_OUTDUPL_FRAME_INFO FrameInfo;
-		RtlZeroMemory(&FrameInfo, sizeof(FrameInfo));
+		if (pCurrentFrameCopy) {
+			pCurrentFrameCopy.Release();
+		}
+		//CComPtr<IDXGIResource> pDesktopResource = nullptr;
+		//DXGI_OUTDUPL_FRAME_INFO FrameInfo;
+		//RtlZeroMemory(&FrameInfo, sizeof(FrameInfo));
 
 		if (token.is_canceled()) {
 			DEBUG("Recording task was cancelled");
@@ -796,6 +838,20 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			break;
 		}
 
+		if (WaitForSingleObjectEx(UnexpectedErrorEvent, 0, FALSE) == WAIT_OBJECT_0) {
+			return E_FAIL;
+		}
+
+		if (WaitForSingleObjectEx(ExpectedErrorEvent, 0, FALSE) == WAIT_OBJECT_0) {
+			//CloseHandle(TerminateThreadsEvent);
+			//pCapture->WaitForThreadTermination();
+			pCapture->StopCapture();
+			ResetEvent(UnexpectedErrorEvent);
+			ResetEvent(ExpectedErrorEvent);
+			pCapture->Clean();
+			RETURN_ON_BAD_HR(hr = pCapture->StartCapture(outputs, UnexpectedErrorEvent, ExpectedErrorEvent));
+			continue;
+		}
 		if (m_IsPaused) {
 			wait(10);
 			lastFrame = steady_clock::now();
@@ -805,85 +861,92 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 				pLoopbackCaptureInputDevice->ClearRecordedBytes();
 			continue;
 		}
-		if (pDeskDupl) {
-			pDeskDupl->ReleaseFrame();
-			// Get new frame
-			hr = pDeskDupl->AcquireNextFrame(
-				frameTimeout,
-				&FrameInfo,
-				&pDesktopResource);
-			if (SUCCEEDED(hr)) {
-				// Get mouse info
-				gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, &(FrameInfo), videoInputFrameRect, pDeskDupl));
-			}
-		}
 
-		if (pDeskDupl == nullptr
-			|| hr == DXGI_ERROR_ACCESS_LOST) {
-			if (pDeskDupl == nullptr) {
-				DEBUG(L"Error getting next frame due to Desktop Duplication instance is NULL, reinitializing");
-			}
-			else if (hr == DXGI_ERROR_ACCESS_LOST) {
-				_com_error err(hr);
-				DEBUG(L"Error getting next frame due to DXGI_ERROR_ACCESS_LOST, reinitializing: %s", err.ErrorMessage());
-
-			}
-			if (pDeskDupl) {
-				pDeskDupl->ReleaseFrame();
-				pDeskDupl.Release();
-			}
-			hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
-			if (FAILED(hr))
-			{
-				_com_error err(hr);
-				switch (hr)
-				{
-				case DXGI_ERROR_DEVICE_REMOVED:
-				case DXGI_ERROR_DEVICE_RESET:
-					return m_Device->GetDeviceRemovedReason();
-				case E_ACCESSDENIED:
-				case DXGI_ERROR_MODE_CHANGE_IN_PROGRESS:
-				case DXGI_ERROR_SESSION_DISCONNECTED:
-					//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application is launching, or similar.
-					//We continue the recording, and instead of desktop texture just add a blank texture instead.
-					hr = S_OK;
-					if (pPreviousFrameCopy) {
-						pPreviousFrameCopy.Release();
-						if (PtrInfo.PtrShapeBuffer)
-						{
-							delete[] PtrInfo.PtrShapeBuffer;
-							PtrInfo.PtrShapeBuffer = nullptr;
-						}
-						RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
-					}
-					else {
-						//We are just recording empty frames now. Slow down the framerate and rate of reconnect retry attempts to save resources.
-						wait(200);
-					}
-					WARN(L"Desktop duplication temporarily unavailable: %s", err.ErrorMessage());
-					break;
-				case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
-					ERROR(L"Error reinitializing desktop duplication with DXGI_ERROR_NOT_CURRENTLY_AVAILABLE. This means DXGI reached the limit on the maximum number of concurrent duplication applications (default of four). Therefore, the calling application cannot create any desktop duplication interfaces until the other applications close");
-					return hr;
-				default:
-					//Unexpected error, return.
-					ERROR(L"Error reinitializing desktop duplication with unexpected error, aborting: %s", err.ErrorMessage());
-					return hr;
-				}
+		/*	if (pDeskDupl) {*/
+				//pDeskDupl->ReleaseFrame();
+				// Get new frame
+		hr = pCapture->AcquireNextFrame(
+			&pCurrentFrameCopy,
+			100);
+		if (SUCCEEDED(hr)) {
+			// Get mouse info
+			if (pCapture->GetPointerInfo()) {
+				PtrInfo = *pCapture->GetPointerInfo();
+				gotMousePointer = true;
 			}
 			else {
-				DEBUG("Desktop duplication reinitialized");
-				continue;
+				gotMousePointer = false;
 			}
+			//gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, &(FrameInfo), videoInputFrameRect, pDeskDupl));
 		}
-		else if (FAILED(hr) && hr != DXGI_ERROR_WAIT_TIMEOUT) {
-			return hr;
-		}
+		//}
+
+		//if (pDeskDupl == nullptr
+		//	|| hr == DXGI_ERROR_ACCESS_LOST) {
+		//	if (pDeskDupl == nullptr) {
+		//		DEBUG(L"Error getting next frame due to Desktop Duplication instance is NULL, reinitializing");
+		//	}
+		//	else if (hr == DXGI_ERROR_ACCESS_LOST) {
+		//		_com_error err(hr);
+		//		DEBUG(L"Error getting next frame due to DXGI_ERROR_ACCESS_LOST, reinitializing: %s", err.ErrorMessage());
+
+		//	}
+		//	if (pDeskDupl) {
+		//		pDeskDupl->ReleaseFrame();
+		//		pDeskDupl.Release();
+		//	}
+		//	hr = InitializeDesktopDupl(m_Device, pSelectedOutput, &pDeskDupl, &outputDuplDesc);
+		//	if (FAILED(hr))
+		//	{
+		//		_com_error err(hr);
+		//		switch (hr)
+		//		{
+		//		case DXGI_ERROR_DEVICE_REMOVED:
+		//		case DXGI_ERROR_DEVICE_RESET:
+		//			return m_Device->GetDeviceRemovedReason();
+		//		case E_ACCESSDENIED:
+		//		case DXGI_ERROR_MODE_CHANGE_IN_PROGRESS:
+		//		case DXGI_ERROR_SESSION_DISCONNECTED:
+		//			//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application is launching, or similar.
+		//			//We continue the recording, and instead of desktop texture just add a blank texture instead.
+		//			hr = S_OK;
+		//			if (pPreviousFrameCopy) {
+		//				pPreviousFrameCopy.Release();
+		//				if (PtrInfo.PtrShapeBuffer)
+		//				{
+		//					delete[] PtrInfo.PtrShapeBuffer;
+		//					PtrInfo.PtrShapeBuffer = nullptr;
+		//				}
+		//				RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
+		//			}
+		//			else {
+		//				//We are just recording empty frames now. Slow down the framerate and rate of reconnect retry attempts to save resources.
+		//				wait(200);
+		//			}
+		//			WARN(L"Desktop duplication temporarily unavailable: %s", err.ErrorMessage());
+		//			break;
+		//		case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
+		//			ERROR(L"Error reinitializing desktop duplication with DXGI_ERROR_NOT_CURRENTLY_AVAILABLE. This means DXGI reached the limit on the maximum number of concurrent duplication applications (default of four). Therefore, the calling application cannot create any desktop duplication interfaces until the other applications close");
+		//			return hr;
+		//		default:
+		//			//Unexpected error, return.
+		//			ERROR(L"Error reinitializing desktop duplication with unexpected error, aborting: %s", err.ErrorMessage());
+		//			return hr;
+		//		}
+		//	}
+		//	else {
+		//		DEBUG("Desktop duplication reinitialized");
+		//		continue;
+		//	}
+		//}
+		//else if (FAILED(hr) && hr != DXGI_ERROR_WAIT_TIMEOUT) {
+		//	return hr;
+		//}
 
 		if (m_RecorderMode == MODE_SLIDESHOW
 			|| m_RecorderMode == MODE_SNAPSHOT) {
 
-			if (frameNr == 0 && FrameInfo.AccumulatedFrames == 0) {
+			if (frameNr == 0 && pCurrentFrameCopy == nullptr) {
 				continue;
 			}
 		}
@@ -896,23 +959,23 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			bool delay = false;
 			if (frameNr == 0 //never delay the first frame 
 				|| m_IsFixedFramerate //or if the framerate is fixed
-				|| (m_IsMousePointerEnabled && FrameInfo.PointerShapeBufferSize != 0)//and never delay when pointer changes if we draw pointer
+				|| (m_IsMousePointerEnabled && PtrInfo.LastTimeStamp.QuadPart > lastMouseUpdateTime.QuadPart)//and never delay when pointer changes if we draw pointer
 				|| (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot())) // Or if we need to write a snapshot 
 			{
 				delay = false;
 			}
 			else if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
-				if (pDesktopResource != nullptr) {
-					if (FrameInfo.AccumulatedFrames > 0) {
+				if (pCurrentFrameCopy != nullptr) {
+					//if (FrameInfo.AccumulatedFrames > 0) {
 						//we got a frame, but it's too soon, so we cache it and see if there are more changes.
-						if (pPreviousFrameCopy == nullptr) {
-							RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
-						}
-						CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
-						RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
-						m_ImmediateContext->CopyResource(pPreviousFrameCopy, pAcquiredDesktopImage);
-						pAcquiredDesktopImage.Release();
+					if (pPreviousFrameCopy == nullptr) {
+						RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
 					}
+					//CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
+					//RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
+					m_ImmediateContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
+					//pAcquiredDesktopImage.Release();
+				//}
 				}
 				delay = true;
 				haveCachedPrematureFrame = true;
@@ -941,36 +1004,41 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 
 		lastFrame = steady_clock::now();
 		{
-			CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
-			RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pFrameCopy));
-			CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
-			if (pDesktopResource != nullptr && FrameInfo.AccumulatedFrames > 0) {
-				RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
-			}
-			if (pAcquiredDesktopImage != nullptr) {
-				m_ImmediateContext->CopyResource(pFrameCopy, pAcquiredDesktopImage);
+			//CComPtr<ID3D11Texture2D> pFrameCopy = nullptr;
+
+
+			//CComPtr<ID3D11Texture2D> pAcquiredDesktopImage = nullptr;
+			//if (pDesktopResource != nullptr && FrameInfo.AccumulatedFrames > 0) {
+			//	RETURN_ON_BAD_HR(hr = pDesktopResource->QueryInterface(IID_PPV_ARGS(&pAcquiredDesktopImage)));
+			//}
+			if (pCurrentFrameCopy != nullptr) {
+				//m_ImmediateContext->CopyResource(pFrameCopy, pAcquiredDesktopImage);
 				if (pPreviousFrameCopy) {
 					pPreviousFrameCopy.Release();
 				}
 				//Copy new frame to pPreviousFrameCopy
 				if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
 					RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
-					m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
+					m_ImmediateContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
 					SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
 				}
 			}
 			else if (pPreviousFrameCopy) {
-				m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
+				RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pCurrentFrameCopy));
+				m_ImmediateContext->CopyResource(pCurrentFrameCopy, pPreviousFrameCopy);
 			}
 
-			SetDebugName(pFrameCopy, "FrameCopy");
+			SetDebugName(pCurrentFrameCopy, "FrameCopy");
 
 			if (gotMousePointer) {
-				hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
+				hr = DrawMousePointer(pCurrentFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
 				if (FAILED(hr)) {
 					_com_error err(hr);
 					ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
 					//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
+				}
+				else {
+					lastMouseUpdateTime = PtrInfo.LastTimeStamp;
 				}
 			}
 			if (token.is_canceled()) {
@@ -981,18 +1049,18 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 
 			if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
 				ID3D11Texture2D *pCroppedFrameCopy;
-				RETURN_ON_BAD_HR(hr = CropFrame(pFrameCopy, destFrameDesc, videoOutputFrameRect, &pCroppedFrameCopy));
-				pFrameCopy.Release();
-				pFrameCopy.Attach(pCroppedFrameCopy);
+				RETURN_ON_BAD_HR(hr = CropFrame(pCurrentFrameCopy, destFrameDesc, videoOutputFrameRect, &pCroppedFrameCopy));
+				pCurrentFrameCopy.Release();
+				pCurrentFrameCopy.Attach(pCroppedFrameCopy);
 			}
 
 			if (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot()) {
-				TakeSnapshotsWithVideo(pFrameCopy, sourceFrameDesc, videoOutputFrameRect);
+				TakeSnapshotsWithVideo(pCurrentFrameCopy, sourceFrameDesc, videoOutputFrameRect);
 			}
 
 			FrameWriteModel model;
 			RtlZeroMemory(&model, sizeof(model));
-			model.Frame = pFrameCopy;
+			model.Frame = pCurrentFrameCopy;
 			model.Duration = durationSinceLastFrame100Nanos;
 			model.StartPos = lastFrameStartPos;
 			model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
@@ -1074,13 +1142,15 @@ std::vector<BYTE> internal_recorder::GrabAudioFrame(std::unique_ptr<loopback_cap
 		return std::vector<BYTE>();
 }
 
-HRESULT internal_recorder::InitializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out_ D3D11_TEXTURE2D_DESC * pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC * pDestFrameDesc, _Out_ RECT * pSourceRect, _Out_ RECT * pDestRect) {
-	UINT monitorWidth = (outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE90 || outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE270)
-		? outputDuplDesc.ModeDesc.Height : outputDuplDesc.ModeDesc.Width;
+HRESULT internal_recorder::InitializeDesc(RECT outputRect, _Out_ D3D11_TEXTURE2D_DESC * pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC * pDestFrameDesc, _Out_ RECT * pSourceRect, _Out_ RECT * pDestRect) {
+	//UINT monitorWidth = (outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE90 || outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE270)
+	//	? outputDuplDesc.ModeDesc.Height : outputDuplDesc.ModeDesc.Width;
 
-	UINT monitorHeight = (outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE90 || outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE270)
-		? outputDuplDesc.ModeDesc.Width : outputDuplDesc.ModeDesc.Height;
+	//UINT monitorHeight = (outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE90 || outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE270)
+	//	? outputDuplDesc.ModeDesc.Width : outputDuplDesc.ModeDesc.Height;
+	UINT monitorWidth = outputRect.right - outputRect.left;
 
+	UINT monitorHeight = outputRect.bottom - outputRect.top;
 
 	RECT sourceRect;
 	sourceRect.left = 0;
@@ -1144,12 +1214,12 @@ HRESULT internal_recorder::InitializeDx(_In_opt_ IDXGIOutput * pDxgiOutput, _Out
 	D3D_FEATURE_LEVEL featureLevel;
 
 	CComPtr<IDXGIAdapter> pDxgiAdapter = nullptr;
-	if (pDxgiOutput) {
-		// Get DXGI adapter
-		hr = pDxgiOutput->GetParent(
-			__uuidof(IDXGIAdapter),
-			reinterpret_cast<void**>(&pDxgiAdapter));
-	}
+	//if (pDxgiOutput) {
+	//	// Get DXGI adapter
+	//	hr = pDxgiOutput->GetParent(
+	//		__uuidof(IDXGIAdapter),
+	//		reinterpret_cast<void**>(&pDxgiAdapter));
+	//}
 	std::vector<D3D_DRIVER_TYPE> driverTypes;
 	if (pDxgiAdapter) {
 		driverTypes.push_back(D3D_DRIVER_TYPE_UNKNOWN);
@@ -1650,7 +1720,7 @@ HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
 	return hr;
 }
 
-HRESULT internal_recorder::DrawMousePointer(ID3D11Texture2D * frame, mouse_pointer * pMousePointer, mouse_pointer::PTR_INFO ptrInfo, DXGI_MODE_ROTATION screenRotation, INT64 durationSinceLastFrame100Nanos)
+HRESULT internal_recorder::DrawMousePointer(ID3D11Texture2D * frame, mouse_pointer * pMousePointer, PTR_INFO ptrInfo, DXGI_MODE_ROTATION screenRotation, INT64 durationSinceLastFrame100Nanos)
 {
 	HRESULT hr = S_FALSE;
 	if (g_LastMouseClickDurationRemaining > 0

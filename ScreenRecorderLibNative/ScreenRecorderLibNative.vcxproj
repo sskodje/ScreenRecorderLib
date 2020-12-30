@@ -19,6 +19,9 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="common_types.h" />
+    <ClInclude Include="duplication_capture.h" />
+    <ClInclude Include="duplication_manager.h" />
     <ClInclude Include="screengrab.h" />
     <ClInclude Include="audio_prefs.h" />
     <ClInclude Include="graphics_capture.h" />
@@ -36,6 +39,8 @@
     <ClInclude Include="WWMFResampler.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="duplication_capture.cpp" />
+    <ClCompile Include="duplication_manager.cpp" />
     <ClCompile Include="screengrab.cpp" />
     <ClCompile Include="audio_prefs.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>

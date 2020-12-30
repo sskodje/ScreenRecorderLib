@@ -218,7 +218,7 @@ namespace TestApp
         }
         public event PropertyChangedEventHandler PropertyChanged;
 
-        private async void RecordButton_Click(object sender, RoutedEventArgs e)
+        private void RecordButton_Click(object sender, RoutedEventArgs e)
         {
             if (IsRecording)
             {
@@ -262,7 +262,7 @@ namespace TestApp
             int top = 0;
             Int32.TryParse(this.RecordingAreaTopTextBox.Text, out top);
 
-            Display selectedDisplay = (Display)this.ScreenComboBox.SelectedItem;
+            var selectedDisplay = this.ScreenComboBox.SelectedItem as DisplayOutput;
 
             IntPtr selectedWindowHandle = this.WindowComboBox.Items.Count > 0 ? ((RecordableWindow)this.WindowComboBox.SelectedItem).Handle : IntPtr.Zero;
 
@@ -480,7 +480,7 @@ namespace TestApp
             if (e.AddedItems.Count == 0)
                 return;
 
-            if (this.WindowComboBox.SelectedIndex==0)
+            if (this.WindowComboBox.SelectedIndex == 0)
             {
                 SetScreenRect();
             }
@@ -488,11 +488,11 @@ namespace TestApp
 
         private void SetScreenRect()
         {
-            if (this.ScreenComboBox.SelectedIndex >= 0 && WindowsDisplayAPI.Display.GetDisplays().Count() > this.ScreenComboBox.SelectedIndex)
+            if (this.ScreenComboBox.SelectedIndex >= 0)
             {
-                var screen = WindowsDisplayAPI.Display.GetDisplays().ToList()[this.ScreenComboBox.SelectedIndex];
-                this.RecordingAreaRightTextBox.Text = screen.CurrentSetting.Resolution.Width.ToString();
-                this.RecordingAreaBottomTextBox.Text = screen.CurrentSetting.Resolution.Height.ToString();
+                var screen = this.ScreenComboBox.SelectedItem as DisplayOutput;
+                this.RecordingAreaRightTextBox.Text = screen.Width.ToString();
+                this.RecordingAreaBottomTextBox.Text = screen.Height.ToString();
                 this.RecordingAreaLeftTextBox.Text = 0.ToString();
                 this.RecordingAreaTopTextBox.Text = 0.ToString();
             }
@@ -611,7 +611,7 @@ namespace TestApp
         {
             if (e.AddedItems.Count == 0)
                 return;
-            
+
             var window = this.WindowComboBox.Items[this.WindowComboBox.SelectedIndex] as RecordableWindow;
             if (window.Handle == IntPtr.Zero)
             {
@@ -642,10 +642,22 @@ namespace TestApp
         private void RefreshScreenComboBox()
         {
             this.ScreenComboBox.Items.Clear();
-
+            this.ScreenComboBox.Items.Add(new DisplayOutput
+            {
+                DeviceName = null,
+                DisplayName = "All monitors",
+                Width = 0,
+                Height = 0
+            });
             foreach (var target in WindowsDisplayAPI.Display.GetDisplays())
             {
-                this.ScreenComboBox.Items.Add(target);
+                this.ScreenComboBox.Items.Add(new DisplayOutput
+                {
+                    DeviceName = target.DeviceName,
+                    DisplayName = target.DisplayName,
+                    Width = target.CurrentSetting.Resolution.Width,
+                    Height = target.CurrentSetting.Resolution.Height
+                });
             }
 
             ScreenComboBox.SelectedIndex = 0;

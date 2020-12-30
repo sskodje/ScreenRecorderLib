@@ -60,6 +60,15 @@
     <ClInclude Include="screengrab.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="duplication_capture.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="common_types.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="duplication_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="audio_prefs.cpp">
@@ -84,6 +93,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="screengrab.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="duplication_capture.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="duplication_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
