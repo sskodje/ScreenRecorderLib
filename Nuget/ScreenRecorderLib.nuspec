@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
     <id>ScreenRecorderLib</id>
-    <version>3.0.2</version>
+    <version>3.1.0</version>
     <authors>Sverre Kristoffer Skodje</authors>
     <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
@@ -10,7 +10,10 @@
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to h264 video or PNG images.</description>
     <summary />
     <releaseNotes>
-      - Fixed cropping of snapshots when recording windows that are resized.
+      - Added option to hide mouse cursor in app window capture. (Requires Win10 ver. 2004)
+      - Added option to exclude window from capture.(Requires Win10 ver. 2004)
+      - Added support for recording mouse clicks with Windows Graphics Capture API.
+      - Added handling for error that stopped recordings in some situations when i.e locking the computer or launching fullscreen applications.
     </releaseNotes>
     <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
     <language>en-GB</language>
