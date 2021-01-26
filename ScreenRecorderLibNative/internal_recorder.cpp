@@ -273,31 +273,31 @@ HRESULT internal_recorder::BeginRecording(std::wstring path, IStream *stream) {
 		}
 		INFO("Exiting recording task");
 		return hr;
-	}).then([this](HRESULT recordingResult) {
-		HRESULT finalizeResult = FinalizeRecording();
-		if (SUCCEEDED(recordingResult) && FAILED(finalizeResult))
-			return finalizeResult;
-		else
-			return recordingResult;
-	}).then([this](concurrency::task<HRESULT> t)
-	{
-		m_IsRecording = false;
-		CleanupResourcesAndShutDownMF();
-		HRESULT hr = E_FAIL;
-		try {
-			hr = t.get();
-			// if .get() didn't throw and the HRESULT succeeded, there are no errors.
-		}
-		catch (const exception &e) {
-			// handle error
-			ERROR(L"Exception in RecordTask: %s", e.what());
-		}
-		catch (...) {
-			ERROR(L"Exception in RecordTask");
-		}
-		SetRecordingCompleteStatus(hr);
-	});
-	return S_OK;
+		}).then([this](HRESULT recordingResult) {
+			HRESULT finalizeResult = FinalizeRecording();
+			if (SUCCEEDED(recordingResult) && FAILED(finalizeResult))
+				return finalizeResult;
+			else
+				return recordingResult;
+			}).then([this](concurrency::task<HRESULT> t)
+				{
+					m_IsRecording = false;
+					CleanupResourcesAndShutDownMF();
+					HRESULT hr = E_FAIL;
+					try {
+						hr = t.get();
+						// if .get() didn't throw and the HRESULT succeeded, there are no errors.
+					}
+					catch (const exception &e) {
+						// handle error
+						ERROR(L"Exception in RecordTask: %s", e.what());
+					}
+					catch (...) {
+						ERROR(L"Exception in RecordTask");
+					}
+					SetRecordingCompleteStatus(hr);
+				});
+			return S_OK;
 }
 
 void internal_recorder::EndRecording() {
@@ -782,6 +782,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 	INT frameTimeout = 0;
 	INT frameNr = 0;
 	INT64 lastFrameStartPos = 0;
+	int dxgiErrorInvalidCallRetryCount = 0;
 	bool haveCachedPrematureFrame = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
 	while (true)
@@ -815,18 +816,29 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 			if (SUCCEEDED(hr)) {
 				// Get mouse info
 				gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, &(FrameInfo), videoInputFrameRect, pDeskDupl));
+				dxgiErrorInvalidCallRetryCount = 0;
 			}
 		}
 
 		if (pDeskDupl == nullptr
-			|| hr == DXGI_ERROR_ACCESS_LOST) {
+			|| hr == DXGI_ERROR_ACCESS_LOST
+			|| hr == DXGI_ERROR_INVALID_CALL) {
 			if (pDeskDupl == nullptr) {
 				DEBUG(L"Error getting next frame due to Desktop Duplication instance is NULL, reinitializing");
 			}
 			else if (hr == DXGI_ERROR_ACCESS_LOST) {
-				_com_error err(hr);
-				DEBUG(L"Error getting next frame due to DXGI_ERROR_ACCESS_LOST, reinitializing: %s", err.ErrorMessage());
-
+				DEBUG(L"Error getting next frame due to error DXGI_ERROR_ACCESS_LOST, reinitializing");
+			}
+			else if (hr == DXGI_ERROR_INVALID_CALL) {
+				dxgiErrorInvalidCallRetryCount++;
+				if (dxgiErrorInvalidCallRetryCount < DXGI_ERROR_INVALID_CALL_MAX_RETRIES) {
+					DEBUG(L"Error getting next frame due to error DXGI_ERROR_INVALID_CALL, reinitializing try %u of %u", dxgiErrorInvalidCallRetryCount, DXGI_ERROR_INVALID_CALL_MAX_RETRIES);
+					wait(10);
+				}
+				else {
+					ERROR(L"Error getting next frame due to error DXGI_ERROR_INVALID_CALL and retry count exceeded.");
+					return hr;
+				}
 			}
 			if (pDeskDupl) {
 				pDeskDupl->ReleaseFrame();
@@ -1584,7 +1596,7 @@ void internal_recorder::InitializeMouseClickDetection()
 					wait(1);
 				}
 				INFO("Exiting mouse click polling task");
-			});
+				});
 			break;
 		}
 		case MOUSE_DETECTION_MODE_HOOK: {
@@ -1840,29 +1852,29 @@ void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDe
 	pAcquiredDesktopImage->AddRef();
 	concurrency::create_task([this, pAcquiredDesktopImage, filePath]() {
 		return WriteFrameToImage(pAcquiredDesktopImage, filePath);
-	}).then([this, filePath, pAcquiredDesktopImage](concurrency::task<HRESULT> t)
-	{
-		try {
-			HRESULT hr = t.get();
-			bool success = SUCCEEDED(hr);
-			if (success) {
-				TRACE(L"Wrote snapshot to %s", filePath.c_str());
-				if (RecordingSnapshotCreatedCallback != nullptr) {
-					RecordingSnapshotCreatedCallback(filePath);
+		}).then([this, filePath, pAcquiredDesktopImage](concurrency::task<HRESULT> t)
+			{
+				try {
+					HRESULT hr = t.get();
+					bool success = SUCCEEDED(hr);
+					if (success) {
+						TRACE(L"Wrote snapshot to %s", filePath.c_str());
+						if (RecordingSnapshotCreatedCallback != nullptr) {
+							RecordingSnapshotCreatedCallback(filePath);
+						}
+					}
+					else {
+						_com_error err(hr);
+						ERROR("Error saving snapshot: %s", err.ErrorMessage());
+					}
+					// if .get() didn't throw and the HRESULT succeeded, there are no errors.
 				}
-			}
-			else {
-				_com_error err(hr);
-				ERROR("Error saving snapshot: %s", err.ErrorMessage());
-			}
-			// if .get() didn't throw and the HRESULT succeeded, there are no errors.
-		}
-		catch (const exception & e) {
-			// handle error
-			ERROR(L"Exception saving snapshot: %s", e.what());
-		}
-		pAcquiredDesktopImage->Release();
-	});
+				catch (const exception & e) {
+					// handle error
+					ERROR(L"Exception saving snapshot: %s", e.what());
+				}
+				pAcquiredDesktopImage->Release();
+			});
 }
 /// <summary>
 /// Take screenshots in a video recording, if video recording is file mode.

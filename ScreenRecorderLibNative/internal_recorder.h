@@ -172,7 +172,7 @@ private:
 	const UINT32 AUDIO_BITS_PER_SAMPLE = 16; //Audio bits per sample must be 16.
 	const UINT32 AUDIO_SAMPLES_PER_SECOND = 48000;//Audio samples per seconds must be 44100 or 48000.
 	const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_ARGB32;
-
+	const INT32 DXGI_ERROR_INVALID_CALL_MAX_RETRIES = 10;
 	struct TaskWrapper;
 	std::unique_ptr<TaskWrapper> m_TaskWrapperImpl;
 
