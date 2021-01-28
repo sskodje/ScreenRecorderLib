@@ -186,12 +186,12 @@ namespace {
 	}
 } // anonymous namespace
 
-HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
-	ID3D11Resource* pSource,
-	REFGUID guidContainerFormat,
-	const wchar_t* fileName,
-	const GUID* targetFormat,
-	std::function<void(IPropertyBag2*)> setCustomProps)
+HRESULT __cdecl SaveWICTextureToFile(ID3D11DeviceContext* pContext,
+	_In_ ID3D11Resource* pSource,
+	_In_ REFGUID guidContainerFormat,
+	_In_z_ const wchar_t* fileName,
+	_In_opt_ const GUID* targetFormat,
+	_In_opt_ std::function<void(IPropertyBag2*)> setCustomProps)
 {
 	if (!fileName)
 		return E_INVALIDARG;

@@ -1,5 +1,5 @@
 // ScreenRecorder.h
-
+#pragma warning(disable:4561)
 #pragma once
 #include <atlbase.h>
 #include <vcclr.h>

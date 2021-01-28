@@ -1,6 +1,6 @@
 #pragma once
 #include "common_types.h"
-HRESULT GetOutputForDeviceName(std::wstring deviceName, IDXGIOutput ** ppOutput);
+HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput ** ppOutput);
 std::vector<IDXGIAdapter*> EnumDisplayAdapters();
 
 class duplication_manager
