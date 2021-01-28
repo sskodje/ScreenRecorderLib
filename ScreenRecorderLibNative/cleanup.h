@@ -50,6 +50,9 @@ public:
 	~DesktopDuplicationCaptureStopOnExit() {
 		m_p->StopCapture();
 	}
+	void Reset(duplication_capture *p) {
+		m_p = p;
+	}
 
 private:
 	duplication_capture *m_p;

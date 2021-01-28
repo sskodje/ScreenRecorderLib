@@ -495,6 +495,8 @@ void duplication_capture::WaitForThreadTermination()
 //
 DWORD WINAPI DDProc(_In_ void* Param)
 {
+	HRESULT hr = S_OK;
+
 	// Classes
 	//DISPLAYMANAGER DispMgr;
 	duplication_manager pDuplicationManager;
@@ -517,6 +519,7 @@ DWORD WINAPI DDProc(_In_ void* Param)
 	{
 		// We do not have access to the desktop so request a retry
 		isExpectedError = true;
+		hr = E_ACCESSDENIED;
 		goto Exit;
 	}
 
@@ -528,9 +531,9 @@ DWORD WINAPI DDProc(_In_ void* Param)
 	{
 		// We do not have access to the desktop so request a retry
 		isExpectedError = TRUE;
+		hr = E_ACCESSDENIED;
 		goto Exit;
 	}
-	HRESULT hr = S_OK;
 	pMousePointer.Initialize(TData->DxRes.Context, TData->DxRes.Device);
 
 	//// New display manager
@@ -678,6 +681,8 @@ Exit:
 		case E_ACCESSDENIED:
 		case DXGI_ERROR_MODE_CHANGE_IN_PROGRESS:
 		case DXGI_ERROR_SESSION_DISCONNECTED:
+			//case DXGI_ERROR_INVALID_CALL:
+		case DXGI_ERROR_ACCESS_LOST:
 			//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application is launching, or similar.
 			//We continue the recording, and instead of desktop texture just add a blank texture instead.
 			isExpectedError = true;
@@ -695,7 +700,7 @@ Exit:
 			//	//We are just recording empty frames now. Slow down the framerate and rate of reconnect retry attempts to save resources.
 			//	wait(200);
 			//}
-			WARN(L"Desktop duplication temporarily unavailable: %s", err.ErrorMessage());
+			WARN(L"Desktop duplication temporarily unavailable: hr = 0x%08x, error = %s", hr, err.ErrorMessage());
 			break;
 		case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
 			ERROR(L"Error reinitializing desktop duplication with DXGI_ERROR_NOT_CURRENTLY_AVAILABLE. This means DXGI reached the limit on the maximum number of concurrent duplication applications (default of four). Therefore, the calling application cannot create any desktop duplication interfaces until the other applications close");
