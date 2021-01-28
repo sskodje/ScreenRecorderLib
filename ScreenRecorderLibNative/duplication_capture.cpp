@@ -306,8 +306,7 @@ HRESULT duplication_capture::CreateSharedSurf(std::vector<std::wstring> outputs,
 
 	// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
 	std::vector<std::wstring> createdOutputs{};
-	//if (SingleOutput < 0)
-	//{
+
 	hr = S_OK;
 	for (int i = 0; SUCCEEDED(hr); i++)
 	{
@@ -331,28 +330,6 @@ HRESULT duplication_capture::CreateSharedSurf(std::vector<std::wstring> outputs,
 			}
 		}
 	}
-
-	//	--OutputCount;
-	//}
-	//else
-	//{
-	//	hr = DxgiAdapter->EnumOutputs(SingleOutput, &DxgiOutput);
-	//	if (FAILED(hr))
-	//	{
-	//		DxgiAdapter->Release();
-	//		DxgiAdapter = nullptr;
-	//		ERROR(L"Output specified to be duplicated does not exist");
-	//		return hr;
-	//	}
-	//	DXGI_OUTPUT_DESC DesktopDesc;
-	//	DxgiOutput->GetDesc(&DesktopDesc);
-	//	*pDeskBounds = DesktopDesc.DesktopCoordinates;
-
-	//	DxgiOutput->Release();
-	//	DxgiOutput = nullptr;
-
-	//	OutputCount = 1;
-	//}
 
 	DxgiAdapter->Release();
 	DxgiAdapter = nullptr;
@@ -383,20 +360,6 @@ HRESULT duplication_capture::CreateSharedSurf(std::vector<std::wstring> outputs,
 	hr = m_Device->CreateTexture2D(&DeskTexD, nullptr, &m_SharedSurf);
 	if (FAILED(hr))
 	{
-		//if (OutputCount != 1)
-		//{
-		//	// If we are duplicating the complete desktop we try to create a single texture to hold the
-		//	// complete desktop image and blit updates from the per output DDA interface.  The GPU can
-		//	// always support a texture size of the maximum resolution of any single output but there is no
-		//	// guarantee that it can support a texture size of the desktop.
-		//	// The sample only use this large texture to display the desktop image in a single window using DX
-		//	// we could revert back to using GDI to update the window in this failure case.
-		//	return ProcessFailure(m_Device, L"Failed to create DirectX shared texture - we are attempting to create a texture the size of the complete desktop and this may be larger than the maximum texture size of your GPU.  Please try again using the -output command line parameter to duplicate only 1 monitor or configure your computer to a single monitor configuration", L"Error", hr, SystemTransitionsExpectedErrors);
-		//}
-		//else
-		//{
-		//	return ProcessFailure(m_Device, L"Failed to create shared texture", L"Error", hr, SystemTransitionsExpectedErrors);
-		//}
 		ERROR(L"Failed to create shared texture");
 		return hr;
 	}
@@ -456,7 +419,7 @@ HRESULT duplication_capture::AcquireNextFrame(ID3D11Texture2D **ppDesktopFrame, 
 		return DXGI_ERROR_WAIT_TIMEOUT;
 	}
 	// We have a new frame so try and process it
-// Try to acquire keyed mutex in order to access shared surface
+	// Try to acquire keyed mutex in order to access shared surface
 	HRESULT hr = m_KeyMutex->AcquireSync(1, timeoutMillis);
 	if (FAILED(hr))
 	{
@@ -489,7 +452,6 @@ void duplication_capture::WaitForThreadTermination()
 	}
 }
 
-
 //
 // Entry point for new duplication threads
 //
@@ -498,7 +460,6 @@ DWORD WINAPI DDProc(_In_ void* Param)
 	HRESULT hr = S_OK;
 
 	// Classes
-	//DISPLAYMANAGER DispMgr;
 	duplication_manager pDuplicationManager;
 	mouse_pointer pMousePointer;
 
@@ -536,8 +497,6 @@ DWORD WINAPI DDProc(_In_ void* Param)
 	}
 	pMousePointer.Initialize(TData->DxRes.Context, TData->DxRes.Device);
 
-	//// New display manager
-	//DispMgr.InitD3D(&TData->DxRes);
 	{
 		// Obtain handle to sync shared Surface
 		hr = TData->DxRes.Device->OpenSharedResource(TData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&SharedSurf));
@@ -550,7 +509,6 @@ DWORD WINAPI DDProc(_In_ void* Param)
 		hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void**>(&KeyMutex));
 		if (FAILED(hr))
 		{
-			//Ret = ProcessFailure(nullptr, L"Failed to get keyed mutex interface in spawned thread", L"Error", hr);
 			ERROR(L"Failed to get keyed mutex interface in spawned thread");
 			goto Exit;
 		}
@@ -589,19 +547,6 @@ DWORD WINAPI DDProc(_In_ void* Param)
 				else if (FAILED(hr)) {
 					break;
 				}
-				//if (Ret != DUPL_RETURN_SUCCESS)
-				//{
-				//	// An error occurred getting the next frame drop out of loop which
-				//	// will check if it was expected or not
-				//	break;
-				//}
-
-				//// Check for timeout
-				//if (TimeOut)
-				//{
-				//	// No new frame at the moment
-				//	continue;
-				//}
 			}
 
 			// We have a new frame so try and process it
@@ -616,7 +561,6 @@ DWORD WINAPI DDProc(_In_ void* Param)
 			else if (FAILED(hr))
 			{
 				// Generic unknown failure
-				//Ret = ProcessFailure(TData->DxRes.Device, L"Unexpected error acquiring KeyMutex", L"Error", hr, SystemTransitionsExpectedErrors);
 				ERROR(L"Unexpected error acquiring KeyMutex");
 				pDuplicationManager.DoneWithFrame();
 				break;
@@ -650,7 +594,6 @@ DWORD WINAPI DDProc(_In_ void* Param)
 			if (FAILED(hr))
 			{
 				ERROR(L"Unexpected error releasing the keyed mutex");
-				//Ret = ProcessFailure(TData->DxRes.Device, L"Unexpected error releasing the keyed mutex", L"Error", hr, SystemTransitionsExpectedErrors);
 				pDuplicationManager.DoneWithFrame();
 				break;
 			}
@@ -686,20 +629,6 @@ Exit:
 			//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application is launching, or similar.
 			//We continue the recording, and instead of desktop texture just add a blank texture instead.
 			isExpectedError = true;
-			//hr = S_OK;
-			//if (pPreviousFrameCopy) {
-			//	pPreviousFrameCopy.Release();
-			//	if (PtrInfo.PtrShapeBuffer)
-			//	{
-			//		delete[] PtrInfo.PtrShapeBuffer;
-			//		PtrInfo.PtrShapeBuffer = nullptr;
-			//	}
-			//	RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
-			//}
-			//else {
-			//	//We are just recording empty frames now. Slow down the framerate and rate of reconnect retry attempts to save resources.
-			//	wait(200);
-			//}
 			WARN(L"Desktop duplication temporarily unavailable: hr = 0x%08x, error = %s", hr, err.ErrorMessage());
 			break;
 		case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
@@ -720,31 +649,6 @@ Exit:
 	else if (isUnexpectedError) {
 		SetEvent(TData->UnexpectedErrorEvent);
 	}
-	//if (Ret != DUPL_RETURN_SUCCESS)
-	//{
-	//	if (Ret == DUPL_RETURN_ERROR_EXPECTED)
-	//	{
-	//		// The system is in a transition state so request the duplication be restarted
-	//		SetEvent(TData->ExpectedErrorEvent);
-	//	}
-	//	else
-	//	{
-	//		// Unexpected error so exit the application
-	//		SetEvent(TData->UnexpectedErrorEvent);
-	//	}
-	//}
-
-	//if (SharedSurf)
-	//{
-	//	SharedSurf->Release();
-	//	SharedSurf = nullptr;
-	//}
-
-	//if (KeyMutex)
-	//{
-	//	KeyMutex->Release();
-	//	KeyMutex = nullptr;
-	//}
 
 	return 0;
 }

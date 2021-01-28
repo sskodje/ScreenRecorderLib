@@ -75,28 +75,8 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Ou
 		return hr;
 	}
 
-	//// Get DXGI adapter
-	//IDXGIAdapter* DxgiAdapter = nullptr;
-	//hr = DxgiDevice->GetParent(__uuidof(IDXGIAdapter), reinterpret_cast<void**>(&DxgiAdapter));
-	//DxgiDevice->Release();
-	//DxgiDevice = nullptr;
-	//if (FAILED(hr))
-	//{
-	//    ERROR(L"Failed to get parent DXGI Adapter");
-	//    return hr;
-	//}
-
 	// Get output
 	IDXGIOutput* DxgiOutput = nullptr;
-	//hr = DxgiAdapter->EnumOutputs(Output, &DxgiOutput);
-	//DxgiAdapter->Release();
-	//DxgiAdapter = nullptr;
-	//if (FAILED(hr))
-	//{
-	//    ERROR(L"Failed to get specified output in DUPLICATIONMANAGER");
-	//    return hr;
-	//}
-
 	hr = GetOutputForDeviceName(m_OutputName, &DxgiOutput);
 	if (FAILED(hr))
 	{
@@ -123,19 +103,11 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Ou
 	if (FAILED(hr))
 	{
 		ERROR(L"Failed to get duplicate output in DUPLICATIONMANAGER");
-		//if (hr == DXGI_ERROR_NOT_CURRENTLY_AVAILABLE)
-		//{
-		//    MessageBoxW(nullptr, L"There is already the maximum number of applications using the Desktop Duplication API running, please close one of those applications and then try again.", L"Error", MB_OK);
-		//    return DUPL_RETURN_ERROR_UNEXPECTED;
-		//}
-		//return ProcessFailure(m_Device, L"Failed to get duplicate output in DUPLICATIONMANAGER", L"Error", hr, CreateDuplicationExpectedErrors);
-
 		return hr;
 	}
 
 	return S_OK;
 }
-
 
 //
 // Get next frame and write it into Data
@@ -147,17 +119,9 @@ HRESULT duplication_manager::GetFrame(_Out_ FRAME_DATA * Data)
 
 	// Get new frame
 	HRESULT hr = m_DeskDupl->AcquireNextFrame(500, &FrameInfo, &DesktopResource);
-	//if (hr == DXGI_ERROR_WAIT_TIMEOUT)
-	//{
-	//    *Timeout = true;
-	//    return DUPL_RETURN_SUCCESS;
-	//}
-	//*Timeout = false;
-
 	if (FAILED(hr))
 	{
 		return hr;
-		//return ProcessFailure(m_Device, L"Failed to acquire next frame in DUPLICATIONMANAGER", L"Error", hr, FrameInfoExpectedErrors);
 	}
 	// If still holding old frame, destroy it
 	if (m_AcquiredDesktopImage)
@@ -225,7 +189,6 @@ HRESULT duplication_manager::GetFrame(_Out_ FRAME_DATA * Data)
 			return hr;
 		}
 		Data->DirtyCount = BufSize / sizeof(RECT);
-
 		Data->MetaData = m_MetaDataBuffer;
 	}
 
@@ -262,7 +225,6 @@ void duplication_manager::GetOutputDesc(_Out_ DXGI_OUTPUT_DESC * DescPtr)
 {
 	*DescPtr = m_OutputDesc;
 }
-
 
 //
 // Process a given frame and its metadata
