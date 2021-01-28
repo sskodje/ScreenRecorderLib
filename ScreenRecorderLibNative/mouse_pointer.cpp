@@ -842,7 +842,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, int offsetX, int off
 			maskInfo.bmiHeader.biBitCount = 0;  // don't get the color table     
 			if (!GetDIBits(dc, iconInfo.hbmMask, 0, 0, NULL, &maskInfo, DIB_RGB_COLORS))
 			{
-				return false;
+				return E_FAIL;
 			}
 
 			RETURN_ON_BAD_HR(ResizeShapeBuffer(PtrInfo, maskInfo.bmiHeader.biSizeImage));
@@ -855,7 +855,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, int offsetX, int off
 			pMaskInfo->bmiHeader.biHeight = -maskInfo.bmiHeader.biHeight;
 			if (!GetDIBits(dc, iconInfo.hbmMask, 0, maskInfo.bmiHeader.biHeight, PtrInfo->PtrShapeBuffer, pMaskInfo, DIB_RGB_COLORS))
 			{
-				return false;
+				return E_FAIL;
 			}
 		}
 	}
