@@ -78,5 +78,6 @@ typedef struct _THREAD_DATA
     PTR_INFO* PtrInfo;
     DX_RESOURCES DxRes;
     LARGE_INTEGER LastUpdateTimeStamp;
+    INT UpdatedFrameCount;
     HRESULT ThreadResult;
 } THREAD_DATA;

@@ -12,6 +12,7 @@ duplication_capture::duplication_capture(_In_ ID3D11Device* pDevice, _In_ ID3D11
 	m_ThreadData(nullptr),
 	m_SharedSurf(nullptr),
 	m_KeyMutex(nullptr),
+	m_LastAcquiredFrameTimeStamp{},
 	m_TerminateThreadsEvent(nullptr)
 {
 	m_Device = pDevice;
@@ -121,7 +122,7 @@ void duplication_capture::CleanDx(_Inout_ DX_RESOURCES* Data)
 //
 // Start up threads for DDA
 //
-HRESULT duplication_capture::StartCapture(std::vector<std::wstring> outputs, HANDLE hUnexpectedErrorEvent, HANDLE hExpectedErrorEvent)
+HRESULT duplication_capture::StartCapture(_In_ std::vector<std::wstring> outputs, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
 {
 	ResetEvent(m_TerminateThreadsEvent);
 	std::vector<std::wstring> CreatedOutputs;
@@ -130,8 +131,8 @@ HRESULT duplication_capture::StartCapture(std::vector<std::wstring> outputs, HAN
 		return hr;
 	}
 	m_ThreadCount = CreatedOutputs.size();
-	m_ThreadHandles = new (std::nothrow) HANDLE[m_ThreadCount];
-	m_ThreadData = new (std::nothrow) THREAD_DATA[m_ThreadCount];
+	m_ThreadHandles = new (std::nothrow) HANDLE[m_ThreadCount]{};
+	m_ThreadData = new (std::nothrow) THREAD_DATA[m_ThreadCount]{};
 	if (!m_ThreadHandles || !m_ThreadData)
 	{
 		return E_OUTOFMEMORY;
@@ -273,7 +274,7 @@ HRESULT duplication_capture::InitializeDx(_Out_ DX_RESOURCES* Data)
 //
 // Create shared texture
 //
-HRESULT duplication_capture::CreateSharedSurf(std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *pCreatedOutputs, _Out_ RECT* pDeskBounds)
+HRESULT duplication_capture::CreateSharedSurf(_In_ std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *pCreatedOutputs, _Out_ RECT* pDeskBounds)
 {
 	HRESULT hr;
 
@@ -403,14 +404,17 @@ PTR_INFO* duplication_capture::GetPointerInfo()
 	return &m_PtrInfo;
 }
 
-HRESULT duplication_capture::AcquireNextFrame(ID3D11Texture2D **ppDesktopFrame, DWORD timeoutMillis)
+HRESULT duplication_capture::AcquireNextFrame(_In_ ID3D11Texture2D **ppDesktopFrame, _In_  DWORD timeoutMillis, _Out_ int &updatedFrameCount)
 {
 	*ppDesktopFrame = nullptr;
 	bool haveNewFrameData = false;
+	updatedFrameCount = 0;
 	for (UINT i = 0; i < m_ThreadCount; ++i)
 	{
 		if (m_ThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
 			haveNewFrameData = true;
+			updatedFrameCount += m_ThreadData[i].UpdatedFrameCount;
+			m_ThreadData[i].UpdatedFrameCount = 0;
 			break;
 		}
 	}
@@ -435,7 +439,6 @@ HRESULT duplication_capture::AcquireNextFrame(ID3D11Texture2D **ppDesktopFrame, 
 	m_DeviceContext->CopyResource(pDesktopFrame, m_SharedSurf);
 
 	QueryPerformanceCounter(&m_LastAcquiredFrameTimeStamp);
-
 
 	*ppDesktopFrame = pDesktopFrame;
 	return hr;
@@ -496,7 +499,6 @@ DWORD WINAPI DDProc(_In_ void* Param)
 		goto Exit;
 	}
 	pMousePointer.Initialize(TData->DxRes.Context, TData->DxRes.Device);
-
 	{
 		// Obtain handle to sync shared Surface
 		hr = TData->DxRes.Device->OpenSharedResource(TData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&SharedSurf));
@@ -551,7 +553,7 @@ DWORD WINAPI DDProc(_In_ void* Param)
 
 			// We have a new frame so try and process it
 			// Try to acquire keyed mutex in order to access shared surface
-			hr = KeyMutex->AcquireSync(0, 1000);
+			hr = KeyMutex->AcquireSync(0, 10);
 			if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
 			{
 				// Can't use shared surface right now, try again later
@@ -588,7 +590,7 @@ DWORD WINAPI DDProc(_In_ void* Param)
 				KeyMutex->ReleaseSync(1);
 				break;
 			}
-
+			TData->UpdatedFrameCount += CurrentData.FrameInfo.AccumulatedFrames;
 			// Release acquired keyed mutex
 			hr = KeyMutex->ReleaseSync(1);
 			if (FAILED(hr))

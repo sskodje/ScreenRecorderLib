@@ -10,16 +10,16 @@ public:
 	duplication_capture(_In_ ID3D11Device *pDevice, _In_ ID3D11DeviceContext *pImmediateContext);
 	~duplication_capture();
 	void Clean();
-	HRESULT StartCapture(std::vector<std::wstring> outputs, HANDLE hUnexpectedErrorEvent, HANDLE hExpectedErrorEvent);
+	HRESULT StartCapture(_In_ std::vector<std::wstring> outputs, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent);
 	HRESULT StopCapture();
 	PTR_INFO* GetPointerInfo();
-	HRESULT AcquireNextFrame(ID3D11Texture2D **ppDesktopFrame, DWORD timeoutMillis);
+	HRESULT AcquireNextFrame(_In_ ID3D11Texture2D **ppDesktopFrame, _In_ DWORD timeoutMillis, _Out_ int &updatedFrameCount);
 	void WaitForThreadTermination();
 	RECT GetOutputRect() { return m_OutputRect; }
 private:
 	HRESULT InitializeDx(_Out_ DX_RESOURCES *Data);
 	void CleanDx(_Inout_ DX_RESOURCES* Data);
-	HRESULT CreateSharedSurf(std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *createdOutputs, _Out_ RECT* pDeskBounds);
+	HRESULT CreateSharedSurf(_In_ std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *createdOutputs, _Out_ RECT* pDeskBounds);
 	HANDLE GetSharedHandle();
 	
 	HANDLE m_TerminateThreadsEvent;

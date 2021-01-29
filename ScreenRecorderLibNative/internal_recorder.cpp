@@ -833,11 +833,13 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 				pLoopbackCaptureInputDevice->ClearRecordedBytes();
 			continue;
 		}
-
+		int updatedFrameCount = 0;
 		// Get new frame
 		hr = pCapture->AcquireNextFrame(
 			&pCurrentFrameCopy,
-			100);
+			0,
+			updatedFrameCount);
+
 		if (SUCCEEDED(hr)) {
 			// Get mouse info
 			if (pCapture->GetPointerInfo()) {
@@ -852,7 +854,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 		if (m_RecorderMode == MODE_SLIDESHOW
 			|| m_RecorderMode == MODE_SNAPSHOT) {
 
-			if (frameNr == 0 && pCurrentFrameCopy == nullptr) {
+			if (frameNr == 0 && (pCurrentFrameCopy == nullptr || updatedFrameCount == 0)) {
 				continue;
 			}
 		}
@@ -871,15 +873,17 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 				delay = false;
 			}
 			else if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
-				if (pCurrentFrameCopy != nullptr) {
-					//we got a frame, but it's too soon, so we cache it and see if there are more changes.
-					if (pPreviousFrameCopy == nullptr) {
-						RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
+				if (updatedFrameCount > 0) {
+					if (pCurrentFrameCopy != nullptr) {
+						//we got a frame, but it's too soon, so we cache it and see if there are more changes.
+						if (pPreviousFrameCopy == nullptr) {
+							RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
+						}
+						m_ImmediateContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
 					}
-					m_ImmediateContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
+					delay = true;
+					haveCachedPrematureFrame = true;
 				}
-				delay = true;
-				haveCachedPrematureFrame = true;
 			}
 			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 				if (haveCachedPrematureFrame && durationSinceLastFrameMillis < videoFrameDurationMillis) {
