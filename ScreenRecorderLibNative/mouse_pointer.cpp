@@ -697,6 +697,7 @@ HRESULT mouse_pointer::ResizeShapeBuffer(PTR_INFO* PtrInfo, int bufferSize) {
 		// Update buffer size
 		PtrInfo->BufferSize = bufferSize;
 	}
+	return S_OK;
 }
 
 //
