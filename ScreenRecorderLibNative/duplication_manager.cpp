@@ -655,7 +655,7 @@ void duplication_manager::CleanRefs()
 	}
 }
 
-HRESULT GetOutputForDeviceName(std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput * *ppOutput) {
+HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_result_maybenull_ IDXGIOutput * *ppOutput) {
 	HRESULT hr = S_OK;
 	*ppOutput = nullptr;
 	if (deviceName != L"") {

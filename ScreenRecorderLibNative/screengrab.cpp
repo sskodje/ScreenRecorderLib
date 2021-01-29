@@ -186,7 +186,8 @@ namespace {
 	}
 } // anonymous namespace
 
-HRESULT __cdecl SaveWICTextureToFile(ID3D11DeviceContext* pContext,
+HRESULT __cdecl SaveWICTextureToFile(
+	_In_ ID3D11DeviceContext* pContext,
 	_In_ ID3D11Resource* pSource,
 	_In_ REFGUID guidContainerFormat,
 	_In_z_ const wchar_t* fileName,
