@@ -526,10 +526,9 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 
 	std::chrono::steady_clock::time_point	lastFrame = std::chrono::steady_clock::now();
 	m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
-	int totalCachedFrameDuration = 0;
 	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
-	INT frameTimeout = 0;
+
 	INT frameNr = 0;
 	INT64 lastFrameStartPos = 0;
 	bool haveCachedPrematureFrame = false;
@@ -553,10 +552,8 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 		auto frame = pCapture->TryGetNextFrame();
 
 		winrt::com_ptr<ID3D11Texture2D> surfaceTexture = nullptr;
-		UINT contentWidth = 0;
-		UINT contentHeight = 0;
+
 		if (frame) {
-			auto contentSize = frame.ContentSize();
 			surfaceTexture = capture::util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
 			surfaceTexture->GetDesc(&sourceFrameDesc);
 			// Clear flags that we don't need
@@ -565,11 +562,8 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 			sourceFrameDesc.CPUAccessFlags = 0;
 			sourceFrameDesc.MiscFlags = 0;
 
-			contentWidth = contentSize.Width;
-			contentHeight = contentSize.Height;
-
-			videoInputFrameRect.right = contentSize.Width - videoInputFrameRect.left;
-			videoInputFrameRect.bottom = contentSize.Height - videoInputFrameRect.top;
+			videoInputFrameRect.right = frame.ContentSize().Width - videoInputFrameRect.left;
+			videoInputFrameRect.bottom = frame.ContentSize().Height - videoInputFrameRect.top;
 			videoInputFrameRect = MakeRectEven(videoInputFrameRect);
 			if (!EqualRect(&videoInputFrameRect, &previousInputFrameRect)) {
 				//A marker is placed in the stream and then we wait for the sink writer to trigger it. This ensures all pending frames are encoded before the input is resized to the new size.
@@ -666,11 +660,9 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 				m_ImmediateContext->CopyResource(pPreviousFrameCopy, pFrameCopy);
 				SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
 			}
-			totalCachedFrameDuration = 0;
 		}
 		else if (pPreviousFrameCopy) {
 			m_ImmediateContext->CopyResource(pFrameCopy, pPreviousFrameCopy);
-			totalCachedFrameDuration += durationSinceLastFrame100Nanos;
 		}
 
 		if (gotMousePointer) {
@@ -726,7 +718,6 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 
 	HRESULT hr;
 	bool gotMousePointer = false;
-	int totalCachedFrameDuration = 0;
 
 	HANDLE UnexpectedErrorEvent = nullptr;
 	HANDLE ExpectedErrorEvent = nullptr;
@@ -794,7 +785,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 	m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
 	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
-	INT frameTimeout = 0;
+
 	INT frameNr = 0;
 	INT64 lastFrameStartPos = 0;
 	bool haveCachedPrematureFrame = false;
