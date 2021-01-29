@@ -11,7 +11,7 @@
     if (FAILED(_hr_)) { \
     {\
         _com_error err(_hr_);\
-        ERROR(L"RETURN_ON_BAD_HR: hr=0x%08x, error is %ls", _hr_, err.ErrorMessage());\
+        LOG_ERROR(L"RETURN_ON_BAD_HR: hr=0x%08x, error is %ls", _hr_, err.ErrorMessage());\
     }\
         return _hr_; \
     } \
@@ -23,7 +23,7 @@
     if (FAILED(_hr_)) { \
     {\
         _com_error err(_hr_);\
-        ERROR(L"BAD HR: hr=0x%08x, error is %ls", _hr_, err.ErrorMessage());\
+        LOG_ERROR(L"BAD HR: hr=0x%08x, error is %ls", _hr_, err.ErrorMessage());\
     }\
     } \
 }

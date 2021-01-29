@@ -32,13 +32,13 @@ CPrefs::CPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow)
 			// --device
 			if (0 == _wcsicmp(argv[i], L"--device")) {
 				if (NULL != m_pMMDevice) {
-					ERROR(L"%s", L"Only one --device switch is allowed");
+					LOG_ERROR(L"%s", L"Only one --device switch is allowed");
 					hr = E_INVALIDARG;
 					return;
 				}
 
 				if (i++ == argc) {
-					ERROR(L"%s", L"--device switch requires an argument");
+					LOG_ERROR(L"%s", L"--device switch requires an argument");
 					hr = E_INVALIDARG;
 					return;
 				}
@@ -54,7 +54,7 @@ CPrefs::CPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow)
 			// --int-16
 			if (0 == _wcsicmp(argv[i], L"--int-16")) {
 				if (m_bInt16) {
-					ERROR(L"%s", L"Only one --int-16 switch is allowed");
+					LOG_ERROR(L"%s", L"Only one --int-16 switch is allowed");
 					hr = E_INVALIDARG;
 					return;
 				}
@@ -63,7 +63,7 @@ CPrefs::CPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow)
 				continue;
 			}
 
-			ERROR(L"Invalid argument %ls", argv[i]);
+			LOG_ERROR(L"Invalid argument %ls", argv[i]);
 			hr = E_INVALIDARG;
 			return;
 		}
@@ -72,7 +72,7 @@ CPrefs::CPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow)
 		if (NULL == m_pMMDevice) {
 			hr = get_default_device(&m_pMMDevice, flow);
 			if (FAILED(hr)) {
-				WARN(L"No audio capture devices available");
+				LOG_WARN(L"No audio capture devices available");
 				return;
 			}
 		}
@@ -104,7 +104,7 @@ HRESULT get_default_device(IMMDevice **ppMMDevice, EDataFlow flow) {
 		(void**)&pMMDeviceEnumerator
 	);
 	if (FAILED(hr)) {
-		ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);
+		LOG_ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);
 		return hr;
 	}
 	ReleaseOnExit releaseMMDeviceEnumerator(pMMDeviceEnumerator);
@@ -112,7 +112,7 @@ HRESULT get_default_device(IMMDevice **ppMMDevice, EDataFlow flow) {
 	// get the default endpoint for chosen flow (should be either eCapture or eRender)
 	hr = pMMDeviceEnumerator->GetDefaultAudioEndpoint(flow, eConsole, ppMMDevice);
 	if (FAILED(hr)) {
-		ERROR(L"IMMDeviceEnumerator::GetDefaultAudioEndpoint failed: hr = 0x%08x", hr);
+		LOG_ERROR(L"IMMDeviceEnumerator::GetDefaultAudioEndpoint failed: hr = 0x%08x", hr);
 		return hr;
 	}
 
@@ -131,7 +131,7 @@ HRESULT CPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wstring
 		(void**)&pMMDeviceEnumerator
 	);
 	if (FAILED(hr)) {
-		ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);
+		LOG_ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);
 		return hr;
 	}
 	ReleaseOnExit releaseMMDeviceEnumerator(pMMDeviceEnumerator);
@@ -142,7 +142,7 @@ HRESULT CPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wstring
 	hr = pMMDeviceEnumerator->EnumAudioEndpoints(flow, DEVICE_STATE_ACTIVE, &pMMDeviceCollection);
 
 	if (FAILED(hr)) {
-		ERROR(L"IMMDeviceEnumerator::EnumAudioEndpoints failed: hr = 0x%08x", hr);
+		LOG_ERROR(L"IMMDeviceEnumerator::EnumAudioEndpoints failed: hr = 0x%08x", hr);
 		return hr;
 	}
 	ReleaseOnExit releaseMMDeviceCollection(pMMDeviceCollection);
@@ -150,10 +150,10 @@ HRESULT CPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wstring
 	UINT count;
 	hr = pMMDeviceCollection->GetCount(&count);
 	if (FAILED(hr)) {
-		ERROR(L"IMMDeviceCollection::GetCount failed: hr = 0x%08x", hr);
+		LOG_ERROR(L"IMMDeviceCollection::GetCount failed: hr = 0x%08x", hr);
 		return hr;
 	}
-	INFO(L"Active render endpoints found: %u", count);
+	LOG_INFO(L"Active render endpoints found: %u", count);
 
 	for (UINT i = 0; i < count; i++) {
 		IMMDevice *pMMDevice;
@@ -161,7 +161,7 @@ HRESULT CPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wstring
 		// get the "n"th device
 		hr = pMMDeviceCollection->Item(i, &pMMDevice);
 		if (FAILED(hr)) {
-			ERROR(L"IMMDeviceCollection::Item failed: hr = 0x%08x", hr);
+			LOG_ERROR(L"IMMDeviceCollection::Item failed: hr = 0x%08x", hr);
 			return hr;
 		}
 		ReleaseOnExit releaseMMDevice(pMMDevice);
@@ -170,7 +170,7 @@ HRESULT CPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wstring
 		IPropertyStore *pPropertyStore;
 		hr = pMMDevice->OpenPropertyStore(STGM_READ, &pPropertyStore);
 		if (FAILED(hr)) {
-			ERROR(L"IMMDevice::OpenPropertyStore failed: hr = 0x%08x", hr);
+			LOG_ERROR(L"IMMDevice::OpenPropertyStore failed: hr = 0x%08x", hr);
 			return hr;
 		}
 		ReleaseOnExit releasePropertyStore(pPropertyStore);
@@ -179,7 +179,7 @@ HRESULT CPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wstring
 		PROPVARIANT pv; PropVariantInit(&pv);
 		hr = pPropertyStore->GetValue(PKEY_Device_FriendlyName, &pv);
 		if (FAILED(hr)) {
-			ERROR(L"IPropertyStore::GetValue failed: hr = 0x%08x", hr);
+			LOG_ERROR(L"IPropertyStore::GetValue failed: hr = 0x%08x", hr);
 			return hr;
 		}
 		PropVariantClearOnExit clearPv(&pv);
@@ -187,16 +187,16 @@ HRESULT CPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wstring
 		LPWSTR deviceID;
 		hr = pMMDevice->GetId(&deviceID);
 		if (FAILED(hr)) {
-			ERROR(L"IMMDevice->GetId(deviceID) failed: hr = 0x%08x", hr);
+			LOG_ERROR(L"IMMDevice->GetId(deviceID) failed: hr = 0x%08x", hr);
 			return hr;
 		}
 
 		if (VT_LPWSTR != pv.vt) {
-			ERROR(L"PKEY_Device_FriendlyName variant type is %u - expected VT_LPWSTR", pv.vt);
+			LOG_ERROR(L"PKEY_Device_FriendlyName variant type is %u - expected VT_LPWSTR", pv.vt);
 			return E_UNEXPECTED;
 		}
 
-		INFO(L"    %ls", pv.pwszVal);
+		LOG_INFO(L"    %ls", pv.pwszVal);
 
 		devices->insert(std::pair<std::wstring, std::wstring>(deviceID, pv.pwszVal));
 	}
@@ -217,7 +217,7 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 		(void**)&pMMDeviceEnumerator
 	);
 	if (FAILED(hr)) {
-		ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);
+		LOG_ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);
 		return hr;
 	}
 	ReleaseOnExit releaseMMDeviceEnumerator(pMMDeviceEnumerator);
@@ -229,7 +229,7 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 		flow, DEVICE_STATE_ACTIVE, &pMMDeviceCollection
 	);
 	if (FAILED(hr)) {
-		ERROR(L"IMMDeviceEnumerator::EnumAudioEndpoints failed: hr = 0x%08x", hr);
+		LOG_ERROR(L"IMMDeviceEnumerator::EnumAudioEndpoints failed: hr = 0x%08x", hr);
 		return hr;
 	}
 	ReleaseOnExit releaseMMDeviceCollection(pMMDeviceCollection);
@@ -237,7 +237,7 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 	UINT count;
 	hr = pMMDeviceCollection->GetCount(&count);
 	if (FAILED(hr)) {
-		ERROR(L"IMMDeviceCollection::GetCount failed: hr = 0x%08x", hr);
+		LOG_ERROR(L"IMMDeviceCollection::GetCount failed: hr = 0x%08x", hr);
 		return hr;
 	}
 
@@ -247,7 +247,7 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 		// get the "n"th device
 		hr = pMMDeviceCollection->Item(i, &pMMDevice);
 		if (FAILED(hr)) {
-			ERROR(L"IMMDeviceCollection::Item failed: hr = 0x%08x", hr);
+			LOG_ERROR(L"IMMDeviceCollection::Item failed: hr = 0x%08x", hr);
 			return hr;
 		}
 		ReleaseOnExit releaseMMDevice(pMMDevice);
@@ -256,7 +256,7 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 		LPWSTR deviceID;
 		hr = pMMDevice->GetId(&deviceID);
 		if (FAILED(hr)) {
-			ERROR(L"IMMDevice->GetId(deviceID) failed: hr = 0x%08x", hr);
+			LOG_ERROR(L"IMMDevice->GetId(deviceID) failed: hr = 0x%08x", hr);
 			return hr;
 		}
 
@@ -268,14 +268,14 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 				pMMDevice->AddRef();
 			}
 			else {
-				ERROR(L"Found (at least) two devices named %ls", szDeviceId);
+				LOG_ERROR(L"Found (at least) two devices named %ls", szDeviceId);
 				return E_UNEXPECTED;
 			}
 		}
 	}
 
 	if (NULL == *ppMMDevice) {
-		ERROR(L"Could not find a device named %ls", szDeviceId);
+		LOG_ERROR(L"Could not find a device named %ls", szDeviceId);
 		return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
 	}
 
@@ -294,7 +294,7 @@ HRESULT open_file(LPCWSTR szFileName, HMMIO *phFile) {
 	);
 
 	if (NULL == *phFile) {
-		ERROR(L"mmioOpen(\"%ls\", ...) failed. wErrorRet == %u", szFileName, mi.wErrorRet);
+		LOG_ERROR(L"mmioOpen(\"%ls\", ...) failed. wErrorRet == %u", szFileName, mi.wErrorRet);
 		return E_FAIL;
 	}
 

@@ -13,11 +13,11 @@
 #define LOG_LVL_WARN 3
 #define LOG_LVL_ERR 4
 
-#define TRACE(format, ...) _log(LOG_LVL_TRACE, L"%s [TRACE] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
-#define DEBUG(format, ...) _log(LOG_LVL_DEBUG, L"%s [DEBUG] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
-#define INFO(format, ...) _log(LOG_LVL_INFO,L"%s [INFO]  [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
-#define WARN(format, ...) _log(LOG_LVL_ERR,L"%s [WARN]  [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
-#define ERROR(format, ...) _log(LOG_LVL_ERR,L"%s [ERROR] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
+#define LOG_TRACE(format, ...) _log(LOG_LVL_TRACE, L"%s [TRACE] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
+#define LOG_DEBUG(format, ...) _log(LOG_LVL_DEBUG, L"%s [DEBUG] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
+#define LOG_INFO(format, ...) _log(LOG_LVL_INFO,L"%s [INFO]  [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
+#define LOG_WARN(format, ...) _log(LOG_LVL_ERR,L"%s [WARN]  [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
+#define LOG_ERROR(format, ...) _log(LOG_LVL_ERR,L"%s [ERROR] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
 
 extern bool isLoggingEnabled;
 extern int logSeverityLevel;

@@ -71,7 +71,7 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Ou
 	HRESULT hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&DxgiDevice));
 	if (FAILED(hr))
 	{
-		ERROR(L"Failed to QI for DXGI Device");
+		LOG_ERROR(L"Failed to QI for DXGI Device");
 		return hr;
 	}
 
@@ -80,7 +80,7 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Ou
 	hr = GetOutputForDeviceName(m_OutputName, &DxgiOutput);
 	if (FAILED(hr))
 	{
-		ERROR(L"Failed to get specified output in DUPLICATIONMANAGER");
+		LOG_ERROR(L"Failed to get specified output in DUPLICATIONMANAGER");
 		return hr;
 	}
 	DxgiOutput->GetDesc(&m_OutputDesc);
@@ -92,7 +92,7 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Ou
 	DxgiOutput = nullptr;
 	if (FAILED(hr))
 	{
-		ERROR(L"Failed to QI for DxgiOutput1 in DUPLICATIONMANAGER");
+		LOG_ERROR(L"Failed to QI for DxgiOutput1 in DUPLICATIONMANAGER");
 		return hr;
 	}
 
@@ -102,7 +102,7 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Ou
 	DxgiOutput1 = nullptr;
 	if (FAILED(hr))
 	{
-		ERROR(L"Failed to get duplicate output in DUPLICATIONMANAGER");
+		LOG_ERROR(L"Failed to get duplicate output in DUPLICATIONMANAGER");
 		return hr;
 	}
 
@@ -136,7 +136,7 @@ HRESULT duplication_manager::GetFrame(_Out_ FRAME_DATA * Data)
 	DesktopResource = nullptr;
 	if (FAILED(hr))
 	{
-		ERROR(L"Failed to QI for ID3D11Texture2D from acquired IDXGIResource in DUPLICATIONMANAGER");
+		LOG_ERROR(L"Failed to QI for ID3D11Texture2D from acquired IDXGIResource in DUPLICATIONMANAGER");
 		return hr;
 	}
 
@@ -157,7 +157,7 @@ HRESULT duplication_manager::GetFrame(_Out_ FRAME_DATA * Data)
 				m_MetaDataSize = 0;
 				Data->MoveCount = 0;
 				Data->DirtyCount = 0;
-				ERROR(L"Failed to allocate memory for metadata in DUPLICATIONMANAGER");
+				LOG_ERROR(L"Failed to allocate memory for metadata in DUPLICATIONMANAGER");
 				return E_OUTOFMEMORY;
 			}
 			m_MetaDataSize = FrameInfo.TotalMetadataBufferSize;
@@ -171,7 +171,7 @@ HRESULT duplication_manager::GetFrame(_Out_ FRAME_DATA * Data)
 		{
 			Data->MoveCount = 0;
 			Data->DirtyCount = 0;
-			ERROR(L"Failed to get frame move rects in DUPLICATIONMANAGER");
+			LOG_ERROR(L"Failed to get frame move rects in DUPLICATIONMANAGER");
 			return hr;
 		}
 		Data->MoveCount = BufSize / sizeof(DXGI_OUTDUPL_MOVE_RECT);
@@ -185,7 +185,7 @@ HRESULT duplication_manager::GetFrame(_Out_ FRAME_DATA * Data)
 		{
 			Data->MoveCount = 0;
 			Data->DirtyCount = 0;
-			ERROR(L"Failed to get frame dirty rects in DUPLICATIONMANAGER");
+			LOG_ERROR(L"Failed to get frame dirty rects in DUPLICATIONMANAGER");
 			return hr;
 		}
 		Data->DirtyCount = BufSize / sizeof(RECT);
@@ -205,7 +205,7 @@ HRESULT duplication_manager::DoneWithFrame()
 	HRESULT hr = m_DeskDupl->ReleaseFrame();
 	if (FAILED(hr))
 	{
-		ERROR(L"Failed to release frame in DUPLICATIONMANAGER");
+		LOG_ERROR(L"Failed to release frame in DUPLICATIONMANAGER");
 		return hr;
 	}
 
@@ -343,7 +343,7 @@ HRESULT duplication_manager::CopyMove(_Inout_ ID3D11Texture2D* SharedSurf, _In_r
 		HRESULT hr = m_Device->CreateTexture2D(&MoveDesc, nullptr, &m_MoveSurf);
 		if (FAILED(hr))
 		{
-			ERROR(L"Failed to create staging texture for move rects");
+			LOG_ERROR(L"Failed to create staging texture for move rects");
 			return hr;
 		}
 	}
@@ -490,7 +490,7 @@ HRESULT duplication_manager::CopyDirty(_In_ ID3D11Texture2D* SrcSurface, _Inout_
 		hr = m_Device->CreateRenderTargetView(SharedSurf, nullptr, &m_RTV);
 		if (FAILED(hr))
 		{
-			ERROR(L"Failed to create render target view for dirty rects");
+			LOG_ERROR(L"Failed to create render target view for dirty rects");
 			return hr;
 		}
 	}
@@ -506,7 +506,7 @@ HRESULT duplication_manager::CopyDirty(_In_ ID3D11Texture2D* SrcSurface, _Inout_
 	hr = m_Device->CreateShaderResourceView(SrcSurface, &ShaderDesc, &ShaderResource);
 	if (FAILED(hr))
 	{
-		ERROR(L"Failed to create shader resource view for dirty rects");
+		LOG_ERROR(L"Failed to create shader resource view for dirty rects");
 		return hr;
 	}
 
@@ -532,7 +532,7 @@ HRESULT duplication_manager::CopyDirty(_In_ ID3D11Texture2D* SrcSurface, _Inout_
 		if (!m_DirtyVertexBufferAlloc)
 		{
 			m_DirtyVertexBufferAllocSize = 0;
-			ERROR(L"Failed to allocate memory for dirty vertex buffer.");
+			LOG_ERROR(L"Failed to allocate memory for dirty vertex buffer.");
 			return E_OUTOFMEMORY;
 		}
 
@@ -561,7 +561,7 @@ HRESULT duplication_manager::CopyDirty(_In_ ID3D11Texture2D* SrcSurface, _Inout_
 	hr = m_Device->CreateBuffer(&BufferDesc, &InitData, &VertBuf);
 	if (FAILED(hr))
 	{
-		ERROR(L"Failed to create vertex buffer in dirty rect processing");
+		LOG_ERROR(L"Failed to create vertex buffer in dirty rect processing");
 		return hr;
 	}
 	UINT Stride = sizeof(VERTEX);

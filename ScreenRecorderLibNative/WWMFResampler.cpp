@@ -252,7 +252,7 @@ WWMFResampler::Resample(const BYTE *buff, DWORD bytes, WWMFSampleData *sampleDat
 
 	RETURN_ON_BAD_HR(m_pTransform->GetInputStatus(0, &dwStatus));
 	if (MFT_INPUT_STATUS_ACCEPT_DATA != dwStatus) {
-		ERROR("ApplyTransform() pTransform->GetInputStatus() not accept data.\n");
+		LOG_ERROR("ApplyTransform() pTransform->GetInputStatus() not accept data.\n");
 		return E_FAIL;
 	}
 

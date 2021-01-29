@@ -49,7 +49,7 @@ public:
 	virtual ~CMFSinkWriterCallback() {}
 	// IMFSinkWriterCallback methods
 	STDMETHODIMP OnFinalize(HRESULT hrStatus) {
-		DEBUG(L"CMFSinkWriterCallback::OnFinalize");
+		LOG_DEBUG(L"CMFSinkWriterCallback::OnFinalize");
 		if (m_hFinalizeEvent != NULL) {
 			SetEvent(m_hFinalizeEvent);
 		}
@@ -57,7 +57,7 @@ public:
 	}
 
 	STDMETHODIMP OnMarker(DWORD dwStreamIndex, LPVOID pvContext) {
-		DEBUG(L"CMFSinkWriterCallback::OnMarker");
+		LOG_DEBUG(L"CMFSinkWriterCallback::OnMarker");
 		if (m_hMarkerEvent != NULL) {
 			SetEvent(m_hMarkerEvent);
 		}

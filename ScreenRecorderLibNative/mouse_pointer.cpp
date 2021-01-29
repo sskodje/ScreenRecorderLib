@@ -249,7 +249,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 		break;
 	}
 	default:
-		ERROR("Unrecognized mouse pointer type");
+		LOG_ERROR("Unrecognized mouse pointer type");
 		return E_FAIL;
 	}
 
@@ -326,7 +326,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERROR(L"Failed to create mouse pointer texture: %ls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to create mouse pointer texture: %ls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -337,7 +337,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 		MouseTex->Release();
 		MouseTex = nullptr;
 		_com_error err(hr);
-		ERROR(L"Failed to create shader resource from mouse pointer texture: %ls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to create shader resource from mouse pointer texture: %ls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -361,7 +361,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 		MouseTex = nullptr;
 
 		_com_error err(hr);
-		ERROR(L"Failed to create mouse pointer vertex buffer: %ls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to create mouse pointer vertex buffer: %ls", err.ErrorMessage());
 		return hr;
 	}
 	ID3D11RenderTargetView* RTV;
@@ -481,7 +481,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERROR(L"Failed creating staging texture for pointer: %ls", err.ErrorMessage());
+		LOG_ERROR(L"Failed creating staging texture for pointer: %ls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -500,7 +500,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERROR(L"Failed to QI staging texture into IDXGISurface for pointer: %lls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to QI staging texture into IDXGISurface for pointer: %lls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -512,7 +512,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 		CopySurface->Release();
 		CopySurface = nullptr;
 		_com_error err(hr);
-		ERROR(L"Failed to map surface for pointer: %lls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to map surface for pointer: %lls", err.ErrorMessage());
 		return hr;
 	}
 	auto bufSize = *PtrWidth * *PtrHeight * BPP;
@@ -631,7 +631,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERROR(L"Failed to allocate memory for new mouse shape buffer: %lls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to allocate memory for new mouse shape buffer: %lls", err.ErrorMessage());
 		return hr;
 	}
 	return hr;
@@ -648,7 +648,7 @@ HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Dev
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERROR(L"Failed to create vertex shader: %lls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to create vertex shader: %lls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -662,7 +662,7 @@ HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Dev
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERROR(L"Failed to create input layout: %lls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to create input layout: %lls", err.ErrorMessage());
 		return hr;
 	}
 	DeviceContext->IASetInputLayout(m_InputLayout);
@@ -672,7 +672,7 @@ HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Dev
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERROR(L"Failed to create pixel shader: %lls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to create pixel shader: %lls", err.ErrorMessage());
 	}
 	return hr;
 }
@@ -690,7 +690,7 @@ HRESULT mouse_pointer::ResizeShapeBuffer(PTR_INFO* PtrInfo, int bufferSize) {
 		if (!PtrInfo->PtrShapeBuffer)
 		{
 			PtrInfo->BufferSize = 0;
-			ERROR(L"Failed to allocate memory for pointer shape in DUPLICATIONMANAGER");
+			LOG_ERROR(L"Failed to allocate memory for pointer shape in DUPLICATIONMANAGER");
 			return E_OUTOFMEMORY;
 		}
 
@@ -756,7 +756,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 		PtrInfo->PtrShapeBuffer = nullptr;
 		PtrInfo->BufferSize = 0;
 		_com_error err(hr);
-		ERROR(L"Failed to get frame pointer shape in DUPLICATIONMANAGER: %lls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to get frame pointer shape in DUPLICATIONMANAGER: %lls", err.ErrorMessage());
 		return hr;
 	}
 

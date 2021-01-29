@@ -171,7 +171,7 @@ HRESULT duplication_capture::StartCapture(_In_ std::vector<std::wstring> outputs
 HRESULT duplication_capture::StopCapture()
 {
 	if (!SetEvent(m_TerminateThreadsEvent)) {
-		ERROR("Could not terminate Desktop Duplication capture thread");
+		LOG_ERROR("Could not terminate Desktop Duplication capture thread");
 		return E_FAIL;
 	}
 	WaitForThreadTermination();
@@ -283,7 +283,7 @@ HRESULT duplication_capture::CreateSharedSurf(_In_ std::vector<std::wstring> out
 	hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&DxgiDevice));
 	if (FAILED(hr))
 	{
-		ERROR(L"Failed to QI for DXGI Device");
+		LOG_ERROR(L"Failed to QI for DXGI Device");
 		return hr;
 	}
 
@@ -293,7 +293,7 @@ HRESULT duplication_capture::CreateSharedSurf(_In_ std::vector<std::wstring> out
 	DxgiDevice = nullptr;
 	if (FAILED(hr))
 	{
-		ERROR(L"Failed to get parent DXGI Adapter");
+		LOG_ERROR(L"Failed to get parent DXGI Adapter");
 		return hr;
 	}
 
@@ -361,14 +361,14 @@ HRESULT duplication_capture::CreateSharedSurf(_In_ std::vector<std::wstring> out
 	hr = m_Device->CreateTexture2D(&DeskTexD, nullptr, &m_SharedSurf);
 	if (FAILED(hr))
 	{
-		ERROR(L"Failed to create shared texture");
+		LOG_ERROR(L"Failed to create shared texture");
 		return hr;
 	}
 	// Get keyed mutex
 	hr = m_SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void**>(&m_KeyMutex));
 	if (FAILED(hr))
 	{
-		ERROR(L"Failed to query for keyed mutex in OUTPUTMANAGER");
+		LOG_ERROR(L"Failed to query for keyed mutex in OUTPUTMANAGER");
 		return hr;
 	}
 
@@ -504,14 +504,14 @@ DWORD WINAPI DDProc(_In_ void* Param)
 		hr = TData->DxRes.Device->OpenSharedResource(TData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&SharedSurf));
 		if (FAILED(hr))
 		{
-			ERROR(L"Opening shared texture failed");
+			LOG_ERROR(L"Opening shared texture failed");
 			goto Exit;
 		}
 		ReleaseOnExit releaseSharedSurf(SharedSurf);
 		hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void**>(&KeyMutex));
 		if (FAILED(hr))
 		{
-			ERROR(L"Failed to get keyed mutex interface in spawned thread");
+			LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");
 			goto Exit;
 		}
 		ReleaseOnExit releaseMutex(KeyMutex);
@@ -563,7 +563,7 @@ DWORD WINAPI DDProc(_In_ void* Param)
 			else if (FAILED(hr))
 			{
 				// Generic unknown failure
-				ERROR(L"Unexpected error acquiring KeyMutex");
+				LOG_ERROR(L"Unexpected error acquiring KeyMutex");
 				pDuplicationManager.DoneWithFrame();
 				break;
 			}
@@ -595,7 +595,7 @@ DWORD WINAPI DDProc(_In_ void* Param)
 			hr = KeyMutex->ReleaseSync(1);
 			if (FAILED(hr))
 			{
-				ERROR(L"Unexpected error releasing the keyed mutex");
+				LOG_ERROR(L"Unexpected error releasing the keyed mutex");
 				pDuplicationManager.DoneWithFrame();
 				break;
 			}
@@ -620,7 +620,7 @@ Exit:
 		{
 		case DXGI_ERROR_DEVICE_REMOVED:
 		case DXGI_ERROR_DEVICE_RESET:
-			ERROR(L"Display device unavailable: %s", err.ErrorMessage());
+			LOG_ERROR(L"Display device unavailable: %s", err.ErrorMessage());
 			isUnexpectedError = true;
 			break;
 		case E_ACCESSDENIED:
@@ -631,15 +631,15 @@ Exit:
 			//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application is launching, or similar.
 			//We continue the recording, and instead of desktop texture just add a blank texture instead.
 			isExpectedError = true;
-			WARN(L"Desktop duplication temporarily unavailable: hr = 0x%08x, error = %s", hr, err.ErrorMessage());
+			LOG_WARN(L"Desktop duplication temporarily unavailable: hr = 0x%08x, error = %s", hr, err.ErrorMessage());
 			break;
 		case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
-			ERROR(L"Error reinitializing desktop duplication with DXGI_ERROR_NOT_CURRENTLY_AVAILABLE. This means DXGI reached the limit on the maximum number of concurrent duplication applications (default of four). Therefore, the calling application cannot create any desktop duplication interfaces until the other applications close");
+			LOG_ERROR(L"Error reinitializing desktop duplication with DXGI_ERROR_NOT_CURRENTLY_AVAILABLE. This means DXGI reached the limit on the maximum number of concurrent duplication applications (default of four). Therefore, the calling application cannot create any desktop duplication interfaces until the other applications close");
 			isUnexpectedError = true;
 			break;
 		default:
 			//Unexpected error, return.
-			ERROR(L"Error reinitializing desktop duplication with unexpected error, aborting: %s", err.ErrorMessage());
+			LOG_ERROR(L"Error reinitializing desktop duplication with unexpected error, aborting: %s", err.ErrorMessage());
 			isUnexpectedError = true;
 			break;
 		}
