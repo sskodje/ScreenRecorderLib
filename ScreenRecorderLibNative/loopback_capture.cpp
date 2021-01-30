@@ -303,9 +303,9 @@ HRESULT loopback_capture::LoopbackCapture(
 			m_RecordedBytes.insert(m_RecordedBytes.end(), &pData[0], &pData[size]);
 			//This should reduce glitching if there is discontinuity in the audio stream.
 			if (isDiscontinuity) {
-				int frameDiff = nDevicePosition - nLastDevicePosition;
+				UINT64 frameDiff = nDevicePosition - nLastDevicePosition;
 				if (frameDiff != nNumFramesToRead) {
-					m_RecordedBytes.insert(m_RecordedBytes.begin(), frameDiff * nBlockAlign, 0);
+					m_RecordedBytes.insert(m_RecordedBytes.begin(), (size_t)(frameDiff * nBlockAlign), 0);
 					LOG_DEBUG(L"Discontinuity detected, padded audio bytes with %d bytes of silence on %ls", frameDiff, m_Tag.c_str());
 				}
 			}

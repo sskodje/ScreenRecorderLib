@@ -636,9 +636,9 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 				}
 			}
 			if (delay) {
-				UINT64 delay = 1;
+				unsigned int delay = 1;
 				if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
-					delay = HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
+					delay = (unsigned int)HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
 				}
 				wait(delay);
 				continue;
@@ -885,9 +885,9 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 				}
 			}
 			if (delay) {
-				UINT64 delay = 1;
+				unsigned int delay = 1;
 				if (durationSinceLastFrameMillis < videoFrameDurationMillis) {
-					delay = HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
+					delay = (unsigned int)HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
 				}
 				wait(delay);
 				continue;
@@ -1626,11 +1626,11 @@ HRESULT internal_recorder::DrawMousePointer(_In_ ID3D11Texture2D * frame, _In_ m
 	{
 		if (g_LastMouseClickButton == VK_LBUTTON)
 		{
-			hr = pMousePointer->DrawMouseClick(&ptrInfo, frame, m_MouseClickDetectionLMBColor, m_MouseClickDetectionRadius, screenRotation);
+			hr = pMousePointer->DrawMouseClick(&ptrInfo, frame, m_MouseClickDetectionLMBColor, (float)m_MouseClickDetectionRadius, screenRotation);
 		}
 		if (g_LastMouseClickButton == VK_RBUTTON)
 		{
-			hr = pMousePointer->DrawMouseClick(&ptrInfo, frame, m_MouseClickDetectionRMBColor, m_MouseClickDetectionRadius, screenRotation);
+			hr = pMousePointer->DrawMouseClick(&ptrInfo, frame, m_MouseClickDetectionRMBColor, (float)m_MouseClickDetectionRadius, screenRotation);
 		}
 		INT64 millis = max(HundredNanosToMillis(durationSinceLastFrame100Nanos), 0);
 		g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millis, 0);
@@ -1848,8 +1848,8 @@ HRESULT internal_recorder::TakeSnapshotsWithVideo(_In_ ID3D11Texture2D* frame, _
 	if (frameDesc.Width != destWidth
 		|| frameDesc.Height != destHeight) {
 		//If the source frame is larger than the destionation rect, we crop it, to avoid black borders around the snapshots.
-		frameDesc.Width = min(destWidth, frameDesc.Width);
-		frameDesc.Height = min(destHeight, frameDesc.Height);
+		frameDesc.Width = min((UINT)destWidth, frameDesc.Width);
+		frameDesc.Height = min((UINT)destHeight, frameDesc.Height);
 		RETURN_ON_BAD_HR(hr = CropFrame(frame, frameDesc, destRect, &m_pFrameCopyForSnapshotsWithVideo));
 	}
 	else {

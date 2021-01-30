@@ -516,7 +516,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 		return hr;
 	}
 	auto bufSize = *PtrWidth * *PtrHeight * BPP;
-	if (_InitBuffer.size() < bufSize)
+	if ((int)_InitBuffer.size() < bufSize)
 	{
 		_InitBuffer.resize(bufSize);
 		_DesktopBuffer.resize(bufSize);
@@ -679,7 +679,7 @@ HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Dev
 
 HRESULT mouse_pointer::ResizeShapeBuffer(PTR_INFO* PtrInfo, int bufferSize) {
 	// Old buffer too small
-	if (bufferSize > PtrInfo->BufferSize)
+	if (bufferSize > (int)PtrInfo->BufferSize)
 	{
 		if (PtrInfo->PtrShapeBuffer)
 		{

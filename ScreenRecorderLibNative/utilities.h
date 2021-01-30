@@ -85,6 +85,6 @@ inline INT64 MillisToHundredNanos(INT64 millis) {
 }
 
 inline INT64 HundredNanosToMillis(INT64 hundredNanos) {
-	return round((double)hundredNanos / 10 / 1000);
+	return (INT64)round((double)hundredNanos / 10 / 1000);
 }
 
