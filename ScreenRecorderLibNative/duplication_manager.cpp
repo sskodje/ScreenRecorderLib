@@ -1,6 +1,7 @@
 #include "duplication_manager.h"
 #include "log.h"
 #include "cleanup.h"
+#include <suppress.h>
 using namespace DirectX;
 
 //
