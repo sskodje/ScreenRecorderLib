@@ -257,11 +257,11 @@ private:
 	void CleanupResourcesAndShutDownMF();
 	void SetRecordingCompleteStatus(_In_ HRESULT hr);
 	HRESULT StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pStream);
-	HRESULT StartDesktopDuplicationRecorderLoop(_In_opt_ IStream *pStream, _In_opt_ IDXGIOutput *pSelectedOutput);
+	HRESULT StartDesktopDuplicationRecorderLoop(_In_opt_ IStream *pStream);
 	HRESULT RenderFrame(_In_ FrameWriteModel& model);
 	HRESULT ConfigureOutputDir(_In_ std::wstring path);
 	HRESULT InitializeDesc(RECT outputRect, _Out_ D3D11_TEXTURE2D_DESC *pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC *pDestFrameDesc, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect);
-	HRESULT InitializeDx(_In_opt_ IDXGIOutput *pDxgiOutput, _Outptr_ ID3D11DeviceContext **ppContext, _Outptr_ ID3D11Device **ppDevice);
+	HRESULT InitializeDx(_Outptr_ ID3D11DeviceContext **ppContext, _Outptr_ ID3D11Device **ppDevice);
 	HRESULT InitializeDesktopDupl(_In_ ID3D11Device *pDevice, _In_opt_ IDXGIOutput *pDxgiOutput, _Outptr_ IDXGIOutputDuplication **ppDesktopDupl, _Out_ DXGI_OUTDUPL_DESC *pOutputDuplDesc);
 	HRESULT InitializeVideoSinkWriter(_In_ std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device* pDevice, _In_ RECT sourceRect, _In_ RECT destRect, _In_ DXGI_MODE_ROTATION rotation, _In_ IMFSinkWriterCallback *pCallback, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex);
 	HRESULT ConfigureOutputMediaTypes(_In_ UINT destWidth, _In_ UINT destHeight, _Outptr_ IMFMediaType **pVideoMediaTypeOut, _Outptr_result_maybenull_ IMFMediaType **pAudioMediaTypeOut);
@@ -273,7 +273,7 @@ private:
 	void WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, _In_ std::wstring filePath);
 	HRESULT TakeSnapshotsWithVideo(_In_ ID3D11Texture2D* frame, _In_ D3D11_TEXTURE2D_DESC frameDesc, _In_ RECT destRect);
 	HRESULT WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE *pSrc, _In_ DWORD cbData);
-	HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_result_maybenull_ IDXGIOutput **adapter);
+	HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **adapter);
 	HRESULT SetAttributeU32(_Inout_ ATL::CComPtr<ICodecAPI>& codec, _In_ const GUID& guid, _In_ UINT32 value);
 	HRESULT CreateInputMediaTypeFromOutput(_In_ IMFMediaType *pType, _In_ const GUID& subtype, _Outptr_ IMFMediaType **ppType);
 	HRESULT DrawMousePointer(_In_ ID3D11Texture2D *frame, _In_ mouse_pointer *pointer, _In_ PTR_INFO ptrInfo, _In_ DXGI_MODE_ROTATION screenRotation, _In_ INT64 durationSinceLastFrame100Nanos);

@@ -256,9 +256,7 @@ HRESULT internal_recorder::BeginRecording(_In_opt_ std::wstring path, _In_opt_ I
 		RETURN_ON_BAD_HR(hr);
 		RETURN_ON_BAD_HR(hr = MFStartup(MF_VERSION, MFSTARTUP_LITE));
 		InitializeMouseClickDetection();
-		CComPtr<IDXGIOutput> pSelectedOutput = nullptr;
-		hr = GetOutputForDeviceName(m_DisplayOutputName, &pSelectedOutput);
-		RETURN_ON_BAD_HR(hr = InitializeDx(pSelectedOutput, &m_ImmediateContext, &m_Device));
+		RETURN_ON_BAD_HR(hr = InitializeDx(&m_ImmediateContext, &m_Device));
 
 		if (RecordingStatusChangedCallback != nullptr) {
 			RecordingStatusChangedCallback(STATUS_RECORDING);
@@ -269,7 +267,7 @@ HRESULT internal_recorder::BeginRecording(_In_opt_ std::wstring path, _In_opt_ I
 			RETURN_ON_BAD_HR(hr = StartGraphicsCaptureRecorderLoop(stream));
 		}
 		else if (m_RecorderApi == API_DESKTOP_DUPLICATION) {
-			RETURN_ON_BAD_HR(hr = StartDesktopDuplicationRecorderLoop(stream, pSelectedOutput));
+			RETURN_ON_BAD_HR(hr = StartDesktopDuplicationRecorderLoop(stream));
 		}
 		LOG_INFO("Exiting recording task");
 		return hr;
@@ -707,7 +705,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 	return hr;
 }
 
-HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream *pStream, _In_opt_ IDXGIOutput *pSelectedOutput)
+HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream *pStream)
 {
 	LOG_DEBUG("Starting Desktop Duplication recorder loop");
 	std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = nullptr;
@@ -738,7 +736,10 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 	}
 	CloseHandleOnExit closeExpectedErrorEvent(ExpectedErrorEvent);
 
-	std::vector<std::wstring> outputs{};
+	std::vector<std::wstring> outputs{ };
+	if (GetOutputForDeviceName(m_DisplayOutputName, nullptr) == S_OK) {
+		outputs.push_back(m_DisplayOutputName);
+	}
 	auto pCapture = std::make_unique<duplication_capture>(m_Device, m_ImmediateContext);
 	RETURN_ON_BAD_HR(hr = pCapture->StartCapture(outputs, UnexpectedErrorEvent, ExpectedErrorEvent));
 	DesktopDuplicationCaptureStopOnExit stopCaptureOnExit(pCapture.get());
@@ -1082,7 +1083,7 @@ HRESULT internal_recorder::InitializeDesc(RECT outputRect, _Out_ D3D11_TEXTURE2D
 	return S_OK;
 }
 
-HRESULT internal_recorder::InitializeDx(_In_opt_ IDXGIOutput * pDxgiOutput, _Outptr_ ID3D11DeviceContext * *ppContext, _Outptr_ ID3D11Device * *ppDevice) {
+HRESULT internal_recorder::InitializeDx(_Outptr_ ID3D11DeviceContext * *ppContext, _Outptr_ ID3D11Device * *ppDevice) {
 	*ppContext = nullptr;
 	*ppDevice = nullptr;
 
@@ -1235,9 +1236,11 @@ RECT internal_recorder::MakeRectEven(_In_ RECT rect)
 	return rect;
 }
 
-HRESULT internal_recorder::GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_result_maybenull_ IDXGIOutput **ppOutput) {
-	HRESULT hr = S_OK;
-	*ppOutput = nullptr;
+HRESULT internal_recorder::GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **ppOutput) {
+	HRESULT hr = S_FALSE;
+	if (ppOutput) {
+		*ppOutput = nullptr;
+	}
 	if (deviceName != L"") {
 		std::vector<CComPtr<IDXGIAdapter>> adapters = EnumDisplayAdapters();
 		for (CComPtr<IDXGIAdapter> adapter : adapters)
@@ -1251,14 +1254,17 @@ HRESULT internal_recorder::GetOutputForDeviceName(_In_ std::wstring deviceName, 
 
 				if (desc.DeviceName == deviceName) {
 					// Return the pointer to the caller.
-					*ppOutput = pOutput;
-					(*ppOutput)->AddRef();
+					hr = S_OK;
+					if (ppOutput) {
+						*ppOutput = pOutput;
+						(*ppOutput)->AddRef();
+					}
 					break;
 				}
 				SafeRelease(&pOutput);
 				i++;
 			}
-			if (*ppOutput) {
+			if (ppOutput && *ppOutput) {
 				break;
 			}
 		}
