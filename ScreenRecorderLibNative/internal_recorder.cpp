@@ -1158,57 +1158,6 @@ HRESULT internal_recorder::InitializeDx(_Outptr_ ID3D11DeviceContext * *ppContex
 	return hr;
 }
 
-HRESULT internal_recorder::InitializeDesktopDupl(_In_ ID3D11Device * pDevice, _In_opt_ IDXGIOutput * pDxgiOutput, _Outptr_ IDXGIOutputDuplication * *ppDesktopDupl, _Out_ DXGI_OUTDUPL_DESC * pOutputDuplDesc) {
-	*ppDesktopDupl = nullptr;
-
-	// Get DXGI device
-	CComPtr<IDXGIDevice> pDxgiDevice = nullptr;
-	CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
-	DXGI_OUTDUPL_DESC OutputDuplDesc;
-	RtlZeroMemory(&OutputDuplDesc, sizeof(OutputDuplDesc));
-	HRESULT hr = S_OK;
-	if (!pDxgiOutput) {
-		hr = pDevice->QueryInterface(IID_PPV_ARGS(&pDxgiDevice));
-		RETURN_ON_BAD_HR(hr);
-		// Get DXGI adapter
-		CComPtr<IDXGIAdapter> pDxgiAdapter = nullptr;
-		hr = pDxgiDevice->GetParent(
-			__uuidof(IDXGIAdapter),
-			reinterpret_cast<void**>(&pDxgiAdapter));
-		pDxgiDevice.Release();
-		RETURN_ON_BAD_HR(hr);
-
-		// Get pDxgiOutput
-		hr = pDxgiAdapter->EnumOutputs(
-			m_DisplayOutput,
-			&pDxgiOutput);
-
-		RETURN_ON_BAD_HR(hr);
-		pDxgiAdapter.Release();
-	}
-
-	RETURN_ON_BAD_HR(hr);
-	CComPtr<IDXGIOutput1> pDxgiOutput1 = nullptr;
-
-	hr = pDxgiOutput->QueryInterface(IID_PPV_ARGS(&pDxgiOutput1));
-	RETURN_ON_BAD_HR(hr);
-
-	// Create desktop duplication
-	hr = pDxgiOutput1->DuplicateOutput(
-		pDevice,
-		&pDeskDupl);
-	RETURN_ON_BAD_HR(hr);
-	pDxgiOutput1.Release();
-
-	// Create GUI drawing texture
-	pDeskDupl->GetDesc(&OutputDuplDesc);
-
-	*ppDesktopDupl = pDeskDupl;
-	(*ppDesktopDupl)->AddRef();
-	*pOutputDuplDesc = OutputDuplDesc;
-	return hr;
-}
-
 //
 // Set new viewport
 //

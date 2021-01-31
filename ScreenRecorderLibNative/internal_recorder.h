@@ -142,8 +142,6 @@ public:
 	void SetSnapthotsWithVideoInterval(UINT32 value) { m_SnapshotsWithVideoInterval = std::chrono::seconds(value); }
 	static bool SetExcludeFromCapture(HWND hwnd, bool isExcluded);
 
-	[[deprecated]]
-	void SetDisplayOutput(UINT32 output) { m_DisplayOutput = output; }
 	void SetDisplayOutput(std::wstring output) { m_DisplayOutputName = output; }
 	void SetWindowHandle(HWND handle) { m_WindowHandle = handle; }
 	void SetRecorderMode(UINT32 mode) { m_RecorderMode = mode; }
@@ -198,8 +196,6 @@ private:
 	UINT32 m_MaxFrameLength100Nanos = 1000 * 1000 * 10; //1 second in 100 nanoseconds measure.
 	UINT32 m_RecorderMode = MODE_VIDEO;
 	UINT32 m_RecorderApi = API_DESKTOP_DUPLICATION;
-	[[deprecated]]
-	UINT m_DisplayOutput = 0; //Display output, where 0 is primary display.
 	std::wstring m_DisplayOutputName = L""; //Display output device name, e.g. \\.\DISPLAY1
 	HWND m_WindowHandle = nullptr;
 	RECT m_DestRect = { 0,0,0,0 };
@@ -262,7 +258,6 @@ private:
 	HRESULT ConfigureOutputDir(_In_ std::wstring path);
 	HRESULT InitializeDesc(RECT outputRect, _Out_ D3D11_TEXTURE2D_DESC *pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC *pDestFrameDesc, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect);
 	HRESULT InitializeDx(_Outptr_ ID3D11DeviceContext **ppContext, _Outptr_ ID3D11Device **ppDevice);
-	HRESULT InitializeDesktopDupl(_In_ ID3D11Device *pDevice, _In_opt_ IDXGIOutput *pDxgiOutput, _Outptr_ IDXGIOutputDuplication **ppDesktopDupl, _Out_ DXGI_OUTDUPL_DESC *pOutputDuplDesc);
 	HRESULT InitializeVideoSinkWriter(_In_ std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device* pDevice, _In_ RECT sourceRect, _In_ RECT destRect, _In_ DXGI_MODE_ROTATION rotation, _In_ IMFSinkWriterCallback *pCallback, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex);
 	HRESULT ConfigureOutputMediaTypes(_In_ UINT destWidth, _In_ UINT destHeight, _Outptr_ IMFMediaType **pVideoMediaTypeOut, _Outptr_result_maybenull_ IMFMediaType **pAudioMediaTypeOut);
 	HRESULT ConfigureInputMediaTypes(_In_ UINT sourceWidth, _In_ UINT sourceHeight, _In_ MFVideoRotationFormat rotationFormat, _In_ IMFMediaType *pVideoMediaTypeOut, _Outptr_ IMFMediaType **pVideoMediaTypeIn, _Outptr_result_maybenull_ IMFMediaType **pAudioMediaTypeIn);
