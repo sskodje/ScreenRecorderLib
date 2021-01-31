@@ -586,7 +586,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 				previousInputFrameRect = videoInputFrameRect;
 			}
 			// Get mouse info. Windows Graphics Capture includes the mouse cursor on the texture, so we only get the positioning info for mouse click draws.
-			gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, -windowPositionOnDesktop.left, -windowPositionOnDesktop.top, videoInputFrameRect, false));
+			gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, videoInputFrameRect, false, -windowPositionOnDesktop.left, -windowPositionOnDesktop.top));
 			frame.Close();
 		}
 		else if (sourceFrameDesc.Width == 0) {

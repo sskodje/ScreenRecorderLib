@@ -574,7 +574,7 @@ DWORD WINAPI DDProc(_In_ void* Param)
 			WaitToProcessCurrentFrame = false;
 
 			// Get mouse info
-			hr = pMousePointer.GetMouse(TData->PtrInfo, &(CurrentData.FrameInfo), DesktopDesc.DesktopCoordinates, pDuplicationManager.GetOutputDuplication());
+			hr = pMousePointer.GetMouse(TData->PtrInfo, &(CurrentData.FrameInfo), DesktopDesc.DesktopCoordinates, pDuplicationManager.GetOutputDuplication(), TData->OffsetX, TData->OffsetY);
 			if (FAILED(hr))
 			{
 				pDuplicationManager.DoneWithFrame();

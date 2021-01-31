@@ -703,10 +703,8 @@ HRESULT mouse_pointer::ResizeShapeBuffer(PTR_INFO* PtrInfo, int bufferSize) {
 //
 // Retrieves mouse info and write it into PtrInfo
 //
-HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO* FrameInfo, RECT screenRect, IDXGIOutputDuplication* DeskDupl)
+HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO* FrameInfo, RECT screenRect, IDXGIOutputDuplication* DeskDupl, int offsetX, int offsetY)
 {
-	int offsetX = min(screenRect.left, INT_MAX);
-	int offsetY = min(screenRect.top, INT_MAX);
 	// A non-zero mouse update timestamp indicates that there is a mouse position update and optionally a shape change
 	if (FrameInfo->LastMouseUpdateTime.QuadPart == 0)
 	{
@@ -763,10 +761,8 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 	return S_OK;
 }
 
-HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, int offsetX, int offsetY, RECT screenRect, bool getShapeBuffer)
+HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, RECT screenRect, bool getShapeBuffer, int offsetX, int offsetY)
 {
-	int screenOffsetX = min(screenRect.left, INT_MAX);
-	int screenOffsetY = min(screenRect.top, INT_MAX);
 	CURSORINFO cursorInfo = { 0 };
 	cursorInfo.cbSize = sizeof(CURSORINFO);
 	if (!GetCursorInfo(&cursorInfo)) {
@@ -872,8 +868,8 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, int offsetX, int off
 	shapeInfo.Type = cursorType;
 	shapeInfo.Pitch = widthBytes;
 
-	cursorInfo.ptScreenPos.x = cursorInfo.ptScreenPos.x + offsetX + screenRect.left - screenOffsetX - hotSpot.x;
-	cursorInfo.ptScreenPos.y = cursorInfo.ptScreenPos.y + offsetY + screenRect.top - screenOffsetY - hotSpot.y;
+	cursorInfo.ptScreenPos.x = cursorInfo.ptScreenPos.x + offsetX + screenRect.left - hotSpot.x;
+	cursorInfo.ptScreenPos.y = cursorInfo.ptScreenPos.y + offsetY + screenRect.top - hotSpot.y;
 	PtrInfo->Position = cursorInfo.ptScreenPos;
 	PtrInfo->ShapeInfo = shapeInfo;
 	PtrInfo->Visible = isVisible;
