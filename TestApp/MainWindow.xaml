@@ -75,10 +75,18 @@
 
                 <ComboBox x:Name="ScreenComboBox"
                           Margin="0,5"
+                          IsEditable="True"
+                          IsReadOnly="True"
+                          SelectedItem="{Binding ElementName=MainWin,Path=SelectedDisplayOutput,Mode=TwoWay}"
                           SelectionChanged="ScreenComboBox_SelectionChanged">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
+                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                          Checked="CheckBox_CheckedChanged"
+                                          Unchecked="CheckBox_CheckedChanged"
+                                          IsEnabled="{Binding IsCheckable}"
+                                          Width="20" />
                                 <TextBlock Text="{Binding DisplayName, Mode=OneTime}" />
                                 <TextBlock Text=" (" />
                                 <TextBlock Text="{Binding DeviceName, Mode=OneTime}" />

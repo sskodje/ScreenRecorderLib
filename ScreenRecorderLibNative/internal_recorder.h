@@ -141,8 +141,8 @@ public:
 	void SetTakeSnapthotsWithVideo(bool isEnabled) { m_TakesSnapshotsWithVideo = isEnabled; }
 	void SetSnapthotsWithVideoInterval(UINT32 value) { m_SnapshotsWithVideoInterval = std::chrono::seconds(value); }
 	static bool SetExcludeFromCapture(HWND hwnd, bool isExcluded);
-
-	void SetDisplayOutput(std::wstring output) { m_DisplayOutputName = output; }
+	void SetDisplayOutput(std::wstring output) { m_DisplayOutputDevices = { output }; }
+	void SetDisplayOutput(std::vector<std::wstring> outputs) { m_DisplayOutputDevices = outputs; }
 	void SetWindowHandle(HWND handle) { m_WindowHandle = handle; }
 	void SetRecorderMode(UINT32 mode) { m_RecorderMode = mode; }
 	void SetRecorderApi(UINT32 api) { m_RecorderApi = api; }
@@ -196,8 +196,8 @@ private:
 	UINT32 m_MaxFrameLength100Nanos = 1000 * 1000 * 10; //1 second in 100 nanoseconds measure.
 	UINT32 m_RecorderMode = MODE_VIDEO;
 	UINT32 m_RecorderApi = API_DESKTOP_DUPLICATION;
-	std::wstring m_DisplayOutputName = L""; //Display output device name, e.g. \\.\DISPLAY1
-	HWND m_WindowHandle = nullptr;
+	std::vector<std::wstring> m_DisplayOutputDevices = {};
+	HWND m_WindowHandle = nullptr; 
 	RECT m_DestRect = { 0,0,0,0 };
 	std::wstring m_AudioOutputDevice = L"";
 	std::wstring m_AudioInputDevice = L"";

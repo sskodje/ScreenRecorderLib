@@ -60,6 +60,8 @@ namespace TestApp
         public string LogFilePath { get; set; } = "log.txt";
         public bool IsLogToFileEnabled { get; set; }
         public bool IsLogEnabled { get; set; } = true;
+        public DisplayOutput SelectedDisplayOutput { get; set; }
+
         public LogLevel LogSeverityLevel { get; set; } = LogLevel.Debug;
 
         private bool _recordToStream;
@@ -268,6 +270,11 @@ namespace TestApp
 
             string audioOutputDevice = AudioOutputsComboBox.SelectedValue as string;
             string audioInputDevice = AudioInputsComboBox.SelectedValue as string;
+            List<string> displayDevicesToRecord = this.ScreenComboBox.Items.Cast<DisplayOutput>().Where(x => x.IsSelected).Select(x => x.DisplayName).ToList();
+            if (displayDevicesToRecord.Count == 0 && this.ScreenComboBox.SelectedItem != null)
+            {
+                displayDevicesToRecord.Add(((DisplayOutput)this.ScreenComboBox.SelectedItem).DisplayName);
+            }
 
             RecorderOptions options = new RecorderOptions
             {
@@ -308,7 +315,7 @@ namespace TestApp
                 },
                 DisplayOptions = new DisplayOptions
                 {
-                    MonitorDeviceName = selectedDisplay.DisplayName,
+                    DisplayDevices = displayDevicesToRecord,
                     WindowHandle = selectedWindowHandle,
                     Left = left,
                     Top = top,
@@ -479,7 +486,7 @@ namespace TestApp
         {
             if (e.AddedItems.Count == 0)
                 return;
-
+            SetComboBoxTitle();
             if (this.WindowComboBox.SelectedIndex == 0)
             {
                 SetScreenRect();
@@ -488,11 +495,26 @@ namespace TestApp
 
         private void SetScreenRect()
         {
-            if (this.ScreenComboBox.SelectedIndex >= 0)
+            var checkedScreens = this.ScreenComboBox.Items.Cast<DisplayOutput>().Where(x => x.IsSelected).ToList();
+            if (checkedScreens.Count > 0)
+            {
+                this.RecordingAreaRightTextBox.Text = checkedScreens.Max(x => x.Position.X + x.Width).ToString();
+                this.RecordingAreaBottomTextBox.Text = checkedScreens.Max(x => x.Position.Y + x.Height).ToString();
+                this.RecordingAreaLeftTextBox.Text = 0.ToString();
+                this.RecordingAreaTopTextBox.Text = 0.ToString();
+            }
+            else if (this.ScreenComboBox.SelectedItem != null)
             {
                 var screen = this.ScreenComboBox.SelectedItem as DisplayOutput;
                 this.RecordingAreaRightTextBox.Text = screen.Width.ToString();
                 this.RecordingAreaBottomTextBox.Text = screen.Height.ToString();
+                this.RecordingAreaLeftTextBox.Text = 0.ToString();
+                this.RecordingAreaTopTextBox.Text = 0.ToString();
+            }
+            else
+            {
+                this.RecordingAreaRightTextBox.Text = 0.ToString();
+                this.RecordingAreaBottomTextBox.Text = 0.ToString();
                 this.RecordingAreaLeftTextBox.Text = 0.ToString();
                 this.RecordingAreaTopTextBox.Text = 0.ToString();
             }
@@ -646,6 +668,7 @@ namespace TestApp
             {
                 DeviceName = null,
                 DisplayName = "All monitors",
+                IsCheckable = false,
                 Width = 0,
                 Height = 0
             });
@@ -656,7 +679,8 @@ namespace TestApp
                     DeviceName = target.DeviceName,
                     DisplayName = target.DisplayName,
                     Width = target.CurrentSetting.Resolution.Width,
-                    Height = target.CurrentSetting.Resolution.Height
+                    Height = target.CurrentSetting.Resolution.Height,
+                    Position = target.CurrentSetting.Position
                 });
             }
 
@@ -699,6 +723,23 @@ namespace TestApp
 
             AudioOutputsComboBox.SelectedIndex = 0;
             AudioInputsComboBox.SelectedIndex = 0;
+        }
+
+        private void CheckBox_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            SetComboBoxTitle();
+            SetScreenRect();
+        }
+        private void SetComboBoxTitle()
+        {
+            this.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
+            {
+                if (this.ScreenComboBox.Items.Cast<DisplayOutput>().Any(x => x.IsSelected))
+                {
+                    var displays = this.ScreenComboBox.Items.Cast<DisplayOutput>().Where(x => x.IsSelected).Select(x => $"{x.DisplayName} ({x.DeviceName})");
+                    this.ScreenComboBox.Text = string.Join(", ", displays);
+                }
+            }));
         }
     }
 

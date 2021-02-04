@@ -737,8 +737,11 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 	CloseHandleOnExit closeExpectedErrorEvent(ExpectedErrorEvent);
 
 	std::vector<std::wstring> outputs{ };
-	if (GetOutputForDeviceName(m_DisplayOutputName, nullptr) == S_OK) {
-		outputs.push_back(m_DisplayOutputName);
+	for each (std::wstring display in m_DisplayOutputDevices)
+	{
+		if (GetOutputForDeviceName(display, nullptr) == S_OK) {
+			outputs.push_back(display);
+		}
 	}
 	auto pCapture = std::make_unique<duplication_capture>(m_Device, m_ImmediateContext);
 	RETURN_ON_BAD_HR(hr = pCapture->StartCapture(outputs, UnexpectedErrorEvent, ExpectedErrorEvent));
@@ -1622,8 +1625,13 @@ HRESULT internal_recorder::CreateCaptureItem(_Out_ GraphicsCaptureItem *item)
 		*item = capture::util::CreateCaptureItemForWindow(m_WindowHandle);
 	}
 	else {
+
+		std::wstring displayName = L"";
+		if (m_DisplayOutputDevices.size() > 0) {
+			displayName = m_DisplayOutputDevices[0];
+		}
 		auto pMonitorList = std::make_unique<monitor_list>(false);
-		auto monitor = pMonitorList->GetMonitorForDisplayName(m_DisplayOutputName);
+		auto monitor = pMonitorList->GetMonitorForDisplayName(displayName);
 		if (!monitor.has_value()) {
 			if (pMonitorList->GetCurrentMonitors().size() == 0) {
 				LOG_ERROR("Failed to find any monitors to record");
@@ -1631,7 +1639,7 @@ HRESULT internal_recorder::CreateCaptureItem(_Out_ GraphicsCaptureItem *item)
 			}
 			monitor = pMonitorList->GetCurrentMonitors().at(0);
 		}
-		LOG_INFO(L"Recording monitor %ls using Windows.Graphics.Capture", m_DisplayOutputName.c_str());
+		LOG_INFO(L"Recording monitor %ls using Windows.Graphics.Capture", displayName.c_str());
 		*item = capture::util::CreateCaptureItemForMonitor(monitor->MonitorHandle);
 	}
 	return S_OK;

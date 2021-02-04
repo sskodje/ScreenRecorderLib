@@ -107,42 +107,16 @@ namespace ScreenRecorderLib {
 	};
 	public ref class DisplayOptions {
 	public:
-		property String^ MonitorDeviceName;
+		property List<String^>^ DisplayDevices;
 		property IntPtr WindowHandle;
 		property int Left;
 		property int Top;
 		property int Right;
 		property int Bottom;
 		DisplayOptions() {
-
-		}
-		DisplayOptions(int left, int top, int right, int bottom) {
-			this->DisplayOptions::DisplayOptions("", left, top, right, bottom);
+			DisplayDevices = gcnew List<String^>();
 		}
 
-		/// <summary>
-		///Select monitor to record via device name, e.g.\\.\DISPLAY1
-		/// </summary>
-		DisplayOptions(String^ monitorDeviceName) {
-			this->DisplayOptions::DisplayOptions(monitorDeviceName, 0, 0, 0, 0);
-		}
-
-		/// <summary>
-		///Select monitor to record via device name, e.g.\\.\DISPLAY1, and the rectangle to record on that monitor.
-		/// </summary>
-		DisplayOptions(String^ monitorDeviceName, int left, int top, int right, int bottom) {
-			MonitorDeviceName = monitorDeviceName;
-			Left = left;
-			Top = top;
-			Right = right;
-			Bottom = bottom;
-		}
-		/// <summary>
-		///Select monitor to record via device name, e.g.\\.\DISPLAY1, and the rectangle to record on that monitor.
-		/// </summary>
-		DisplayOptions(IntPtr windowHandle) {
-			WindowHandle = windowHandle;
-		}
 	};
 
 	public ref class VideoOptions {
@@ -334,7 +308,7 @@ namespace ScreenRecorderLib {
 		property DisplayOptions^ DisplayOptions;
 		property AudioOptions^ AudioOptions;
 		property MouseOptions^ MouseOptions;
-	};
+		};
 
 	public ref class RecordingStatusEventArgs :System::EventArgs {
 	public:
@@ -427,4 +401,4 @@ namespace ScreenRecorderLib {
 		event EventHandler<SnapshotSavedEventArgs^>^ OnSnapshotSaved;
 		ManagedIStream *m_ManagedStream;
 	};
-}
+	}

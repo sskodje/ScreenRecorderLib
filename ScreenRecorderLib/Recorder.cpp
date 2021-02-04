@@ -48,7 +48,16 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			rect.right = options->DisplayOptions->Right;
 			rect.bottom = options->DisplayOptions->Bottom;
 			lRec->SetDestRectangle(rect);
-			lRec->SetDisplayOutput(options->DisplayOptions->MonitorDeviceName ? msclr::interop::marshal_as<std::wstring>(options->DisplayOptions->MonitorDeviceName) : L"");
+			if (options->DisplayOptions->DisplayDevices) {
+				std::vector<std::wstring> displays{};
+				displays.reserve(options->DisplayOptions->DisplayDevices->Count);
+				for each (String^ str in options->DisplayOptions->DisplayDevices)
+				{
+					displays.push_back(msclr::interop::marshal_as<std::wstring>(str));
+				}
+				lRec->SetDisplayOutput(displays);
+			}
+
 			if (options->DisplayOptions->WindowHandle != IntPtr::Zero)
 				lRec->SetWindowHandle((HWND)options->DisplayOptions->WindowHandle.ToPointer());
 		}
@@ -181,7 +190,7 @@ List<RecordableWindow^>^ ScreenRecorderLib::Recorder::GetWindows()
 	List<RecordableWindow^>^ windows = gcnew List<RecordableWindow^>();
 	for each (Window win in EnumerateWindows())
 	{
-		RecordableWindow^ recordableWin = gcnew RecordableWindow(gcnew String(win.Title().c_str()),IntPtr(win.Hwnd())); 
+		RecordableWindow^ recordableWin = gcnew RecordableWindow(gcnew String(win.Title().c_str()),IntPtr(win.Hwnd()));
 		windows->Add(recordableWin);
 	}
 	return windows;
