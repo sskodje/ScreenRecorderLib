@@ -163,6 +163,17 @@ private:
 	void *m_p;
 };
 
+class DeleteGdiObjectOnExit {
+public:
+	DeleteGdiObjectOnExit(HGDIOBJ p) : m_p(p) {}
+	~DeleteGdiObjectOnExit() {
+		DeleteObject(m_p);
+	}
+
+private:
+	HGDIOBJ m_p;
+};
+
 class SetEventOnExit {
 public:
 	SetEventOnExit(HANDLE h) : m_h(h) {}

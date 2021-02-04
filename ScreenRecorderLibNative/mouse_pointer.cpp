@@ -778,6 +778,8 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, RECT screenRect, boo
 	LONG height = 0;
 	LONG widthBytes = 0;
 	LONG cursorType = 0;
+	DeleteGdiObjectOnExit deleteColor(iconInfo.hbmColor);
+	DeleteGdiObjectOnExit deleteMask(iconInfo.hbmMask);
 
 	if (iconInfo.hbmColor) {
 		BITMAP cursorBitmap;
