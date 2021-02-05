@@ -404,7 +404,7 @@ PTR_INFO* duplication_capture::GetPointerInfo()
 	return &m_PtrInfo;
 }
 
-HRESULT duplication_capture::AcquireNextFrame(_In_ ID3D11Texture2D **ppDesktopFrame, _In_  DWORD timeoutMillis, _Out_ int &updatedFrameCount)
+HRESULT duplication_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Outptr_ ID3D11Texture2D **ppDesktopFrame, _Out_ int &updatedFrameCount)
 {
 	*ppDesktopFrame = nullptr;
 	bool haveNewFrameData = false;

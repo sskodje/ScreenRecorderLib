@@ -13,7 +13,7 @@ public:
 	HRESULT StartCapture(_In_ std::vector<std::wstring> outputs, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent);
 	HRESULT StopCapture();
 	PTR_INFO* GetPointerInfo();
-	HRESULT AcquireNextFrame(_In_ ID3D11Texture2D **ppDesktopFrame, _In_ DWORD timeoutMillis, _Out_ int &updatedFrameCount);
+	HRESULT AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_ ID3D11Texture2D **ppDesktopFrame, _Out_ int &updatedFrameCount);
 	void WaitForThreadTermination();
 	RECT GetOutputRect() { return m_OutputRect; }
 private:
