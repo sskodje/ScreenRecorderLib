@@ -8,13 +8,13 @@ class duplication_manager
 public:
     duplication_manager();
     ~duplication_manager();
-    HRESULT GetFrame(_Out_ FRAME_DATA * Data);
+    HRESULT GetFrame(_Out_ DUPL_FRAME_DATA * Data);
     HRESULT DoneWithFrame();
     HRESULT Initialize(_In_ DX_RESOURCES* Data, std::wstring Output);
     void GetOutputDesc(_Out_ DXGI_OUTPUT_DESC * DescPtr);
     IDXGIOutputDuplication* GetOutputDuplication() { return m_DeskDupl; }
     ID3D11Device* GetDevice() { return m_Device; }
-    HRESULT ProcessFrame(_In_ FRAME_DATA* Data, _Inout_ ID3D11Texture2D* SharedSurf, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC* DeskDesc);
+    HRESULT ProcessFrame(_In_ DUPL_FRAME_DATA* Data, _Inout_ ID3D11Texture2D* SharedSurf, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC* DeskDesc);
 private:
     // methods
     HRESULT CopyDirty(_In_ ID3D11Texture2D* SrcSurface, _Inout_ ID3D11Texture2D* SharedSurf, _In_reads_(DirtyCount) RECT* DirtyBuffer, UINT DirtyCount, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC* DeskDesc);

@@ -530,7 +530,7 @@ DWORD WINAPI DDProc(_In_ void* Param)
 
 		// Main duplication loop
 		bool WaitToProcessCurrentFrame = false;
-		FRAME_DATA CurrentData{};
+		DUPL_FRAME_DATA CurrentData{};
 
 		while (true)
 		{

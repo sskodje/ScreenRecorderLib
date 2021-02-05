@@ -113,7 +113,7 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Ou
 //
 // Get next frame and write it into Data
 //
-HRESULT duplication_manager::GetFrame(_Out_ FRAME_DATA * Data)
+HRESULT duplication_manager::GetFrame(_Out_ DUPL_FRAME_DATA * Data)
 {
 	IDXGIResource* DesktopResource = nullptr;
 	DXGI_OUTDUPL_FRAME_INFO FrameInfo;
@@ -230,7 +230,7 @@ void duplication_manager::GetOutputDesc(_Out_ DXGI_OUTPUT_DESC * DescPtr)
 //
 // Process a given frame and its metadata
 //
-HRESULT duplication_manager::ProcessFrame(_In_ FRAME_DATA* Data, _Inout_ ID3D11Texture2D* SharedSurf, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC* DeskDesc)
+HRESULT duplication_manager::ProcessFrame(_In_ DUPL_FRAME_DATA* Data, _Inout_ ID3D11Texture2D* SharedSurf, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC* DeskDesc)
 {
 	HRESULT hr = S_OK;
 

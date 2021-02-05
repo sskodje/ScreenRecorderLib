@@ -33,16 +33,16 @@ typedef struct _VERTEX
 } VERTEX;
 
 //
-// FRAME_DATA holds information about an acquired frame
+// DUPL_FRAME_DATA holds information about an acquired frame
 //
-typedef struct _FRAME_DATA
+typedef struct _DUPL_FRAME_DATA
 {
     ID3D11Texture2D* Frame;
     DXGI_OUTDUPL_FRAME_INFO FrameInfo;
     _Field_size_bytes_((MoveCount * sizeof(DXGI_OUTDUPL_MOVE_RECT)) + (DirtyCount * sizeof(RECT))) BYTE* MetaData;
     UINT DirtyCount;
     UINT MoveCount;
-} FRAME_DATA;
+} DUPL_FRAME_DATA;
 
 //
 // Structure that holds D3D resources not directly tied to any one thread
