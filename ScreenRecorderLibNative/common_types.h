@@ -33,7 +33,7 @@ typedef struct _VERTEX
 } VERTEX;
 
 //
-// DUPL_FRAME_DATA holds information about an acquired frame
+// DUPL_FRAME_DATA holds information about an acquired Desktop Duplication frame
 //
 typedef struct _DUPL_FRAME_DATA
 {
@@ -81,3 +81,14 @@ typedef struct _THREAD_DATA
     INT UpdatedFrameCount;
     HRESULT ThreadResult;
 } THREAD_DATA;
+
+//
+// CAPTURED_FRAME holds information about a generic captured frame
+//
+typedef struct _CAPTURED_FRAME
+{
+    ID3D11Texture2D* Frame;
+    //The number of updates written to the current frame since last fetch.
+    int UpdateCount;
+    LARGE_INTEGER Timestamp;
+} CAPTURED_FRAME;

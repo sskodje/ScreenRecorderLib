@@ -828,14 +828,14 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 				pLoopbackCaptureInputDevice->ClearRecordedBytes();
 			continue;
 		}
-		int updatedFrameCount = 0;
+		CAPTURED_FRAME capturedFrame{};
 		// Get new frame
 		hr = pCapture->AcquireNextFrame(
-			&pCurrentFrameCopy,
 			0,
-			updatedFrameCount);
+			&capturedFrame);
 
 		if (SUCCEEDED(hr)) {
+			pCurrentFrameCopy.Attach(capturedFrame.Frame);
 			// Get mouse info
 			if (pCapture->GetPointerInfo()) {
 				PtrInfo = *pCapture->GetPointerInfo();
@@ -849,7 +849,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 		if (m_RecorderMode == MODE_SLIDESHOW
 			|| m_RecorderMode == MODE_SNAPSHOT) {
 
-			if (frameNr == 0 && (pCurrentFrameCopy == nullptr || updatedFrameCount == 0)) {
+			if (frameNr == 0 && (pCurrentFrameCopy == nullptr || capturedFrame.UpdateCount == 0)) {
 				continue;
 			}
 		}
@@ -868,7 +868,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 				delay = false;
 			}
 			else if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
-				if (updatedFrameCount > 0) {
+				if (capturedFrame.UpdateCount > 0) {
 					if (pCurrentFrameCopy != nullptr) {
 						//we got a frame, but it's too soon, so we cache it and see if there are more changes.
 						if (pPreviousFrameCopy == nullptr) {
