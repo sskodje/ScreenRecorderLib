@@ -19,6 +19,7 @@ typedef struct _PTR_INFO
 	DXGI_OUTDUPL_POINTER_SHAPE_INFO ShapeInfo;
 	POINT Position;
 	bool Visible;
+    bool IsPointerShapeUpdated;
 	UINT BufferSize;
 	UINT WhoUpdatedPositionLast;
 	LARGE_INTEGER LastTimeStamp;
@@ -87,6 +88,7 @@ typedef struct _THREAD_DATA
 //
 typedef struct _CAPTURED_FRAME
 {
+    PTR_INFO* PtrInfo;
     ID3D11Texture2D* Frame;
     //The number of updates written to the current frame since last fetch.
     int UpdateCount;

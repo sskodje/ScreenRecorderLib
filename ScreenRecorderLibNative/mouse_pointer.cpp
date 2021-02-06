@@ -705,6 +705,7 @@ HRESULT mouse_pointer::ResizeShapeBuffer(PTR_INFO* PtrInfo, int bufferSize) {
 //
 HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO* FrameInfo, RECT screenRect, IDXGIOutputDuplication* DeskDupl, int offsetX, int offsetY)
 {
+	PtrInfo->IsPointerShapeUpdated = false;
 	// A non-zero mouse update timestamp indicates that there is a mouse position update and optionally a shape change
 	if (FrameInfo->LastMouseUpdateTime.QuadPart == 0)
 	{
@@ -757,18 +758,19 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 		LOG_ERROR(L"Failed to get frame pointer shape in DUPLICATIONMANAGER: %lls", err.ErrorMessage());
 		return hr;
 	}
-
+	PtrInfo->IsPointerShapeUpdated = true;
 	return S_OK;
 }
 
 HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, RECT screenRect, bool getShapeBuffer, int offsetX, int offsetY)
 {
+	PtrInfo->IsPointerShapeUpdated = false;
 	CURSORINFO cursorInfo = { 0 };
 	cursorInfo.cbSize = sizeof(CURSORINFO);
 	if (!GetCursorInfo(&cursorInfo)) {
 		return E_FAIL;
 	}
-
+	
 	ICONINFO iconInfo = { 0 };
 	if (!GetIconInfo(cursorInfo.hCursor, &iconInfo)) {
 		return E_FAIL;
@@ -822,6 +824,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, RECT screenRect, boo
 			{
 				return E_FAIL;
 			}
+			PtrInfo->IsPointerShapeUpdated = true;
 		}
 	}
 	else {
@@ -856,6 +859,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, RECT screenRect, boo
 			{
 				return E_FAIL;
 			}
+			PtrInfo->IsPointerShapeUpdated = true;
 		}
 	}
 

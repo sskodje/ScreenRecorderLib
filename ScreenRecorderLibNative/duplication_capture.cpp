@@ -440,6 +440,7 @@ HRESULT duplication_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Out_ C
 	QueryPerformanceCounter(&m_LastAcquiredFrameTimeStamp);
 
 	frame->Frame = pDesktopFrame;
+	frame->PtrInfo = &m_PtrInfo;
 	frame->UpdateCount = updatedFrameCount;
 	frame->Timestamp = m_LastAcquiredFrameTimeStamp;
 	return hr;
