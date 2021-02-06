@@ -683,8 +683,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 			hr = S_OK;
 			break;
 		}
-		FrameWriteModel model;
-		RtlZeroMemory(&model, sizeof(model));
+		FrameWriteModel model{};
 		model.Frame = pFrameCopy;
 		model.Duration = durationSinceLastFrame100Nanos;
 		model.StartPos = lastFrameStartPos;
@@ -936,8 +935,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 				TakeSnapshotsWithVideo(pCurrentFrameCopy, sourceFrameDesc, videoOutputFrameRect);
 			}
 
-			FrameWriteModel model;
-			RtlZeroMemory(&model, sizeof(model));
+			FrameWriteModel model{};
 			model.Frame = pCurrentFrameCopy;
 			model.Duration = durationSinceLastFrame100Nanos;
 			model.StartPos = lastFrameStartPos;
@@ -969,8 +967,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 			pPreviousFrameCopy.Release();
 			pPreviousFrameCopy.Attach(pCroppedFrameCopy);
 		}
-		FrameWriteModel model;
-		RtlZeroMemory(&model, sizeof(model));
+		FrameWriteModel model{};
 		model.Frame = pPreviousFrameCopy;
 		model.Duration = duration;
 		model.StartPos = lastFrameStartPos;
