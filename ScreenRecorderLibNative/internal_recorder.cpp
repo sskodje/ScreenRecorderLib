@@ -80,7 +80,7 @@ struct internal_recorder::TaskWrapper {
 
 internal_recorder::internal_recorder() :m_TaskWrapperImpl(make_unique<TaskWrapper>())
 {
-
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 }
 
 internal_recorder::~internal_recorder()
