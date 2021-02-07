@@ -438,8 +438,6 @@ void duplication_manager::SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX* Vertice
 		Vertices[5].TexCoord = XMFLOAT2(Dirty->right / static_cast<FLOAT>(ThisDesc->Width), Dirty->bottom / static_cast<FLOAT>(ThisDesc->Height));
 		break;
 	}
-	default:
-		assert(false); // drop through
 	case DXGI_MODE_ROTATION_UNSPECIFIED:
 	case DXGI_MODE_ROTATION_IDENTITY:
 	{
@@ -449,6 +447,8 @@ void duplication_manager::SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX* Vertice
 		Vertices[5].TexCoord = XMFLOAT2(Dirty->right / static_cast<FLOAT>(ThisDesc->Width), Dirty->top / static_cast<FLOAT>(ThisDesc->Height));
 		break;
 	}
+	default:
+		assert(false);
 	}
 
 	// Set positions
