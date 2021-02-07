@@ -78,7 +78,13 @@ struct internal_recorder::TaskWrapper {
 };
 
 
-internal_recorder::internal_recorder() :m_TaskWrapperImpl(make_unique<TaskWrapper>())
+internal_recorder::internal_recorder() :
+	m_TaskWrapperImpl(make_unique<TaskWrapper>()),
+	RecordingCompleteCallback(nullptr),
+	RecordingFailedCallback(nullptr),
+	RecordingSnapshotCreatedCallback(nullptr),
+	RecordingStatusChangedCallback(nullptr),
+	m_Mousehook(nullptr)
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 }
