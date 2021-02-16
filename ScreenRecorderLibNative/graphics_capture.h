@@ -25,46 +25,39 @@
 #include <winrt/Windows.Graphics.DirectX.h>
 #include <winrt/Windows.Graphics.DirectX.Direct3d11.h>
 
+#include "common_types.h"
+#include "DX.util.h"
+#include "mouse_pointer.h"
+
 class graphics_capture
 {
 public:
-	graphics_capture(
-		winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice const& device,
-		winrt::Windows::Graphics::Capture::GraphicsCaptureItem const& item,
-		winrt::Windows::Graphics::DirectX::DirectXPixelFormat pixelFormat,
-		std::function<void(winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame)> frameArrivedCallback);
-	~graphics_capture() { Close(); }
+	graphics_capture(_In_ ID3D11Device* pDevice, _In_ ID3D11DeviceContext *pDeviceContext, _In_ bool isCursorCaptureEnabled);
+	~graphics_capture();
+	void Clean();
+	HRESULT StartCapture(std::vector<std::wstring> const& outputs, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent);
+	HRESULT StartCapture(HWND windowhandle, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent);
+	SIZE FrameSize();
+	HRESULT AcquireNextFrame(_In_  DWORD timeoutMillis, _Out_ CAPTURED_FRAME *frame);
+	void WaitForThreadTermination();
+	HRESULT StopCapture();
+private:
+	HRESULT CreateSharedSurf(_In_ HWND windowhandle, _Out_ RECT* pDeskBounds);
+	HRESULT CreateSharedSurf(_In_ std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *createdOutputs, _Out_ RECT* pDeskBounds);
+	HANDLE GetSharedHandle();
 
-	void StartCapture();
-	void ClearFrameBuffer() { while (m_framePool.TryGetNextFrame() != nullptr) {}; }
-	winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem() { return m_item; }
-	winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame TryGetNextFrame() { return m_framePool.TryGetNextFrame(); }
-	void SetEnableCursorCapture(bool isEnabled) { m_session.IsCursorCaptureEnabled(isEnabled); }
-	void Close();
+
 
 private:
-	void OnFrameArrived(
-		winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool const& sender,
-		winrt::Windows::Foundation::IInspectable const& args);
-
-	inline void CheckClosed()
-	{
-		if (m_closed.load() == true)
-		{
-			throw winrt::hresult_error(RO_E_CLOSED);
-		}
-	}
-
-private:
-	winrt::Windows::Graphics::Capture::GraphicsCaptureItem m_item{ nullptr };
-	winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool m_framePool{ nullptr };
-	winrt::Windows::Graphics::Capture::GraphicsCaptureSession m_session{ nullptr };
-	winrt::Windows::Graphics::SizeInt32 m_lastSize;
-
-	winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice m_Device{ nullptr };
-	winrt::com_ptr<ID3D11DeviceContext> m_ImmediateContext{ nullptr };
-	winrt::Windows::Graphics::DirectX::DirectXPixelFormat m_PixelFormat;
-
-	std::atomic<bool> m_closed = false;
-	std::function<void(winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame)> m_FrameArrivedCallback;
+	bool m_isCursorCaptureEnabled = false;
+	ID3D11DeviceContext *m_ImmediateContext;
+	ID3D11Device *m_Device;
+	HANDLE m_TerminateThreadsEvent;
+	LARGE_INTEGER m_LastAcquiredFrameTimeStamp;
+	RECT m_OutputRect;
+	ID3D11Texture2D* m_SharedSurf;
+	IDXGIKeyedMutex* m_KeyMutex;
+	UINT m_ThreadCount;
+	_Field_size_(m_ThreadCount) HANDLE* m_ThreadHandles;
+	_Field_size_(m_ThreadCount) THREAD_DATA* m_ThreadData;
 };

@@ -69,6 +69,12 @@
     <ClInclude Include="duplication_manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="DX.util.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="graphics_manager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="audio_prefs.cpp">
@@ -99,6 +105,12 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="duplication_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DX.util.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="graphics_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

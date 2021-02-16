@@ -13,6 +13,8 @@ struct MonitorInfo
 		winrt::check_bool(GetMonitorInfo(MonitorHandle, &monitorInfo));
 		std::wstring displayName(monitorInfo.szDevice);
 		DisplayName = displayName;
+		MonitorRect = monitorInfo.rcMonitor;
+		WorkspaceRect = monitorInfo.rcWork;
 	}
 	MonitorInfo(HMONITOR monitorHandle, std::wstring const& displayName)
 	{
@@ -22,6 +24,8 @@ struct MonitorInfo
 
 	HMONITOR MonitorHandle;
 	std::wstring DisplayName;
+	RECT MonitorRect;
+	RECT WorkspaceRect;
 
 	bool operator==(const MonitorInfo& monitor) { return MonitorHandle == monitor.MonitorHandle; }
 	bool operator!=(const MonitorInfo& monitor) { return !(*this == monitor); }

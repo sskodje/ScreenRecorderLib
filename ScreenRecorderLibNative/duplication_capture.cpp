@@ -4,7 +4,7 @@
 #include "cleanup.h"
 #include "mouse_pointer.h"
 
-DWORD WINAPI DDProc(_In_ void* Param);
+static DWORD WINAPI DDProc(_In_ void* Param);
 
 duplication_capture::duplication_capture(_In_ ID3D11Device* pDevice, _In_ ID3D11DeviceContext *pDeviceContext) :
 	m_ThreadCount(0),
@@ -77,47 +77,7 @@ void duplication_capture::Clean()
 	CloseHandle(m_TerminateThreadsEvent);
 }
 
-//
-// Clean up DX_RESOURCES
-//
-void duplication_capture::CleanDx(_Inout_ DX_RESOURCES* Data)
-{
-	if (Data->Device)
-	{
-		Data->Device->Release();
-		Data->Device = nullptr;
-	}
 
-	if (Data->Context)
-	{
-		Data->Context->Release();
-		Data->Context = nullptr;
-	}
-
-	if (Data->VertexShader)
-	{
-		Data->VertexShader->Release();
-		Data->VertexShader = nullptr;
-	}
-
-	if (Data->PixelShader)
-	{
-		Data->PixelShader->Release();
-		Data->PixelShader = nullptr;
-	}
-
-	if (Data->InputLayout)
-	{
-		Data->InputLayout->Release();
-		Data->InputLayout = nullptr;
-	}
-
-	if (Data->SamplerLinear)
-	{
-		Data->SamplerLinear->Release();
-		Data->SamplerLinear = nullptr;
-	}
-}
 
 //
 // Start up threads for DDA
@@ -145,7 +105,7 @@ HRESULT duplication_capture::StartCapture(_In_ std::vector<std::wstring> outputs
 		m_ThreadData[i].UnexpectedErrorEvent = hUnexpectedErrorEvent;
 		m_ThreadData[i].ExpectedErrorEvent = hExpectedErrorEvent;
 		m_ThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
-		m_ThreadData[i].Output = outputName;
+		m_ThreadData[i].OutputMonitor = outputName;
 		m_ThreadData[i].TexSharedHandle = sharedHandle;
 		m_ThreadData[i].OffsetX = m_OutputRect.left;
 		m_ThreadData[i].OffsetY = m_OutputRect.top;
@@ -518,7 +478,7 @@ DWORD WINAPI DDProc(_In_ void* Param)
 		}
 		ReleaseOnExit releaseMutex(KeyMutex);
 		// Make duplication manager
-		hr = pDuplicationManager.Initialize(&TData->DxRes, TData->Output);
+		hr = pDuplicationManager.Initialize(&TData->DxRes, TData->OutputMonitor);
 
 		if (FAILED(hr))
 		{
@@ -529,7 +489,8 @@ DWORD WINAPI DDProc(_In_ void* Param)
 		DXGI_OUTPUT_DESC DesktopDesc;
 		RtlZeroMemory(&DesktopDesc, sizeof(DXGI_OUTPUT_DESC));
 		pDuplicationManager.GetOutputDesc(&DesktopDesc);
-
+		TData->ContentSize.cx = DesktopDesc.DesktopCoordinates.right - DesktopDesc.DesktopCoordinates.left;
+		TData->ContentSize.cy = DesktopDesc.DesktopCoordinates.bottom - DesktopDesc.DesktopCoordinates.top;
 		// Main duplication loop
 		bool WaitToProcessCurrentFrame = false;
 		DUPL_FRAME_DATA CurrentData{};

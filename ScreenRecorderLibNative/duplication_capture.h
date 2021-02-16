@@ -4,6 +4,8 @@
 #include "log.h"
 #include "utilities.h"
 #include <vector>
+#include "DX.util.h"
+
 class duplication_capture
 {
 public:
@@ -18,7 +20,6 @@ public:
 	RECT GetOutputRect() { return m_OutputRect; }
 private:
 	HRESULT InitializeDx(_Out_ DX_RESOURCES *Data);
-	void CleanDx(_Inout_ DX_RESOURCES* Data);
 	HRESULT CreateSharedSurf(_In_ std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *createdOutputs, _Out_ RECT* pDeskBounds);
 	HANDLE GetSharedHandle();
 	

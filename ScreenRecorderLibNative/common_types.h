@@ -46,6 +46,15 @@ typedef struct _DUPL_FRAME_DATA
 } DUPL_FRAME_DATA;
 
 //
+// GRAPHICS_FRAME_DATA holds information about an acquired Windows Graphics Capture frame
+//
+typedef struct _GRAPHICS_FRAME_DATA
+{
+    ID3D11Texture2D* Frame;
+    SIZE ContentSize;
+} GRAPHICS_FRAME_DATA;
+
+//
 // Structure that holds D3D resources not directly tied to any one thread
 //
 typedef struct _DX_RESOURCES
@@ -66,16 +75,19 @@ typedef struct _THREAD_DATA
     // Used to indicate abnormal error condition
     HANDLE UnexpectedErrorEvent;
 
-    // Used to indicate a transition event occurred e.g. PnpStop, PnpStart, mode change, TDR, desktop switch and the application needs to recreate the duplication interface
+    // Used to indicate a transition event occurred e.g. PnpStop, PnpStart, mode change, TDR, desktop switch and the application needs to recreate the capture interface
     HANDLE ExpectedErrorEvent;
 
     // Used by WinProc to signal to threads to exit
     HANDLE TerminateThreadsEvent;
 
     HANDLE TexSharedHandle;
-    std::wstring Output;
+    std::wstring OutputMonitor;
+    bool IsCursorCaptureEnabled;
+    HWND OutputWindow;
     INT OffsetX;
     INT OffsetY;
+    SIZE ContentSize;
     PTR_INFO* PtrInfo;
     DX_RESOURCES DxRes;
     LARGE_INTEGER LastUpdateTimeStamp;
@@ -93,4 +105,5 @@ typedef struct _CAPTURED_FRAME
     //The number of updates written to the current frame since last fetch.
     int UpdateCount;
     LARGE_INTEGER Timestamp;
+    SIZE ContentSize;
 } CAPTURED_FRAME;

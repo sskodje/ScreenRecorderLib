@@ -2,12 +2,14 @@
 #include "log.h"
 #include "cleanup.h"
 #include <suppress.h>
+#include "DX.util.h"
 using namespace DirectX;
 
 //
 // Constructor sets up references / variables
 //
-duplication_manager::duplication_manager() : m_DeskDupl(nullptr),
+duplication_manager::duplication_manager() :
+m_DeskDupl(nullptr),
 m_AcquiredDesktopImage(nullptr),
 m_MetaDataBuffer(nullptr),
 m_MetaDataSize(0),
@@ -656,56 +658,3 @@ void duplication_manager::CleanRefs()
 	}
 }
 
-HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_result_maybenull_ IDXGIOutput * *ppOutput) {
-	HRESULT hr = S_OK;
-	*ppOutput = nullptr;
-	if (deviceName != L"") {
-		std::vector<IDXGIAdapter*> adapters = EnumDisplayAdapters();
-		for (IDXGIAdapter *adapter : adapters)
-		{
-			IDXGIOutput *pOutput;
-			int i = 0;
-			while (adapter->EnumOutputs(i, &pOutput) != DXGI_ERROR_NOT_FOUND)
-			{
-				DXGI_OUTPUT_DESC desc;
-				hr = pOutput->GetDesc(&desc);
-				if (FAILED(hr)) {
-					break;
-				}
-
-				if (desc.DeviceName == deviceName) {
-					// Return the pointer to the caller.
-					*ppOutput = pOutput;
-					(*ppOutput)->AddRef();
-					break;
-				}
-				SafeRelease(&pOutput);
-				i++;
-			}
-			SafeRelease(&adapter);
-			if (*ppOutput) {
-				break;
-			}
-		}
-	}
-	return hr;
-}
-
-std::vector<IDXGIAdapter*> EnumDisplayAdapters()
-{
-	std::vector<IDXGIAdapter*> vAdapters;
-	IDXGIFactory1 * pFactory;
-	HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory), (void**)(&pFactory));
-	if (SUCCEEDED(hr)) {
-		UINT i = 0;
-		IDXGIAdapter *pAdapter;
-		while (pFactory->EnumAdapters(i, &pAdapter) != DXGI_ERROR_NOT_FOUND)
-		{
-			vAdapters.push_back(pAdapter);
-			//SafeRelease(&pAdapter);
-			i++;
-		}
-	}
-	SafeRelease(&pFactory);
-	return vAdapters;
-}

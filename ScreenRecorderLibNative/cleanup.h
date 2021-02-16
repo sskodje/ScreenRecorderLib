@@ -7,6 +7,7 @@
 #include <wincodec.h>
 #include "log.h"
 #include "duplication_capture.h"
+#include "graphics_capture.h"
 template <class T> void SafeRelease(T **ppT)
 {
 	if (*ppT)
@@ -56,6 +57,20 @@ public:
 
 private:
 	duplication_capture *m_p;
+};
+
+class GraphicsCaptureStopOnExit {
+public:
+	GraphicsCaptureStopOnExit(graphics_capture *p) : m_p(p) {}
+	~GraphicsCaptureStopOnExit() {
+		m_p->StopCapture();
+	}
+	void Reset(graphics_capture *p) {
+		m_p = p;
+	}
+
+private:
+	graphics_capture *m_p;
 };
 
 class AudioClientStopOnExit {
