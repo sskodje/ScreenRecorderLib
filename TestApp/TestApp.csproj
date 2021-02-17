@@ -100,9 +100,6 @@
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
-    <Reference Include="WindowsDisplayAPI, Version=1.2.0.1, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\WindowsDisplayAPI.1.2.0.2\lib\net45\WindowsDisplayAPI.dll</HintPath>
-    </Reference>
     <Reference Include="WindowsFormsIntegration" />
   </ItemGroup>
   <ItemGroup>

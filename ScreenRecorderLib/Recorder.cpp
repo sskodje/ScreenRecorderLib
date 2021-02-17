@@ -53,7 +53,9 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 				displays.reserve(options->DisplayOptions->DisplayDevices->Count);
 				for each (String^ str in options->DisplayOptions->DisplayDevices)
 				{
-					displays.push_back(msclr::interop::marshal_as<std::wstring>(str));
+					if (str) {
+						displays.push_back(msclr::interop::marshal_as<std::wstring>(str));
+					}
 				}
 				lRec->SetDisplayOutput(displays);
 			}
@@ -158,6 +160,32 @@ Dictionary<String^, String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource 
 	return devices;
 }
 
+List<Display^>^ ScreenRecorderLib::Recorder::GetDisplays()
+{
+	List<Display^>^ displays = gcnew List<Display^>();
+	std::vector<IDXGIOutput*> outputs{};
+	EnumOutputs(&outputs);
+
+	for each (IDXGIOutput *output in outputs)
+	{
+		DXGI_OUTPUT_DESC desc;
+		if (SUCCEEDED(output->GetDesc(&desc))) {
+			if (desc.AttachedToDesktop) {
+				auto display = gcnew Display();
+				display->DeviceName = gcnew String(desc.DeviceName);
+				display->PosX = desc.DesktopCoordinates.left;
+				display->PosY = desc.DesktopCoordinates.top;
+				display->Width = desc.DesktopCoordinates.right - desc.DesktopCoordinates.left;
+				display->Height = desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top;
+				display->MonitorName = gcnew String(GetMonitorName(desc.Monitor).c_str());
+				displays->Add(display);
+			}
+		}
+		output->Release();
+	}
+	return displays;
+}
+
 Recorder::~Recorder()
 {
 	this->!Recorder();
@@ -190,7 +218,7 @@ List<RecordableWindow^>^ ScreenRecorderLib::Recorder::GetWindows()
 	List<RecordableWindow^>^ windows = gcnew List<RecordableWindow^>();
 	for each (Window win in EnumerateWindows())
 	{
-		RecordableWindow^ recordableWin = gcnew RecordableWindow(gcnew String(win.Title().c_str()),IntPtr(win.Hwnd()));
+		RecordableWindow^ recordableWin = gcnew RecordableWindow(gcnew String(win.Title().c_str()), IntPtr(win.Hwnd()));
 		windows->Add(recordableWin);
 	}
 	return windows;

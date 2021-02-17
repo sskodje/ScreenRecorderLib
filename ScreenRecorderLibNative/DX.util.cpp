@@ -131,6 +131,57 @@ HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_
 	return hr;
 }
 
+void EnumOutputs(_Out_ std::vector<IDXGIOutput*> *ppOutput)
+{
+	*ppOutput= std::vector<IDXGIOutput*>();
+	std::vector<IDXGIAdapter*> adapters = EnumDisplayAdapters();
+	for (IDXGIAdapter *adapter : adapters)
+	{
+		IDXGIOutput *pOutput;
+		int i = 0;
+		while (adapter->EnumOutputs(i, &pOutput) != DXGI_ERROR_NOT_FOUND)
+		{
+			// Return the pointer to the caller.
+			if (ppOutput) {
+				ppOutput->push_back(pOutput);
+			}
+			i++;
+		}
+		SafeRelease(&adapter);
+	}
+}
+
+std::wstring GetMonitorName(HMONITOR monitor) {
+	MONITORINFOEXW info;
+	info.cbSize = sizeof(info);
+	GetMonitorInfoW(monitor, &info);
+
+	UINT32 requiredPaths, requiredModes;
+	GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &requiredPaths, &requiredModes);
+	std::vector<DISPLAYCONFIG_PATH_INFO> paths(requiredPaths);
+	std::vector<DISPLAYCONFIG_MODE_INFO> modes(requiredModes);
+	QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &requiredPaths, paths.data(), &requiredModes, modes.data(), nullptr);
+
+	for (auto& p : paths) {
+		DISPLAYCONFIG_SOURCE_DEVICE_NAME sourceName;
+		sourceName.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
+		sourceName.header.size = sizeof(sourceName);
+		sourceName.header.adapterId = p.sourceInfo.adapterId;
+		sourceName.header.id = p.sourceInfo.id;
+		DisplayConfigGetDeviceInfo(&sourceName.header);
+		if (wcscmp(info.szDevice, sourceName.viewGdiDeviceName) == 0) {
+			DISPLAYCONFIG_TARGET_DEVICE_NAME name;
+			name.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME;
+			name.header.size = sizeof(name);
+			name.header.adapterId = p.sourceInfo.adapterId;
+			name.header.id = p.targetInfo.id;
+			DisplayConfigGetDeviceInfo(&name.header);
+			return std::wstring(name.monitorFriendlyDeviceName);
+		}
+	}
+	return L"";
+}
+
 std::vector<IDXGIAdapter*> EnumDisplayAdapters()
 {
 	std::vector<IDXGIAdapter*> vAdapters;

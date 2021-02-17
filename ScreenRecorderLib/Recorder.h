@@ -341,6 +341,15 @@ namespace ScreenRecorderLib {
 		property IntPtr Handle;
 	};
 
+	public ref class Display {
+	public:
+		property String^ DeviceName;
+		property String^ MonitorName;
+		property int PosX;
+		property int PosY;
+		property int Width;
+		property int Height;
+	};
 
 	public ref class SnapshotSavedEventArgs :System::EventArgs {
 	public:
@@ -395,6 +404,7 @@ namespace ScreenRecorderLib {
 		static Recorder^ CreateRecorder(RecorderOptions^ options);
 		static List<RecordableWindow^>^ GetWindows();
 		static Dictionary<String^, String^>^ GetSystemAudioDevices(AudioDeviceSource source);
+		static List<Display^>^ GetDisplays();
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;

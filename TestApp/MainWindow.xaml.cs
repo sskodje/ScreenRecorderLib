@@ -12,7 +12,6 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Win32Interop.WinHandles;
-using WindowsDisplayAPI;
 
 namespace TestApp
 {
@@ -270,10 +269,10 @@ namespace TestApp
 
             string audioOutputDevice = AudioOutputsComboBox.SelectedValue as string;
             string audioInputDevice = AudioInputsComboBox.SelectedValue as string;
-            List<string> displayDevicesToRecord = this.ScreenComboBox.Items.Cast<DisplayOutput>().Where(x => x.IsSelected).Select(x => x.DisplayName).ToList();
+            List<string> displayDevicesToRecord = this.ScreenComboBox.Items.Cast<DisplayOutput>().Where(x => x.IsSelected).Select(x => x.DeviceName).ToList();
             if (displayDevicesToRecord.Count == 0 && this.ScreenComboBox.SelectedItem != null)
             {
-                displayDevicesToRecord.Add(((DisplayOutput)this.ScreenComboBox.SelectedItem).DisplayName);
+                displayDevicesToRecord.Add(((DisplayOutput)this.ScreenComboBox.SelectedItem).DeviceName);
             }
 
             RecorderOptions options = new RecorderOptions
@@ -672,15 +671,16 @@ namespace TestApp
                 Width = 0,
                 Height = 0
             });
-            foreach (var target in WindowsDisplayAPI.Display.GetDisplays())
+
+            foreach (var target in Recorder.GetDisplays())
             {
                 this.ScreenComboBox.Items.Add(new DisplayOutput
                 {
                     DeviceName = target.DeviceName,
-                    DisplayName = target.DisplayName,
-                    Width = target.CurrentSetting.Resolution.Width,
-                    Height = target.CurrentSetting.Resolution.Height,
-                    Position = target.CurrentSetting.Position
+                    DisplayName = target.MonitorName,
+                    Width = target.Width,
+                    Height = target.Height,
+                    Position = new System.Drawing.Point(target.PosX, target.PosY)
                 });
             }
 
