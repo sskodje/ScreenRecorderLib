@@ -11,40 +11,61 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace ScreenRecorderLib
 {
     [TestClass]
-    public class FunctionTests
+    public class ScreenRecorderTests
     {
+        private string GetTempPath()
+        {
+            string path = Path.Combine(Path.GetTempPath(), "ScreenRecorder", "Tests");
+            Directory.CreateDirectory(path);
+            return path;
+        }
+
         [TestMethod]
         public void DefaultRecordingToStreamTest()
         {
-            using (var outStream = new MemoryStream())
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
             {
-                using (var rec = Recorder.CreateRecorder())
+                using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                 {
-                    bool isError = false;
-                    bool isComplete = false;
-                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
-                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
-                    rec.OnRecordingComplete += (s, args) =>
+                    using (var rec = Recorder.CreateRecorder())
                     {
-                        isComplete = true;
-                        finalizeResetEvent.Set();
-                    };
-                    rec.OnRecordingFailed += (s, args) =>
-                    {
-                        isError = true;
-                        finalizeResetEvent.Set();
-                        recordingResetEvent.Set();
-                    };
+                        bool isError = false;
+                        bool isComplete = false;
+                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                        rec.OnRecordingComplete += (s, args) =>
+                        {
+                            isComplete = true;
+                            finalizeResetEvent.Set();
+                        };
+                        rec.OnRecordingFailed += (s, args) =>
+                        {
+                            isError = true;
+                            finalizeResetEvent.Set();
+                            recordingResetEvent.Set();
+                        };
 
-                    rec.Record(outStream);
-                    recordingResetEvent.WaitOne(3000);
-                    rec.Stop();
-                    finalizeResetEvent.WaitOne(5000);
+                        rec.Record(outStream);
+                        recordingResetEvent.WaitOne(3000);
+                        rec.Stop();
+                        finalizeResetEvent.WaitOne(5000);
 
-                    Assert.IsFalse(isError);
-                    Assert.IsTrue(isComplete);
-                    Assert.AreNotEqual(outStream.Length, 0);
+                        Assert.IsFalse(isError);
+                        Assert.IsTrue(isComplete);
+                        Assert.AreNotEqual(outStream.Length, 0);
+                        outStream.Seek(0, SeekOrigin.Begin);
+
+                        Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                        var mediaInfo = new MediaInfoWrapper(filePath);
+                        Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                        Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                    }
                 }
+            }
+            finally
+            {
+                File.Delete(filePath);
             }
         }
 
@@ -386,7 +407,7 @@ namespace ScreenRecorderLib
         {
             RecorderOptions options = new RecorderOptions();
             options.RecorderMode = RecorderMode.Snapshot;
-            string filePath = Path.Combine(Path.GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".png"));
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".png"));
             try
             {
                 using (var rec = Recorder.CreateRecorder(options))
@@ -431,7 +452,7 @@ namespace ScreenRecorderLib
             RecorderOptions options = new RecorderOptions();
             options.RecorderMode = RecorderMode.Snapshot;
             options.DisplayOptions = new DisplayOptions { Left = 100, Top = 100, Right = 200, Bottom = 200 };
-            string filePath = Path.Combine(Path.GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".png"));
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".png"));
             try
             {
                 using (var rec = Recorder.CreateRecorder(options))
@@ -473,7 +494,7 @@ namespace ScreenRecorderLib
         [TestMethod]
         public void SlideshowTest()
         {
-            string directoryPath = Path.Combine(Path.GetTempPath(), Path.GetFileNameWithoutExtension(Path.GetRandomFileName()));
+            string directoryPath = Path.Combine(GetTempPath(), Path.GetFileNameWithoutExtension(Path.GetRandomFileName()));
             try
             {
                 RecorderOptions options = new RecorderOptions();
@@ -523,7 +544,7 @@ namespace ScreenRecorderLib
         [TestMethod]
         public void DefaultRecordingToFileTest()
         {
-            string filePath = Path.Combine(Path.GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
             {
                 using (var rec = Recorder.CreateRecorder())
@@ -566,7 +587,7 @@ namespace ScreenRecorderLib
         [TestMethod]
         public void RecordingToFileWithSnapshotsTest()
         {
-            string filePath = Path.Combine(Path.GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             string snapshotsDir = Path.ChangeExtension(filePath, null);
             try
             {
@@ -623,9 +644,78 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
+        public void RecordingToStreamWithSnapshotsTest()
+        {
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            string snapshotsDir = Path.ChangeExtension(filePath, null);
+            try
+            {
+                using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
+                {
+                    RecorderOptions options = new RecorderOptions();
+                    options.VideoOptions = new VideoOptions
+                    {
+                        SnapshotsWithVideo = true,
+                        SnapshotsInterval = 2,
+                        SnapshotFormat = ImageFormat.JPEG,
+                        SnapshotsDirectory = snapshotsDir
+                    };
+                    using (var rec = Recorder.CreateRecorder(options))
+                    {
+                        List<string> snapshotCallbackList = new List<string>();
+                        bool isError = false;
+                        bool isComplete = false;
+                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                        rec.OnRecordingComplete += (s, args) =>
+                        {
+                            isComplete = true;
+                            finalizeResetEvent.Set();
+                        };
+                        rec.OnRecordingFailed += (s, args) =>
+                        {
+                            isError = true;
+                            finalizeResetEvent.Set();
+                            recordingResetEvent.Set();
+                        };
+                        rec.OnSnapshotSaved += (s, args) =>
+                        {
+                            snapshotCallbackList.Add(args.SnapshotPath);
+                        };
+                        rec.Record(outStream);
+                        recordingResetEvent.WaitOne(11900); // 10 < x < 12 sec
+                        rec.Stop();
+                        finalizeResetEvent.WaitOne(5000);
+
+                        Assert.IsFalse(isError);
+                        Assert.IsTrue(isComplete);
+                        outStream.Seek(0, SeekOrigin.Begin);
+                        Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                        var mediaInfo = new MediaInfoWrapper(filePath);
+                        Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                        Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+
+                        var snapshotsOnDisk = Directory.GetFiles(snapshotsDir);
+                        Assert.AreEqual(6, snapshotsOnDisk.Count());  // First snapshot taken at time 0.
+                        Assert.IsTrue(Enumerable.SequenceEqual(snapshotCallbackList, snapshotsOnDisk));
+                        foreach (var snapshot in snapshotsOnDisk)
+                        {
+                            Assert.IsTrue(new MediaInfoWrapper(snapshot).Format == "JPEG");
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                Directory.Delete(snapshotsDir, recursive: true);
+                File.Delete(filePath);
+            }
+        }
+
+        [TestMethod]
         public void RecordingToFileWithSnapshotsAndCroppingTest()
         {
-            string filePath = Path.Combine(Path.GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             string snapshotsDir = Path.ChangeExtension(filePath, null);
             try
             {
@@ -685,7 +775,7 @@ namespace ScreenRecorderLib
         [TestMethod]
         public void DefaultRecordingOneMinuteToFileTest()
         {
-            string filePath = Path.Combine(Path.GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
             {
                 using (var rec = Recorder.CreateRecorder())

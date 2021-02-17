@@ -176,38 +176,57 @@ std::wstring internal_recorder::GetVideoExtension() {
 
 HRESULT internal_recorder::ConfigureOutputDir(_In_ std::wstring path) {
 	m_OutputFullPath = path;
-	wstring dir = path;
-	if (m_RecorderMode == MODE_SLIDESHOW) {
-		if (!dir.empty() && dir.back() != '\\')
-			dir += '\\';
-	}
-	LPWSTR directory = (LPWSTR)dir.c_str();
-	PathRemoveFileSpecW(directory);
-	std::error_code ec;
-	if (std::filesystem::exists(directory) || std::filesystem::create_directories(directory, ec))
-	{
-		LOG_DEBUG(L"output folder is ready");
-		m_OutputFolder = directory;
-	}
-	else
-	{
-		// Failed to create directory.
-		LOG_ERROR(L"failed to create output folder");
-		if (RecordingFailedCallback != nullptr)
-			RecordingFailedCallback(L"Failed to create output folder: " + s2ws(ec.message()));
-		return E_FAIL;
-	}
-	if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SNAPSHOT) {
-		wstring ext = m_RecorderMode == MODE_VIDEO ? GetVideoExtension() : GetImageExtension();
-		LPWSTR pStrExtension = PathFindExtension(path.c_str());
-		if (pStrExtension == nullptr || pStrExtension[0] == 0)
-		{
-			m_OutputFullPath = m_OutputFolder + L"\\" + s2ws(CurrentTimeToFormattedString()) + ext;
+	if (!path.empty()) {
+		wstring dir = path;
+		if (m_RecorderMode == MODE_SLIDESHOW) {
+			if (!dir.empty() && dir.back() != '\\')
+				dir += '\\';
 		}
-		if (IsSnapshotsWithVideoEnabled()) {
-			// Snapshots will be saved in a folder named as video file name without extension. 
-			m_OutputSnapshotsFolderPath = m_OutputFullPath.substr(0, m_OutputFullPath.find_last_of(L"."));
-			std::filesystem::create_directory(m_OutputSnapshotsFolderPath);
+		LPWSTR directory = (LPWSTR)dir.c_str();
+		PathRemoveFileSpecW(directory);
+		std::error_code ec;
+		if (std::filesystem::exists(directory) || std::filesystem::create_directories(directory, ec))
+		{
+			LOG_DEBUG(L"Video output folder is ready");
+			m_OutputFolder = directory;
+		}
+		else
+		{
+			// Failed to create directory.
+			LOG_ERROR(L"failed to create output folder");
+			if (RecordingFailedCallback != nullptr)
+				RecordingFailedCallback(L"Failed to create output folder: " + s2ws(ec.message()));
+			return E_FAIL;
+		}
+
+		if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SNAPSHOT) {
+			wstring ext = m_RecorderMode == MODE_VIDEO ? GetVideoExtension() : GetImageExtension();
+			LPWSTR pStrExtension = PathFindExtension(path.c_str());
+			if (pStrExtension == nullptr || pStrExtension[0] == 0)
+			{
+				m_OutputFullPath = m_OutputFolder + L"\\" + s2ws(CurrentTimeToFormattedString()) + ext;
+			}
+			if (IsSnapshotsWithVideoEnabled()) {
+				if (m_OutputSnapshotsFolderPath.empty()) {
+					// Snapshots will be saved in a folder named as video file name without extension. 
+					m_OutputSnapshotsFolderPath = m_OutputFullPath.substr(0, m_OutputFullPath.find_last_of(L"."));
+				}
+			}
+		}
+	}
+	if (!m_OutputSnapshotsFolderPath.empty()) {
+		std::error_code ec;
+		if (std::filesystem::exists(m_OutputSnapshotsFolderPath) || std::filesystem::create_directories(m_OutputSnapshotsFolderPath, ec))
+		{
+			LOG_DEBUG(L"Snapshot output folder is ready");
+		}
+		else
+		{
+			// Failed to create snapshot directory.
+			LOG_ERROR(L"failed to create snapshot output folder");
+			if (RecordingFailedCallback != nullptr)
+				RecordingFailedCallback(L"Failed to create snapshot output folder: " + s2ws(ec.message()));
+			return E_FAIL;
 		}
 	}
 	return S_OK;
@@ -249,9 +268,9 @@ HRESULT internal_recorder::BeginRecording(_In_opt_ std::wstring path, _In_opt_ I
 	m_EncoderResult = S_FALSE;
 	m_LastFrameHadAudio = false;
 	m_FrameDelays.clear();
-	if (!path.empty()) {
-		RETURN_ON_BAD_HR(ConfigureOutputDir(path));
-	}
+
+	RETURN_ON_BAD_HR(ConfigureOutputDir(path));
+
 
 	m_TaskWrapperImpl->m_RecordTaskCts = cancellation_token_source();
 	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, stream]() {

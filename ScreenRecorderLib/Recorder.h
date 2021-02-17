@@ -165,6 +165,10 @@ namespace ScreenRecorderLib {
 		///Interval in second for taking snapshots in a video recording. This is only used with Video mode AND SnapshotsWithVideo enabled.
 		/// </summary>
 		property int SnapshotsInterval;
+		/// <summary>
+		///Directory to store snapshots. If not set, the directory of the output file is used.
+		/// </summary>
+		property String^ SnapshotsDirectory;
 	};
 	public ref class AudioOptions {
 	public:

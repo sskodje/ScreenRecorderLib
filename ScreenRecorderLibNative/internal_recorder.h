@@ -134,8 +134,8 @@ public:
 	void SetVideoBitrateMode(UINT32 mode) { m_VideoBitrateControlMode = mode; }
 	void SetAudioBitrate(UINT32 bitrate) { m_AudioBitrate = bitrate; }
 	void SetAudioChannels(UINT32 channels) { m_AudioChannels = channels; }
-	void SetOutputDevice(std::wstring& string) { m_AudioOutputDevice = string; }
-	void SetInputDevice(std::wstring& string) { m_AudioInputDevice = string; }
+	void SetOutputDevice(std::wstring string) { m_AudioOutputDevice = string; }
+	void SetInputDevice(std::wstring string) { m_AudioInputDevice = string; }
 	void SetAudioEnabled(bool value) { m_IsAudioEnabled = value; }
 	void SetOutputDeviceEnabled(bool value) { m_IsOutputDeviceEnabled = value; }
 	void SetInputDeviceEnabled(bool value) { m_IsInputDeviceEnabled = value; }
@@ -145,8 +145,9 @@ public:
 	}
 	void SetInputVolume(float volume) { m_InputVolumeModifier = volume; }
 	void SetOutputVolume(float volume) { m_OutputVolumeModifier = volume; }
-	void SetTakeSnapthotsWithVideo(bool isEnabled) { m_TakesSnapshotsWithVideo = isEnabled; }
-	void SetSnapthotsWithVideoInterval(UINT32 value) { m_SnapshotsWithVideoInterval = std::chrono::seconds(value); }
+	void SetTakeSnapshotsWithVideo(bool isEnabled) { m_TakesSnapshotsWithVideo = isEnabled; }
+	void SetSnapshotsWithVideoInterval(UINT32 value) { m_SnapshotsWithVideoInterval = std::chrono::seconds(value); }
+	void SetSnapshotDirectory(std::wstring string) { m_OutputSnapshotsFolderPath = string; }
 	static bool SetExcludeFromCapture(HWND hwnd, bool isExcluded);
 	void SetDisplayOutput(std::wstring output) { m_DisplayOutputDevices = { output }; }
 	void SetDisplayOutput(std::vector<std::wstring> outputs) { m_DisplayOutputDevices = outputs; }

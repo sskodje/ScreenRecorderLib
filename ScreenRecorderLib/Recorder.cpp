@@ -22,8 +22,11 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			lRec->SetFixedFramerate(options->VideoOptions->IsFixedFramerate);
 			lRec->SetH264EncoderProfile((UINT32)options->VideoOptions->EncoderProfile);
 			lRec->SetVideoBitrateMode((UINT32)options->VideoOptions->BitrateMode);
-			lRec->SetTakeSnapthotsWithVideo(options->VideoOptions->SnapshotsWithVideo);
-			lRec->SetSnapthotsWithVideoInterval(options->VideoOptions->SnapshotsInterval);
+			lRec->SetTakeSnapshotsWithVideo(options->VideoOptions->SnapshotsWithVideo);
+			lRec->SetSnapshotsWithVideoInterval(options->VideoOptions->SnapshotsInterval);
+			if (options->VideoOptions->SnapshotsDirectory != nullptr) {
+				lRec->SetSnapshotDirectory(msclr::interop::marshal_as<std::wstring>(options->VideoOptions->SnapshotsDirectory));
+			}
 			switch (options->VideoOptions->SnapshotFormat)
 			{
 			case ImageFormat::BMP:
