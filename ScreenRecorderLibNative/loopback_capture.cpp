@@ -130,7 +130,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	m_InputFormat.sampleRate = pwfx->nSamplesPerSec;
 	m_InputFormat.dwChannelMask = 0;
 	m_InputFormat.validBitsPerSample = pwfx->wBitsPerSample;
-	m_InputFormat.sampleFormat = WWMFBitFormatInt;
+	m_InputFormat.sampleFormat = WWMFBitFormatType::WWMFBitFormatInt;
 
 	m_OutputFormat = m_InputFormat;
 	m_OutputFormat.sampleRate = outputSampleRate;
@@ -363,7 +363,7 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes()
 	// convert audio
 	if (requiresResampling() && byteCount > 0) {
 		WWMFSampleData sampleData;
-		HRESULT hr = m_Resampler.Resample(newvector.data(), newvector.size(), &sampleData);
+		HRESULT hr = m_Resampler.Resample(newvector.data(), (DWORD)newvector.size(), &sampleData);
 		if (SUCCEEDED(hr)) {
 			LOG_TRACE(L"Resampled audio from %dch %uhz to %dch %uhz", m_InputFormat.nChannels, m_InputFormat.sampleRate, m_OutputFormat.nChannels, m_OutputFormat.sampleRate);
 		}

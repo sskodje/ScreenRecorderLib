@@ -34,7 +34,7 @@ CreateAudioMediaType(const WWMFPcmFormat &fmt, IMFMediaType** ppMediaType)
 	RETURN_ON_BAD_HR(MFCreateMediaType(&pMediaType));
 	RETURN_ON_BAD_HR(pMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
 	RETURN_ON_BAD_HR(pMediaType->SetGUID(MF_MT_SUBTYPE,
-		(fmt.sampleFormat == WWMFBitFormatInt) ? MFAudioFormat_PCM : MFAudioFormat_Float));
+		(fmt.sampleFormat == WWMFBitFormatType::WWMFBitFormatInt) ? MFAudioFormat_PCM : MFAudioFormat_Float));
 	RETURN_ON_BAD_HR(pMediaType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, fmt.nChannels));
 	RETURN_ON_BAD_HR(pMediaType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, fmt.sampleRate));
 	RETURN_ON_BAD_HR(pMediaType->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, fmt.FrameBytes()));

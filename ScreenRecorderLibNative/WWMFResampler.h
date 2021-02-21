@@ -1,3 +1,4 @@
+#pragma warning (disable : 26451)
 #pragma once
 
 //#define WINVER _WIN32_WINNT_WIN7
@@ -9,7 +10,7 @@
 
 /// sample data type. int or float
 /// it is compatible to WWBitFormatType on WasapiUser.h
-enum WWMFBitFormatType {
+enum class WWMFBitFormatType {
 	WWMFBitFormatUnknown = -1,
 	WWMFBitFormatInt,
 	WWMFBitFormatFloat,
@@ -25,7 +26,7 @@ struct WWMFPcmFormat {
 	WORD  validBitsPerSample;
 
 	WWMFPcmFormat(void) {
-		sampleFormat = WWMFBitFormatUnknown;
+		sampleFormat = WWMFBitFormatType::WWMFBitFormatUnknown;
 		nChannels = 0;
 		bits = 0;
 		sampleRate = 0;

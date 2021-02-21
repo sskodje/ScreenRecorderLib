@@ -38,7 +38,6 @@ private:
 	std::vector<BYTE> _DesktopBuffer;
 
 	long ParseColorString(std::string color);
-	float GetCurrentDpi();
 	void GetPointerPosition(_In_ PTR_INFO *PtrInfo, DXGI_MODE_ROTATION rotation, int desktopWidth, int desktopHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop);
 	HRESULT ProcessMonoMask(_In_ ID3D11Texture2D *bgTexture, _In_ ID3D11DeviceContext *DeviceContext, _In_ ID3D11Device *Device, DXGI_MODE_ROTATION rotation, bool IsMono, _Inout_ PTR_INFO *PtrInfo, _Out_ INT *PtrWidth, _Out_ INT *PtrHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop, _Outptr_result_bytebuffer_(*PtrHeight * *PtrWidth * BPP) BYTE **InitBuffer, _Out_ D3D11_BOX *Box);
 	HRESULT InitShaders(ID3D11DeviceContext *DeviceContext, ID3D11Device *Device);

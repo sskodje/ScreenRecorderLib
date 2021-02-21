@@ -24,57 +24,54 @@ CPrefs::CPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow)
 	, m_bInt16(false)
 	, m_pwfx(NULL)
 {
-	switch (argc) {
-	default:
-		// loop through arguments and parse them
-		for (int i = 1; i < argc; i++) {
+	// loop through arguments and parse them
+	for (int i = 1; i < argc; i++) {
 
-			// --device
-			if (0 == _wcsicmp(argv[i], L"--device")) {
-				if (NULL != m_pMMDevice) {
-					LOG_ERROR(L"%s", L"Only one --device switch is allowed");
-					hr = E_INVALIDARG;
-					return;
-				}
-
-				if (i++ == argc) {
-					LOG_ERROR(L"%s", L"--device switch requires an argument");
-					hr = E_INVALIDARG;
-					return;
-				}
-
-				hr = get_specific_device(argv[i], flow, &m_pMMDevice);
-				if (FAILED(hr)) {
-					return;
-				}
-
-				continue;
-			}
-
-			// --int-16
-			if (0 == _wcsicmp(argv[i], L"--int-16")) {
-				if (m_bInt16) {
-					LOG_ERROR(L"%s", L"Only one --int-16 switch is allowed");
-					hr = E_INVALIDARG;
-					return;
-				}
-
-				m_bInt16 = true;
-				continue;
-			}
-
-			LOG_ERROR(L"Invalid argument %ls", argv[i]);
-			hr = E_INVALIDARG;
-			return;
-		}
-
-		// open default device if not specified
-		if (NULL == m_pMMDevice) {
-			hr = get_default_device(&m_pMMDevice, flow);
-			if (FAILED(hr)) {
-				LOG_WARN(L"No audio capture devices available");
+		// --device
+		if (0 == _wcsicmp(argv[i], L"--device")) {
+			if (NULL != m_pMMDevice) {
+				LOG_ERROR(L"%s", L"Only one --device switch is allowed");
+				hr = E_INVALIDARG;
 				return;
 			}
+
+			if (i++ == argc) {
+				LOG_ERROR(L"%s", L"--device switch requires an argument");
+				hr = E_INVALIDARG;
+				return;
+			}
+
+			hr = get_specific_device(argv[i], flow, &m_pMMDevice);
+			if (FAILED(hr)) {
+				return;
+			}
+
+			continue;
+		}
+
+		// --int-16
+		if (0 == _wcsicmp(argv[i], L"--int-16")) {
+			if (m_bInt16) {
+				LOG_ERROR(L"%s", L"Only one --int-16 switch is allowed");
+				hr = E_INVALIDARG;
+				return;
+			}
+
+			m_bInt16 = true;
+			continue;
+		}
+
+		LOG_ERROR(L"Invalid argument %ls", argv[i]);
+		hr = E_INVALIDARG;
+		return;
+	}
+
+	// open default device if not specified
+	if (NULL == m_pMMDevice) {
+		hr = get_default_device(&m_pMMDevice, flow);
+		if (FAILED(hr)) {
+			LOG_WARN(L"No audio capture devices available");
+			return;
 		}
 	}
 }

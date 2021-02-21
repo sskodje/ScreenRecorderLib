@@ -1,3 +1,5 @@
+#pragma warning (disable : 26451)
+
 #include "mouse_pointer.h"
 #include "log.h"
 #include "utilities.h"
@@ -64,14 +66,6 @@ long mouse_pointer::ParseColorString(std::string color)
 	}
 	return std::strtoul(color.data(), 0, 16);
 }
-float mouse_pointer::GetCurrentDpi()
-{
-	int newDpiX(0);
-	auto hDC = GetDC(NULL);
-	newDpiX = GetDeviceCaps(hDC, LOGPIXELSX);
-	ReleaseDC(NULL, hDC);
-	return (float)newDpiX / 96.0f;
-}
 
 void mouse_pointer::GetPointerPosition(_In_ PTR_INFO *PtrInfo, DXGI_MODE_ROTATION rotation, int desktopWidth, int desktopHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop)
 {
@@ -105,16 +99,14 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Texture
 	HRESULT hr = bgTexture->QueryInterface(__uuidof(IDXGISurface), (void**)&pSharedSurface);
 
 	// Create the DXGI Surface Render Target.
-	FLOAT dpiX;
-	FLOAT dpiY;
-	m_D2DFactory->GetDesktopDpi(&dpiX, &dpiY);
+	UINT dpi = GetDpiForSystem();
 	/* RenderTargetProperties contains the description for render target */
 	D2D1_RENDER_TARGET_PROPERTIES RenderTargetProperties =
 		D2D1::RenderTargetProperties(
 			D2D1_RENDER_TARGET_TYPE_DEFAULT,
 			D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, D2D1_ALPHA_MODE_PREMULTIPLIED),
-			dpiX,
-			dpiY
+			dpi,
+			dpi
 		);
 
 	ATL::CComPtr<ID2D1RenderTarget> pRenderTarget;
@@ -134,7 +126,7 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Texture
 	pSharedSurface->GetDesc(&desc);
 	D2D1_ELLIPSE ellipse;
 	D2D1_POINT_2F mousePoint;
-	float dpi = GetCurrentDpi();
+	float dpiScale = dpi / 96.0f;
 	INT ptrLeft, ptrTop;
 	GetPointerPosition(PtrInfo, rotation, desc.Width, desc.Height, &ptrLeft, &ptrTop);
 
@@ -148,8 +140,8 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Texture
 	else if (rotation == DXGI_MODE_ROTATION_ROTATE270) {
 		ptrLeft += PtrInfo->ShapeInfo.Height;
 	}
-	mousePoint.x = ptrLeft / dpi;
-	mousePoint.y = ptrTop / dpi;
+	mousePoint.x = ptrLeft / dpiScale;
+	mousePoint.y = ptrTop / dpiScale;
 
 	ellipse.point = mousePoint;
 	ellipse.radiusX = radius;
@@ -772,7 +764,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, RECT screenRect, boo
 	}
 	
 	ICONINFO iconInfo = { 0 };
-	if (!GetIconInfo(cursorInfo.hCursor, &iconInfo)) {
+	if (!cursorInfo.hCursor || !GetIconInfo(cursorInfo.hCursor, &iconInfo)) {
 		return E_FAIL;
 	}
 	bool isVisible = cursorInfo.flags == CURSOR_SHOWING;
