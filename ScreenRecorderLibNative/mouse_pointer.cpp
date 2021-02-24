@@ -699,7 +699,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 {
 	PtrInfo->IsPointerShapeUpdated = false;
 	// A non-zero mouse update timestamp indicates that there is a mouse position update and optionally a shape change
-	if (FrameInfo->LastMouseUpdateTime.QuadPart == 0)
+	if (FrameInfo->PointerPosition.Visible == false || FrameInfo->LastMouseUpdateTime.QuadPart == 0)
 	{
 		return S_FALSE;
 	}
@@ -754,7 +754,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 	return S_OK;
 }
 
-HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, RECT screenRect, bool getShapeBuffer, int offsetX, int offsetY)
+HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, bool getShapeBuffer, int offsetX, int offsetY)
 {
 	PtrInfo->IsPointerShapeUpdated = false;
 	CURSORINFO cursorInfo = { 0 };
@@ -762,7 +762,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, RECT screenRect, boo
 	if (!GetCursorInfo(&cursorInfo)) {
 		return E_FAIL;
 	}
-	
+
 	ICONINFO iconInfo = { 0 };
 	if (!cursorInfo.hCursor || !GetIconInfo(cursorInfo.hCursor, &iconInfo)) {
 		return E_FAIL;
@@ -866,8 +866,8 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, RECT screenRect, boo
 	shapeInfo.Type = cursorType;
 	shapeInfo.Pitch = widthBytes;
 
-	cursorInfo.ptScreenPos.x = cursorInfo.ptScreenPos.x + offsetX + screenRect.left - hotSpot.x;
-	cursorInfo.ptScreenPos.y = cursorInfo.ptScreenPos.y + offsetY + screenRect.top - hotSpot.y;
+	cursorInfo.ptScreenPos.x = cursorInfo.ptScreenPos.x - offsetX - hotSpot.x;
+	cursorInfo.ptScreenPos.y = cursorInfo.ptScreenPos.y - offsetY - hotSpot.y;
 	PtrInfo->Position = cursorInfo.ptScreenPos;
 	PtrInfo->ShapeInfo = shapeInfo;
 	PtrInfo->Visible = isVisible;

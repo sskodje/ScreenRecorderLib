@@ -121,7 +121,7 @@ HRESULT duplication_manager::GetFrame(_Out_ DUPL_FRAME_DATA * Data)
 	DXGI_OUTDUPL_FRAME_INFO FrameInfo;
 
 	// Get new frame
-	HRESULT hr = m_DeskDupl->AcquireNextFrame(500, &FrameInfo, &DesktopResource);
+	HRESULT hr = m_DeskDupl->AcquireNextFrame(10, &FrameInfo, &DesktopResource);
 	if (FAILED(hr))
 	{
 		return hr;
@@ -203,19 +203,13 @@ HRESULT duplication_manager::GetFrame(_Out_ DUPL_FRAME_DATA * Data)
 //
 // Release frame
 //
-HRESULT duplication_manager::DoneWithFrame()
+HRESULT duplication_manager::ReleaseFrame()
 {
 	HRESULT hr = m_DeskDupl->ReleaseFrame();
 	if (FAILED(hr))
 	{
 		LOG_ERROR(L"Failed to release frame in DUPLICATIONMANAGER");
 		return hr;
-	}
-
-	if (m_AcquiredDesktopImage)
-	{
-		m_AcquiredDesktopImage->Release();
-		m_AcquiredDesktopImage = nullptr;
 	}
 
 	return hr;

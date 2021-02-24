@@ -82,6 +82,7 @@ typedef struct _THREAD_DATA
 	HANDLE TexSharedHandle{};
 	std::wstring OutputMonitor{};
 	bool IsCursorCaptureEnabled{};
+	bool HaveWrittenFirstFrame{};
 	HWND OutputWindow{};
 	INT OffsetX{};
 	INT OffsetY{};

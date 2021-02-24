@@ -50,8 +50,7 @@ void duplication_capture::Clean()
 	}
 	RtlZeroMemory(&m_PtrInfo, sizeof(m_PtrInfo));
 
-	if (m_ThreadHandles)
-	{
+	if (m_ThreadHandles) {
 		for (UINT i = 0; i < m_ThreadCount; ++i)
 		{
 			if (m_ThreadHandles[i])
@@ -85,12 +84,13 @@ void duplication_capture::Clean()
 HRESULT duplication_capture::StartCapture(_In_ std::vector<std::wstring> outputs, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
 {
 	ResetEvent(m_TerminateThreadsEvent);
-	std::vector<std::wstring> CreatedOutputs;
-	HRESULT hr = CreateSharedSurf(outputs, &CreatedOutputs, &m_OutputRect);
+	std::vector<std::wstring> Outputs;
+	std::vector<SIZE> Offsets;
+	HRESULT hr = CreateSharedSurf(outputs, &Outputs, &Offsets, &m_OutputRect);
 	if (FAILED(hr)) {
 		return hr;
 	}
-	m_ThreadCount = CreatedOutputs.size();
+	m_ThreadCount = (UINT)Outputs.size();
 	m_ThreadHandles = new (std::nothrow) HANDLE[m_ThreadCount]{};
 	m_ThreadData = new (std::nothrow) THREAD_DATA[m_ThreadCount]{};
 	if (!m_ThreadHandles || !m_ThreadData)
@@ -101,14 +101,14 @@ HRESULT duplication_capture::StartCapture(_In_ std::vector<std::wstring> outputs
 	// Create appropriate # of threads for duplication
 	for (UINT i = 0; i < m_ThreadCount; i++)
 	{
-		std::wstring outputName = CreatedOutputs.at(i);
+		std::wstring outputName = Outputs.at(i);
 		m_ThreadData[i].UnexpectedErrorEvent = hUnexpectedErrorEvent;
 		m_ThreadData[i].ExpectedErrorEvent = hExpectedErrorEvent;
 		m_ThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
 		m_ThreadData[i].OutputMonitor = outputName;
 		m_ThreadData[i].TexSharedHandle = sharedHandle;
-		m_ThreadData[i].OffsetX = m_OutputRect.left;
-		m_ThreadData[i].OffsetY = m_OutputRect.top;
+		m_ThreadData[i].OffsetX = m_OutputRect.left + Offsets.at(i).cx;
+		m_ThreadData[i].OffsetY = m_OutputRect.top + Offsets.at(i).cy;
 		m_ThreadData[i].PtrInfo = &m_PtrInfo;
 
 		RtlZeroMemory(&m_ThreadData[i].DxRes, sizeof(DX_RESOURCES));
@@ -141,7 +141,7 @@ HRESULT duplication_capture::StopCapture()
 //
 // Get DX_RESOURCES
 //
-HRESULT duplication_capture::InitializeDx(_Out_ DX_RESOURCES* Data)
+HRESULT duplication_capture::InitializeDx(_Out_ DX_RESOURCES* pData)
 {
 	HRESULT hr = S_OK;
 
@@ -170,7 +170,7 @@ HRESULT duplication_capture::InitializeDx(_Out_ DX_RESOURCES* Data)
 	for (UINT DriverTypeIndex = 0; DriverTypeIndex < NumDriverTypes; ++DriverTypeIndex)
 	{
 		hr = D3D11CreateDevice(nullptr, DriverTypes[DriverTypeIndex], nullptr, 0, FeatureLevels, NumFeatureLevels,
-			D3D11_SDK_VERSION, &Data->Device, &FeatureLevel, &Data->Context);
+			D3D11_SDK_VERSION, &pData->Device, &FeatureLevel, &pData->Context);
 		if (SUCCEEDED(hr))
 		{
 			// Device creation success, no need to loop anymore
@@ -184,7 +184,7 @@ HRESULT duplication_capture::InitializeDx(_Out_ DX_RESOURCES* Data)
 
 	// VERTEX shader
 	UINT Size = ARRAYSIZE(g_VS);
-	hr = Data->Device->CreateVertexShader(g_VS, Size, nullptr, &Data->VertexShader);
+	hr = pData->Device->CreateVertexShader(g_VS, Size, nullptr, &pData->VertexShader);
 	if (FAILED(hr))
 	{
 		return hr;
@@ -197,16 +197,16 @@ HRESULT duplication_capture::InitializeDx(_Out_ DX_RESOURCES* Data)
 		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0}
 	};
 	UINT NumElements = ARRAYSIZE(Layout);
-	hr = Data->Device->CreateInputLayout(Layout, NumElements, g_VS, Size, &Data->InputLayout);
+	hr = pData->Device->CreateInputLayout(Layout, NumElements, g_VS, Size, &pData->InputLayout);
 	if (FAILED(hr))
 	{
 		return hr;
 	}
-	Data->Context->IASetInputLayout(Data->InputLayout);
+	pData->Context->IASetInputLayout(pData->InputLayout);
 
 	// Pixel shader
 	Size = ARRAYSIZE(g_PS);
-	hr = Data->Device->CreatePixelShader(g_PS, Size, nullptr, &Data->PixelShader);
+	hr = pData->Device->CreatePixelShader(g_PS, Size, nullptr, &pData->PixelShader);
 	if (FAILED(hr))
 	{
 		return hr;
@@ -222,7 +222,7 @@ HRESULT duplication_capture::InitializeDx(_Out_ DX_RESOURCES* Data)
 	SampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 	SampDesc.MinLOD = 0;
 	SampDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	hr = Data->Device->CreateSamplerState(&SampDesc, &Data->SamplerLinear);
+	hr = pData->Device->CreateSamplerState(&SampDesc, &pData->SamplerLinear);
 	if (FAILED(hr))
 	{
 		return hr;
@@ -234,75 +234,47 @@ HRESULT duplication_capture::InitializeDx(_Out_ DX_RESOURCES* Data)
 //
 // Create shared texture
 //
-HRESULT duplication_capture::CreateSharedSurf(_In_ std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *pCreatedOutputs, _Out_ RECT* pDeskBounds)
+HRESULT duplication_capture::CreateSharedSurf(_In_ std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *pCreatedOutputs, _Out_ std::vector<SIZE> *pCreatedOffsets, _Out_ RECT* pDeskBounds)
 {
-	HRESULT hr;
-
-	// Get DXGI resources
-	IDXGIDevice* DxgiDevice = nullptr;
-	hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&DxgiDevice));
-	if (FAILED(hr))
-	{
-		LOG_ERROR(L"Failed to QI for DXGI Device");
-		return hr;
-	}
-
-	IDXGIAdapter* DxgiAdapter = nullptr;
-	hr = DxgiDevice->GetParent(__uuidof(IDXGIAdapter), reinterpret_cast<void**>(&DxgiAdapter));
-	DxgiDevice->Release();
-	DxgiDevice = nullptr;
-	if (FAILED(hr))
-	{
-		LOG_ERROR(L"Failed to get parent DXGI Adapter");
-		return hr;
-	}
-
 	// Set initial values so that we always catch the right coordinates
 	pDeskBounds->left = INT_MAX;
 	pDeskBounds->right = INT_MIN;
 	pDeskBounds->top = INT_MAX;
 	pDeskBounds->bottom = INT_MIN;
 
-	IDXGIOutput* DxgiOutput = nullptr;
-
 	// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
-	std::vector<std::wstring> createdOutputs{};
-
-	hr = S_OK;
-	for (int i = 0; SUCCEEDED(hr); i++)
+	std::vector<DXGI_OUTPUT_DESC> outputDescs{};
+	HRESULT hr = GetOutputDescsForDeviceNames(outputs, &outputDescs);
+	if (FAILED(hr))
 	{
-		if (DxgiOutput)
-		{
-			DxgiOutput->Release();
-			DxgiOutput = nullptr;
-		}
-		hr = DxgiAdapter->EnumOutputs(i, &DxgiOutput);
-		if (DxgiOutput && (hr != DXGI_ERROR_NOT_FOUND))
-		{
-			DXGI_OUTPUT_DESC DesktopDesc;
-			DxgiOutput->GetDesc(&DesktopDesc);
-			if (outputs.size() == 0 || std::find(outputs.begin(), outputs.end(), DesktopDesc.DeviceName) != outputs.end())
-			{
-				pDeskBounds->left = min(DesktopDesc.DesktopCoordinates.left, pDeskBounds->left);
-				pDeskBounds->top = min(DesktopDesc.DesktopCoordinates.top, pDeskBounds->top);
-				pDeskBounds->right = max(DesktopDesc.DesktopCoordinates.right, pDeskBounds->right);
-				pDeskBounds->bottom = max(DesktopDesc.DesktopCoordinates.bottom, pDeskBounds->bottom);
-				createdOutputs.push_back(DesktopDesc.DeviceName);
-			}
-		}
+		LOG_ERROR(L"Failed to get output descs for selected devices");
+		return hr;
 	}
 
-	DxgiAdapter->Release();
-	DxgiAdapter = nullptr;
-
-	// Set created outputs
-	*pCreatedOutputs = createdOutputs;
-
-	if (createdOutputs.size() == 0)
+	if (outputDescs.size() == 0)
 	{
 		// We could not find any outputs
 		return E_FAIL;
 	}
+
+	std::sort(outputDescs.begin(), outputDescs.end(), compareOutputDesc);
+	std::vector<RECT> outputRects{};
+	for each (DXGI_OUTPUT_DESC desc in outputDescs)
+	{
+		outputRects.push_back(desc.DesktopCoordinates);
+	}
+	std::vector<SIZE> outputOffsets{};
+	GetCombinedRects(outputRects, pDeskBounds, &outputOffsets);
+
+	pDeskBounds = &MakeRectEven(*pDeskBounds);
+	std::vector<std::wstring> mergedOutputs{};
+	for each (DXGI_OUTPUT_DESC desc in outputDescs)
+	{
+		mergedOutputs.push_back(desc.DeviceName);
+	}
+	// Set created outputs
+	*pCreatedOutputs = mergedOutputs;
+	*pCreatedOffsets = outputOffsets;
 
 	// Create shared texture for all duplication threads to draw into
 	D3D11_TEXTURE2D_DESC DeskTexD;
@@ -364,31 +336,42 @@ PTR_INFO* duplication_capture::GetPointerInfo()
 	return &m_PtrInfo;
 }
 
-HRESULT duplication_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Out_ CAPTURED_FRAME *frame)
+HRESULT duplication_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame)
 {
+	// Try to acquire keyed mutex in order to access shared surface
+	HRESULT hr = m_KeyMutex->AcquireSync(1, timeoutMillis);
+	if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
+	{
+		return DXGI_ERROR_WAIT_TIMEOUT;
+	}
+	else if (FAILED(hr))
+	{
+		return hr;
+	}
+	ReleaseKeyedMutexOnExit releaseMutex(m_KeyMutex, 0);
+
 	bool haveNewFrameData = false;
 	int updatedFrameCount = 0;
+
 	for (UINT i = 0; i < m_ThreadCount; ++i)
 	{
 		if (m_ThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
 			haveNewFrameData = true;
 			updatedFrameCount += m_ThreadData[i].UpdatedFrameCount;
 			m_ThreadData[i].UpdatedFrameCount = 0;
-			break;
 		}
 	}
-
 	if (!haveNewFrameData) {
 		return DXGI_ERROR_WAIT_TIMEOUT;
 	}
-	// We have a new frame so try and process it
-	// Try to acquire keyed mutex in order to access shared surface
-	HRESULT hr = m_KeyMutex->AcquireSync(1, timeoutMillis);
-	if (FAILED(hr))
+
+	for (UINT i = 0; i < m_ThreadCount; ++i)
 	{
-		return DXGI_ERROR_WAIT_TIMEOUT;
+		if (!m_ThreadData[i].HaveWrittenFirstFrame) {
+			//If any of the recordings have not yet written a frame, we return and wait for them.
+			return DXGI_ERROR_WAIT_TIMEOUT;
+		}
 	}
-	ReleaseKeyedMutexOnExit releaseMutex(m_KeyMutex, 0);
 
 	ID3D11Texture2D *pDesktopFrame = nullptr;
 	D3D11_TEXTURE2D_DESC desc;
@@ -399,10 +382,10 @@ HRESULT duplication_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Out_ C
 
 	QueryPerformanceCounter(&m_LastAcquiredFrameTimeStamp);
 
-	frame->Frame = pDesktopFrame;
-	frame->PtrInfo = &m_PtrInfo;
-	frame->UpdateCount = updatedFrameCount;
-	frame->Timestamp = m_LastAcquiredFrameTimeStamp;
+	pFrame->Frame = pDesktopFrame;
+	pFrame->PtrInfo = &m_PtrInfo;
+	pFrame->UpdateCount = updatedFrameCount;
+	pFrame->Timestamp = m_LastAcquiredFrameTimeStamp;
 	return hr;
 }
 
@@ -425,8 +408,8 @@ DWORD WINAPI DDProc(_In_ void* Param)
 	HRESULT hr = S_OK;
 
 	// Classes
-	duplication_manager pDuplicationManager;
-	mouse_pointer pMousePointer;
+	duplication_manager pDuplicationManager{};
+	mouse_pointer pMousePointer{};
 
 	// D3D objects
 	ID3D11Texture2D* SharedSurf = nullptr;
@@ -461,6 +444,7 @@ DWORD WINAPI DDProc(_In_ void* Param)
 		goto Exit;
 	}
 	pMousePointer.Initialize(TData->DxRes.Context, TData->DxRes.Device);
+	//This scope must be here for ReleaseOnExit to work.
 	{
 		// Obtain handle to sync shared Surface
 		hr = TData->DxRes.Device->OpenSharedResource(TData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&SharedSurf));
@@ -513,7 +497,6 @@ DWORD WINAPI DDProc(_In_ void* Param)
 					break;
 				}
 			}
-
 			// We have a new frame so try and process it
 			// Try to acquire keyed mutex in order to access shared surface
 			hr = KeyMutex->AcquireSync(0, 10);
@@ -527,10 +510,10 @@ DWORD WINAPI DDProc(_In_ void* Param)
 			{
 				// Generic unknown failure
 				LOG_ERROR(L"Unexpected error acquiring KeyMutex");
-				pDuplicationManager.DoneWithFrame();
+				pDuplicationManager.ReleaseFrame();
 				break;
 			}
-
+			ReleaseDuplicationManagerFrameOnExit releaseFrame(&pDuplicationManager);
 			ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
 
 			// We can now process the current frame
@@ -540,8 +523,6 @@ DWORD WINAPI DDProc(_In_ void* Param)
 			hr = pMousePointer.GetMouse(TData->PtrInfo, &(CurrentData.FrameInfo), DesktopDesc.DesktopCoordinates, pDuplicationManager.GetOutputDuplication(), TData->OffsetX, TData->OffsetY);
 			if (FAILED(hr))
 			{
-				pDuplicationManager.DoneWithFrame();
-				KeyMutex->ReleaseSync(1);
 				break;
 			}
 
@@ -549,25 +530,11 @@ DWORD WINAPI DDProc(_In_ void* Param)
 			hr = pDuplicationManager.ProcessFrame(&CurrentData, SharedSurf, TData->OffsetX, TData->OffsetY, &DesktopDesc);
 			if (FAILED(hr))
 			{
-				pDuplicationManager.DoneWithFrame();
-				KeyMutex->ReleaseSync(1);
 				break;
 			}
 			TData->UpdatedFrameCount += CurrentData.FrameInfo.AccumulatedFrames;
-			// Release acquired keyed mutex
-			hr = KeyMutex->ReleaseSync(1);
-			if (FAILED(hr))
-			{
-				LOG_ERROR(L"Unexpected error releasing the keyed mutex");
-				pDuplicationManager.DoneWithFrame();
-				break;
-			}
-
-			// Release frame back to desktop duplication
-			hr = pDuplicationManager.DoneWithFrame();
-			if (FAILED(hr))
-			{
-				break;
+			if (CurrentData.FrameInfo.AccumulatedFrames > 0) {
+				TData->HaveWrittenFirstFrame = true;
 			}
 			QueryPerformanceCounter(&TData->LastUpdateTimeStamp);
 		}

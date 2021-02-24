@@ -1,3 +1,4 @@
+#pragma warning (disable : 26451)
 #include "DX.util.h"
 #include "cleanup.h"
 
@@ -94,6 +95,65 @@ HRESULT InitializeDx(_Out_ DX_RESOURCES* Data)
 	return hr;
 }
 
+HRESULT GetOutputDescsForDeviceNames(_In_ std::vector<std::wstring> deviceNames, _Out_ std::vector<DXGI_OUTPUT_DESC> *outputDescs) {
+	*outputDescs = std::vector<DXGI_OUTPUT_DESC>();
+
+	// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
+	std::vector<IDXGIOutput*> outputs{};
+	EnumOutputs(&outputs);
+	for each (IDXGIOutput * output in outputs)
+	{
+		DXGI_OUTPUT_DESC desc;
+		output->GetDesc(&desc);
+		if (deviceNames.size() == 0 || std::find(deviceNames.begin(), deviceNames.end(), desc.DeviceName) != deviceNames.end())
+		{
+			outputDescs->push_back(desc);
+		}
+		output->Release();
+	}
+	return S_OK;
+}
+
+HRESULT GetMainOutput(_Outptr_result_maybenull_ IDXGIOutput **ppOutput) {
+	HRESULT hr = S_FALSE;
+	if (ppOutput) {
+		*ppOutput = nullptr;
+	}
+
+	std::vector<IDXGIAdapter*> adapters = EnumDisplayAdapters();
+	for (IDXGIAdapter *adapter : adapters)
+	{
+		IDXGIOutput *pOutput;
+		int i = 0;
+		while (adapter->EnumOutputs(i, &pOutput) != DXGI_ERROR_NOT_FOUND)
+		{
+			DXGI_OUTPUT_DESC desc;
+			RETURN_ON_BAD_HR(pOutput->GetDesc(&desc));
+
+			if (desc.DesktopCoordinates.left == 0 && desc.DesktopCoordinates.top == 0) {
+				// Return the pointer to the caller.
+				hr = S_OK;
+				if (ppOutput) {
+					*ppOutput = pOutput;
+					(*ppOutput)->AddRef();
+				}
+				break;
+			}
+			SafeRelease(&pOutput);
+			i++;
+		}
+		if (ppOutput && *ppOutput) {
+			break;
+		}
+	}
+	for (IDXGIAdapter *adapter : adapters)
+	{
+		SafeRelease(&adapter);
+	}
+
+	return hr;
+}
+
 HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **ppOutput) {
 	HRESULT hr = S_FALSE;
 	if (ppOutput) {
@@ -122,18 +182,21 @@ HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_
 				SafeRelease(&pOutput);
 				i++;
 			}
-			SafeRelease(&adapter);
 			if (ppOutput && *ppOutput) {
 				break;
 			}
+		}
+		for (IDXGIAdapter *adapter : adapters)
+		{
+			SafeRelease(&adapter);
 		}
 	}
 	return hr;
 }
 
-void EnumOutputs(_Out_ std::vector<IDXGIOutput*> *ppOutput)
+void EnumOutputs(_Out_ std::vector<IDXGIOutput*> *pOutputs)
 {
-	*ppOutput= std::vector<IDXGIOutput*>();
+	*pOutputs = std::vector<IDXGIOutput*>();
 	std::vector<IDXGIAdapter*> adapters = EnumDisplayAdapters();
 	for (IDXGIAdapter *adapter : adapters)
 	{
@@ -142,12 +205,36 @@ void EnumOutputs(_Out_ std::vector<IDXGIOutput*> *ppOutput)
 		while (adapter->EnumOutputs(i, &pOutput) != DXGI_ERROR_NOT_FOUND)
 		{
 			// Return the pointer to the caller.
-			if (ppOutput) {
-				ppOutput->push_back(pOutput);
-			}
+			pOutputs->push_back(pOutput);
 			i++;
 		}
 		SafeRelease(&adapter);
+	}
+}
+
+void GetCombinedRects(_In_ std::vector<RECT> inputs, _Out_ RECT *pOutRect, _Out_opt_ std::vector<SIZE> *pOffsets)
+{
+	*pOutRect = RECT{};
+	std::sort(inputs.begin(), inputs.end(), compareRects);
+	if (pOffsets) {
+		*pOffsets = std::vector<SIZE>();
+	}
+	for (int i = 0; i < inputs.size(); i++) {
+		RECT curDisplay = inputs[i];
+		UnionRect(pOutRect, &curDisplay, pOutRect);
+		//The offset is the difference between the end of the previous screen and the start of the current screen.
+		int xPosOffset = 0;
+		int yPosOffset = 0;
+		if (i > 0) {
+			RECT prevDisplay = inputs[i - 1];
+			xPosOffset = max(0, curDisplay.left - prevDisplay.right);
+			yPosOffset = max(0, curDisplay.top - prevDisplay.bottom);
+		}
+		pOutRect->right -= xPosOffset;
+		pOutRect->bottom -= yPosOffset;
+		if (pOffsets) {
+			pOffsets->push_back(SIZE{ xPosOffset,yPosOffset });
+		}
 	}
 }
 
@@ -260,6 +347,6 @@ void SetDebugName(_In_ ID3D11DeviceChild * child, _In_ const std::string & name)
 {
 #if _DEBUG
 	if (child != nullptr)
-		child->SetPrivateData(WKPDID_D3DDebugObjectName, name.size(), name.c_str());
+		child->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)name.size(), name.c_str());
 #endif
 }

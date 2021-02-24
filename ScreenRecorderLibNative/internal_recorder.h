@@ -201,7 +201,7 @@ private:
 	DWORD m_AudioStreamIndex = 0;
 	HANDLE m_FinalizeEvent = nullptr;
 	//Config
-	UINT32 m_MaxFrameLength100Nanos = 1000 * 1000 * 10; //1 second in 100 nanoseconds measure.
+	UINT32 m_MaxFrameLength100Nanos = 100 * 1000 * 10; //100 milliseconds in 100 nanoseconds measure.
 	UINT32 m_RecorderMode = MODE_VIDEO;
 	UINT32 m_RecorderApi = API_DESKTOP_DUPLICATION;
 	std::vector<std::wstring> m_DisplayOutputDevices = {};
@@ -261,8 +261,8 @@ private:
 	HRESULT StartDesktopDuplicationRecorderLoop(_In_opt_ IStream *pStream);
 	HRESULT RenderFrame(_In_ FrameWriteModel& model);
 	HRESULT ConfigureOutputDir(_In_ std::wstring path);
-	HRESULT InitializeDesc(RECT outputRect, _Out_ D3D11_TEXTURE2D_DESC *pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC *pDestFrameDesc, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect);
-	HRESULT InitializeDx(_Outptr_ ID3D11DeviceContext **ppContext, _Outptr_ ID3D11Device **ppDevice);
+	HRESULT InitializeDesc(_In_ RECT outputRect, _Out_ D3D11_TEXTURE2D_DESC *pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC *pDestFrameDesc, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect);
+	HRESULT InitializeDx(_Outptr_ ID3D11DeviceContext **ppContext, _Outptr_ ID3D11Device **ppDevice, _Outptr_opt_result_maybenull_ ID3D11Debug **ppDebug);
 	HRESULT InitializeVideoSinkWriter(_In_ std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device* pDevice, _In_ RECT sourceRect, _In_ RECT destRect, _In_ DXGI_MODE_ROTATION rotation, _In_ IMFSinkWriterCallback *pCallback, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex);
 	HRESULT ConfigureOutputMediaTypes(_In_ UINT destWidth, _In_ UINT destHeight, _Outptr_ IMFMediaType **pVideoMediaTypeOut, _Outptr_result_maybenull_ IMFMediaType **pAudioMediaTypeOut);
 	HRESULT ConfigureInputMediaTypes(_In_ UINT sourceWidth, _In_ UINT sourceHeight, _In_ MFVideoRotationFormat rotationFormat, _In_ IMFMediaType *pVideoMediaTypeOut, _Outptr_ IMFMediaType **pVideoMediaTypeIn, _Outptr_result_maybenull_ IMFMediaType **pAudioMediaTypeIn);
@@ -275,7 +275,7 @@ private:
 	HRESULT WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE *pSrc, _In_ DWORD cbData);
 	HRESULT SetAttributeU32(_Inout_ ATL::CComPtr<ICodecAPI>& codec, _In_ const GUID& guid, _In_ UINT32 value);
 	HRESULT CreateInputMediaTypeFromOutput(_In_ IMFMediaType *pType, _In_ const GUID& subtype, _Outptr_ IMFMediaType **ppType);
-	HRESULT DrawMousePointer(_In_ ID3D11Texture2D *frame, _In_ mouse_pointer *pointer, _In_ PTR_INFO ptrInfo, _In_ DXGI_MODE_ROTATION screenRotation, _In_ INT64 durationSinceLastFrame100Nanos);
+	HRESULT DrawMousePointer(_In_ ID3D11Texture2D *frame, _In_ mouse_pointer *pointer, _In_ PTR_INFO *ptrInfo, _In_ DXGI_MODE_ROTATION screenRotation, _In_ INT64 durationSinceLastFrame100Nanos);
 	HRESULT CropFrame(_In_ ID3D11Texture2D *frame, _In_ D3D11_TEXTURE2D_DESC frameDesc, _In_ RECT destRect, _Outptr_ ID3D11Texture2D **pCroppedFrame);
 	HRESULT GetVideoProcessor(_In_ IMFSinkWriter *pSinkWriter, _In_ DWORD streamIndex, _Outptr_ IMFVideoProcessorControl **pVideoProcessor);
 };

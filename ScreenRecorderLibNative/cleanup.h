@@ -8,6 +8,7 @@
 #include "log.h"
 #include "duplication_capture.h"
 #include "graphics_capture.h"
+#include "duplication_manager.h"
 template <class T> void SafeRelease(T **ppT)
 {
 	if (*ppT)
@@ -263,4 +264,18 @@ public:
 private:
 	IDXGIKeyedMutex *m_p;
 	UINT64 m_key;
+};
+
+class ReleaseDuplicationManagerFrameOnExit {
+public:
+	ReleaseDuplicationManagerFrameOnExit(duplication_manager *manager) : m_p(manager){}
+	~ReleaseDuplicationManagerFrameOnExit() {
+
+		if (m_p) {
+			m_p->ReleaseFrame();
+		}
+	}
+
+private:
+	duplication_manager *m_p;
 };

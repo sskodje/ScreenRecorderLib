@@ -7,7 +7,7 @@ public:
     duplication_manager();
     ~duplication_manager();
     HRESULT GetFrame(_Out_ DUPL_FRAME_DATA * Data);
-    HRESULT DoneWithFrame();
+    HRESULT ReleaseFrame();
     HRESULT Initialize(_In_ DX_RESOURCES* Data, std::wstring Output);
     void GetOutputDesc(_Out_ DXGI_OUTPUT_DESC * DescPtr);
     IDXGIOutputDuplication* GetOutputDuplication() { return m_DeskDupl; }

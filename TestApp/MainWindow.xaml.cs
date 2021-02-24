@@ -250,18 +250,14 @@ namespace TestApp
                 videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + GetImageExtension());
             }
             _progressTimer = new DispatcherTimer();
-            _progressTimer.Tick += _progressTimer_Tick;
+            _progressTimer.Tick += ProgressTimer_Tick;
             _progressTimer.Interval = TimeSpan.FromSeconds(1);
             _progressTimer.Start();
 
-            int right = 0;
-            Int32.TryParse(this.RecordingAreaRightTextBox.Text, out right);
-            int bottom = 0;
-            Int32.TryParse(this.RecordingAreaBottomTextBox.Text, out bottom);
-            int left = 0;
-            Int32.TryParse(this.RecordingAreaLeftTextBox.Text, out left);
-            int top = 0;
-            Int32.TryParse(this.RecordingAreaTopTextBox.Text, out top);
+            Int32.TryParse(this.RecordingAreaRightTextBox.Text, out int right);
+            Int32.TryParse(this.RecordingAreaBottomTextBox.Text, out int bottom);
+            Int32.TryParse(this.RecordingAreaLeftTextBox.Text, out int left);
+            Int32.TryParse(this.RecordingAreaTopTextBox.Text, out int top);
 
             var selectedDisplay = this.ScreenComboBox.SelectedItem as DisplayOutput;
 
@@ -338,8 +334,8 @@ namespace TestApp
                 _rec = Recorder.CreateRecorder(options);
                 _rec.OnRecordingComplete += Rec_OnRecordingComplete;
                 _rec.OnRecordingFailed += Rec_OnRecordingFailed;
-                _rec.OnStatusChanged += _rec_OnStatusChanged;
-                _rec.OnSnapshotSaved += _rec_OnSnapshotSaved;
+                _rec.OnStatusChanged += Rec_OnStatusChanged;
+                _rec.OnSnapshotSaved += Rec_OnSnapshotSaved;
             }
             else
             {
@@ -408,9 +404,9 @@ namespace TestApp
                 CleanupResources();
             }));
         }
-        private void _rec_OnSnapshotSaved(object sender, SnapshotSavedEventArgs e)
+        private void Rec_OnSnapshotSaved(object sender, SnapshotSavedEventArgs e)
         {
-            string filepath = e.SnapshotPath;
+            //string filepath = e.SnapshotPath;
         }
         private void CleanupResources()
         {
@@ -426,7 +422,7 @@ namespace TestApp
             _rec = null;
         }
 
-        private void _rec_OnStatusChanged(object sender, RecordingStatusEventArgs e)
+        private void Rec_OnStatusChanged(object sender, RecordingStatusEventArgs e)
         {
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
             {
@@ -462,7 +458,7 @@ namespace TestApp
             }));
         }
 
-        private void _progressTimer_Tick(object sender, EventArgs e)
+        private void ProgressTimer_Tick(object sender, EventArgs e)
         {
             _secondsElapsed++;
             UpdateProgress();
@@ -494,11 +490,17 @@ namespace TestApp
 
         private void SetScreenRect()
         {
-            var checkedScreens = this.ScreenComboBox.Items.Cast<DisplayOutput>().Where(x => x.IsSelected).ToList();
-            if (checkedScreens.Count > 0)
+            var selectedDisplays = this.ScreenComboBox.Items.Cast<DisplayOutput>()
+                .Where(x => x.IsSelected)
+                .OrderBy(x => x.Position.X)
+                .ThenBy(x => x.Position.Y)
+                .ToList();
+
+            if (selectedDisplays.Count > 0)
             {
-                this.RecordingAreaRightTextBox.Text = checkedScreens.Max(x => x.Position.X + x.Width).ToString();
-                this.RecordingAreaBottomTextBox.Text = checkedScreens.Max(x => x.Position.Y + x.Height).ToString();
+                var size = Recorder.GetCombinedOutputSizeForDisplays(selectedDisplays.Select(x => x.DeviceName).ToList());
+                this.RecordingAreaRightTextBox.Text = size.Width.ToString();
+                this.RecordingAreaBottomTextBox.Text = size.Height.ToString(); ;
                 this.RecordingAreaLeftTextBox.Text = 0.ToString();
                 this.RecordingAreaTopTextBox.Text = 0.ToString();
             }
@@ -640,8 +642,7 @@ namespace TestApp
             }
             else
             {
-                NativeMethods.RECT windowRect;
-                if (NativeMethods.GetWindowRect(window.Handle, out windowRect))
+                if (NativeMethods.GetWindowRect(window.Handle, out NativeMethods.RECT windowRect))
                 {
                     this.RecordingAreaRightTextBox.Text = windowRect.Right.ToString();
                     this.RecordingAreaBottomTextBox.Text = windowRect.Bottom.ToString();

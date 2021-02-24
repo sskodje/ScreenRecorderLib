@@ -92,7 +92,7 @@ inline INT64 HundredNanosToMillis(INT64 hundredNanos) {
 /// This method forces the dimensions of a RECT to be even by subtracting one pixel if odd.
 /// </summary>
 /// <param name="rect"></param>
-inline RECT MakeRectEven(_In_ RECT rect)
+inline RECT MakeRectEven(_In_ RECT &rect)
 {
 	if ((rect.right - rect.left) % 2 != 0)
 		rect.right -= 1;

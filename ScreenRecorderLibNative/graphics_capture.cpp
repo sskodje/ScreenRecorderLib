@@ -3,7 +3,6 @@
 #include <atlbase.h>
 #include "utilities.h"
 #include "graphics_manager.h"
-#include "monitor_list.h"
 #include "cleanup.h"
 namespace winrt
 {
@@ -38,7 +37,7 @@ graphics_capture::graphics_capture(_In_ ID3D11Device* pDevice, _In_ ID3D11Device
 	m_isCursorCaptureEnabled = isCursorCaptureEnabled;
 	m_Device = pDevice;
 	m_ImmediateContext = pDeviceContext;
-
+	RtlZeroMemory(&m_PtrInfo, sizeof(m_PtrInfo));
 	// Event to tell spawned threads to quit
 	m_TerminateThreadsEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 }
@@ -57,12 +56,12 @@ void graphics_capture::Clean()
 		m_SharedSurf->Release();
 		m_SharedSurf = nullptr;
 	}
-	if (m_KeyMutex){
+	if (m_KeyMutex) {
 		m_KeyMutex->Release();
 		m_KeyMutex = nullptr;
 	}
 
-	if (m_ThreadHandles){
+	if (m_ThreadHandles) {
 		for (UINT i = 0; i < m_ThreadCount; ++i)
 		{
 			if (m_ThreadHandles[i])
@@ -74,7 +73,7 @@ void graphics_capture::Clean()
 		m_ThreadHandles = nullptr;
 	}
 
-	if (m_ThreadData){
+	if (m_ThreadData) {
 		for (UINT i = 0; i < m_ThreadCount; ++i)
 		{
 			CleanDx(&m_ThreadData[i].DxRes);
@@ -82,7 +81,12 @@ void graphics_capture::Clean()
 		delete[] m_ThreadData;
 		m_ThreadData = nullptr;
 	}
-
+	if (m_PtrInfo.PtrShapeBuffer)
+	{
+		delete[] m_PtrInfo.PtrShapeBuffer;
+		m_PtrInfo.PtrShapeBuffer = nullptr;
+	}
+	RtlZeroMemory(&m_PtrInfo, sizeof(m_PtrInfo));
 	m_ThreadCount = 0;
 	CloseHandle(m_TerminateThreadsEvent);
 }
@@ -90,12 +94,13 @@ void graphics_capture::Clean()
 HRESULT graphics_capture::StartCapture(std::vector<std::wstring> const &outputs, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
 {
 	ResetEvent(m_TerminateThreadsEvent);
-	std::vector<std::wstring> CreatedOutputs;
-	HRESULT hr = CreateSharedSurf(outputs, &CreatedOutputs, &m_OutputRect);
+	std::vector<std::wstring> Outputs;
+	std::vector<SIZE> OutputOffsets;
+	HRESULT hr = CreateSharedSurf(outputs, &Outputs, &OutputOffsets, &m_OutputRect);
 	if (FAILED(hr)) {
 		return hr;
 	}
-	m_ThreadCount = CreatedOutputs.size();
+	m_ThreadCount = (UINT)Outputs.size();
 	m_ThreadHandles = new (std::nothrow) HANDLE[m_ThreadCount]{};
 	m_ThreadData = new (std::nothrow) THREAD_DATA[m_ThreadCount]{};
 	if (!m_ThreadHandles || !m_ThreadData)
@@ -107,15 +112,15 @@ HRESULT graphics_capture::StartCapture(std::vector<std::wstring> const &outputs,
 	// Create appropriate # of threads for capture
 	for (UINT i = 0; i < m_ThreadCount; i++)
 	{
-		std::wstring outputName = CreatedOutputs.at(i);
+		std::wstring outputName = Outputs.at(i);
 		m_ThreadData[i].UnexpectedErrorEvent = hUnexpectedErrorEvent;
 		m_ThreadData[i].ExpectedErrorEvent = hExpectedErrorEvent;
 		m_ThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
 		m_ThreadData[i].OutputMonitor = outputName;
 		m_ThreadData[i].TexSharedHandle = sharedHandle;
-		m_ThreadData[i].OffsetX = m_OutputRect.left;
-		m_ThreadData[i].OffsetY = m_OutputRect.top;
-		m_ThreadData[i].PtrInfo = nullptr;
+		m_ThreadData[i].OffsetX = m_OutputRect.left + OutputOffsets.at(i).cx;
+		m_ThreadData[i].OffsetY = m_OutputRect.top + OutputOffsets.at(i).cy;
+		m_ThreadData[i].PtrInfo = &m_PtrInfo;
 		m_ThreadData[i].IsCursorCaptureEnabled = m_isCursorCaptureEnabled;
 		RtlZeroMemory(&m_ThreadData[i].DxRes, sizeof(DX_RESOURCES));
 		HRESULT hr = InitializeDx(&m_ThreadData[i].DxRes);
@@ -161,7 +166,7 @@ HRESULT graphics_capture::StartCapture(HWND windowhandle, _In_  HANDLE hUnexpect
 		m_ThreadData[i].TexSharedHandle = sharedHandle;
 		m_ThreadData[i].OffsetX = m_OutputRect.left;
 		m_ThreadData[i].OffsetY = m_OutputRect.top;
-		m_ThreadData[i].PtrInfo = nullptr;
+		m_ThreadData[i].PtrInfo = &m_PtrInfo;
 		m_ThreadData[i].IsCursorCaptureEnabled = m_isCursorCaptureEnabled;
 		RtlZeroMemory(&m_ThreadData[i].DxRes, sizeof(DX_RESOURCES));
 		HRESULT hr = InitializeDx(&m_ThreadData[i].DxRes);
@@ -252,73 +257,42 @@ HRESULT graphics_capture::CreateSharedSurf(_In_ HWND windowhandle, _Out_ RECT* p
 //
 // Create shared texture
 //
-HRESULT graphics_capture::CreateSharedSurf(_In_ std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *pCreatedOutputs, _Out_ RECT* pDeskBounds)
+HRESULT graphics_capture::CreateSharedSurf(_In_ std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *pOutputs, _Out_ std::vector<SIZE> *pOffsets, _Out_ RECT* pDeskBounds)
 {
-	// Get DXGI resources
-	IDXGIDevice* DxgiDevice = nullptr;
-	HRESULT hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&DxgiDevice));
+	// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
+	std::vector<DXGI_OUTPUT_DESC> outputDescs{};
+	HRESULT hr = GetOutputDescsForDeviceNames(outputs, &outputDescs);
 	if (FAILED(hr))
 	{
-		LOG_ERROR(L"Failed to QI for DXGI Device");
+		LOG_ERROR(L"Failed to get output descs for selected devices");
 		return hr;
 	}
 
-	IDXGIAdapter* DxgiAdapter = nullptr;
-	hr = DxgiDevice->GetParent(__uuidof(IDXGIAdapter), reinterpret_cast<void**>(&DxgiAdapter));
-	DxgiDevice->Release();
-	DxgiDevice = nullptr;
-	if (FAILED(hr))
-	{
-		LOG_ERROR(L"Failed to get parent DXGI Adapter");
-		return hr;
-	}
-
-	// Set initial values so that we always catch the right coordinates
-	pDeskBounds->left = INT_MAX;
-	pDeskBounds->right = INT_MIN;
-	pDeskBounds->top = INT_MAX;
-	pDeskBounds->bottom = INT_MIN;
-
-	IDXGIOutput* DxgiOutput = nullptr;
-
-	// Figure out right dimensions for full size desktop texture and # of outputs to capture
-	std::vector<std::wstring> createdOutputs{};
-
-	hr = S_OK;
-	for (int i = 0; SUCCEEDED(hr); i++)
-	{
-		if (DxgiOutput)
-		{
-			DxgiOutput->Release();
-			DxgiOutput = nullptr;
-		}
-		hr = DxgiAdapter->EnumOutputs(i, &DxgiOutput);
-		if (DxgiOutput && (hr != DXGI_ERROR_NOT_FOUND))
-		{
-			DXGI_OUTPUT_DESC DesktopDesc;
-			DxgiOutput->GetDesc(&DesktopDesc);
-			if (outputs.size() == 0 || std::find(outputs.begin(), outputs.end(), DesktopDesc.DeviceName) != outputs.end())
-			{
-				pDeskBounds->left = min(DesktopDesc.DesktopCoordinates.left, pDeskBounds->left);
-				pDeskBounds->top = min(DesktopDesc.DesktopCoordinates.top, pDeskBounds->top);
-				pDeskBounds->right = max(DesktopDesc.DesktopCoordinates.right, pDeskBounds->right);
-				pDeskBounds->bottom = max(DesktopDesc.DesktopCoordinates.bottom, pDeskBounds->bottom);
-				createdOutputs.push_back(DesktopDesc.DeviceName);
-			}
-		}
-	}
-
-	DxgiAdapter->Release();
-	DxgiAdapter = nullptr;
-
-	// Set created outputs
-	*pCreatedOutputs = createdOutputs;
-
-	if (createdOutputs.size() == 0)
+	if (outputDescs.size() == 0)
 	{
 		// We could not find any outputs
 		return E_FAIL;
 	}
+
+	std::sort(outputDescs.begin(), outputDescs.end(), compareOutputDesc);
+	std::vector<RECT> outputRects{};
+	for each (DXGI_OUTPUT_DESC desc in outputDescs)
+	{
+		outputRects.push_back(desc.DesktopCoordinates);
+	}
+
+	std::vector<SIZE> outputOffsets{};
+	GetCombinedRects(outputRects, pDeskBounds, &outputOffsets);
+
+	pDeskBounds = &MakeRectEven(*pDeskBounds);
+	std::vector<std::wstring> mergedOutputs{};
+	for each (DXGI_OUTPUT_DESC desc in outputDescs)
+	{
+		mergedOutputs.push_back(desc.DeviceName);
+	}
+	// Set created outputs
+	*pOutputs = mergedOutputs;
+	*pOffsets = outputOffsets;
 
 	// Create shared texture for all capture threads to draw into
 	D3D11_TEXTURE2D_DESC DeskTexD;
@@ -353,11 +327,24 @@ HRESULT graphics_capture::CreateSharedSurf(_In_ std::vector<std::wstring> output
 
 
 
-HRESULT graphics_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Out_ CAPTURED_FRAME *frame)
+HRESULT graphics_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame)
 {
+	// Try to acquire keyed mutex in order to access shared surface
+	HRESULT hr = m_KeyMutex->AcquireSync(1, timeoutMillis);
+	if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
+	{
+		return DXGI_ERROR_WAIT_TIMEOUT;
+	}
+	else if (FAILED(hr))
+	{
+		return hr;
+	}
+	ReleaseKeyedMutexOnExit releaseMutex(m_KeyMutex, 0);
+
 	bool haveNewFrameData = false;
 	int updatedFrameCount = 0;
 	SIZE contentSize{};
+
 	for (UINT i = 0; i < m_ThreadCount; ++i)
 	{
 		if (m_ThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
@@ -373,14 +360,14 @@ HRESULT graphics_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Out_ CAPT
 	if (!haveNewFrameData) {
 		return DXGI_ERROR_WAIT_TIMEOUT;
 	}
-	// We have a new frame so try and process it
-	// Try to acquire keyed mutex in order to access shared surface
-	HRESULT hr = m_KeyMutex->AcquireSync(1, timeoutMillis);
-	if (FAILED(hr))
+
+	for (UINT i = 0; i < m_ThreadCount; ++i)
 	{
-		return DXGI_ERROR_WAIT_TIMEOUT;
+		if (!m_ThreadData[i].HaveWrittenFirstFrame) {
+			//If any of the recordings have not yet written a frame, we return and wait for them.
+			return DXGI_ERROR_WAIT_TIMEOUT;
+		}
 	}
-	ReleaseKeyedMutexOnExit releaseMutex(m_KeyMutex, 0);
 
 	ID3D11Texture2D *pDesktopFrame = nullptr;
 	D3D11_TEXTURE2D_DESC desc;
@@ -392,11 +379,11 @@ HRESULT graphics_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Out_ CAPT
 
 	QueryPerformanceCounter(&m_LastAcquiredFrameTimeStamp);
 
-	frame->Frame = pDesktopFrame;
-	frame->PtrInfo = nullptr;
-	frame->UpdateCount = updatedFrameCount;
-	frame->Timestamp = m_LastAcquiredFrameTimeStamp;
-	frame->ContentSize = contentSize;
+	pFrame->Frame = pDesktopFrame;
+	pFrame->UpdateCount = updatedFrameCount;
+	pFrame->Timestamp = m_LastAcquiredFrameTimeStamp;
+	pFrame->ContentSize = contentSize;
+	pFrame->PtrInfo = &m_PtrInfo;
 	return hr;
 }
 
@@ -440,6 +427,7 @@ DWORD WINAPI GCProc(_In_ void* Param)
 	HRESULT hr = S_OK;
 
 	// Classes
+	mouse_pointer pMousePointer{};
 	graphics_manager graphicsManager{};
 	GraphicsCaptureItem captureItem{ nullptr };
 	// D3D objects
@@ -458,20 +446,23 @@ DWORD WINAPI GCProc(_In_ void* Param)
 		frameRect.bottom = captureItem.Size().Height;
 	}
 	else {
-		auto pMonitorList = std::make_unique<monitor_list>(false);
-		auto monitor = pMonitorList->GetMonitorForDisplayName(TData->OutputMonitor);
-		if (!monitor.has_value()) {
-			if (pMonitorList->GetCurrentMonitors().size() == 0) {
+		CComPtr<IDXGIOutput> output = nullptr;
+		HRESULT hr = GetOutputForDeviceName(TData->OutputMonitor, &output);
+		if (FAILED(hr)) {
+			GetMainOutput(&output);
+			if (!output) {
 				LOG_ERROR("Failed to find any monitors to record");
 				hr = E_FAIL;
 				goto Exit;
 			}
-			monitor = pMonitorList->GetCurrentMonitors().at(0);
 		}
-		LOG_INFO(L"Recording monitor %ls using Windows.Graphics.Capture", monitor->DisplayName.c_str());
-		captureItem = capture::util::CreateCaptureItemForMonitor(monitor->MonitorHandle);
-		frameRect = monitor->MonitorRect;
+		DXGI_OUTPUT_DESC outputDesc;
+		output->GetDesc(&outputDesc);
+		LOG_INFO(L"Recording monitor %ls using Windows.Graphics.Capture", outputDesc.DeviceName);
+		captureItem = capture::util::CreateCaptureItemForMonitor(outputDesc.Monitor);
+		frameRect = outputDesc.DesktopCoordinates;
 	}
+	pMousePointer.Initialize(TData->DxRes.Context, TData->DxRes.Device);
 	//This scope must be here for ReleaseOnExit to work.
 	{
 		// Obtain handle to sync shared Surface
@@ -515,6 +506,7 @@ DWORD WINAPI GCProc(_In_ void* Param)
 				// Get new frame from Windows Graphics Capture.
 				hr = graphicsManager.GetFrame(&CurrentData);
 				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+					Sleep(1);
 					continue;
 				}
 				else if (FAILED(hr)) {
@@ -552,6 +544,9 @@ DWORD WINAPI GCProc(_In_ void* Param)
 			// We can now process the current frame
 			WaitToProcessCurrentFrame = false;
 
+			// Get mouse info. Windows Graphics Capture includes the mouse cursor on the texture, so we only get the positioning info for mouse click draws.
+			hr = pMousePointer.GetMouse(TData->PtrInfo, false, TData->OffsetX, TData->OffsetY);
+
 			// Process new frame
 			hr = graphicsManager.ProcessFrame(&CurrentData, SharedSurf, TData->OffsetX, TData->OffsetY, frameRect);
 			if (FAILED(hr))
@@ -560,6 +555,7 @@ DWORD WINAPI GCProc(_In_ void* Param)
 				break;
 			}
 			TData->UpdatedFrameCount += 1;
+			TData->HaveWrittenFirstFrame = true;
 			// Release acquired keyed mutex
 			hr = KeyMutex->ReleaseSync(1);
 			if (FAILED(hr))

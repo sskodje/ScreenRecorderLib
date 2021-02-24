@@ -1,4 +1,3 @@
-// ScreenRecorder.h
 #pragma warning(disable:4561)
 #pragma once
 #include <atlbase.h>
@@ -18,6 +17,15 @@ delegate void InternalErrorCallbackDelegate(std::wstring path);
 delegate void InternalSnapshotCallbackDelegate(std::wstring path);
 
 namespace ScreenRecorderLib {
+	public ref class Size {
+	public:
+		property int Width;
+		property int Height;
+		Size(int width, int height) {
+			Width = width;
+			Height = height;
+		}
+	};
 	public enum class LogLevel
 	{
 		Trace = 0,
@@ -409,6 +417,7 @@ namespace ScreenRecorderLib {
 		static List<RecordableWindow^>^ GetWindows();
 		static Dictionary<String^, String^>^ GetSystemAudioDevices(AudioDeviceSource source);
 		static List<Display^>^ GetDisplays();
+		static Size^ GetCombinedOutputSizeForDisplays(List<String^>^ displays);
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;

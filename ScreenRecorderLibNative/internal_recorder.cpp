@@ -20,7 +20,6 @@
 #include "screengrab.h"
 #include "graphics_capture.h"
 #include "graphics_capture.util.h"
-#include "monitor_list.h"
 #include "duplication_capture.h"
 
 #pragma comment(lib, "dxguid.lib")
@@ -280,8 +279,11 @@ HRESULT internal_recorder::BeginRecording(_In_opt_ std::wstring path, _In_opt_ I
 		RETURN_ON_BAD_HR(hr);
 		RETURN_ON_BAD_HR(hr = MFStartup(MF_VERSION, MFSTARTUP_LITE));
 		InitializeMouseClickDetection();
-		RETURN_ON_BAD_HR(hr = InitializeDx(&m_ImmediateContext, &m_Device));
-
+		ID3D11Debug *pDebug = nullptr;
+		RETURN_ON_BAD_HR(hr = InitializeDx(&m_ImmediateContext, &m_Device, &pDebug));
+#if _DEBUG
+		m_Debug = pDebug;
+#endif
 		if (RecordingStatusChangedCallback != nullptr) {
 			RecordingStatusChangedCallback(STATUS_RECORDING);
 			LOG_DEBUG("Changed Recording Status to Recording");
@@ -367,7 +369,7 @@ HRESULT internal_recorder::FinalizeRecording()
 			RecordingStatusChangedCallback(STATUS_FINALIZING);
 		}
 		finalizeResult = m_SinkWriter->Finalize();
-		if (m_FinalizeEvent) {
+		if (SUCCEEDED(finalizeResult) && m_FinalizeEvent) {
 			WaitForSingleObject(m_FinalizeEvent, INFINITE);
 			CloseHandle(m_FinalizeEvent);
 		}
@@ -468,8 +470,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 	CComPtr<ID3D11Texture2D> pCurrentFrameCopy = nullptr;
 	CComPtr<IMFSinkWriterCallback> pCallBack = nullptr;
-	CComPtr<IDXGIDevice> pDxgiDevice = nullptr;
-	RETURN_ON_BAD_HR(hr = m_Device->QueryInterface(IID_PPV_ARGS(&pDxgiDevice)));
+	PTR_INFO *pPtrInfo = nullptr;
 	HANDLE UnexpectedErrorEvent = nullptr;
 	HANDLE ExpectedErrorEvent = nullptr;
 
@@ -491,15 +492,13 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 	auto pCapture = std::make_unique<graphics_capture>(m_Device, m_ImmediateContext, m_IsMousePointerEnabled);
 
 	GraphicsCaptureStopOnExit stopCaptureOnExit(pCapture.get());
-	RECT windowPositionOnDesktop{};
 	D3D11_TEXTURE2D_DESC sourceFrameDesc;
 	RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
 	int sourceWidth = 0;
 	int sourceHeight = 0;
-	CAPTURED_FRAME firstFrame{};
 	if (m_WindowHandle) {
-		GetWindowRect(m_WindowHandle, &windowPositionOnDesktop);
 		pCapture->StartCapture(m_WindowHandle, UnexpectedErrorEvent, ExpectedErrorEvent);
+		CAPTURED_FRAME firstFrame{};
 		//We try get the first frame now, because the dimensions for the window captureItem is sometimes wrong, causing black borders around the recording, while the dimensions for a frame is always correct.
 		for (int i = 0; i < 10; i++) {
 			hr = pCapture->AcquireNextFrame(10, &firstFrame);
@@ -516,6 +515,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 			sourceWidth = pCapture->FrameSize().cx;
 			sourceHeight = pCapture->FrameSize().cy;
 		}
+		SafeRelease(&firstFrame.Frame);
 	}
 	else {
 		std::vector<std::wstring> outputs{ };
@@ -529,21 +529,18 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 		sourceWidth = pCapture->FrameSize().cx;
 		sourceHeight = pCapture->FrameSize().cy;
 	}
-	SafeRelease(&firstFrame.Frame);
-	RECT videoOutputFrameRect, videoInputFrameRect, previousInputFrameRect;
-	RtlZeroMemory(&videoOutputFrameRect, sizeof(videoOutputFrameRect));
-	RtlZeroMemory(&videoInputFrameRect, sizeof(videoInputFrameRect));
-	RtlZeroMemory(&previousInputFrameRect, sizeof(previousInputFrameRect));
-	videoOutputFrameRect.left = 0;
-	videoOutputFrameRect.top = 0;
-	videoOutputFrameRect.right = sourceWidth;
-	videoOutputFrameRect.bottom = sourceHeight;
+	RECT videoOutputFrameRect{ 0, 0, sourceWidth, sourceHeight };
+
 	videoOutputFrameRect = MakeRectEven(videoOutputFrameRect);
-	videoInputFrameRect = videoOutputFrameRect;
-	//Differing input and output dimensions of the mediatype initializes the video processor with the sink writer so we can use it for resizing the input.
-	//These values will be overwritten on a frame by frame basis.
-	videoInputFrameRect.right += 2;
-	videoInputFrameRect.bottom += 2;
+
+	RECT videoInputFrameRect = videoOutputFrameRect;
+	RECT previousInputFrameRect = videoInputFrameRect;
+	if (m_WindowHandle) {
+		//Differing input and output dimensions of the mediatype initializes the video processor with the sink writer so we can use it for resizing the input.
+		//These values will be overwritten on a frame by frame basis.
+		videoInputFrameRect.right -= 2;
+		videoInputFrameRect.bottom -= 2;
+	}
 	HANDLE hMarkEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	CloseHandleOnExit closeMarkEvent(hMarkEvent);
 	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -568,14 +565,15 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 
 	std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
 	RETURN_ON_BAD_HR(hr = pMousePointer->Initialize(m_ImmediateContext, m_Device));
-	PTR_INFO PtrInfo{};
+
+	SetViewPort(m_ImmediateContext, videoInputFrameRect.right - videoInputFrameRect.left, videoInputFrameRect.bottom - videoInputFrameRect.top);
 
 	if (pLoopbackCaptureOutputDevice)
 		pLoopbackCaptureOutputDevice->ClearRecordedBytes();
 	if (pLoopbackCaptureInputDevice)
 		pLoopbackCaptureInputDevice->ClearRecordedBytes();
 
-	std::chrono::steady_clock::time_point	lastFrame = std::chrono::steady_clock::now();
+	std::chrono::steady_clock::time_point lastFrame = std::chrono::steady_clock::now();
 	m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
 	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
@@ -583,8 +581,8 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 	INT frameNr = 0;
 	INT64 lastFrameStartPos = 0;
 	bool haveCachedPrematureFrame = false;
-	bool gotMousePointer = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
+
 	while (true) {
 		if (pCurrentFrameCopy) {
 			pCurrentFrameCopy.Release();
@@ -603,11 +601,12 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 			continue;
 		}
 		CAPTURED_FRAME capturedFrame{};
-		hr = pCapture->AcquireNextFrame(100, &capturedFrame);
+		hr = pCapture->AcquireNextFrame(0, &capturedFrame);
 
 		if (SUCCEEDED(hr)) {
 			pCurrentFrameCopy.Attach(capturedFrame.Frame);
 			pCurrentFrameCopy->GetDesc(&sourceFrameDesc);
+			pPtrInfo = capturedFrame.PtrInfo;
 			// Clear flags that we don't need
 			sourceFrameDesc.Usage = D3D11_USAGE_DEFAULT;
 			sourceFrameDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
@@ -637,8 +636,6 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 				SetViewPort(m_ImmediateContext, videoInputFrameRect.right - videoInputFrameRect.left, videoInputFrameRect.bottom - videoInputFrameRect.top);
 				previousInputFrameRect = videoInputFrameRect;
 			}
-			// Get mouse info. Windows Graphics Capture includes the mouse cursor on the texture, so we only get the positioning info for mouse click draws.
-			gotMousePointer = SUCCEEDED(pMousePointer->GetMouse(&PtrInfo, videoInputFrameRect, false, -windowPositionOnDesktop.left, -windowPositionOnDesktop.top));
 		}
 		else if (sourceFrameDesc.Width == 0) {
 			//There is no first frame yet, so retry.
@@ -647,12 +644,6 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 		else if (m_WindowHandle != nullptr && IsIconic(m_WindowHandle)) {
 			//The targeted window is minimized and not rendered, so it cannot be recorded. The previous frame copy is deleted to make it record a black frame instead.
 			pPreviousFrameCopy = nullptr;
-			if (PtrInfo.PtrShapeBuffer)
-			{
-				delete[] PtrInfo.PtrShapeBuffer;
-				PtrInfo.PtrShapeBuffer = nullptr;
-			}
-			RtlZeroMemory(&PtrInfo, sizeof(PtrInfo));
 		}
 
 		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::steady_clock::now() - lastFrame).count() / 100, 0);
@@ -661,7 +652,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 		if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) //attempt to wait if frame timeouted or duration is under our chosen framerate
 		{
 			bool delayRender = false;
-			if (frameNr == 0 //never delay the first frame 
+			if (frameNr == 0 //never delayMs the first frame 
 				|| m_IsFixedFramerate //or if the framerate is fixed
 				|| (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot())) // Or if we need to write a snapshot 
 			{
@@ -687,11 +678,14 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 				}
 			}
 			if (delayRender) {
-				unsigned int delayMs = 1;
-				if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
-					delayMs = (unsigned int)HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
+				int delayMs = 1;
+				if (durationSinceLastFrameMillis < videoFrameDurationMillis) {
+					delayMs = (int)HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
+					//Subtract 1 ms to account for overhead in sleep.
+					delayMs -= 1;
 				}
-				wait(delayMs);
+				delayMs = max(1, delayMs);
+				Sleep(delayMs);
 				continue;
 			}
 		}
@@ -706,7 +700,6 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 			if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
 				RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
 				m_ImmediateContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
-				SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
 			}
 		}
 		else if (pPreviousFrameCopy) {
@@ -714,16 +707,14 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 			m_ImmediateContext->CopyResource(pCurrentFrameCopy, pPreviousFrameCopy);
 		}
 
-		if (gotMousePointer) {
-			hr = DrawMousePointer(pCurrentFrameCopy, pMousePointer.get(), PtrInfo, DXGI_MODE_ROTATION_IDENTITY, durationSinceLastFrame100Nanos);
+		if (pPtrInfo) {
+			hr = DrawMousePointer(pCurrentFrameCopy, pMousePointer.get(), pPtrInfo, DXGI_MODE_ROTATION_IDENTITY, durationSinceLastFrame100Nanos);
 			if (FAILED(hr)) {
 				_com_error err(hr);
 				LOG_ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
 				//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
 			}
 		}
-
-		SetDebugName(pCurrentFrameCopy, "FrameCopy");
 
 		if (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot()) {
 			TakeSnapshotsWithVideo(pCurrentFrameCopy, sourceFrameDesc, videoInputFrameRect);
@@ -749,7 +740,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 		lastFrameStartPos += durationSinceLastFrame100Nanos;
 		if (m_IsFixedFramerate)
 		{
-			wait(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::steady_clock::now() - lastFrame).count(), 0)));
+			Sleep(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::steady_clock::now() - lastFrame).count(), 0)));
 		}
 	}
 	return hr;
@@ -763,6 +754,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 	CComPtr<ID3D11Texture2D> pFrameCopyForSnapshotsWithVideo = nullptr;
 	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 	CComPtr<ID3D11Texture2D> pCurrentFrameCopy = nullptr;
+	PTR_INFO *pPtrInfo = nullptr;
 
 	HRESULT hr;
 
@@ -839,7 +831,6 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 	INT64 lastFrameStartPos = 0;
 	bool haveCachedPrematureFrame = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
-	CAPTURED_FRAME capturedFrame{};
 
 	while (true)
 	{
@@ -874,7 +865,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 				pLoopbackCaptureInputDevice->ClearRecordedBytes();
 			continue;
 		}
-
+		CAPTURED_FRAME capturedFrame{};
 		// Get new frame
 		hr = pCapture->AcquireNextFrame(
 			0,
@@ -882,6 +873,10 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 
 		if (SUCCEEDED(hr)) {
 			pCurrentFrameCopy.Attach(capturedFrame.Frame);
+
+			if (capturedFrame.PtrInfo) {
+				pPtrInfo = capturedFrame.PtrInfo;
+			}
 		}
 
 		if (m_RecorderMode == MODE_SLIDESHOW
@@ -897,14 +892,16 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 		//Delay frames that comes quicker than selected framerate to see if we can skip them.
 		if (hr == DXGI_ERROR_WAIT_TIMEOUT || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) //attempt to wait if frame timeouted or duration is under our chosen framerate
 		{
-			bool delay = false;
-			if (frameNr == 0 //never delay the first frame 
+			bool delayRender = false;
+			if (frameNr == 0 //never delayMs the first frame 
 				|| m_IsFixedFramerate //or if the framerate is fixed
-				|| (m_IsMousePointerEnabled && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
+				|| (m_IsMousePointerEnabled && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delayMs when pointer changes if we draw pointer
 				|| (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot())) // Or if we need to write a snapshot 
 			{
-				capturedFrame.PtrInfo->IsPointerShapeUpdated = false;
-				delay = false;
+				if (capturedFrame.PtrInfo) {
+					capturedFrame.PtrInfo->IsPointerShapeUpdated = false;
+				}
+				delayRender = false;
 			}
 			else if (SUCCEEDED(hr) && durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
 				if (capturedFrame.UpdateCount > 0) {
@@ -916,25 +913,30 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 						m_ImmediateContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
 					}
 				}
-				delay = true;
+				delayRender = true;
 				haveCachedPrematureFrame = true;
 			}
 			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-				if (haveCachedPrematureFrame && durationSinceLastFrameMillis < videoFrameDurationMillis) {
-					delay = true;
-				}
-				else if (!haveCachedPrematureFrame && durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos) {
-					delay = true;
+				if ((haveCachedPrematureFrame && durationSinceLastFrameMillis < videoFrameDurationMillis)
+					|| (!haveCachedPrematureFrame && durationSinceLastFrame100Nanos < m_MaxFrameLength100Nanos)) {
+					delayRender = true;
 				}
 			}
-			if (delay) {
-				unsigned int delay = 1;
+			if (delayRender) {
+				int delayMs = 1;
 				if (durationSinceLastFrameMillis < videoFrameDurationMillis) {
-					delay = (unsigned int)HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
+					delayMs = (int)HundredNanosToMillis((videoFrameDuration100Nanos - durationSinceLastFrame100Nanos));
+					//Subtract 1 ms to account for overhead in sleep.
+					delayMs -= 1;
 				}
-				wait(delay);
+				delayMs = max(1, delayMs);
+				Sleep(delayMs);
 				continue;
 			}
+		}
+		if (!pCurrentFrameCopy && !pPreviousFrameCopy) {
+			Sleep(1);
+			continue;
 		}
 
 		if (hr != DXGI_ERROR_WAIT_TIMEOUT) {
@@ -951,7 +953,6 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 				if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SLIDESHOW) {
 					RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&sourceFrameDesc, nullptr, &pPreviousFrameCopy));
 					m_ImmediateContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
-					SetDebugName(pPreviousFrameCopy, "PreviousFrameCopy");
 				}
 			}
 			else if (pPreviousFrameCopy) {
@@ -959,10 +960,8 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 				m_ImmediateContext->CopyResource(pCurrentFrameCopy, pPreviousFrameCopy);
 			}
 
-			SetDebugName(pCurrentFrameCopy, "FrameCopy");
-
-			if (capturedFrame.PtrInfo) {
-				hr = DrawMousePointer(pCurrentFrameCopy, pMousePointer.get(), *capturedFrame.PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
+			if (pPtrInfo) {
+				hr = DrawMousePointer(pCurrentFrameCopy, pMousePointer.get(), pPtrInfo, screenRotation, durationSinceLastFrame100Nanos);
 				if (FAILED(hr)) {
 					_com_error err(hr);
 					LOG_ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
@@ -1001,7 +1000,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 			lastFrameStartPos += durationSinceLastFrame100Nanos;
 			if (m_IsFixedFramerate)
 			{
-				wait(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::steady_clock::now() - lastFrame).count(), 0)));
+				Sleep(static_cast<UINT32>(max(videoFrameDurationMillis - duration_cast<milliseconds>(chrono::steady_clock::now() - lastFrame).count(), 0)));
 			}
 		}
 	}
@@ -1009,8 +1008,8 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 	//Push the last frame waiting to be recorded to the sink writer.
 	if (pPreviousFrameCopy != nullptr) {
 		INT64 duration = duration_cast<nanoseconds>(chrono::steady_clock::now() - lastFrame).count() / 100;
-		if (capturedFrame.PtrInfo) {
-			DrawMousePointer(pPreviousFrameCopy, pMousePointer.get(), *capturedFrame.PtrInfo, screenRotation, duration);
+		if (pPtrInfo) {
+			DrawMousePointer(pPreviousFrameCopy, pMousePointer.get(), pPtrInfo, screenRotation, duration);
 		}
 		if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
 			ID3D11Texture2D *pCroppedFrameCopy;
@@ -1068,7 +1067,7 @@ std::vector<BYTE> internal_recorder::GrabAudioFrame(_In_opt_ std::unique_ptr<loo
 		return std::vector<BYTE>();
 }
 
-HRESULT internal_recorder::InitializeDesc(RECT outputRect, _Out_ D3D11_TEXTURE2D_DESC * pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC * pDestFrameDesc, _Out_ RECT * pSourceRect, _Out_ RECT * pDestRect) {
+HRESULT internal_recorder::InitializeDesc(_In_ RECT outputRect, _Out_ D3D11_TEXTURE2D_DESC * pSourceFrameDesc, _Out_ D3D11_TEXTURE2D_DESC * pDestFrameDesc, _Out_ RECT * pSourceRect, _Out_ RECT * pDestRect) {
 	UINT monitorWidth = outputRect.right - outputRect.left;
 	UINT monitorHeight = outputRect.bottom - outputRect.top;
 
@@ -1120,17 +1119,21 @@ HRESULT internal_recorder::InitializeDesc(RECT outputRect, _Out_ D3D11_TEXTURE2D
 	return S_OK;
 }
 
-HRESULT internal_recorder::InitializeDx(_Outptr_ ID3D11DeviceContext * *ppContext, _Outptr_ ID3D11Device * *ppDevice) {
+HRESULT internal_recorder::InitializeDx(_Outptr_ ID3D11DeviceContext **ppContext, _Outptr_ ID3D11Device **ppDevice, _Outptr_opt_result_maybenull_ ID3D11Debug **ppDebug) {
 	*ppContext = nullptr;
 	*ppDevice = nullptr;
-
+	if (ppDebug) {
+		*ppDebug = nullptr;
+	}
 	HRESULT hr(S_OK);
 	DXGI_OUTDUPL_DESC OutputDuplDesc;
 	RtlZeroMemory(&OutputDuplDesc, sizeof(OutputDuplDesc));
-	CComPtr<ID3D11DeviceContext> m_ImmediateContext = nullptr;
+	CComPtr<ID3D11DeviceContext> pContext = nullptr;
 	CComPtr<ID3D11Device> pDevice = nullptr;
 	CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
-	int lresult(-1);
+#if _DEBUG 
+	CComPtr<ID3D11Debug> pDebug = nullptr;
+#endif
 	D3D_FEATURE_LEVEL featureLevel;
 
 	CComPtr<IDXGIAdapter> pDxgiAdapter = nullptr;
@@ -1145,7 +1148,7 @@ HRESULT internal_recorder::InitializeDx(_Outptr_ ID3D11DeviceContext * *ppContex
 			driverTypes.push_back(type);
 		}
 	}
-	UINT numDriverTypes = driverTypes.size();
+	size_t numDriverTypes = driverTypes.size();
 	UINT creationFlagsDebug = D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_DEBUG;
 	UINT creationFlags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
 	// Create devices
@@ -1165,33 +1168,36 @@ HRESULT internal_recorder::InitializeDx(_Outptr_ ID3D11DeviceContext * *ppContex
 			D3D11_SDK_VERSION,
 			&pDevice,
 			&featureLevel,
-			&m_ImmediateContext);
+			&pContext);
 
 		if (SUCCEEDED(hr))
 		{
-#if _DEBUG 
-			HRESULT hr = pDevice->QueryInterface(IID_PPV_ARGS(&m_Debug));
-#endif
 			// Device creation success, no need to loop anymore
 			break;
 		}
 	}
+	RETURN_ON_BAD_HR(hr);
 
-	RETURN_ON_BAD_HR(hr);
 	CComPtr<ID3D10Multithread> pMulti = nullptr;
-	hr = m_ImmediateContext->QueryInterface(IID_PPV_ARGS(&pMulti));
-	RETURN_ON_BAD_HR(hr);
+	RETURN_ON_BAD_HR(hr = pContext->QueryInterface(IID_PPV_ARGS(&pMulti)));
 	pMulti->SetMultithreadProtected(TRUE);
 	pMulti.Release();
-	if (pDevice == nullptr)
-		return E_FAIL;
+
+#if _DEBUG 
+	RETURN_ON_BAD_HR(hr = pDevice->QueryInterface(IID_PPV_ARGS(&pDebug)));
+#endif
 
 	// Return the pointer to the caller.
-	*ppContext = m_ImmediateContext;
+	*ppContext = pContext;
 	(*ppContext)->AddRef();
 	*ppDevice = pDevice;
 	(*ppDevice)->AddRef();
-
+#if _DEBUG
+	if (ppDebug) {
+		*ppDebug = pDebug;
+		(*ppDebug)->AddRef();
+	}
+#endif
 	return hr;
 }
 
@@ -1528,7 +1534,7 @@ HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
 	return hr;
 }
 
-HRESULT internal_recorder::DrawMousePointer(_In_ ID3D11Texture2D * frame, _In_ mouse_pointer * pMousePointer, _In_ PTR_INFO ptrInfo, _In_ DXGI_MODE_ROTATION screenRotation, _In_ INT64 durationSinceLastFrame100Nanos)
+HRESULT internal_recorder::DrawMousePointer(_In_ ID3D11Texture2D * frame, _In_ mouse_pointer * pMousePointer, _In_ PTR_INFO *ptrInfo, _In_ DXGI_MODE_ROTATION screenRotation, _In_ INT64 durationSinceLastFrame100Nanos)
 {
 	HRESULT hr = S_FALSE;
 	if (g_LastMouseClickDurationRemaining > 0
@@ -1536,11 +1542,11 @@ HRESULT internal_recorder::DrawMousePointer(_In_ ID3D11Texture2D * frame, _In_ m
 	{
 		if (g_LastMouseClickButton == VK_LBUTTON)
 		{
-			hr = pMousePointer->DrawMouseClick(&ptrInfo, frame, m_MouseClickDetectionLMBColor, (float)m_MouseClickDetectionRadius, screenRotation);
+			hr = pMousePointer->DrawMouseClick(ptrInfo, frame, m_MouseClickDetectionLMBColor, (float)m_MouseClickDetectionRadius, screenRotation);
 		}
 		if (g_LastMouseClickButton == VK_RBUTTON)
 		{
-			hr = pMousePointer->DrawMouseClick(&ptrInfo, frame, m_MouseClickDetectionRMBColor, (float)m_MouseClickDetectionRadius, screenRotation);
+			hr = pMousePointer->DrawMouseClick(ptrInfo, frame, m_MouseClickDetectionRMBColor, (float)m_MouseClickDetectionRadius, screenRotation);
 		}
 		INT64 millis = max(HundredNanosToMillis(durationSinceLastFrame100Nanos), 0);
 		g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millis, 0);
@@ -1548,7 +1554,7 @@ HRESULT internal_recorder::DrawMousePointer(_In_ ID3D11Texture2D * frame, _In_ m
 	}
 
 	if (m_IsMousePointerEnabled) {
-		hr = pMousePointer->DrawMousePointer(&ptrInfo, m_ImmediateContext, m_Device, frame, screenRotation);
+		hr = pMousePointer->DrawMousePointer(ptrInfo, m_ImmediateContext, m_Device, frame, screenRotation);
 	}
 	return hr;
 }
@@ -1633,7 +1639,7 @@ HRESULT internal_recorder::RenderFrame(_In_ FrameWriteModel & model) {
 		}
 
 		if (model.Audio.size() > 0) {
-			hr = WriteAudioSamplesToVideo(model.StartPos, model.Duration, m_AudioStreamIndex, &(model.Audio)[0], model.Audio.size());
+			hr = WriteAudioSamplesToVideo(model.StartPos, model.Duration, m_AudioStreamIndex, &(model.Audio)[0], (DWORD)model.Audio.size());
 			if (FAILED(hr)) {
 				_com_error err(hr);
 				LOG_ERROR(L"Writing of audio sample with start pos %lld ms failed: %s", (HundredNanosToMillis(model.StartPos)), err.ErrorMessage());

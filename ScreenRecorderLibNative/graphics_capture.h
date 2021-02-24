@@ -38,12 +38,12 @@ public:
 	HRESULT StartCapture(std::vector<std::wstring> const& outputs, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent);
 	HRESULT StartCapture(HWND windowhandle, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent);
 	SIZE FrameSize();
-	HRESULT AcquireNextFrame(_In_  DWORD timeoutMillis, _Out_ CAPTURED_FRAME *frame);
+	HRESULT AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame);
 	void WaitForThreadTermination();
 	HRESULT StopCapture();
 private:
 	HRESULT CreateSharedSurf(_In_ HWND windowhandle, _Out_ RECT* pDeskBounds);
-	HRESULT CreateSharedSurf(_In_ std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *createdOutputs, _Out_ RECT* pDeskBounds);
+	HRESULT CreateSharedSurf(_In_ std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *pOutputs, _Out_ std::vector<SIZE> *pOffsets, _Out_ RECT* pDeskBounds);
 	HANDLE GetSharedHandle();
 
 
@@ -57,6 +57,7 @@ private:
 	RECT m_OutputRect;
 	ID3D11Texture2D* m_SharedSurf;
 	IDXGIKeyedMutex* m_KeyMutex;
+	PTR_INFO m_PtrInfo;
 	UINT m_ThreadCount;
 	_Field_size_(m_ThreadCount) HANDLE* m_ThreadHandles;
 	_Field_size_(m_ThreadCount) THREAD_DATA* m_ThreadData;

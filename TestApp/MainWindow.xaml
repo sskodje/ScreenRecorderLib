@@ -87,10 +87,18 @@
                                           Unchecked="CheckBox_CheckedChanged"
                                           IsEnabled="{Binding IsCheckable}"
                                           Width="20" />
-                                <TextBlock Text="{Binding DisplayName, Mode=OneTime}" />
-                                <TextBlock Text=" (" />
-                                <TextBlock Text="{Binding DeviceName, Mode=OneTime}" />
-                                <TextBlock Text=")" />
+                                <TextBlock>
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="{}{0} ({1}) [{2},{3},{4},{5}]">
+                                            <Binding  Path="DisplayName" />
+                                            <Binding  Path="DeviceName" />
+                                            <Binding  Path="Position.X" />
+                                            <Binding  Path="Position.Y" />
+                                            <Binding  Path="Width" />
+                                            <Binding  Path="Height" />
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
                             </StackPanel>
                         </DataTemplate>
                     </ComboBox.ItemTemplate>

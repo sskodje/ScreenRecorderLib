@@ -1,4 +1,3 @@
-// This is the main DLL file.
 #include "Recorder.h"
 #include <memory>
 #include <msclr\marshal.h>
@@ -187,6 +186,25 @@ List<Display^>^ ScreenRecorderLib::Recorder::GetDisplays()
 		output->Release();
 	}
 	return displays;
+}
+
+Size^ ScreenRecorderLib::Recorder::GetCombinedOutputSizeForDisplays(List<String^>^ displays)
+{
+	std::vector<RECT> monitorRects{};
+	RECT combinedRect{};
+	std::vector<IDXGIOutput*> outputs{};
+	EnumOutputs(&outputs);
+	for each (IDXGIOutput *output in outputs){
+		DXGI_OUTPUT_DESC desc;
+		if (SUCCEEDED(output->GetDesc(&desc))) {
+			if (displays->Contains(gcnew String(desc.DeviceName))) {
+				monitorRects.push_back(desc.DesktopCoordinates);
+			}
+		}
+		output->Release();
+	}
+	GetCombinedRects(monitorRects, &combinedRect, nullptr);
+	return gcnew Size(combinedRect.right - combinedRect.left, combinedRect.bottom - combinedRect.top);
 }
 
 Recorder::~Recorder()

@@ -48,9 +48,6 @@
     <ClInclude Include="native.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="monitor_list.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="graphics_capture.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -90,9 +87,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="WWMFResampler.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="monitor_list.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="graphics_capture.cpp">

@@ -76,7 +76,7 @@ HRESULT graphics_manager::Initialize(_In_ DX_RESOURCES *Data, _In_ winrt::Window
 	// the frame pool was created on. This also means that the creating thread
 	// must have a DispatcherQueue. If you use this method, it's best not to do
 	// it on the UI thread. 
-	m_framePool = winrt::Direct3D11CaptureFramePool::Create(direct3DDevice, m_PixelFormat, 2, m_item.Size());
+	m_framePool = winrt::Direct3D11CaptureFramePool::Create(direct3DDevice, m_PixelFormat, 1, m_item.Size());
 	m_session = m_framePool.CreateCaptureSession(m_item);
 
 	WINRT_ASSERT(m_session != nullptr);

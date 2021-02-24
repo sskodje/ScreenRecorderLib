@@ -70,6 +70,120 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
+        public void EnumAndRecordAllDisplaysSequentiallyWithDDTest()
+        {
+            foreach (var display in Recorder.GetDisplays())
+            {
+                string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+                try
+                {
+                    using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
+                    {
+                        var options = new RecorderOptions
+                        {
+                            RecorderApi = RecorderApi.DesktopDuplication,
+                            DisplayOptions = new DisplayOptions { DisplayDevices = { display.DeviceName } }
+                        };
+                        using (var rec = Recorder.CreateRecorder(options))
+                        {
+                            bool isError = false;
+                            bool isComplete = false;
+                            ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                            ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                            rec.OnRecordingComplete += (s, args) =>
+                            {
+                                isComplete = true;
+                                finalizeResetEvent.Set();
+                            };
+                            rec.OnRecordingFailed += (s, args) =>
+                            {
+                                isError = true;
+                                finalizeResetEvent.Set();
+                                recordingResetEvent.Set();
+                            };
+
+                            rec.Record(outStream);
+                            recordingResetEvent.WaitOne(3000);
+                            rec.Stop();
+                            finalizeResetEvent.WaitOne(5000);
+
+                            Assert.IsFalse(isError);
+                            Assert.IsTrue(isComplete);
+                            Assert.AreNotEqual(outStream.Length, 0);
+                            outStream.Seek(0, SeekOrigin.Begin);
+
+                            Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                            var mediaInfo = new MediaInfoWrapper(filePath);
+                            Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                            Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                        }
+                    }
+                }
+                finally
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+
+        [TestMethod]
+        public void EnumAndRecordAllDisplaysSequentiallyWithGCTest()
+        {
+            foreach (var display in Recorder.GetDisplays())
+            {
+                string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+                try
+                {
+                    using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
+                    {
+                        var options = new RecorderOptions
+                        {
+                            RecorderApi = RecorderApi.DesktopDuplication,
+                            DisplayOptions = new DisplayOptions { DisplayDevices = { display.DeviceName } }
+                        };
+                        using (var rec = Recorder.CreateRecorder(options))
+                        {
+                            bool isError = false;
+                            bool isComplete = false;
+                            ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                            ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                            rec.OnRecordingComplete += (s, args) =>
+                            {
+                                isComplete = true;
+                                finalizeResetEvent.Set();
+                            };
+                            rec.OnRecordingFailed += (s, args) =>
+                            {
+                                isError = true;
+                                finalizeResetEvent.Set();
+                                recordingResetEvent.Set();
+                            };
+
+                            rec.Record(outStream);
+                            recordingResetEvent.WaitOne(3000);
+                            rec.Stop();
+                            finalizeResetEvent.WaitOne(5000);
+
+                            Assert.IsFalse(isError);
+                            Assert.IsTrue(isComplete);
+                            Assert.AreNotEqual(outStream.Length, 0);
+                            outStream.Seek(0, SeekOrigin.Begin);
+
+                            Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                            var mediaInfo = new MediaInfoWrapper(filePath);
+                            Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                            Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                        }
+                    }
+                }
+                finally
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+
+        [TestMethod]
         public void QualitySettingTest()
         {
             long fullQualitySize;
@@ -420,6 +534,7 @@ namespace ScreenRecorderLib
                     {
                         isComplete = true;
                         finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
@@ -465,6 +580,7 @@ namespace ScreenRecorderLib
                     {
                         isComplete = true;
                         finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {

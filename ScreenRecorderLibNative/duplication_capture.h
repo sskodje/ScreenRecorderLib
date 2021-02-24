@@ -15,12 +15,12 @@ public:
 	HRESULT StartCapture(_In_ std::vector<std::wstring> outputs, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent);
 	HRESULT StopCapture();
 	PTR_INFO* GetPointerInfo();
-	HRESULT AcquireNextFrame(_In_ DWORD timeoutMillis, _Out_ CAPTURED_FRAME *frame);
+	HRESULT AcquireNextFrame(_In_ DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame);
 	void WaitForThreadTermination();
 	RECT GetOutputRect() { return m_OutputRect; }
 private:
-	HRESULT InitializeDx(_Out_ DX_RESOURCES *Data);
-	HRESULT CreateSharedSurf(_In_ std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *createdOutputs, _Out_ RECT* pDeskBounds);
+	HRESULT InitializeDx(_Out_ DX_RESOURCES *pData);
+	HRESULT CreateSharedSurf(_In_ std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *pOutputs, _Out_ std::vector<SIZE> *pOffsets, _Out_ RECT* pDeskBounds);
 	HANDLE GetSharedHandle();
 	
 	HANDLE m_TerminateThreadsEvent;
