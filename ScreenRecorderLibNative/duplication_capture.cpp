@@ -536,7 +536,12 @@ DWORD WINAPI DDProc(_In_ void* Param)
 			if (CurrentData.FrameInfo.AccumulatedFrames > 0) {
 				TData->HaveWrittenFirstFrame = true;
 			}
-			QueryPerformanceCounter(&TData->LastUpdateTimeStamp);
+			if (CurrentData.FrameInfo.LastPresentTime.QuadPart > CurrentData.FrameInfo.LastMouseUpdateTime.QuadPart) {
+				TData->LastUpdateTimeStamp = CurrentData.FrameInfo.LastPresentTime;
+			}
+			else {
+				TData->LastUpdateTimeStamp = CurrentData.FrameInfo.LastMouseUpdateTime;
+			}
 		}
 	}
 Exit:
