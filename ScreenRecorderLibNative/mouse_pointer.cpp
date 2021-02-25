@@ -699,7 +699,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 {
 	PtrInfo->IsPointerShapeUpdated = false;
 	// A non-zero mouse update timestamp indicates that there is a mouse position update and optionally a shape change
-	if (FrameInfo->PointerPosition.Visible == false || FrameInfo->LastMouseUpdateTime.QuadPart == 0)
+	if (FrameInfo->LastMouseUpdateTime.QuadPart == 0)
 	{
 		return S_FALSE;
 	}
