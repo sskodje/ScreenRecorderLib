@@ -751,7 +751,6 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 	LOG_DEBUG("Starting Desktop Duplication recorder loop");
 	std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = nullptr;
 	std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = nullptr;
-	CComPtr<ID3D11Texture2D> pFrameCopyForSnapshotsWithVideo = nullptr;
 	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 	CComPtr<ID3D11Texture2D> pCurrentFrameCopy = nullptr;
 	PTR_INFO *pPtrInfo = nullptr;
@@ -1735,7 +1734,7 @@ HRESULT internal_recorder::TakeSnapshotsWithVideo(_In_ ID3D11Texture2D* frame, _
 		return S_FALSE;
 
 	HRESULT hr = S_OK;
-	CComPtr<ID3D11Texture2D> m_pFrameCopyForSnapshotsWithVideo = nullptr;
+	CComPtr<ID3D11Texture2D> pFrameCopyForSnapshotsWithVideo = nullptr;
 
 	int destWidth = destRect.right - destRect.left;
 	int destHeight = destRect.bottom - destRect.top;
@@ -1744,17 +1743,17 @@ HRESULT internal_recorder::TakeSnapshotsWithVideo(_In_ ID3D11Texture2D* frame, _
 		//If the source frame is larger than the destionation rect, we crop it, to avoid black borders around the snapshots.
 		frameDesc.Width = min((UINT)destWidth, frameDesc.Width);
 		frameDesc.Height = min((UINT)destHeight, frameDesc.Height);
-		RETURN_ON_BAD_HR(hr = CropFrame(frame, frameDesc, destRect, &m_pFrameCopyForSnapshotsWithVideo));
+		RETURN_ON_BAD_HR(hr = CropFrame(frame, frameDesc, destRect, &pFrameCopyForSnapshotsWithVideo));
 	}
 	else {
-		m_Device->CreateTexture2D(&frameDesc, nullptr, &m_pFrameCopyForSnapshotsWithVideo);
+		m_Device->CreateTexture2D(&frameDesc, nullptr, &pFrameCopyForSnapshotsWithVideo);
 		// Copy the current frame for a separate thread to write it to a file asynchronously.
-		m_ImmediateContext->CopyResource(m_pFrameCopyForSnapshotsWithVideo, frame);
+		m_ImmediateContext->CopyResource(pFrameCopyForSnapshotsWithVideo, frame);
 	}
 
 	m_previousSnapshotTaken = steady_clock::now();
 	wstring snapshotPath = m_OutputSnapshotsFolderPath + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetImageExtension();
-	WriteFrameToImageAsync(m_pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str());
+	WriteFrameToImageAsync(pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str());
 	return hr;
 }
 
