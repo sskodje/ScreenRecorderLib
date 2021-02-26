@@ -452,8 +452,7 @@ void internal_recorder::SetRecordingCompleteStatus(_In_ HRESULT hr)
 
 HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pStream)
 {
-	auto isCaptureSupported = winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported();
-	if (!isCaptureSupported)
+	if (!capture::util::IsGraphicsCaptureAvailable())
 	{
 		wstring error = L"Windows Graphics Capture API is not supported on this version of Windows";
 		LOG_ERROR(L"%ls", error.c_str());
