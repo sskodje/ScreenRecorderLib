@@ -45,53 +45,6 @@ HRESULT InitializeDx(_Out_ DX_RESOURCES* Data)
 	{
 		return  hr;
 	}
-
-	// VERTEX shader
-	UINT Size = ARRAYSIZE(g_VS);
-	hr = Data->Device->CreateVertexShader(g_VS, Size, nullptr, &Data->VertexShader);
-	if (FAILED(hr))
-	{
-		return hr;
-	}
-
-	// Input layout
-	D3D11_INPUT_ELEMENT_DESC Layout[] =
-	{
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0}
-	};
-	UINT NumElements = ARRAYSIZE(Layout);
-	hr = Data->Device->CreateInputLayout(Layout, NumElements, g_VS, Size, &Data->InputLayout);
-	if (FAILED(hr))
-	{
-		return hr;
-	}
-	Data->Context->IASetInputLayout(Data->InputLayout);
-
-	// Pixel shader
-	Size = ARRAYSIZE(g_PS);
-	hr = Data->Device->CreatePixelShader(g_PS, Size, nullptr, &Data->PixelShader);
-	if (FAILED(hr))
-	{
-		return hr;
-	}
-
-	// Set up sampler
-	D3D11_SAMPLER_DESC SampDesc;
-	RtlZeroMemory(&SampDesc, sizeof(SampDesc));
-	SampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-	SampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	SampDesc.MinLOD = 0;
-	SampDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	hr = Data->Device->CreateSamplerState(&SampDesc, &Data->SamplerLinear);
-	if (FAILED(hr))
-	{
-		return hr;
-	}
-
 	return hr;
 }
 
@@ -292,41 +245,8 @@ std::vector<IDXGIAdapter*> EnumDisplayAdapters()
 //
 void CleanDx(_Inout_ DX_RESOURCES* Data)
 {
-	if (Data->Device)
-	{
-		Data->Device->Release();
-		Data->Device = nullptr;
-	}
-
-	if (Data->Context)
-	{
-		Data->Context->Release();
-		Data->Context = nullptr;
-	}
-
-	if (Data->VertexShader)
-	{
-		Data->VertexShader->Release();
-		Data->VertexShader = nullptr;
-	}
-
-	if (Data->PixelShader)
-	{
-		Data->PixelShader->Release();
-		Data->PixelShader = nullptr;
-	}
-
-	if (Data->InputLayout)
-	{
-		Data->InputLayout->Release();
-		Data->InputLayout = nullptr;
-	}
-
-	if (Data->SamplerLinear)
-	{
-		Data->SamplerLinear->Release();
-		Data->SamplerLinear = nullptr;
-	}
+	SafeRelease(&Data->Device);
+	SafeRelease(&Data->Context);
 }
 //
 // Set new viewport

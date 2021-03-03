@@ -57,21 +57,66 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Ou
 
 	m_Device = Data->Device;
 	m_DeviceContext = Data->Context;
-	m_VertexShader = Data->VertexShader;
-	m_PixelShader = Data->PixelShader;
-	m_InputLayout = Data->InputLayout;
-	m_SamplerLinear = Data->SamplerLinear;
+	//m_VertexShader = Data->VertexShader;
+	//m_PixelShader = Data->PixelShader;
+	//m_InputLayout = Data->InputLayout;
+	//m_SamplerLinear = Data->SamplerLinear;
 
 	m_Device->AddRef();
 	m_DeviceContext->AddRef();
-	m_VertexShader->AddRef();
-	m_PixelShader->AddRef();
-	m_InputLayout->AddRef();
-	m_SamplerLinear->AddRef();
+	//m_VertexShader->AddRef();
+	//m_PixelShader->AddRef();
+	//m_InputLayout->AddRef();
+	//m_SamplerLinear->AddRef();
 
+	// VERTEX shader
+	UINT Size = ARRAYSIZE(g_VS);
+	HRESULT hr = m_Device->CreateVertexShader(g_VS, Size, nullptr, &m_VertexShader);
+	if (FAILED(hr))
+	{
+		return hr;
+	}
+
+	// Input layout
+	D3D11_INPUT_ELEMENT_DESC Layout[] =
+	{
+		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
+		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0}
+	};
+	UINT NumElements = ARRAYSIZE(Layout);
+	hr = m_Device->CreateInputLayout(Layout, NumElements, g_VS, Size, &m_InputLayout);
+	if (FAILED(hr))
+	{
+		return hr;
+	}
+	m_DeviceContext->IASetInputLayout(m_InputLayout);
+
+	// Pixel shader
+	Size = ARRAYSIZE(g_PS);
+	hr = m_Device->CreatePixelShader(g_PS, Size, nullptr, &m_PixelShader);
+	if (FAILED(hr))
+	{
+		return hr;
+	}
+
+	// Set up sampler
+	D3D11_SAMPLER_DESC SampDesc;
+	RtlZeroMemory(&SampDesc, sizeof(SampDesc));
+	SampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	SampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+	SampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+	SampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+	SampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	SampDesc.MinLOD = 0;
+	SampDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	hr = m_Device->CreateSamplerState(&SampDesc, &m_SamplerLinear);
+	if (FAILED(hr))
+	{
+		return hr;
+	}
 	// Get DXGI device
 	IDXGIDevice* DxgiDevice = nullptr;
-	HRESULT hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&DxgiDevice));
+	hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&DxgiDevice));
 	if (FAILED(hr))
 	{
 		LOG_ERROR(L"Failed to QI for DXGI Device");

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -19,6 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="capture_base.h" />
+    <ClInclude Include="video_capture.h" />
     <ClInclude Include="common_types.h" />
     <ClInclude Include="duplication_capture.h" />
     <ClInclude Include="duplication_manager.h" />
@@ -40,6 +42,8 @@
     <ClInclude Include="WWMFResampler.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="capture_base.cpp" />
+    <ClCompile Include="video_capture.cpp" />
     <ClCompile Include="duplication_capture.cpp" />
     <ClCompile Include="duplication_manager.cpp" />
     <ClCompile Include="DX.util.cpp" />

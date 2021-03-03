@@ -28,37 +28,22 @@
 #include "common_types.h"
 #include "DX.util.h"
 #include "mouse_pointer.h"
+#include "capture_base.h"
 
-class graphics_capture
+class graphics_capture : public capture_base
 {
 public:
 	graphics_capture(_In_ ID3D11Device* pDevice, _In_ ID3D11DeviceContext *pDeviceContext, _In_ bool isCursorCaptureEnabled);
 	~graphics_capture();
-	void Clean();
-	HRESULT StartCapture(std::vector<std::wstring> const& outputs, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent);
+	HRESULT StartCapture(std::vector<std::wstring> const& sources, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent);
 	HRESULT StartCapture(HWND windowhandle, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent);
-	SIZE FrameSize();
 	HRESULT AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame);
-	void WaitForThreadTermination();
-	HRESULT StopCapture();
 private:
 	HRESULT CreateSharedSurf(_In_ HWND windowhandle, _Out_ RECT* pDeskBounds);
 	HRESULT CreateSharedSurf(_In_ std::vector<std::wstring> outputs, _Out_ std::vector<std::wstring> *pOutputs, _Out_ std::vector<SIZE> *pOffsets, _Out_ RECT* pDeskBounds);
-	HANDLE GetSharedHandle();
 
 
 
 private:
 	bool m_isCursorCaptureEnabled = false;
-	ID3D11DeviceContext *m_ImmediateContext;
-	ID3D11Device *m_Device;
-	HANDLE m_TerminateThreadsEvent;
-	LARGE_INTEGER m_LastAcquiredFrameTimeStamp;
-	RECT m_OutputRect;
-	ID3D11Texture2D* m_SharedSurf;
-	IDXGIKeyedMutex* m_KeyMutex;
-	PTR_INFO m_PtrInfo;
-	UINT m_ThreadCount;
-	_Field_size_(m_ThreadCount) HANDLE* m_ThreadHandles;
-	_Field_size_(m_ThreadCount) THREAD_DATA* m_ThreadData;
 };

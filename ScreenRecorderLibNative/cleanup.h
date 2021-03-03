@@ -9,6 +9,7 @@
 #include "duplication_capture.h"
 #include "graphics_capture.h"
 #include "duplication_manager.h"
+#include "video_capture.h"
 template <class T> void SafeRelease(T **ppT)
 {
 	if (*ppT)
@@ -278,4 +279,39 @@ public:
 
 private:
 	duplication_manager *m_p;
+};
+
+class CloseVideoCaptureOnExit {
+public:
+	CloseVideoCaptureOnExit(video_capture *capture) : m_p(capture) {}
+	~CloseVideoCaptureOnExit() {
+
+		if (m_p) {
+			m_p->Close();
+		}
+	}
+
+private:
+	video_capture *m_p;
+};
+
+class ReleaseCOMArrayOnExit {
+public:
+	ReleaseCOMArrayOnExit(IUnknown **array, int count) : m_p(array),m_count(count) {}
+	~ReleaseCOMArrayOnExit() {
+
+		if (m_p) {
+			for (DWORD i = 0; i < m_count; i++)
+			{
+				SafeRelease(&m_p[i]);
+			}
+			CoTaskMemFree(m_p);
+		}
+	}
+	void SetCount(int count) {
+		m_count = count;
+	}
+private:
+	IUnknown **m_p;
+	int m_count;
 };

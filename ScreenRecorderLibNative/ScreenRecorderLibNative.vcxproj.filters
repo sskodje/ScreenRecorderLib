@@ -72,6 +72,9 @@
     <ClInclude Include="graphics_manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="video_capture.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="audio_prefs.cpp">
@@ -105,6 +108,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="graphics_manager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="video_capture.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

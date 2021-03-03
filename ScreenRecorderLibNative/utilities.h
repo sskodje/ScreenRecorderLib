@@ -17,6 +17,18 @@
     } \
 }
 
+#define CONTINUE_ON_BAD_HR(expr) \
+{ \
+    HRESULT _hr_ = (expr); \
+    if (FAILED(_hr_)) { \
+    {\
+        _com_error err(_hr_);\
+        LOG_ERROR(L"RETURN_ON_BAD_HR: hr=0x%08x, error is %ls", _hr_, err.ErrorMessage());\
+    }\
+       continue; \
+    } \
+}
+
 #define LOG_ON_BAD_HR(expr) \
 { \
     HRESULT _hr_ = (expr); \

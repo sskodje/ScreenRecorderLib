@@ -511,8 +511,8 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 			sourceHeight = firstFrame.ContentSize.cy;
 		}
 		else {
-			sourceWidth = pCapture->FrameSize().cx;
-			sourceHeight = pCapture->FrameSize().cy;
+			sourceWidth = pCapture->GetOutputRect().right - pCapture->GetOutputRect().left;
+			sourceHeight = pCapture->GetOutputRect().bottom - pCapture->GetOutputRect().top;
 		}
 		SafeRelease(&firstFrame.Frame);
 	}
@@ -525,8 +525,8 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 			}
 		}
 		pCapture->StartCapture(outputs, UnexpectedErrorEvent, ExpectedErrorEvent);
-		sourceWidth = pCapture->FrameSize().cx;
-		sourceHeight = pCapture->FrameSize().cy;
+		sourceWidth = pCapture->GetOutputRect().right - pCapture->GetOutputRect().left;
+		sourceHeight = pCapture->GetOutputRect().bottom - pCapture->GetOutputRect().top;
 	}
 	RECT videoOutputFrameRect{ 0, 0, sourceWidth, sourceHeight };
 
@@ -781,8 +781,12 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 			outputs.push_back(display);
 		}
 	}
+	RECORDING_OVERLAY overlay{};
+	overlay.Type = OverlayType::Video;
+	overlay.Position = POINT{100,100};
+	overlay.Size = SIZE{ 200,200 };
 	auto pCapture = std::make_unique<duplication_capture>(m_Device, m_ImmediateContext);
-	RETURN_ON_BAD_HR(hr = pCapture->StartCapture(outputs, UnexpectedErrorEvent, ExpectedErrorEvent));
+	RETURN_ON_BAD_HR(hr = pCapture->StartCapture(outputs, { overlay }, UnexpectedErrorEvent, ExpectedErrorEvent));
 	DesktopDuplicationCaptureStopOnExit stopCaptureOnExit(pCapture.get());
 
 	DXGI_MODE_ROTATION screenRotation = DXGI_MODE_ROTATION_UNSPECIFIED;// outputDuplDesc.Rotation;
@@ -851,7 +855,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 			stopCaptureOnExit.Reset(pCapture.get());
 			ResetEvent(UnexpectedErrorEvent);
 			ResetEvent(ExpectedErrorEvent);
-			RETURN_ON_BAD_HR(hr = pCapture->StartCapture(outputs, UnexpectedErrorEvent, ExpectedErrorEvent));
+			RETURN_ON_BAD_HR(hr = pCapture->StartCapture(outputs, { overlay }, UnexpectedErrorEvent, ExpectedErrorEvent));
 			continue;
 		}
 		if (m_IsPaused) {
