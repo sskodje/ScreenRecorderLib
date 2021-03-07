@@ -5,9 +5,10 @@
 #include "mouse_pointer.h"
 #include "video_capture.h"
 
-DWORD WINAPI DDProc(_In_ void* Param);
+DWORD WINAPI CaptureThreadProc(_In_ void* Param);
 
-duplication_capture::duplication_capture(_In_ ID3D11Device* pDevice, _In_ ID3D11DeviceContext *pDeviceContext) :capture_base(pDevice, pDeviceContext)
+duplication_capture::duplication_capture(_In_ ID3D11Device* pDevice, _In_ ID3D11DeviceContext *pDeviceContext) :
+	capture_base(pDevice, pDeviceContext)
 {
 
 }
@@ -17,180 +18,10 @@ duplication_capture::~duplication_capture()
 
 }
 
-//
-// Start up threads for DDA
-//
-HRESULT duplication_capture::StartCapture(_In_ std::vector<std::wstring> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
+
+HRESULT duplication_capture::StartCapture(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
 {
-	ResetEvent(m_TerminateThreadsEvent);
-	std::map<std::wstring, SIZE> CreatedOutputsWithOffsets;
-	HRESULT hr = CreateSharedSurf(sources, &CreatedOutputsWithOffsets, &m_OutputRect);
-	if (FAILED(hr)) {
-		return hr;
-	}
-	m_ThreadCount = (UINT)(CreatedOutputsWithOffsets.size() + overlays.size());
-	m_ThreadHandles = new (std::nothrow) HANDLE[m_ThreadCount]{};
-	m_ThreadData = new (std::nothrow) THREAD_DATA[m_ThreadCount]{};
-	if (!m_ThreadHandles || !m_ThreadData)
-	{
-		return E_OUTOFMEMORY;
-	}
-	HANDLE sharedHandle = GetSharedHandle();
-	// Create appropriate # of threads for duplication
-	int i = 0;
-	for each (auto &const pair in CreatedOutputsWithOffsets)
-	{
-		if (i < m_ThreadCount) {
-			std::wstring outputName = pair.first;
-			SIZE offset = pair.second;
-			m_ThreadData[i].UnexpectedErrorEvent = hUnexpectedErrorEvent;
-			m_ThreadData[i].ExpectedErrorEvent = hExpectedErrorEvent;
-			m_ThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
-			m_ThreadData[i].TexSharedHandle = sharedHandle;
-
-			m_ThreadData[i].RecordingSource = new RECORDING_SOURCE_DATA();
-			m_ThreadData[i].RecordingSource->OutputMonitor = outputName;
-			m_ThreadData[i].RecordingSource->OffsetX = m_OutputRect.left + offset.cx;
-			m_ThreadData[i].RecordingSource->OffsetY = m_OutputRect.top + offset.cy;
-			m_ThreadData[i].RecordingSource->PtrInfo = &m_PtrInfo;
-
-			RtlZeroMemory(&m_ThreadData[i].RecordingSource->DxRes, sizeof(DX_RESOURCES));
-			HRESULT hr = InitializeDx(&m_ThreadData[i].RecordingSource->DxRes);
-			if (FAILED(hr))
-			{
-				return hr;
-			}
-
-			DWORD ThreadId;
-			m_ThreadHandles[i] = CreateThread(nullptr, 0, DDProc, &m_ThreadData[i], 0, &ThreadId);
-			if (m_ThreadHandles[i] == nullptr)
-			{
-				return E_FAIL;
-			}
-			i++;
-		}
-	}
-	for each (RECORDING_OVERLAY overlay in overlays)
-	{
-		if (i < m_ThreadCount) {
-			m_ThreadData[i].UnexpectedErrorEvent = hUnexpectedErrorEvent;
-			m_ThreadData[i].ExpectedErrorEvent = hExpectedErrorEvent;
-			m_ThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
-			m_ThreadData[i].TexSharedHandle = sharedHandle;
-
-			m_ThreadData[i].RecordingOverlay = new RECORDING_OVERLAY_DATA();
-			m_ThreadData[i].RecordingOverlay->CaptureDevice = overlay.CaptureDevice;
-			m_ThreadData[i].RecordingOverlay->Position = overlay.Position;
-			m_ThreadData[i].RecordingOverlay->Size = overlay.Size;
-			m_ThreadData[i].RecordingOverlay->Type = overlay.Type;
-			m_ThreadData[i].RecordingOverlay->FrameInfo = new FRAME_INFO();
-			RtlZeroMemory(&m_ThreadData[i].RecordingOverlay->DxRes, sizeof(DX_RESOURCES));
-			HRESULT hr = InitializeDx(&m_ThreadData[i].RecordingOverlay->DxRes);
-			if (FAILED(hr))
-			{
-				return hr;
-			}
-
-			DWORD ThreadId;
-			m_ThreadHandles[i] = CreateThread(nullptr, 0, OverlayProc, &m_ThreadData[i], 0, &ThreadId);
-			if (m_ThreadHandles[i] == nullptr)
-			{
-				return E_FAIL;
-			}
-			i++;
-		}
-	}
-	return S_OK;
-}
-
-HRESULT duplication_capture::AddOverlaysToTexture(_In_ ID3D11Texture2D * bgTexture)
-{
-	for (UINT i = 0; i < m_ThreadCount; ++i)
-	{
-		if (m_ThreadData[i].RecordingOverlay) {
-			RECORDING_OVERLAY_DATA *pOverlay = m_ThreadData[i].RecordingOverlay;
-			if (pOverlay->FrameInfo) {
-				FRAME_INFO *frameInfo = pOverlay->FrameInfo;
-				//Create new frame
-				D3D11_TEXTURE2D_DESC desc{};
-				desc.MipLevels = 1;
-				desc.ArraySize = 1;
-				desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-				desc.SampleDesc.Count = 1;
-				desc.SampleDesc.Quality = 0;
-				desc.Usage = D3D11_USAGE_DEFAULT;
-				desc.BindFlags = D3D11_BIND_RENDER_TARGET;
-				desc.CPUAccessFlags = 0;
-				desc.MiscFlags = 0;
-				desc.Width = frameInfo->Width;
-				desc.Height = frameInfo->Height;
-
-				D3D11_SUBRESOURCE_DATA initData = { 0 };
-				initData.pSysMem = frameInfo->PtrFrameBuffer;
-				initData.SysMemPitch = abs(frameInfo->Stride);
-				initData.SysMemSlicePitch = 0;
-
-				CComPtr<ID3D11Texture2D> pOverlayTexture;
-				HRESULT hr = m_Device->CreateTexture2D(&desc, &initData, &pOverlayTexture);
-				if (SUCCEEDED(hr)) {
-					D3D11_BOX Box{};
-					// Copy back to shared surface
-					Box.right = desc.Width;
-					Box.bottom = desc.Height;
-					Box.back = 1;
-					m_DeviceContext->CopySubresourceRegion(bgTexture, 0, 0, 0, 0, pOverlayTexture, 0, &Box);
-				}
-			}
-		}
-	}
-	return S_OK;
-}
-
-//
-// Create shared texture
-//
-HRESULT duplication_capture::CreateSharedSurf(_In_ std::vector<std::wstring> sources, _Out_ std::map<std::wstring, SIZE> *pCreatedOutputsWithOffsets, _Out_ RECT *pDeskBounds)
-{
-	// Set initial values so that we always catch the right coordinates
-	pDeskBounds->left = INT_MAX;
-	pDeskBounds->right = INT_MIN;
-	pDeskBounds->top = INT_MAX;
-	pDeskBounds->bottom = INT_MIN;
-
-	// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
-	std::vector<DXGI_OUTPUT_DESC> outputDescs{};
-	HRESULT hr = GetOutputDescsForDeviceNames(sources, &outputDescs);
-	if (FAILED(hr))
-	{
-		LOG_ERROR(L"Failed to get output descs for selected devices");
-		return hr;
-	}
-
-	if (outputDescs.size() == 0)
-	{
-		// We could not find any outputs
-		return E_FAIL;
-	}
-
-	std::sort(outputDescs.begin(), outputDescs.end(), compareOutputDesc);
-	std::vector<RECT> outputRects{};
-	for each (DXGI_OUTPUT_DESC desc in outputDescs)
-	{
-		outputRects.push_back(desc.DesktopCoordinates);
-	}
-	std::vector<SIZE> outputOffsets{};
-	GetCombinedRects(outputRects, pDeskBounds, &outputOffsets);
-
-	pDeskBounds = &MakeRectEven(*pDeskBounds);
-	std::map<std::wstring, SIZE> createdOutputs{};
-	for (int i = 0; i < outputDescs.size(); i++)
-	{
-		DXGI_OUTPUT_DESC desc = outputDescs[i];
-		createdOutputs.insert(std::pair<std::wstring, SIZE>(desc.DeviceName, outputOffsets.at(i)));
-	}
-	// Set created outputs
-	*pCreatedOutputsWithOffsets = createdOutputs;
-	return capture_base::CreateSharedSurf(*pDeskBounds);
+	return capture_base::StartCapture(CaptureThreadProc, sources, overlays, hUnexpectedErrorEvent, hExpectedErrorEvent);
 }
 
 HRESULT duplication_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame)
@@ -207,31 +38,13 @@ HRESULT duplication_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_
 	}
 	ReleaseKeyedMutexOnExit releaseMutex(m_KeyMutex, 0);
 
-	bool haveNewFrameData = false;
-	int updatedFrameCount = 0;
-
-	for (UINT i = 0; i < m_ThreadCount; ++i)
-	{
-		if (m_ThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
-			haveNewFrameData = true;
-			updatedFrameCount += m_ThreadData[i].UpdatedFrameCount;
-			m_ThreadData[i].UpdatedFrameCount = 0;
-		}
-	}
+	bool haveNewFrameData = IsUpdatedFramesAvailable() && IsInitialFrameWriteComplete();
 	if (!haveNewFrameData) {
 		return DXGI_ERROR_WAIT_TIMEOUT;
 	}
 
-	for (UINT i = 0; i < m_ThreadCount; ++i)
-	{
-		if (m_ThreadData[i].RecordingSource) {
-			if (m_ThreadData[i].RecordingSource->TotalUpdatedFrameCount == 0) {
-				//If any of the recordings have not yet written a frame, we return and wait for them.
-				return DXGI_ERROR_WAIT_TIMEOUT;
-			}
-		}
-	}
-
+	UINT updatedFrameCount = GetUpdatedFrameCount(true);
+	RETURN_ON_BAD_HR(hr = ProcessOverlays());
 	ID3D11Texture2D *pDesktopFrame = nullptr;
 	D3D11_TEXTURE2D_DESC desc;
 	m_SharedSurf->GetDesc(&desc);
@@ -239,7 +52,6 @@ HRESULT duplication_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_
 	RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pDesktopFrame));
 	m_DeviceContext->CopyResource(pDesktopFrame, m_SharedSurf);
 
-	RETURN_ON_BAD_HR(hr = AddOverlaysToTexture(pDesktopFrame));
 
 	QueryPerformanceCounter(&m_LastAcquiredFrameTimeStamp);
 
@@ -253,7 +65,7 @@ HRESULT duplication_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_
 //
 // Entry point for new duplication threads
 //
-DWORD WINAPI DDProc(_In_ void* Param)
+DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 {
 	HRESULT hr = S_OK;
 
@@ -269,7 +81,7 @@ DWORD WINAPI DDProc(_In_ void* Param)
 	bool isUnexpectedError = false;
 
 	// Data passed in from thread creation
-	THREAD_DATA* pData = reinterpret_cast<THREAD_DATA*>(Param);
+	CAPTURE_THREAD_DATA* pData = reinterpret_cast<CAPTURE_THREAD_DATA*>(Param);
 
 	// Get desktop
 	HDESK CurrentDesktop = nullptr;
@@ -324,8 +136,7 @@ DWORD WINAPI DDProc(_In_ void* Param)
 		DXGI_OUTPUT_DESC DesktopDesc;
 		RtlZeroMemory(&DesktopDesc, sizeof(DXGI_OUTPUT_DESC));
 		pDuplicationManager.GetOutputDesc(&DesktopDesc);
-		pSource->ContentSize.cx = DesktopDesc.DesktopCoordinates.right - DesktopDesc.DesktopCoordinates.left;
-		pSource->ContentSize.cy = DesktopDesc.DesktopCoordinates.bottom - DesktopDesc.DesktopCoordinates.top;
+		pData->ContentFrameRect = DesktopDesc.DesktopCoordinates;
 		// Main duplication loop
 		bool WaitToProcessCurrentFrame = false;
 		DUPL_FRAME_DATA CurrentData{};
@@ -371,7 +182,7 @@ DWORD WINAPI DDProc(_In_ void* Param)
 			WaitToProcessCurrentFrame = false;
 
 			// Get mouse info
-			hr = pMousePointer.GetMouse(pSource->PtrInfo, &(CurrentData.FrameInfo), DesktopDesc.DesktopCoordinates, pDuplicationManager.GetOutputDuplication(), pSource->OffsetX, pSource->OffsetY);
+			hr = pMousePointer.GetMouse(pData->PtrInfo, &(CurrentData.FrameInfo), DesktopDesc.DesktopCoordinates, pDuplicationManager.GetOutputDuplication(), pSource->OffsetX, pSource->OffsetY);
 			if (FAILED(hr))
 			{
 				break;
@@ -383,8 +194,8 @@ DWORD WINAPI DDProc(_In_ void* Param)
 			{
 				break;
 			}
-			pData->UpdatedFrameCount++;
-			pSource->TotalUpdatedFrameCount++;
+			pData->UpdatedFrameCountSinceLastWrite++;
+			pData->TotalUpdatedFrameCount++;
 			if (CurrentData.FrameInfo.LastPresentTime.QuadPart > CurrentData.FrameInfo.LastMouseUpdateTime.QuadPart) {
 				pData->LastUpdateTimeStamp = CurrentData.FrameInfo.LastPresentTime;
 			}

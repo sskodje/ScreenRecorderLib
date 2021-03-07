@@ -3,19 +3,6 @@
 #include "DX.util.h"
 #include "graphics_capture.util.h"
 
-namespace winrt
-{
-	using namespace Windows::Foundation;
-	using namespace Windows::System;
-	using namespace Windows::Graphics;
-	using namespace Windows::Graphics::Capture;
-	using namespace Windows::Graphics::DirectX;
-	using namespace Windows::Graphics::DirectX::Direct3D11;
-	using namespace Windows::Foundation::Numerics;
-	using namespace Windows::UI;
-	using namespace Windows::UI::Composition;
-}
-
 using namespace winrt::Windows::Graphics::Capture;
 
 graphics_manager::graphics_manager() :
@@ -76,7 +63,7 @@ HRESULT graphics_manager::Initialize(_In_ DX_RESOURCES *Data, _In_ winrt::Window
 	// the frame pool was created on. This also means that the creating thread
 	// must have a DispatcherQueue. If you use this method, it's best not to do
 	// it on the UI thread. 
-	m_framePool = winrt::Direct3D11CaptureFramePool::Create(direct3DDevice, m_PixelFormat, 1, m_item.Size());
+	m_framePool = Direct3D11CaptureFramePool::Create(direct3DDevice, m_PixelFormat, 1, m_item.Size());
 	m_session = m_framePool.CreateCaptureSession(m_item);
 
 	WINRT_ASSERT(m_session != nullptr);

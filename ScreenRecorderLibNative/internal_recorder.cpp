@@ -488,15 +488,25 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 	}
 	CloseHandleOnExit closeExpectedErrorEvent(ExpectedErrorEvent);
 
-	auto pCapture = std::make_unique<graphics_capture>(m_Device, m_ImmediateContext, m_IsMousePointerEnabled);
+	RECORDING_OVERLAY overlay{};
+	overlay.Type = OverlayType::Video;
+	overlay.Position = POINT{ 100,100 };
+	overlay.Size = SIZE{ 200,200 };
+
+	auto pCapture = std::make_unique<graphics_capture>(m_Device, m_ImmediateContext);
 
 	GraphicsCaptureStopOnExit stopCaptureOnExit(pCapture.get());
 	D3D11_TEXTURE2D_DESC sourceFrameDesc;
 	RtlZeroMemory(&sourceFrameDesc, sizeof(sourceFrameDesc));
 	int sourceWidth = 0;
 	int sourceHeight = 0;
+
 	if (m_WindowHandle) {
-		pCapture->StartCapture(m_WindowHandle, UnexpectedErrorEvent, ExpectedErrorEvent);
+		RECORDING_SOURCE source{};
+		source.Type = SourceType::Window;
+		source.WindowHandle = m_WindowHandle;
+		source.IsCursorCaptureEnabled = m_IsMousePointerEnabled;
+		RETURN_ON_BAD_HR(hr = pCapture->StartCapture({ source }, { overlay }, UnexpectedErrorEvent, ExpectedErrorEvent));
 		CAPTURED_FRAME firstFrame{};
 		//We try get the first frame now, because the dimensions for the window captureItem is sometimes wrong, causing black borders around the recording, while the dimensions for a frame is always correct.
 		for (int i = 0; i < 10; i++) {
@@ -517,14 +527,18 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 		SafeRelease(&firstFrame.Frame);
 	}
 	else {
-		std::vector<std::wstring> outputs{ };
-		for each (std::wstring display in m_DisplayOutputDevices)
+		std::vector<RECORDING_SOURCE> sources{};
+		std::vector<DXGI_OUTPUT_DESC> outputDescs{};
+		RETURN_ON_BAD_HR(GetOutputDescsForDeviceNames(m_DisplayOutputDevices, &outputDescs));
+		for each (const DXGI_OUTPUT_DESC & desc in outputDescs)
 		{
-			if (GetOutputForDeviceName(display, nullptr) == S_OK) {
-				outputs.push_back(display);
-			}
+			RECORDING_SOURCE source{};
+			source.Type = SourceType::Monitor;
+			source.CaptureDevice = desc.DeviceName;
+			source.IsCursorCaptureEnabled = m_IsMousePointerEnabled;
+			sources.push_back(source);
 		}
-		pCapture->StartCapture(outputs, UnexpectedErrorEvent, ExpectedErrorEvent);
+		RETURN_ON_BAD_HR(hr = pCapture->StartCapture(sources, { overlay }, UnexpectedErrorEvent, ExpectedErrorEvent));
 		sourceWidth = pCapture->GetOutputRect().right - pCapture->GetOutputRect().left;
 		sourceHeight = pCapture->GetOutputRect().bottom - pCapture->GetOutputRect().top;
 	}
@@ -595,8 +609,10 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(_In_opt_ IStream *pS
 			wait(10);
 			lastFrame = steady_clock::now();
 			m_previousSnapshotTaken = steady_clock::now();
-			pLoopbackCaptureOutputDevice->ClearRecordedBytes();
-			pLoopbackCaptureInputDevice->ClearRecordedBytes();
+			if (pLoopbackCaptureOutputDevice)
+				pLoopbackCaptureOutputDevice->ClearRecordedBytes();
+			if (pLoopbackCaptureInputDevice)
+				pLoopbackCaptureInputDevice->ClearRecordedBytes();
 			continue;
 		}
 		CAPTURED_FRAME capturedFrame{};
@@ -774,19 +790,26 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 	}
 	CloseHandleOnExit closeExpectedErrorEvent(ExpectedErrorEvent);
 
-	std::vector<std::wstring> outputs{ };
-	for each (std::wstring display in m_DisplayOutputDevices)
-	{
-		if (GetOutputForDeviceName(display, nullptr) == S_OK) {
-			outputs.push_back(display);
-		}
-	}
+	std::vector<DXGI_OUTPUT_DESC> outputDescs{};
+	RETURN_ON_BAD_HR(GetOutputDescsForDeviceNames(m_DisplayOutputDevices, &outputDescs));
+
 	RECORDING_OVERLAY overlay{};
 	overlay.Type = OverlayType::Video;
-	overlay.Position = POINT{100,100};
+	overlay.Position = POINT{ 100,100 };
 	overlay.Size = SIZE{ 200,200 };
 	auto pCapture = std::make_unique<duplication_capture>(m_Device, m_ImmediateContext);
-	RETURN_ON_BAD_HR(hr = pCapture->StartCapture(outputs, { overlay }, UnexpectedErrorEvent, ExpectedErrorEvent));
+
+	std::vector<RECORDING_SOURCE> sources{};
+	for each (const DXGI_OUTPUT_DESC & desc in outputDescs)
+	{
+		RECORDING_SOURCE source{};
+		source.Type = SourceType::Monitor;
+		source.CaptureDevice = desc.DeviceName;
+		source.IsCursorCaptureEnabled = m_IsMousePointerEnabled;
+		sources.push_back(source);
+	}
+
+	RETURN_ON_BAD_HR(hr = pCapture->StartCapture(sources, { overlay }, UnexpectedErrorEvent, ExpectedErrorEvent));
 	DesktopDuplicationCaptureStopOnExit stopCaptureOnExit(pCapture.get());
 
 	DXGI_MODE_ROTATION screenRotation = DXGI_MODE_ROTATION_UNSPECIFIED;// outputDuplDesc.Rotation;
@@ -855,7 +878,7 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(_In_opt_ IStream 
 			stopCaptureOnExit.Reset(pCapture.get());
 			ResetEvent(UnexpectedErrorEvent);
 			ResetEvent(ExpectedErrorEvent);
-			RETURN_ON_BAD_HR(hr = pCapture->StartCapture(outputs, { overlay }, UnexpectedErrorEvent, ExpectedErrorEvent));
+			RETURN_ON_BAD_HR(hr = pCapture->StartCapture(sources, { overlay }, UnexpectedErrorEvent, ExpectedErrorEvent));
 			continue;
 		}
 		if (m_IsPaused) {

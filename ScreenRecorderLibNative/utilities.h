@@ -112,3 +112,12 @@ inline RECT MakeRectEven(_In_ RECT &rect)
 		rect.bottom -= 1;
 	return rect;
 }
+
+// Compares two rects according
+inline bool compareRects(RECT rect1, RECT rect2)
+{
+	if (rect1.left != rect2.left) {
+		return (rect1.left < rect2.left);
+	}
+	return (rect1.top < rect2.bottom);
+}

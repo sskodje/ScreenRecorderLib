@@ -2,7 +2,6 @@
 #define _CRTDBG_MAP_ALLOC
 #include <stdlib.h>
 #include <crtdbg.h>
-
 #include <windows.h>
 #include <queue>
 #include <Codecapi.h>
@@ -20,6 +19,8 @@
 #include <DirectXMath.h>
 #include <mfreadwrite.h>
 #include <winrt/Windows.Graphics.Capture.h>
+#include <winrt/Windows.Foundation.Metadata.h>
+
 #include "fifo_map.h"
 #include "audio_prefs.h"
 #include "mouse_pointer.h"

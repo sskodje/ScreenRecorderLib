@@ -138,7 +138,7 @@ namespace ScreenRecorderLib
                     {
                         var options = new RecorderOptions
                         {
-                            RecorderApi = RecorderApi.DesktopDuplication,
+                            RecorderApi = RecorderApi.WindowsGraphicsCapture,
                             DisplayOptions = new DisplayOptions { DisplayDevices = { display.DeviceName } }
                         };
                         using (var rec = Recorder.CreateRecorder(options))
@@ -657,6 +657,51 @@ namespace ScreenRecorderLib
             }
         }
 
+
+        [TestMethod]
+        public void GraphicsCaptureRecordingToFileTest()
+        {
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
+            {
+                RecorderOptions options = new RecorderOptions() { RecorderApi = RecorderApi.WindowsGraphicsCapture };
+                using (var rec = Recorder.CreateRecorder(options))
+                {
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        finalizeResetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
+                    };
+
+                    rec.Record(filePath);
+                    recordingResetEvent.WaitOne(3000);
+                    rec.Stop();
+                    finalizeResetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+            }
+        }
+
         [TestMethod]
         public void DefaultRecordingToFileTest()
         {
@@ -961,7 +1006,7 @@ namespace ScreenRecorderLib
                         };
 
                         rec.Record(outStream);
-                        recordingResetEvent.WaitOne(2000);
+                        recordingResetEvent.WaitOne(1000);
                         rec.Stop();
 
                         Assert.IsTrue(finalizeResetEvent.WaitOne(5000), $"[{i}] Recording finalize timed out");
@@ -1005,7 +1050,7 @@ namespace ScreenRecorderLib
                         isError = false;
                         isComplete = false;
                         rec.Record(outStream);
-                        recordingResetEvent.WaitOne(2000);
+                        recordingResetEvent.WaitOne(1000);
                         rec.Stop();
 
                         Assert.IsTrue(finalizeResetEvent.WaitOne(5000), $"[{i}] Recording finalize timed out");

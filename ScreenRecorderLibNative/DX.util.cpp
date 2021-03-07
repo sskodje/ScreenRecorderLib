@@ -108,7 +108,7 @@ HRESULT GetMainOutput(_Outptr_result_maybenull_ IDXGIOutput **ppOutput) {
 }
 
 HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **ppOutput) {
-	HRESULT hr = S_FALSE;
+	HRESULT hr = E_FAIL;
 	if (ppOutput) {
 		*ppOutput = nullptr;
 	}

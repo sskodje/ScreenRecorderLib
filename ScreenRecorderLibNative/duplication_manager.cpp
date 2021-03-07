@@ -5,6 +5,8 @@
 #include "DX.util.h"
 using namespace DirectX;
 
+#define NUMVERTICES 6
+
 //
 // Constructor sets up references / variables
 //
@@ -119,7 +121,8 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Ou
 	hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&DxgiDevice));
 	if (FAILED(hr))
 	{
-		LOG_ERROR(L"Failed to QI for DXGI Device");
+		_com_error err(hr);
+		LOG_ERROR(L"Failed to QI for DXGI Device: %ls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -128,7 +131,8 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Ou
 	hr = GetOutputForDeviceName(m_OutputName, &DxgiOutput);
 	if (FAILED(hr))
 	{
-		LOG_ERROR(L"Failed to get specified output in DUPLICATIONMANAGER");
+		_com_error err(hr);
+		LOG_ERROR(L"Failed to get specified output in DUPLICATIONMANAGER: %ls", err.ErrorMessage());
 		return hr;
 	}
 	DxgiOutput->GetDesc(&m_OutputDesc);
@@ -140,7 +144,8 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Ou
 	DxgiOutput = nullptr;
 	if (FAILED(hr))
 	{
-		LOG_ERROR(L"Failed to QI for DxgiOutput1 in DUPLICATIONMANAGER");
+		_com_error err(hr);
+		LOG_ERROR(L"Failed to QI for DxgiOutput1 in DUPLICATIONMANAGER: %ls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -150,7 +155,8 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Ou
 	DxgiOutput1 = nullptr;
 	if (FAILED(hr))
 	{
-		LOG_ERROR(L"Failed to get duplicate output in DUPLICATIONMANAGER");
+		_com_error err(hr);
+		LOG_ERROR(L"Failed to get duplicate output in DUPLICATIONMANAGER: %ls",err.ErrorMessage());
 		return hr;
 	}
 

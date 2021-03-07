@@ -12,6 +12,9 @@ using namespace DirectX;
 
 #pragma comment(lib, "comctl32.lib")
 
+#define NUMVERTICES 6
+#define BPP         4
+
 HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device)
 {
 	CleanupResources();

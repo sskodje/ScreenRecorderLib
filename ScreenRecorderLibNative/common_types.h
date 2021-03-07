@@ -7,9 +7,6 @@
 #include "VertexShader.h"
 #include <string>
 #include <vector>
-
-#define NUMVERTICES 6
-#define BPP         4
 //
 // Holds info about the pointer/cursor
 //
@@ -112,17 +109,15 @@ typedef struct _RECORDING_SOURCE
 	std::wstring CaptureDevice;
 	HWND WindowHandle;
 	SourceType Type;
+	bool IsCursorCaptureEnabled{};
 } RECORDING_SOURCE;
 
 typedef struct _RECORDING_SOURCE_DATA {
 	std::wstring OutputMonitor{};
 	bool IsCursorCaptureEnabled{};
-	INT64 TotalUpdatedFrameCount{};
 	HWND OutputWindow{};
 	INT OffsetX{};
 	INT OffsetY{};
-	SIZE ContentSize{};
-	PTR_INFO* PtrInfo{};
 	DX_RESOURCES DxRes{};
 } RECORDING_SOURCE_DATA;
 
@@ -139,7 +134,7 @@ typedef struct _RECORDING_OVERLAY_DATA
 //
 // Structure to pass to a new thread
 //
-typedef struct _THREAD_DATA
+typedef struct _THREAD_DATA_BASE
 {
 	// Used to indicate abnormal error condition
 	HANDLE UnexpectedErrorEvent{};
@@ -147,11 +142,39 @@ typedef struct _THREAD_DATA
 	HANDLE ExpectedErrorEvent{};
 	// Used by WinProc to signal to threads to exit
 	HANDLE TerminateThreadsEvent{};
+	LARGE_INTEGER LastUpdateTimeStamp{};
+	HRESULT ThreadResult{ E_FAIL };
+} THREAD_DATA_BASE;
+
+//
+// Structure to pass to a new thread
+//
+typedef struct _CAPTURE_THREAD_DATA :THREAD_DATA_BASE
+{
 	//Handle to shared texture
 	HANDLE TexSharedHandle{};
 	RECORDING_SOURCE_DATA *RecordingSource{};
+	INT UpdatedFrameCountSinceLastWrite{};
+	INT64 TotalUpdatedFrameCount{};
+	RECT ContentFrameRect{};
+	PTR_INFO* PtrInfo{};
+} CAPTURE_THREAD_DATA;
+
+//
+// Structure to pass to a new thread
+//
+typedef struct _OVERLAY_THREAD_DATA:THREAD_DATA_BASE
+{
 	RECORDING_OVERLAY_DATA *RecordingOverlay{};
-	LARGE_INTEGER LastUpdateTimeStamp{};
-	INT UpdatedFrameCount{};
-	HRESULT ThreadResult{ E_FAIL };
-} THREAD_DATA;
+} OVERLAY_THREAD_DATA;
+
+// Compares two rects according
+inline bool compareOutputs(std::pair<RECORDING_SOURCE, RECT> firstPair, std::pair<RECORDING_SOURCE, RECT> secondPair)
+{
+	RECT rect1 = firstPair.second;
+	RECT rect2 = secondPair.second;
+	if (rect1.left != rect2.left) {
+		return (rect1.left < rect2.left);
+	}
+	return (rect1.top < rect2.bottom);
+}
