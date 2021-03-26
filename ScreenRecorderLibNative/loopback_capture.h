@@ -7,7 +7,12 @@
 #include <mmdeviceapi.h>
 #include "WWMFResampler.h"
 #include "audio_prefs.h"
+#include "log.h"
 
+#include <thread>
+#include <stdio.h>
+#include <audioclient.h>
+#include <vector>
 #pragma comment(lib, "avrt.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "winmm.lib")

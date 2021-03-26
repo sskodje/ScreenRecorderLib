@@ -1,12 +1,6 @@
 //https://github.com/mvaneerde/blog/tree/master/loopback-capture
-#include <stdio.h>
-#include <audioclient.h>
-#include <vector>
-#include "loopback_capture.h"
-#include "log.h"
 #include "cleanup.h"
-#include "audio_prefs.h"
-#include <thread>
+#include "loopback_capture.h"
 
 using namespace std;
 loopback_capture::loopback_capture(std::wstring tag)
@@ -407,16 +401,19 @@ HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, 
 		IMMDevice *device = prefs.m_pMMDevice;
 		auto file = prefs.m_hFile;
 		m_CaptureTask = concurrency::create_task([this, flow, sampleRate, audioChannels, device, file]() {
-			LoopbackCapture(device,
+			if (FAILED(LoopbackCapture(device,
 				file,
 				true,
 				m_CaptureStartedEvent,
 				m_CaptureStopEvent,
 				flow,
 				sampleRate,
-				audioChannels);
-		});
-		hr = WaitForSingleObjectEx(m_CaptureStartedEvent, 1000, false);
+				audioChannels))) {
+				SetEvent(m_CaptureStopEvent);
+			}
+			});
+		HANDLE events[2] = { m_CaptureStartedEvent ,m_CaptureStopEvent };
+		hr = WaitForMultipleObjects(ARRAYSIZE(events), events, false, INFINITE);
 	}
 	return hr;
 }
