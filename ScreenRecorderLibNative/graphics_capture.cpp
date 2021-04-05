@@ -11,8 +11,8 @@ using namespace winrt::Windows::Graphics::DirectX;
 
 static DWORD WINAPI CaptureThreadProc(_In_ void* Param);
 
-graphics_capture::graphics_capture(_In_ ID3D11Device* pDevice, _In_ ID3D11DeviceContext *pDeviceContext) :
-	capture_base(pDevice, pDeviceContext)
+graphics_capture::graphics_capture() :
+	capture_base()
 {
 
 }
@@ -22,9 +22,22 @@ graphics_capture::~graphics_capture()
 
 }
 
-HRESULT graphics_capture::StartCapture(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
+RECT graphics_capture::GetOutputRect()
 {
-	return capture_base::StartCapture(CaptureThreadProc, sources, overlays, hUnexpectedErrorEvent, hExpectedErrorEvent);
+	if (IsSingleWindowCapture()) {
+		while(IsCapturing() && !IsInitialFrameWriteComplete()) {
+			Sleep(1);
+		}
+		return GetContentRect();
+	}
+	else {
+		return m_OutputRect;
+	}
+}
+
+LPTHREAD_START_ROUTINE graphics_capture::GetCaptureThreadProc()
+{
+	return CaptureThreadProc;
 }
 
 //
@@ -50,14 +63,14 @@ DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 	RECORDING_SOURCE_DATA *pSource = pData->RecordingSource;
 
 	RtlZeroMemory(&pData->ContentFrameRect, sizeof(pData->ContentFrameRect));
-	if (pData->RecordingSource->OutputWindow != nullptr) {
-		captureItem = capture::util::CreateCaptureItemForWindow(pSource->OutputWindow);
+	if (pData->RecordingSource->WindowHandle != nullptr) {
+		captureItem = capture::util::CreateCaptureItemForWindow(pSource->WindowHandle);
 		pData->ContentFrameRect.right = captureItem.Size().Width;
 		pData->ContentFrameRect.bottom = captureItem.Size().Height;
 	}
 	else {
 		CComPtr<IDXGIOutput> output = nullptr;
-		HRESULT hr = GetOutputForDeviceName(pSource->OutputMonitor, &output);
+		HRESULT hr = GetOutputForDeviceName(pSource->CaptureDevice, &output);
 		if (FAILED(hr)) {
 			GetMainOutput(&output);
 			if (!output) {
@@ -68,7 +81,6 @@ DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 		}
 		DXGI_OUTPUT_DESC outputDesc;
 		output->GetDesc(&outputDesc);
-		LOG_INFO(L"Recording monitor %ls using Windows.Graphics.Capture", outputDesc.DeviceName);
 		captureItem = capture::util::CreateCaptureItemForMonitor(outputDesc.Monitor);
 		pData->ContentFrameRect = outputDesc.DesktopCoordinates;
 	}
@@ -103,7 +115,6 @@ DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 		// Main capture loop
 		bool WaitToProcessCurrentFrame = false;
 		GRAPHICS_FRAME_DATA CurrentData{};
-
 		while (true)
 		{
 			if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
@@ -116,23 +127,37 @@ DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 				// Get new frame from Windows Graphics Capture.
 				hr = graphicsManager.GetFrame(&CurrentData);
 				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-					Sleep(1);
-					continue;
+					if (!CurrentData.IsIconic && pSource->WindowHandle && IsIconic(pSource->WindowHandle)) {
+						CurrentData.IsIconic = true;
+						LOG_INFO("Recorded window is minimized");
+					}
+					else {
+						Sleep(1);
+						continue;
+					}
 				}
 				else if (FAILED(hr)) {
 					break;
 				}
+				else if (SUCCEEDED(hr)) {
+					if (CurrentData.IsIconic) {
+						CurrentData.IsIconic = false;
+						LOG_INFO("Recorded window is restored and no longer minimized");
+					}
+				}
 			}
 			/*To correctly resize recordings, the window contentsize must be returned for window recordings,
 			and the output dimensions of the shared surface for monitor recording.*/
-			if (pSource->OutputWindow) {
+			if (pSource->WindowHandle) {
 				pData->ContentFrameRect.right = CurrentData.ContentSize.cx + pData->ContentFrameRect.left;
 				pData->ContentFrameRect.bottom = CurrentData.ContentSize.cy + pData->ContentFrameRect.top;
 			}
-
-			// We have a new frame so try and process it
-			// Try to acquire keyed mutex in order to access shared surface
-			hr = KeyMutex->AcquireSync(0, 10);
+			{
+				MeasureExecutionTime measure(L"Duplication CaptureThreadProc wait for sync");
+				// We have a new frame so try and process it
+				// Try to acquire keyed mutex in order to access shared surface
+				hr = KeyMutex->AcquireSync(0, 10);
+			}
 			if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
 			{
 				// Can't use shared surface right now, try again later
@@ -158,18 +183,10 @@ DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 			hr = graphicsManager.ProcessFrame(&CurrentData, SharedSurf, pSource->OffsetX, pSource->OffsetY, pData->ContentFrameRect);
 			if (FAILED(hr))
 			{
-				KeyMutex->ReleaseSync(1);
 				break;
 			}
 			pData->UpdatedFrameCountSinceLastWrite++;
 			pData->TotalUpdatedFrameCount++;
-			// Release acquired keyed mutex
-			hr = KeyMutex->ReleaseSync(1);
-			if (FAILED(hr))
-			{
-				LOG_ERROR(L"Unexpected error releasing the keyed mutex");
-				break;
-			}
 
 			QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
 		}

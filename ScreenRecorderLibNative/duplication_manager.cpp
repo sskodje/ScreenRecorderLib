@@ -5,27 +5,25 @@
 #include "DX.util.h"
 using namespace DirectX;
 
-#define NUMVERTICES 6
-
 //
 // Constructor sets up references / variables
 //
 duplication_manager::duplication_manager() :
-m_DeskDupl(nullptr),
-m_AcquiredDesktopImage(nullptr),
-m_MetaDataBuffer(nullptr),
-m_MetaDataSize(0),
-m_OutputName(L""),
-m_Device(nullptr),
-m_DeviceContext(nullptr),
-m_MoveSurf(nullptr),
-m_VertexShader(nullptr),
-m_PixelShader(nullptr),
-m_InputLayout(nullptr),
-m_RTV(nullptr),
-m_SamplerLinear(nullptr),
-m_DirtyVertexBufferAlloc(nullptr),
-m_DirtyVertexBufferAllocSize(0)
+	m_DeskDupl(nullptr),
+	m_AcquiredDesktopImage(nullptr),
+	m_MetaDataBuffer(nullptr),
+	m_MetaDataSize(0),
+	m_OutputName(L""),
+	m_Device(nullptr),
+	m_DeviceContext(nullptr),
+	m_MoveSurf(nullptr),
+	m_VertexShader(nullptr),
+	m_PixelShader(nullptr),
+	m_InputLayout(nullptr),
+	m_RTV(nullptr),
+	m_SamplerLinear(nullptr),
+	m_DirtyVertexBufferAlloc(nullptr),
+	m_DirtyVertexBufferAllocSize(0)
 {
 	RtlZeroMemory(&m_OutputDesc, sizeof(m_OutputDesc));
 }
@@ -56,20 +54,10 @@ duplication_manager::~duplication_manager()
 HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Output)
 {
 	m_OutputName = Output;
-
 	m_Device = Data->Device;
 	m_DeviceContext = Data->Context;
-	//m_VertexShader = Data->VertexShader;
-	//m_PixelShader = Data->PixelShader;
-	//m_InputLayout = Data->InputLayout;
-	//m_SamplerLinear = Data->SamplerLinear;
-
 	m_Device->AddRef();
 	m_DeviceContext->AddRef();
-	//m_VertexShader->AddRef();
-	//m_PixelShader->AddRef();
-	//m_InputLayout->AddRef();
-	//m_SamplerLinear->AddRef();
 
 	// VERTEX shader
 	UINT Size = ARRAYSIZE(g_VS);
@@ -156,7 +144,7 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES* Data, std::wstring Ou
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		LOG_ERROR(L"Failed to get duplicate output in DUPLICATIONMANAGER: %ls",err.ErrorMessage());
+		LOG_ERROR(L"Failed to get duplicate output in DUPLICATIONMANAGER: %ls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -172,7 +160,7 @@ HRESULT duplication_manager::GetFrame(_Out_ DUPL_FRAME_DATA * Data)
 	DXGI_OUTDUPL_FRAME_INFO FrameInfo;
 
 	// Get new frame
-	HRESULT hr = m_DeskDupl->AcquireNextFrame(10, &FrameInfo, &DesktopResource);
+	HRESULT hr = m_DeskDupl->AcquireNextFrame(1, &FrameInfo, &DesktopResource);
 	if (FAILED(hr))
 	{
 		return hr;
@@ -317,18 +305,18 @@ void duplication_manager::SetMoveRect(_Out_ RECT* SrcRect, _Out_ RECT* DestRect,
 	{
 		SrcRect->left = MoveRect->SourcePoint.x;
 		SrcRect->top = MoveRect->SourcePoint.y;
-		SrcRect->right = MoveRect->SourcePoint.x + MoveRect->DestinationRect.right - MoveRect->DestinationRect.left;
-		SrcRect->bottom = MoveRect->SourcePoint.y + MoveRect->DestinationRect.bottom - MoveRect->DestinationRect.top;
+		SrcRect->right = MoveRect->SourcePoint.x + RectWidth(MoveRect->DestinationRect);
+		SrcRect->bottom = MoveRect->SourcePoint.y + RectHeight(MoveRect->DestinationRect);
 
 		*DestRect = MoveRect->DestinationRect;
 		break;
 	}
 	case DXGI_MODE_ROTATION_ROTATE90:
 	{
-		SrcRect->left = TexHeight - (MoveRect->SourcePoint.y + MoveRect->DestinationRect.bottom - MoveRect->DestinationRect.top);
+		SrcRect->left = TexHeight - (MoveRect->SourcePoint.y + RectHeight(MoveRect->DestinationRect));
 		SrcRect->top = MoveRect->SourcePoint.x;
 		SrcRect->right = TexHeight - MoveRect->SourcePoint.y;
-		SrcRect->bottom = MoveRect->SourcePoint.x + MoveRect->DestinationRect.right - MoveRect->DestinationRect.left;
+		SrcRect->bottom = MoveRect->SourcePoint.x + RectWidth(MoveRect->DestinationRect);
 
 		DestRect->left = TexHeight - MoveRect->DestinationRect.bottom;
 		DestRect->top = MoveRect->DestinationRect.left;
@@ -338,8 +326,8 @@ void duplication_manager::SetMoveRect(_Out_ RECT* SrcRect, _Out_ RECT* DestRect,
 	}
 	case DXGI_MODE_ROTATION_ROTATE180:
 	{
-		SrcRect->left = TexWidth - (MoveRect->SourcePoint.x + MoveRect->DestinationRect.right - MoveRect->DestinationRect.left);
-		SrcRect->top = TexHeight - (MoveRect->SourcePoint.y + MoveRect->DestinationRect.bottom - MoveRect->DestinationRect.top);
+		SrcRect->left = TexWidth - (MoveRect->SourcePoint.x + RectWidth(MoveRect->DestinationRect));
+		SrcRect->top = TexHeight - (MoveRect->SourcePoint.y + RectHeight(MoveRect->DestinationRect));
 		SrcRect->right = TexWidth - MoveRect->SourcePoint.x;
 		SrcRect->bottom = TexHeight - MoveRect->SourcePoint.y;
 
@@ -352,8 +340,8 @@ void duplication_manager::SetMoveRect(_Out_ RECT* SrcRect, _Out_ RECT* DestRect,
 	case DXGI_MODE_ROTATION_ROTATE270:
 	{
 		SrcRect->left = MoveRect->SourcePoint.x;
-		SrcRect->top = TexWidth - (MoveRect->SourcePoint.x + MoveRect->DestinationRect.right - MoveRect->DestinationRect.left);
-		SrcRect->right = MoveRect->SourcePoint.y + MoveRect->DestinationRect.bottom - MoveRect->DestinationRect.top;
+		SrcRect->top = TexWidth - (MoveRect->SourcePoint.x + RectWidth(MoveRect->DestinationRect));
+		SrcRect->right = MoveRect->SourcePoint.y + RectHeight(MoveRect->DestinationRect);
 		SrcRect->bottom = TexWidth - MoveRect->SourcePoint.x;
 
 		DestRect->left = MoveRect->DestinationRect.top;
@@ -384,8 +372,8 @@ HRESULT duplication_manager::CopyMove(_Inout_ ID3D11Texture2D* SharedSurf, _In_r
 	{
 		D3D11_TEXTURE2D_DESC MoveDesc;
 		MoveDesc = FullDesc;
-		MoveDesc.Width = DeskDesc->DesktopCoordinates.right - DeskDesc->DesktopCoordinates.left;
-		MoveDesc.Height = DeskDesc->DesktopCoordinates.bottom - DeskDesc->DesktopCoordinates.top;
+		MoveDesc.Width = RectWidth(DeskDesc->DesktopCoordinates);
+		MoveDesc.Height = RectHeight(DeskDesc->DesktopCoordinates);
 		MoveDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
 		MoveDesc.MiscFlags = 0;
 		HRESULT hr = m_Device->CreateTexture2D(&MoveDesc, nullptr, &m_MoveSurf);
@@ -405,11 +393,11 @@ HRESULT duplication_manager::CopyMove(_Inout_ ID3D11Texture2D* SharedSurf, _In_r
 
 		// Copy rect out of shared surface
 		D3D11_BOX Box;
-		Box.left = SrcRect.left + DeskDesc->DesktopCoordinates.left - OffsetX;
-		Box.top = SrcRect.top + DeskDesc->DesktopCoordinates.top - OffsetY;
+		Box.left = SrcRect.left + DeskDesc->DesktopCoordinates.left + OffsetX;
+		Box.top = SrcRect.top + DeskDesc->DesktopCoordinates.top + OffsetY;
 		Box.front = 0;
-		Box.right = SrcRect.right + DeskDesc->DesktopCoordinates.left - OffsetX;
-		Box.bottom = SrcRect.bottom + DeskDesc->DesktopCoordinates.top - OffsetY;
+		Box.right = SrcRect.right + DeskDesc->DesktopCoordinates.left + OffsetX;
+		Box.bottom = SrcRect.bottom + DeskDesc->DesktopCoordinates.top + OffsetY;
 		Box.back = 1;
 		m_DeviceContext->CopySubresourceRegion(m_MoveSurf, 0, SrcRect.left, SrcRect.top, 0, SharedSurf, 0, &Box);
 
@@ -420,7 +408,7 @@ HRESULT duplication_manager::CopyMove(_Inout_ ID3D11Texture2D* SharedSurf, _In_r
 		Box.right = SrcRect.right;
 		Box.bottom = SrcRect.bottom;
 		Box.back = 1;
-		m_DeviceContext->CopySubresourceRegion(SharedSurf, 0, DestRect.left + DeskDesc->DesktopCoordinates.left - OffsetX, DestRect.top + DeskDesc->DesktopCoordinates.top - OffsetY, 0, m_MoveSurf, 0, &Box);
+		m_DeviceContext->CopySubresourceRegion(SharedSurf, 0, DestRect.left + DeskDesc->DesktopCoordinates.left + OffsetX, DestRect.top + DeskDesc->DesktopCoordinates.top + OffsetY, 0, m_MoveSurf, 0, &Box);
 	}
 
 	return S_OK;
@@ -437,8 +425,8 @@ void duplication_manager::SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX* Vertice
 	INT CenterX = FullDesc->Width / 2;
 	INT CenterY = FullDesc->Height / 2;
 
-	INT Width = DeskDesc->DesktopCoordinates.right - DeskDesc->DesktopCoordinates.left;
-	INT Height = DeskDesc->DesktopCoordinates.bottom - DeskDesc->DesktopCoordinates.top;
+	INT Width = RectWidth(DeskDesc->DesktopCoordinates);
+	INT Height = RectHeight(DeskDesc->DesktopCoordinates);
 
 	// Rotation compensated destination rect
 	RECT DestDirty = *Dirty;
@@ -499,18 +487,18 @@ void duplication_manager::SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX* Vertice
 	}
 
 	// Set positions
-	Vertices[0].Pos = XMFLOAT3((DestDirty.left + DeskDesc->DesktopCoordinates.left - OffsetX - CenterX) / static_cast<FLOAT>(CenterX),
+	Vertices[0].Pos = XMFLOAT3((DestDirty.left + DeskDesc->DesktopCoordinates.left + OffsetX - CenterX) / static_cast<FLOAT>(CenterX),
 		-1 * (DestDirty.bottom + DeskDesc->DesktopCoordinates.top - OffsetY - CenterY) / static_cast<FLOAT>(CenterY),
 		0.0f);
-	Vertices[1].Pos = XMFLOAT3((DestDirty.left + DeskDesc->DesktopCoordinates.left - OffsetX - CenterX) / static_cast<FLOAT>(CenterX),
+	Vertices[1].Pos = XMFLOAT3((DestDirty.left + DeskDesc->DesktopCoordinates.left + OffsetX - CenterX) / static_cast<FLOAT>(CenterX),
 		-1 * (DestDirty.top + DeskDesc->DesktopCoordinates.top - OffsetY - CenterY) / static_cast<FLOAT>(CenterY),
 		0.0f);
-	Vertices[2].Pos = XMFLOAT3((DestDirty.right + DeskDesc->DesktopCoordinates.left - OffsetX - CenterX) / static_cast<FLOAT>(CenterX),
+	Vertices[2].Pos = XMFLOAT3((DestDirty.right + DeskDesc->DesktopCoordinates.left + OffsetX - CenterX) / static_cast<FLOAT>(CenterX),
 		-1 * (DestDirty.bottom + DeskDesc->DesktopCoordinates.top - OffsetY - CenterY) / static_cast<FLOAT>(CenterY),
 		0.0f);
 	Vertices[3].Pos = Vertices[2].Pos;
 	Vertices[4].Pos = Vertices[1].Pos;
-	Vertices[5].Pos = XMFLOAT3((DestDirty.right + DeskDesc->DesktopCoordinates.left - OffsetX - CenterX) / static_cast<FLOAT>(CenterX),
+	Vertices[5].Pos = XMFLOAT3((DestDirty.right + DeskDesc->DesktopCoordinates.left + OffsetX - CenterX) / static_cast<FLOAT>(CenterX),
 		-1 * (DestDirty.top + DeskDesc->DesktopCoordinates.top - OffsetY - CenterY) / static_cast<FLOAT>(CenterY),
 		0.0f);
 
@@ -642,64 +630,14 @@ HRESULT duplication_manager::CopyDirty(_In_ ID3D11Texture2D* SrcSurface, _Inout_
 //
 void duplication_manager::CleanRefs()
 {
-	if (m_DeskDupl)
-	{
-		m_DeskDupl->Release();
-		m_DeskDupl = nullptr;
-	}
-
-	if (m_AcquiredDesktopImage)
-	{
-		m_AcquiredDesktopImage->Release();
-		m_AcquiredDesktopImage = nullptr;
-	}
-
-	if (m_DeviceContext)
-	{
-		m_DeviceContext->Release();
-		m_DeviceContext = nullptr;
-	}
-
-	if (m_Device)
-	{
-		m_Device->Release();
-		m_Device = nullptr;
-	}
-
-	if (m_MoveSurf)
-	{
-		m_MoveSurf->Release();
-		m_MoveSurf = nullptr;
-	}
-
-	if (m_VertexShader)
-	{
-		m_VertexShader->Release();
-		m_VertexShader = nullptr;
-	}
-
-	if (m_PixelShader)
-	{
-		m_PixelShader->Release();
-		m_PixelShader = nullptr;
-	}
-
-	if (m_InputLayout)
-	{
-		m_InputLayout->Release();
-		m_InputLayout = nullptr;
-	}
-
-	if (m_SamplerLinear)
-	{
-		m_SamplerLinear->Release();
-		m_SamplerLinear = nullptr;
-	}
-
-	if (m_RTV)
-	{
-		m_RTV->Release();
-		m_RTV = nullptr;
-	}
+	SafeRelease(&m_DeskDupl);
+	SafeRelease(&m_AcquiredDesktopImage);
+	SafeRelease(&m_DeviceContext);
+	SafeRelease(&m_Device);
+	SafeRelease(&m_MoveSurf);
+	SafeRelease(&m_VertexShader);
+	SafeRelease(&m_PixelShader);
+	SafeRelease(&m_InputLayout);
+	SafeRelease(&m_SamplerLinear);
+	SafeRelease(&m_RTV);
 }
-

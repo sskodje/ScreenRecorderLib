@@ -33,8 +33,17 @@ HRESULT InitializeDx(_Out_ DX_RESOURCES* Data)
 	// Create device
 	for (UINT DriverTypeIndex = 0; DriverTypeIndex < NumDriverTypes; ++DriverTypeIndex)
 	{
-		hr = D3D11CreateDevice(nullptr, DriverTypes[DriverTypeIndex], nullptr, 0, FeatureLevels, NumFeatureLevels,
-			D3D11_SDK_VERSION, &Data->Device, &FeatureLevel, &Data->Context);
+		hr = D3D11CreateDevice(
+			nullptr,
+			DriverTypes[DriverTypeIndex],
+			nullptr,
+			D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+			FeatureLevels,
+			ARRAYSIZE(FeatureLevels),
+			D3D11_SDK_VERSION,
+			&Data->Device,
+			&FeatureLevel,
+			&Data->Context);
 		if (SUCCEEDED(hr))
 		{
 			// Device creation success, no need to loop anymore
@@ -64,6 +73,62 @@ HRESULT GetOutputDescsForDeviceNames(_In_ std::vector<std::wstring> deviceNames,
 		}
 		output->Release();
 	}
+	return S_OK;
+}
+
+HRESULT GetOutputRectsForRecordingSources(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<std::pair<RECORDING_SOURCE, RECT>> *outputs)
+{
+	std::vector<std::pair<RECORDING_SOURCE, RECT>> validOutputs{};
+	int xOffset = 0;
+	for each (RECORDING_SOURCE source in sources)
+	{
+		switch (source.Type)
+		{
+		case SourceType::Monitor: {
+			// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
+			DXGI_OUTPUT_DESC outputDesc{};
+			CComPtr<IDXGIOutput> output;
+			HRESULT hr = GetOutputForDeviceName(source.CaptureDevice, &output);
+			if (FAILED(hr))
+			{
+				LOG_ERROR(L"Failed to get output descs for selected devices");
+				return hr;
+			}
+			output->GetDesc(&outputDesc);
+			outputDesc.DesktopCoordinates.left += xOffset;
+			outputDesc.DesktopCoordinates.right += xOffset;
+			std::pair<RECORDING_SOURCE, RECT> tuple(source, outputDesc.DesktopCoordinates);
+			validOutputs.push_back(tuple);
+			break;
+		}
+		case SourceType::Window: {
+			RECT rect;
+			if (GetWindowRect(source.WindowHandle, &rect))
+			{
+				rect = RECT{ 0,0, RectWidth(rect),RectHeight(rect) };
+				if (validOutputs.size() > 0) {
+					LONG width = RectWidth(rect);
+					rect.right = validOutputs.back().second.right + width;
+					rect.left = rect.right - width;
+					xOffset += width;
+				}
+				std::pair<RECORDING_SOURCE, RECT> tuple(source, rect);
+				validOutputs.push_back(tuple);
+			}
+			break;
+		}
+		default:
+			break;
+		}
+	}
+	auto sortRect = [](const std::pair<RECORDING_SOURCE, RECT>& p1, const std::pair<RECORDING_SOURCE, RECT>& p2)
+	{
+		RECT r1 = p1.second;
+		RECT r2 = p2.second;
+		return std::tie(r1.left, r1.top) < std::tie(r2.left, r2.top);
+	};
+	std::sort(validOutputs.begin(), validOutputs.end(), sortRect);
+	*outputs = validOutputs;
 	return S_OK;
 }
 
@@ -168,7 +233,11 @@ void EnumOutputs(_Out_ std::vector<IDXGIOutput*> *pOutputs)
 void GetCombinedRects(_In_ std::vector<RECT> inputs, _Out_ RECT *pOutRect, _Out_opt_ std::vector<SIZE> *pOffsets)
 {
 	*pOutRect = RECT{};
-	std::sort(inputs.begin(), inputs.end(), compareRects);
+	auto sortRects = [](const RECT& r1, const RECT& r2)
+	{
+		return std::tie(r1.left, r1.top) < std::tie(r2.left, r2.top);
+	};
+	std::sort(inputs.begin(), inputs.end(), sortRects);
 	if (pOffsets) {
 		*pOffsets = std::vector<SIZE>();
 	}
@@ -179,12 +248,18 @@ void GetCombinedRects(_In_ std::vector<RECT> inputs, _Out_ RECT *pOutRect, _Out_
 		int xPosOffset = 0;
 		int yPosOffset = 0;
 		if (i > 0) {
+			//Fix any gaps in the output RECTS with offsets
 			RECT prevDisplay = inputs[i - 1];
-			xPosOffset = max(0, curDisplay.left - prevDisplay.right);
-			yPosOffset = max(0, curDisplay.top - prevDisplay.bottom);
+			if (curDisplay.left > prevDisplay.right) {
+				xPosOffset = curDisplay.left - prevDisplay.right;
+			}
+
+			if (curDisplay.top > prevDisplay.bottom) {
+				yPosOffset = curDisplay.top - prevDisplay.bottom;
+			}
+			pOutRect->right -= xPosOffset;
+			pOutRect->bottom -= yPosOffset;
 		}
-		pOutRect->right -= xPosOffset;
-		pOutRect->bottom -= yPosOffset;
 		if (pOffsets) {
 			pOffsets->push_back(SIZE{ xPosOffset,yPosOffset });
 		}

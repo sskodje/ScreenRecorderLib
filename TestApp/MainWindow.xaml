@@ -10,10 +10,19 @@
         mc:Ignorable="d"
         Title="ScreenRecorderLib Demo"
         Height="775"
-        Width="550"
+        Width="600"
         SizeToContent="Height">
     <Window.Resources>
+        <local:OverlayTemplateSelector x:Key="OverlayTemplateSelector" />
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <local:MediaDeviceToDeviceIdConverter x:Key="MediaDeviceToDeviceIdConverter" />
+        <ObjectDataProvider x:Key="RecorderAnchorData"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type System:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="rec:Anchor" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
         <ObjectDataProvider x:Key="RecorderApiData"
                             MethodName="GetValues"
                             ObjectType="{x:Type System:Enum}">
@@ -77,14 +86,13 @@
                           Margin="0,5"
                           IsEditable="True"
                           IsReadOnly="True"
-                          SelectedItem="{Binding ElementName=MainWin,Path=SelectedDisplayOutput,Mode=TwoWay}"
                           SelectionChanged="ScreenComboBox_SelectionChanged">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
                                 <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                          Checked="CheckBox_CheckedChanged"
-                                          Unchecked="CheckBox_CheckedChanged"
+                                          Checked="ScreenCheckBox_CheckedChanged"
+                                          Unchecked="ScreenCheckBox_CheckedChanged"
                                           IsEnabled="{Binding IsCheckable}"
                                           Width="20" />
                                 <TextBlock>
@@ -106,47 +114,178 @@
                 <ComboBox x:Name="WindowComboBox"
                           Margin="0,5"
                           Visibility="Collapsed"
+                          IsEditable="True"
+                          IsReadOnly="True"
                           SelectionChanged="WindowComboBox_SelectionChanged">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding Title, Mode=OneTime}" />
+                                <StackPanel Orientation="Horizontal">
+                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                              Checked="WindowCheckBox_CheckedChanged"
+                                              Unchecked="WindowCheckBox_CheckedChanged"
+                                              IsEnabled="{Binding IsCheckable}"
+                                              Width="20" />
+                                    <TextBlock Text="{Binding Title, Mode=OneTime}" />
+                                </StackPanel>
                             </StackPanel>
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
 
                 <DockPanel Margin="0,5">
-                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal"
-                            x:Name="CoordinatesPanel">
+                    <StackPanel DockPanel.Dock="Left"
+                                Orientation="Horizontal"
+                                x:Name="CoordinatesPanel">
                         <Label Content="left" />
                         <TextBox x:Name="RecordingAreaLeftTextBox"
-                             VerticalContentAlignment="Center"
-                             GotFocus="TextBox_GotFocus"
-                             MinWidth="
+                                 VerticalContentAlignment="Center"
+                                 GotFocus="TextBox_GotFocus"
+                                 MinWidth="
                          30" />
                         <Label Content="top" />
                         <TextBox x:Name="RecordingAreaTopTextBox"
-                             VerticalContentAlignment="Center"
-                             GotFocus="TextBox_GotFocus"
-                             MinWidth="30" />
+                                 VerticalContentAlignment="Center"
+                                 GotFocus="TextBox_GotFocus"
+                                 MinWidth="30" />
                         <Label Content="right" />
                         <TextBox x:Name="RecordingAreaRightTextBox"
-                             VerticalContentAlignment="Center"
-                             GotFocus="TextBox_GotFocus"
-                             MinWidth="
+                                 VerticalContentAlignment="Center"
+                                 GotFocus="TextBox_GotFocus"
+                                 MinWidth="
                          30" />
                         <Label Content="bottom" />
                         <TextBox x:Name="RecordingAreaBottomTextBox"
-                             VerticalContentAlignment="Center"
-                             GotFocus="TextBox_GotFocus"
-                             MinWidth="30" />
+                                 VerticalContentAlignment="Center"
+                                 GotFocus="TextBox_GotFocus"
+                                 MinWidth="30" />
                     </StackPanel>
-                    <Button HorizontalAlignment="Right" Margin="0,2" MinWidth="90"
+                    <Button HorizontalAlignment="Right"
+                            Margin="0,2"
+                            MinWidth="90"
                             Content="Refresh targets"
-                            Click="RefreshButton_Click"/>
+                            Click="RefreshButton_Click" />
                 </DockPanel>
+                <CheckBox x:Name="CheckBoxEnableOverlays"
+                          Content="Add overlays" />
+                <StackPanel Visibility="{Binding ElementName=CheckBoxEnableOverlays, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ListView ItemsSource="{Binding ElementName=MainWin,Path=Overlays}"
+                              x:Name="OverlaysListView"
+                              HorizontalContentAlignment="Stretch"
+                              ItemTemplateSelector="{StaticResource OverlayTemplateSelector}">
 
+                        <ItemsControl.Resources>
+                            <Grid x:Key="BaseContent"
+                                  x:Shared="False"
+                                  Margin="10,0">
+                                <Grid.ColumnDefinitions>
+                                    <!--<ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />-->
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <!--<CheckBox IsChecked="{Binding IsEnabled}"
+                                          VerticalAlignment="Center" />
+                                <TextBox Text="{Binding CaptureDeviceName, Mode=TwoWay}"
+                                         MinWidth="150"
+                                         Grid.Column="1" />-->
+                                <ComboBox ItemsSource="{Binding Source={StaticResource RecorderAnchorData}}"
+                                          SelectedItem="{Binding Overlay.AnchorPosition}"
+                                          Grid.Column="0"
+                                          MinWidth="100"
+                                          Margin="5,0" />
+                                <StackPanel Orientation="Horizontal"
+                                            Grid.Column="1">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Label Content="X" />
+                                        <TextBox x:Name="TextBoxOffsetX"
+                                                 MinWidth="20"
+                                                 Text="{Binding Overlay.OffsetX,Mode=TwoWay}"
+                                                 VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Label Content="Y" />
+                                        <TextBox x:Name="TextBoxOffsetY"
+                                                 MinWidth="20"
+                                                 Text="{Binding Overlay.OffsetY,Mode=TwoWay}"
+                                                 VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Label Content="Width" />
+                                        <TextBox x:Name="TextBoxWidth"
+                                                 MinWidth="20"
+                                                 Text="{Binding Overlay.Width,Mode=TwoWay}"
+                                                 VerticalAlignment="Center" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Label Content="Height" />
+                                        <TextBox x:Name="TextBoxHeight"
+                                                 MinWidth="20"
+                                                 Text="{Binding Overlay.Height,Mode=TwoWay}"
+                                                 VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+
+                            <DataTemplate x:Key="CameraCaptureOverlayTemplate">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox IsChecked="{Binding IsEnabled}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,5,0"/>
+                                    <ComboBox ItemsSource="{Binding ElementName=MainWin,Path=VideoCaptureDevices}"
+                                              DisplayMemberPath="Name"
+                                              SelectedValuePath="ID"
+                                              SelectedItem="{Binding Overlay.CaptureDeviceName,Mode=TwoWay,Converter={StaticResource MediaDeviceToDeviceIdConverter}}"
+              
+                                              MinWidth="150"
+                                             Grid.Column="1" />
+                                    <ContentPresenter Content="{StaticResource BaseContent}"
+                                                      Grid.Column="2" />
+                                </Grid>
+                            </DataTemplate>
+                            <DataTemplate x:Key="VideoOverlayTemplate">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox IsChecked="{Binding IsEnabled}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,5,0"/>
+                                    <TextBox Text="{Binding Overlay.FilePath, Mode=TwoWay}"
+                                             
+                                             Width="150"
+                                             Grid.Column="1" />
+                                    <ContentPresenter Content="{StaticResource BaseContent}"
+                                                      Grid.Column="2" />
+                                </Grid>
+                            </DataTemplate>
+                            <DataTemplate x:Key="PictureOverlayTemplate">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <CheckBox IsChecked="{Binding IsEnabled}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,5,0"/>
+                                    <TextBox Text="{Binding Overlay.FilePath, Mode=TwoWay}"
+                                             Width="150"
+                                             Grid.Column="1" />
+                                    <ContentPresenter Content="{StaticResource BaseContent}"
+                                                      Grid.Column="2" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.Resources>
+                    </ListView>
+                </StackPanel>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -184,7 +323,7 @@
                         <CheckBox Content="Record to stream"
                                   x:Name="CheckBoxRecordToStream"
                                   IsChecked="{Binding ElementName=MainWin,Path=RecordToStream}"
-                                  Margin="0" />								  
+                                  Margin="0" />
                         <StackPanel Orientation="Horizontal"
                                     Margin="0,10,0,0">
                             <Label Content="API"
@@ -505,9 +644,9 @@
             <StackPanel Orientation="Vertical"
                         x:Name="ControlsPanel">
                 <CheckBox Content="Exclude this window from capture"
-                                  x:Name="CheckBoxExclude"
-                                  IsChecked="{Binding ElementName=MainWin,Path=IsExcludeWindowEnabled}"
-                                  Margin="0" />
+                          x:Name="CheckBoxExclude"
+                          IsChecked="{Binding ElementName=MainWin,Path=IsExcludeWindowEnabled}"
+                          Margin="0" />
                 <TextBlock FontSize="72"
                            Text="00:00:00"
                            HorizontalAlignment="Center"

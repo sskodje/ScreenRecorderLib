@@ -20,12 +20,18 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="capture_base.h" />
-    <ClInclude Include="video_capture.h" />
+    <ClInclude Include="device_capture.h" />
+    <ClInclude Include="gif_reader.h" />
+    <ClInclude Include="LogMediaType.h" />
+    <ClInclude Include="MF.util.h" />
+    <ClInclude Include="highres_timer.h" />
+    <ClInclude Include="source_reader_base.h" />
     <ClInclude Include="common_types.h" />
     <ClInclude Include="duplication_capture.h" />
     <ClInclude Include="duplication_manager.h" />
     <ClInclude Include="DX.util.h" />
     <ClInclude Include="graphics_manager.h" />
+    <ClInclude Include="reader_base.h" />
     <ClInclude Include="screengrab.h" />
     <ClInclude Include="audio_prefs.h" />
     <ClInclude Include="graphics_capture.h" />
@@ -39,11 +45,17 @@
     <ClInclude Include="native.h" />
     <ClInclude Include="string_format.h" />
     <ClInclude Include="utilities.h" />
+    <ClInclude Include="video_reader.h" />
     <ClInclude Include="WWMFResampler.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="capture_base.cpp" />
-    <ClCompile Include="video_capture.cpp" />
+    <ClCompile Include="device_capture.cpp" />
+    <ClCompile Include="gif_reader.cpp" />
+    <ClCompile Include="LogMediaType.cpp" />
+    <ClCompile Include="MF.util.cpp" />
+    <ClCompile Include="highres_timer.cpp" />
+    <ClCompile Include="source_reader_base.cpp" />
     <ClCompile Include="duplication_capture.cpp" />
     <ClCompile Include="duplication_manager.cpp" />
     <ClCompile Include="DX.util.cpp" />
@@ -70,6 +82,7 @@
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>
     </ClCompile>
+    <ClCompile Include="video_reader.cpp" />
     <ClCompile Include="WWMFResampler.cpp" />
   </ItemGroup>
   <ItemGroup>

@@ -1,10 +1,10 @@
 #pragma once
 #include "common_types.h"
-
 HRESULT InitializeDx(_Out_ DX_RESOURCES *Data);
 HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **ppOutput);
 HRESULT GetMainOutput(_Outptr_result_maybenull_ IDXGIOutput **ppOutput);
 HRESULT GetOutputDescsForDeviceNames(_In_ std::vector<std::wstring> deviceNames, _Out_ std::vector<DXGI_OUTPUT_DESC> *pOutputDescs);
+HRESULT GetOutputRectsForRecordingSources(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<std::pair<RECORDING_SOURCE, RECT>> *outputs);
 void EnumOutputs(_Out_ std::vector<IDXGIOutput*> *pOutputs);
 void GetCombinedRects(_In_ std::vector<RECT> inputs, _Out_ RECT *pOutRect, _Out_opt_ std::vector<SIZE> *pOffsets);
 std::wstring GetMonitorName(HMONITOR monitor);

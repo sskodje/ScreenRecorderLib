@@ -81,7 +81,7 @@
     <ClInclude Include="graphics_capture.h">
       <Filter>Header Files\Video Capture\Windows Graphics Capture</Filter>
     </ClInclude>
-    <ClInclude Include="video_capture.h">
+    <ClInclude Include="source_reader_base.h">
       <Filter>Header Files\Video Capture\Overlay Capture</Filter>
     </ClInclude>
     <ClInclude Include="string_format.h">
@@ -114,6 +114,27 @@
     <ClInclude Include="mouse_pointer.h">
       <Filter>Header Files\Video Capture</Filter>
     </ClInclude>
+    <ClInclude Include="device_capture.h">
+      <Filter>Header Files\Video Capture\Overlay Capture</Filter>
+    </ClInclude>
+    <ClInclude Include="video_reader.h">
+      <Filter>Header Files\Video Capture\Overlay Capture</Filter>
+    </ClInclude>
+    <ClInclude Include="LogMediaType.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="highres_timer.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="MF.util.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="gif_reader.h">
+      <Filter>Header Files\Video Capture\Overlay Capture</Filter>
+    </ClInclude>
+    <ClInclude Include="reader_base.h">
+      <Filter>Header Files\Video Capture\Overlay Capture</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="internal_recorder.cpp">
@@ -140,7 +161,7 @@
     <ClCompile Include="graphics_capture.cpp">
       <Filter>Source Files\Video Capture\Windows Graphics Capture</Filter>
     </ClCompile>
-    <ClCompile Include="video_capture.cpp">
+    <ClCompile Include="source_reader_base.cpp">
       <Filter>Source Files\Video Capture\Overlay Capture</Filter>
     </ClCompile>
     <ClCompile Include="DX.util.cpp">
@@ -154,6 +175,24 @@
     </ClCompile>
     <ClCompile Include="mouse_pointer.cpp">
       <Filter>Source Files\Video Capture</Filter>
+    </ClCompile>
+    <ClCompile Include="device_capture.cpp">
+      <Filter>Source Files\Video Capture\Overlay Capture</Filter>
+    </ClCompile>
+    <ClCompile Include="video_reader.cpp">
+      <Filter>Source Files\Video Capture\Overlay Capture</Filter>
+    </ClCompile>
+    <ClCompile Include="highres_timer.cpp">
+      <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="LogMediaType.cpp">
+      <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="MF.util.cpp">
+      <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="gif_reader.cpp">
+      <Filter>Source Files\Video Capture\Overlay Capture</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

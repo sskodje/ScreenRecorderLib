@@ -15,9 +15,9 @@ using namespace DirectX;
 #define NUMVERTICES 6
 #define BPP         4
 
-HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device)
+HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *pImmediateContext, ID3D11Device *pDevice)
 {
-	CleanupResources();
+	CleanDX();
 	// Create the sample state
 	D3D11_SAMPLER_DESC SampDesc;
 	RtlZeroMemory(&SampDesc, sizeof(SampDesc));
@@ -28,7 +28,7 @@ HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *ImmediateContext, ID3D11D
 	SampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 	SampDesc.MinLOD = 0;
 	SampDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	HRESULT hr = Device->CreateSamplerState(&SampDesc, &m_SamplerLinear);
+	HRESULT hr = pDevice->CreateSamplerState(&SampDesc, &m_SamplerLinear);
 	RETURN_ON_BAD_HR(hr);
 
 	// Create the blend state
@@ -44,13 +44,14 @@ HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *ImmediateContext, ID3D11D
 	BlendStateDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
 	BlendStateDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
 	BlendStateDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = Device->CreateBlendState(&BlendStateDesc, &m_BlendState);
+	hr = pDevice->CreateBlendState(&BlendStateDesc, &m_BlendState);
 	RETURN_ON_BAD_HR(hr);
 
 	// Initialize shaders
-	hr = InitShaders(ImmediateContext, Device);
-	hr = InitMouseClickTexture(ImmediateContext, Device);
-
+	hr = InitShaders(pImmediateContext, pDevice);
+	hr = InitMouseClickTexture(pImmediateContext, pDevice);
+	m_Device = pDevice;
+	m_DeviceContext = pImmediateContext;
 	return hr;
 }
 
@@ -161,7 +162,7 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Texture
 //
 // Draw mouse provided in buffer to backbuffer
 //
-HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11DeviceContext* DeviceContext, _In_ ID3D11Device* Device, _Inout_ ID3D11Texture2D* bgTexture, DXGI_MODE_ROTATION rotation)
+HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _Inout_ ID3D11Texture2D* bgTexture, DXGI_MODE_ROTATION rotation)
 {
 	if (!PtrInfo || !PtrInfo->Visible || PtrInfo->PtrShapeBuffer == nullptr)
 		return S_FALSE;
@@ -235,12 +236,12 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 	}
 	case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME:
 	{
-		ProcessMonoMask(bgTexture, DeviceContext, Device, rotation, true, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
+		ProcessMonoMask(bgTexture, rotation, true, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
 		break;
 	}
 	case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
 	{
-		ProcessMonoMask(bgTexture, DeviceContext, Device, rotation, false, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
+		ProcessMonoMask(bgTexture, rotation, false, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
 		break;
 	}
 	default:
@@ -257,10 +258,6 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 		Vertices[1].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
 		Vertices[2].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
 		Vertices[2].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
-		Vertices[3].Pos.x = Vertices[2].Pos.x;
-		Vertices[3].Pos.y = Vertices[2].Pos.y;
-		Vertices[4].Pos.x = Vertices[1].Pos.x;
-		Vertices[4].Pos.y = Vertices[1].Pos.y;
 		Vertices[5].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
 		Vertices[5].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
 	}	//Flip pointer 90 degrees counterclockwise
@@ -271,10 +268,6 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 		Vertices[1].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
 		Vertices[2].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
 		Vertices[2].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
-		Vertices[3].Pos.x = Vertices[2].Pos.x;
-		Vertices[3].Pos.y = Vertices[2].Pos.y;
-		Vertices[4].Pos.x = Vertices[1].Pos.x;
-		Vertices[4].Pos.y = Vertices[1].Pos.y;
 		Vertices[5].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
 		Vertices[5].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
 	}	//Turn pointer upside down
@@ -285,10 +278,6 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 		Vertices[1].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
 		Vertices[2].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
 		Vertices[2].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
-		Vertices[3].Pos.x = Vertices[2].Pos.x;
-		Vertices[3].Pos.y = Vertices[2].Pos.y;
-		Vertices[4].Pos.x = Vertices[1].Pos.x;
-		Vertices[4].Pos.y = Vertices[1].Pos.y;
 		Vertices[5].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
 		Vertices[5].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
 	}	//Flip pointer 90 degrees clockwise
@@ -299,13 +288,14 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 		Vertices[1].Pos.y = -1 * (PtrTop - CenterY) / (FLOAT)CenterY;
 		Vertices[2].Pos.x = (PtrLeft - CenterX) / (FLOAT)CenterX;
 		Vertices[2].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
-		Vertices[3].Pos.x = Vertices[2].Pos.x;
-		Vertices[3].Pos.y = Vertices[2].Pos.y;
-		Vertices[4].Pos.x = Vertices[1].Pos.x;
-		Vertices[4].Pos.y = Vertices[1].Pos.y;
 		Vertices[5].Pos.x = ((PtrLeft + PtrWidth) - CenterX) / (FLOAT)CenterX;
 		Vertices[5].Pos.y = -1 * ((PtrTop + PtrHeight) - CenterY) / (FLOAT)CenterY;
 	}
+
+	Vertices[3].Pos.x = Vertices[2].Pos.x;
+	Vertices[3].Pos.y = Vertices[2].Pos.y;
+	Vertices[4].Pos.x = Vertices[1].Pos.x;
+	Vertices[4].Pos.y = Vertices[1].Pos.y;
 
 	// Set texture properties
 	Desc.Width = PtrWidth;
@@ -317,7 +307,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 	InitData.SysMemSlicePitch = 0;
 
 	// Create mouseshape as texture
-	HRESULT hr = Device->CreateTexture2D(&Desc, &InitData, &MouseTex);
+	HRESULT hr = m_Device->CreateTexture2D(&Desc, &InitData, &MouseTex);
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
@@ -326,7 +316,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 	}
 
 	// Create shader resource from texture
-	hr = Device->CreateShaderResourceView(MouseTex, &SDesc, &ShaderRes);
+	hr = m_Device->CreateShaderResourceView(MouseTex, &SDesc, &ShaderRes);
 	if (FAILED(hr))
 	{
 		MouseTex->Release();
@@ -347,7 +337,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 	InitData.pSysMem = Vertices;
 
 	// Create vertex buffer
-	hr = Device->CreateBuffer(&BDesc, &InitData, &VertexBufferMouse);
+	hr = m_Device->CreateBuffer(&BDesc, &InitData, &VertexBufferMouse);
 	if (FAILED(hr))
 	{
 		ShaderRes->Release();
@@ -361,21 +351,21 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 	}
 	ID3D11RenderTargetView* RTV;
 	// Create a render target view
-	hr = Device->CreateRenderTargetView(bgTexture, nullptr, &RTV);
+	hr = m_Device->CreateRenderTargetView(bgTexture, nullptr, &RTV);
 	// Set resources
 	FLOAT BlendFactor[4] = { 0.f, 0.f, 0.f, 0.f };
 	UINT Stride = sizeof(VERTEX);
 	UINT Offset = 0;
-	DeviceContext->IASetVertexBuffers(0, 1, &VertexBufferMouse, &Stride, &Offset);
-	DeviceContext->OMSetBlendState(m_BlendState.p, BlendFactor, 0xFFFFFFFF);
-	DeviceContext->OMSetRenderTargets(1, &RTV, nullptr);
-	DeviceContext->VSSetShader(m_VertexShader, nullptr, 0);
-	DeviceContext->PSSetShader(m_PixelShader, nullptr, 0);
-	DeviceContext->PSSetShaderResources(0, 1, &ShaderRes);
-	DeviceContext->PSSetSamplers(0, 1, &m_SamplerLinear.p);
-	DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBufferMouse, &Stride, &Offset);
+	m_DeviceContext->OMSetBlendState(m_BlendState.p, BlendFactor, 0xFFFFFFFF);
+	m_DeviceContext->OMSetRenderTargets(1, &RTV, nullptr);
+	m_DeviceContext->VSSetShader(m_VertexShader, nullptr, 0);
+	m_DeviceContext->PSSetShader(m_PixelShader, nullptr, 0);
+	m_DeviceContext->PSSetShaderResources(0, 1, &ShaderRes);
+	m_DeviceContext->PSSetSamplers(0, 1, &m_SamplerLinear.p);
+	m_DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	// Draw
-	DeviceContext->Draw(NUMVERTICES, 0);
+	m_DeviceContext->Draw(NUMVERTICES, 0);
 	// Clean
 	if (RTV) {
 		RTV->Release();
@@ -405,7 +395,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 //
 // Process both masked and monochrome pointers
 //
-HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3D11DeviceContext* DeviceContext, _In_ ID3D11Device* Device, DXGI_MODE_ROTATION rotation, bool IsMono, _Inout_ PTR_INFO* PtrInfo, _Out_ INT* PtrWidth, _Out_ INT* PtrHeight, _Out_ INT* PtrLeft, _Out_ INT* PtrTop, _Outptr_result_bytebuffer_(*PtrHeight * *PtrWidth * BPP) BYTE** InitBuffer, _Out_ D3D11_BOX* Box)
+HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, DXGI_MODE_ROTATION rotation, bool IsMono, _Inout_ PTR_INFO* PtrInfo, _Out_ INT* PtrWidth, _Out_ INT* PtrHeight, _Out_ INT* PtrLeft, _Out_ INT* PtrTop, _Outptr_result_bytebuffer_(*PtrHeight * *PtrWidth * BPP) BYTE** InitBuffer, _Out_ D3D11_BOX* Box)
 {
 	D3D11_TEXTURE2D_DESC desc;
 	bgTexture->GetDesc(&desc);
@@ -472,7 +462,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 	CopyBufferDesc.MiscFlags = 0;
 
 	ID3D11Texture2D* CopyBuffer = nullptr;
-	HRESULT hr = Device->CreateTexture2D(&CopyBufferDesc, nullptr, &CopyBuffer);
+	HRESULT hr = m_Device->CreateTexture2D(&CopyBufferDesc, nullptr, &CopyBuffer);
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
@@ -485,7 +475,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 	Box->top = *PtrTop;
 	Box->right = *PtrLeft + *PtrWidth;
 	Box->bottom = *PtrTop + *PtrHeight;
-	DeviceContext->CopySubresourceRegion(CopyBuffer, 0, 0, 0, 0, bgTexture, 0, Box);
+	m_DeviceContext->CopySubresourceRegion(CopyBuffer, 0, 0, 0, 0, bgTexture, 0, Box);
 
 	// QI for IDXGISurface
 	IDXGISurface* CopySurface = nullptr;
@@ -726,8 +716,8 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 	// Update position
 	if (UpdatePosition)
 	{
-		PtrInfo->Position.x = FrameInfo->PointerPosition.Position.x + screenRect.left - offsetX;
-		PtrInfo->Position.y = FrameInfo->PointerPosition.Position.y + screenRect.top - offsetY;
+		PtrInfo->Position.x = FrameInfo->PointerPosition.Position.x + screenRect.left + offsetX;
+		PtrInfo->Position.y = FrameInfo->PointerPosition.Position.y + screenRect.top + offsetY;
 		PtrInfo->WhoUpdatedPositionLast = m_OutputNumber;
 		PtrInfo->LastTimeStamp = FrameInfo->LastMouseUpdateTime;
 		PtrInfo->Visible = FrameInfo->PointerPosition.Visible != 0;
@@ -869,8 +859,8 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, bool getShapeBuffer,
 	shapeInfo.Type = cursorType;
 	shapeInfo.Pitch = widthBytes;
 
-	cursorInfo.ptScreenPos.x = cursorInfo.ptScreenPos.x - offsetX - hotSpot.x;
-	cursorInfo.ptScreenPos.y = cursorInfo.ptScreenPos.y - offsetY - hotSpot.y;
+	cursorInfo.ptScreenPos.x = cursorInfo.ptScreenPos.x + offsetX - hotSpot.x;
+	cursorInfo.ptScreenPos.y = cursorInfo.ptScreenPos.y + offsetY - hotSpot.y;
 	PtrInfo->Position = cursorInfo.ptScreenPos;
 	PtrInfo->ShapeInfo = shapeInfo;
 	PtrInfo->Visible = isVisible;
@@ -878,7 +868,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, bool getShapeBuffer,
 	return S_OK;
 }
 
-void mouse_pointer::CleanupResources()
+void mouse_pointer::CleanDX()
 {
 	if (m_SamplerLinear)
 		m_SamplerLinear.Release();

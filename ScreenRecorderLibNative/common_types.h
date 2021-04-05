@@ -3,14 +3,15 @@
 #include <dxgi1_2.h>
 #include <sal.h>
 #include <DirectXMath.h>
-#include "PixelShader.h"
-#include "VertexShader.h"
 #include <string>
 #include <vector>
+#include <strsafe.h>
+#include "PixelShader.h"
+#include "VertexShader.h"
 //
 // Holds info about the pointer/cursor
 //
-typedef struct _PTR_INFO
+struct PTR_INFO
 {
 	_Field_size_bytes_(BufferSize) BYTE* PtrShapeBuffer;
 	DXGI_OUTDUPL_POINTER_SHAPE_INFO ShapeInfo;
@@ -20,12 +21,12 @@ typedef struct _PTR_INFO
 	UINT BufferSize;
 	UINT WhoUpdatedPositionLast;
 	LARGE_INTEGER LastTimeStamp;
-} PTR_INFO;
+};
 
 //
-// FRAME_INFO holds information about an acquired generic video frame
+// FRAME_INFO holds information about an acquired generic frame
 //
-typedef struct _FRAME_INFO
+struct FRAME_INFO
 {
 	_Field_size_bytes_(BufferSize) BYTE* PtrFrameBuffer;
 	UINT BufferSize;
@@ -33,108 +34,146 @@ typedef struct _FRAME_INFO
 	UINT Width;
 	UINT Height;
 	LARGE_INTEGER LastTimeStamp;
-} FRAME_INFO;
+};
 
 //
 // A vertex with a position and texture coordinate
 //
-typedef struct _VERTEX
+struct VERTEX
 {
 	DirectX::XMFLOAT3 Pos;
 	DirectX::XMFLOAT2 TexCoord;
-} VERTEX;
+};
 
 //
 // DUPL_FRAME_DATA holds information about an acquired Desktop Duplication frame
 //
-typedef struct _DUPL_FRAME_DATA
+struct DUPL_FRAME_DATA
 {
 	ID3D11Texture2D* Frame;
 	DXGI_OUTDUPL_FRAME_INFO FrameInfo;
 	_Field_size_bytes_((MoveCount * sizeof(DXGI_OUTDUPL_MOVE_RECT)) + (DirtyCount * sizeof(RECT))) BYTE* MetaData;
 	UINT DirtyCount;
 	UINT MoveCount;
-} DUPL_FRAME_DATA;
+};
 
 //
 // GRAPHICS_FRAME_DATA holds information about an acquired Windows Graphics Capture frame
 //
-typedef struct _GRAPHICS_FRAME_DATA
+struct GRAPHICS_FRAME_DATA
 {
 	ID3D11Texture2D* Frame;
 	SIZE ContentSize;
-} GRAPHICS_FRAME_DATA;
+	bool IsIconic;
+};
 
 //
 // Structure that holds D3D resources not directly tied to any one thread
 //
-typedef struct _DX_RESOURCES
+struct DX_RESOURCES
 {
 	ID3D11Device* Device;
 	ID3D11DeviceContext* Context;
-} DX_RESOURCES;
+};
 
 //
 // CAPTURED_FRAME holds information about a generic captured frame
 //
-typedef struct _CAPTURED_FRAME
+struct CAPTURED_FRAME
 {
 	PTR_INFO* PtrInfo;
 	ID3D11Texture2D* Frame;
 	//The number of updates written to the current frame since last fetch.
-	int UpdateCount;
+	int FrameUpdateCount;
+	//The number of updates written to the frame overlays since last fetch.
+	int OverlayUpdateCount;
 	LARGE_INTEGER Timestamp;
 	SIZE ContentSize;
-} CAPTURED_FRAME;
+};
 
+enum class OverlayAnchor {
+	TopLeft,
+	TopRight,
+	BottomLeft,
+	BottomRight
+};
 enum class OverlayType {
 	Picture,
 	Video,
-	VideoCapture
+	CameraCapture
 };
 enum class SourceType {
 	Monitor,
 	Window
 };
-typedef struct _RECORDING_OVERLAY
-{
-	std::wstring CaptureDevice;
-	OverlayType Type;
-	POINT Position;
-	SIZE Size;
-} RECORDING_OVERLAY;
 
-typedef struct _RECORDING_SOURCE
+struct RECORDING_SOURCE
 {
 	std::wstring CaptureDevice;
 	HWND WindowHandle;
 	SourceType Type;
 	bool IsCursorCaptureEnabled{};
-} RECORDING_SOURCE;
+	RECORDING_SOURCE() :
+		CaptureDevice(L""),
+		WindowHandle(NULL),
+		Type(SourceType::Monitor),
+		IsCursorCaptureEnabled(false) {}
 
-typedef struct _RECORDING_SOURCE_DATA {
-	std::wstring OutputMonitor{};
-	bool IsCursorCaptureEnabled{};
-	HWND OutputWindow{};
+	RECORDING_SOURCE(const RECORDING_SOURCE& source) :
+		CaptureDevice(source.CaptureDevice),
+		WindowHandle(source.WindowHandle),
+		Type(source.Type),
+		IsCursorCaptureEnabled(source.IsCursorCaptureEnabled) {}
+};
+
+struct RECORDING_SOURCE_DATA :RECORDING_SOURCE {
 	INT OffsetX{};
 	INT OffsetY{};
 	DX_RESOURCES DxRes{};
-} RECORDING_SOURCE_DATA;
 
-typedef struct _RECORDING_OVERLAY_DATA
+	RECORDING_SOURCE_DATA() :
+		OffsetX(0),
+		OffsetY(0),
+		DxRes{}{}
+	RECORDING_SOURCE_DATA(const RECORDING_SOURCE &source) :RECORDING_SOURCE(source) {}
+};
+
+
+struct RECORDING_OVERLAY
 {
-	std::wstring CaptureDevice;
+	std::wstring Source;
 	OverlayType Type;
-	POINT Position{};
-	SIZE Size{};
+	POINT Offset;
+	SIZE Size;
+	OverlayAnchor Anchor;
+
+	RECORDING_OVERLAY() :
+		Source(L""),
+		Type(OverlayType::Picture),
+		Offset(POINT()),
+		Size(SIZE()),
+		Anchor(OverlayAnchor::BottomLeft) {}
+
+	RECORDING_OVERLAY(const RECORDING_OVERLAY& overlay) :
+		Source(overlay.Source),
+		Type(overlay.Type),
+		Offset(overlay.Offset),
+		Size(overlay.Size),
+		Anchor(overlay.Anchor) {}
+};
+
+struct RECORDING_OVERLAY_DATA :RECORDING_OVERLAY
+{
 	FRAME_INFO *FrameInfo{};
 	DX_RESOURCES DxRes{};
-} RECORDING_OVERLAY_DATA;
+	RECORDING_OVERLAY_DATA() {}
+	RECORDING_OVERLAY_DATA(const RECORDING_OVERLAY &overlay) :RECORDING_OVERLAY(overlay) {}
+};
 
 //
 // Structure to pass to a new thread
 //
-typedef struct _THREAD_DATA_BASE
+struct THREAD_DATA_BASE
 {
 	// Used to indicate abnormal error condition
 	HANDLE UnexpectedErrorEvent{};
@@ -144,37 +183,27 @@ typedef struct _THREAD_DATA_BASE
 	HANDLE TerminateThreadsEvent{};
 	LARGE_INTEGER LastUpdateTimeStamp{};
 	HRESULT ThreadResult{ E_FAIL };
-} THREAD_DATA_BASE;
+	//Handle to shared texture
+	HANDLE TexSharedHandle{};
+};
 
 //
 // Structure to pass to a new thread
 //
-typedef struct _CAPTURE_THREAD_DATA :THREAD_DATA_BASE
+struct CAPTURE_THREAD_DATA :THREAD_DATA_BASE
 {
-	//Handle to shared texture
-	HANDLE TexSharedHandle{};
+
 	RECORDING_SOURCE_DATA *RecordingSource{};
 	INT UpdatedFrameCountSinceLastWrite{};
 	INT64 TotalUpdatedFrameCount{};
 	RECT ContentFrameRect{};
 	PTR_INFO* PtrInfo{};
-} CAPTURE_THREAD_DATA;
+};
 
 //
 // Structure to pass to a new thread
 //
-typedef struct _OVERLAY_THREAD_DATA:THREAD_DATA_BASE
+struct OVERLAY_THREAD_DATA :THREAD_DATA_BASE
 {
 	RECORDING_OVERLAY_DATA *RecordingOverlay{};
-} OVERLAY_THREAD_DATA;
-
-// Compares two rects according
-inline bool compareOutputs(std::pair<RECORDING_SOURCE, RECT> firstPair, std::pair<RECORDING_SOURCE, RECT> secondPair)
-{
-	RECT rect1 = firstPair.second;
-	RECT rect2 = secondPair.second;
-	if (rect1.left != rect2.left) {
-		return (rect1.left < rect2.left);
-	}
-	return (rect1.top < rect2.bottom);
-}
+};

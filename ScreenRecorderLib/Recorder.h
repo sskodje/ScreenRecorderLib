@@ -113,18 +113,49 @@ namespace ScreenRecorderLib {
 			Delay = delay;
 		}
 	};
+
+	public enum class Anchor {
+		TopLeft,
+		TopRight,
+		BottomLeft,
+		BottomRight
+	};
+
+	public ref class RecordingOverlay abstract {
+	public:
+		RecordingOverlay() {
+			AnchorPosition = Anchor::TopLeft;
+		}
+		property Anchor AnchorPosition;
+		property int OffsetX;
+		property int OffsetY;
+		property int Width;
+		property int Height;
+	};
+	public ref class CameraCaptureOverlay :RecordingOverlay {
+	public:
+		property String^ CaptureDeviceName;
+	};
+	public ref class VideoOverlay :RecordingOverlay {
+	public:
+		property String^ FilePath;
+	};
+	public ref class PictureOverlay :RecordingOverlay {
+	public:
+		property String^ FilePath;
+	};
 	public ref class DisplayOptions {
 	public:
 		property List<String^>^ DisplayDevices;
-		property IntPtr WindowHandle;
+		property List<IntPtr>^ WindowHandles;
 		property int Left;
 		property int Top;
 		property int Right;
 		property int Bottom;
 		DisplayOptions() {
 			DisplayDevices = gcnew List<String^>();
+			WindowHandles = gcnew List<IntPtr>();
 		}
-
 	};
 
 	public ref class VideoOptions {
@@ -264,6 +295,13 @@ namespace ScreenRecorderLib {
 		property MouseDetectionMode MouseClickDetectionMode;
 
 	};
+	public ref class OverLayOptions {
+	public:
+		OverLayOptions() {
+
+		}
+		property List<RecordingOverlay^>^ Overlays;
+	};
 	public ref class RecorderOptions {
 	public:
 		RecorderOptions() {
@@ -320,7 +358,8 @@ namespace ScreenRecorderLib {
 		property DisplayOptions^ DisplayOptions;
 		property AudioOptions^ AudioOptions;
 		property MouseOptions^ MouseOptions;
-		};
+		property OverLayOptions^ OverlayOptions;
+	};
 
 	public ref class RecordingStatusEventArgs :System::EventArgs {
 	public:
@@ -387,6 +426,7 @@ namespace ScreenRecorderLib {
 		void EventSnapshotCreated(std::wstring str);
 		void SetupCallbacks();
 		void ClearCallbacks();
+		std::vector<RECORDING_OVERLAY> CreateNativeOverlayList(List<RecordingOverlay^>^ managedOverlays);
 		GCHandle _statusChangedDelegateGcHandler;
 		GCHandle _errorDelegateGcHandler;
 		GCHandle _completedDelegateGcHandler;
@@ -416,12 +456,14 @@ namespace ScreenRecorderLib {
 		static Recorder^ CreateRecorder(RecorderOptions^ options);
 		static List<RecordableWindow^>^ GetWindows();
 		static Dictionary<String^, String^>^ GetSystemAudioDevices(AudioDeviceSource source);
+		static Dictionary<String^, String^>^ GetSystemVideoCaptureDevices();
 		static List<Display^>^ GetDisplays();
 		static Size^ GetCombinedOutputSizeForDisplays(List<String^>^ displays);
+		static Size^ GetCombinedOutputSizeForWindows(List<IntPtr>^ windowHandles);
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;
 		event EventHandler<SnapshotSavedEventArgs^>^ OnSnapshotSaved;
 		ManagedIStream *m_ManagedStream;
 	};
-	}
+}

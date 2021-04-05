@@ -1,14 +1,13 @@
 #include "duplication_capture.h"
 #include "duplication_manager.h"
-
+#include <chrono>
 #include "cleanup.h"
 #include "mouse_pointer.h"
-#include "video_capture.h"
-
+using namespace std::chrono;
 DWORD WINAPI CaptureThreadProc(_In_ void* Param);
 
-duplication_capture::duplication_capture(_In_ ID3D11Device* pDevice, _In_ ID3D11DeviceContext *pDeviceContext) :
-	capture_base(pDevice, pDeviceContext)
+duplication_capture::duplication_capture() :
+	capture_base()
 {
 
 }
@@ -18,48 +17,9 @@ duplication_capture::~duplication_capture()
 
 }
 
-
-HRESULT duplication_capture::StartCapture(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
+LPTHREAD_START_ROUTINE duplication_capture::GetCaptureThreadProc()
 {
-	return capture_base::StartCapture(CaptureThreadProc, sources, overlays, hUnexpectedErrorEvent, hExpectedErrorEvent);
-}
-
-HRESULT duplication_capture::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame)
-{
-	// Try to acquire keyed mutex in order to access shared surface
-	HRESULT hr = m_KeyMutex->AcquireSync(1, timeoutMillis);
-	if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
-	{
-		return DXGI_ERROR_WAIT_TIMEOUT;
-	}
-	else if (FAILED(hr))
-	{
-		return hr;
-	}
-	ReleaseKeyedMutexOnExit releaseMutex(m_KeyMutex, 0);
-
-	bool haveNewFrameData = IsUpdatedFramesAvailable() && IsInitialFrameWriteComplete();
-	if (!haveNewFrameData) {
-		return DXGI_ERROR_WAIT_TIMEOUT;
-	}
-
-	UINT updatedFrameCount = GetUpdatedFrameCount(true);
-	RETURN_ON_BAD_HR(hr = ProcessOverlays());
-	ID3D11Texture2D *pDesktopFrame = nullptr;
-	D3D11_TEXTURE2D_DESC desc;
-	m_SharedSurf->GetDesc(&desc);
-	desc.MiscFlags = 0;
-	RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pDesktopFrame));
-	m_DeviceContext->CopyResource(pDesktopFrame, m_SharedSurf);
-
-
-	QueryPerformanceCounter(&m_LastAcquiredFrameTimeStamp);
-
-	pFrame->Frame = pDesktopFrame;
-	pFrame->PtrInfo = &m_PtrInfo;
-	pFrame->UpdateCount = updatedFrameCount;
-	pFrame->Timestamp = m_LastAcquiredFrameTimeStamp;
-	return hr;
+	return CaptureThreadProc;
 }
 
 //
@@ -125,7 +85,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 		}
 		ReleaseOnExit releaseMutex(KeyMutex);
 		// Make duplication manager
-		hr = pDuplicationManager.Initialize(&pSource->DxRes, pSource->OutputMonitor);
+		hr = pDuplicationManager.Initialize(&pSource->DxRes, pSource->CaptureDevice);
 
 		if (FAILED(hr))
 		{
@@ -159,11 +119,15 @@ DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 					break;
 				}
 			}
-			// We have a new frame so try and process it
-			// Try to acquire keyed mutex in order to access shared surface
-			hr = KeyMutex->AcquireSync(0, 10);
+			{
+				MeasureExecutionTime measure(L"Duplication CaptureThreadProc wait for sync");
+				// We have a new frame so try and process it
+				// Try to acquire keyed mutex in order to access shared surface
+				hr = KeyMutex->AcquireSync(0, 10);
+			}
 			if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
 			{
+				LOG_TRACE(L"CaptureThreadProc shared surface is busy, retrying..");
 				// Can't use shared surface right now, try again later
 				WaitToProcessCurrentFrame = true;
 				continue;
@@ -175,6 +139,8 @@ DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 				pDuplicationManager.ReleaseFrame();
 				break;
 			}
+
+
 			ReleaseDuplicationManagerFrameOnExit releaseFrame(&pDuplicationManager);
 			ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
 
@@ -194,8 +160,10 @@ DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 			{
 				break;
 			}
-			pData->UpdatedFrameCountSinceLastWrite++;
-			pData->TotalUpdatedFrameCount++;
+			if (CurrentData.FrameInfo.AccumulatedFrames > 0) {
+				pData->UpdatedFrameCountSinceLastWrite++;
+				pData->TotalUpdatedFrameCount++;
+			}
 			if (CurrentData.FrameInfo.LastPresentTime.QuadPart > CurrentData.FrameInfo.LastMouseUpdateTime.QuadPart) {
 				pData->LastUpdateTimeStamp = CurrentData.FrameInfo.LastPresentTime;
 			}

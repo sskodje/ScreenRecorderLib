@@ -2,11 +2,16 @@
 #include "log.h"
 #include "DX.util.h"
 #include "graphics_capture.util.h"
+#include "cleanup.h"
 
 using namespace winrt::Windows::Graphics::Capture;
 
 graphics_manager::graphics_manager() :
+	m_closed{ false },
 	m_item(nullptr),
+	m_framePool(nullptr),
+	m_session(nullptr),
+	m_LastFrameRect{},
 	m_Device(nullptr),
 	m_DeviceContext(nullptr),
 	m_PixelFormat{}
@@ -39,12 +44,12 @@ void graphics_manager::CleanRefs()
 }
 
 
-HRESULT graphics_manager::Initialize(_In_ DX_RESOURCES *Data, _In_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem captureItem, _In_ bool isCursorCaptureEnabled, _In_ winrt::Windows::Graphics::DirectX::DirectXPixelFormat pixelFormat)
+HRESULT graphics_manager::Initialize(_In_ DX_RESOURCES *pData, _In_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem captureItem, _In_ bool isCursorCaptureEnabled, _In_ winrt::Windows::Graphics::DirectX::DirectXPixelFormat pixelFormat)
 {
 	m_item = captureItem;
 	m_PixelFormat = pixelFormat;
-	m_Device = Data->Device;
-	m_DeviceContext = Data->Context;
+	m_Device = pData->Device;
+	m_DeviceContext = pData->Context;
 
 	m_Device->AddRef();
 	m_DeviceContext->AddRef();
@@ -72,28 +77,61 @@ HRESULT graphics_manager::Initialize(_In_ DX_RESOURCES *Data, _In_ winrt::Window
 	return S_OK;
 }
 
-HRESULT graphics_manager::ProcessFrame(_In_ GRAPHICS_FRAME_DATA* Data, _Inout_ ID3D11Texture2D* SharedSurf, _In_ INT OffsetX, _In_  INT OffsetY, _In_ RECT &frameRect)
+HRESULT graphics_manager::ProcessFrame(_In_ GRAPHICS_FRAME_DATA* pData, _Inout_ ID3D11Texture2D* pSharedSurf, _In_ INT OffsetX, _In_  INT OffsetY, _In_ RECT &frameRect)
 {
+	if (pData->IsIconic) {
+		BlankFrame(pSharedSurf, OffsetX, OffsetY);
+		return S_OK;
+	}
+
+	SIZE frameSize = SIZE{ RectWidth(frameRect), RectHeight(frameRect)};
+	if (frameSize.cx < RectWidth(m_LastFrameRect)
+		|| frameSize.cy <RectHeight(m_LastFrameRect)) {
+		BlankFrame(pSharedSurf, OffsetX, OffsetY);
+	}
 	D3D11_BOX Box;
 	// Copy back to shared surface
 	Box.left = 0;
 	Box.top = 0;
 	Box.front = 0;
-	Box.right = frameRect.right-frameRect.left;
-	Box.bottom = frameRect.bottom-frameRect.top;
+	Box.right = frameSize.cx;
+	Box.bottom = frameSize.cy;
 	Box.back = 1;
-	m_DeviceContext->CopySubresourceRegion(SharedSurf, 0, frameRect.left - OffsetX, frameRect.top - OffsetY, 0, Data->Frame, 0, &Box);
+	m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, frameRect.left + OffsetX, frameRect.top + OffsetY, 0, pData->Frame, 0, &Box);
+	m_LastFrameRect = frameRect;
 	return S_OK;
 }
 
-HRESULT graphics_manager::GetFrame(_Out_ GRAPHICS_FRAME_DATA *Data)
+HRESULT graphics_manager::BlankFrame(_Inout_ ID3D11Texture2D *pSharedSurf, _In_ INT OffsetX, _In_  INT OffsetY) {
+	int width = RectWidth(m_LastFrameRect);
+	int height = RectHeight(m_LastFrameRect);
+	D3D11_BOX Box{};
+	// Copy back to shared surface
+	Box.right = width;
+	Box.bottom = height;
+	Box.back = 1;
+
+	CComPtr<ID3D11Texture2D> pBlankFrame;
+	D3D11_TEXTURE2D_DESC desc;
+	pSharedSurf->GetDesc(&desc);
+	desc.MiscFlags = 0;
+	desc.Width = width;
+	desc.Height = height;
+	HRESULT hr = m_Device->CreateTexture2D(&desc, nullptr, &pBlankFrame);
+	if (SUCCEEDED(hr)) {
+		m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, m_LastFrameRect.left + OffsetX, m_LastFrameRect.top + OffsetY, 0, pBlankFrame, 0, &Box);
+	}
+	return S_OK;
+}
+
+HRESULT graphics_manager::GetFrame(_Out_ GRAPHICS_FRAME_DATA *pData)
 {
 	Direct3D11CaptureFrame frame = m_framePool.TryGetNextFrame();
 	if (frame) {
 		auto surfaceTexture = capture::util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
-		Data->Frame = surfaceTexture.get();
-		Data->ContentSize.cx = frame.ContentSize().Width;
-		Data->ContentSize.cy = frame.ContentSize().Height;
+		pData->Frame = surfaceTexture.get();
+		pData->ContentSize.cx = frame.ContentSize().Width;
+		pData->ContentSize.cy = frame.ContentSize().Height;
 		frame.Close();
 		return S_OK;
 	}

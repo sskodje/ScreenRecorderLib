@@ -9,7 +9,7 @@
 #include "duplication_capture.h"
 #include "graphics_capture.h"
 #include "duplication_manager.h"
-#include "video_capture.h"
+#include "source_reader_base.h"
 template <class T> void SafeRelease(T **ppT)
 {
 	if (*ppT)
@@ -18,7 +18,20 @@ template <class T> void SafeRelease(T **ppT)
 		*ppT = nullptr;
 	}
 }
+class LeaveCriticalSectionOnExit {
+public:
+	LeaveCriticalSectionOnExit(CRITICAL_SECTION *p, std::wstring tag = L"") : m_p(p), m_tag(tag) {}
+	~LeaveCriticalSectionOnExit() {
+		LeaveCriticalSection(m_p);
+		if (!m_tag.empty()) {
+			//LOG_TRACE("Exited critical section %ls", m_tag.c_str());
+		}
+	}
 
+private:
+	CRITICAL_SECTION *m_p;
+	std::wstring m_tag;
+};
 
 class DeleteFileOnExit
 {
@@ -47,33 +60,20 @@ private:
 	ATL::CComPtr<IWICStream>& m_handle;
 };
 
-class DesktopDuplicationCaptureStopOnExit {
+class CaptureStopOnExit {
 public:
-	DesktopDuplicationCaptureStopOnExit(duplication_capture *p) : m_p(p) {}
-	~DesktopDuplicationCaptureStopOnExit() {
+	CaptureStopOnExit(capture_base *p) : m_p(p) {}
+	~CaptureStopOnExit() {
 		m_p->StopCapture();
 	}
-	void Reset(duplication_capture *p) {
+	void Reset(capture_base *p) {
 		m_p = p;
 	}
 
 private:
-	duplication_capture *m_p;
+	capture_base *m_p;
 };
 
-class GraphicsCaptureStopOnExit {
-public:
-	GraphicsCaptureStopOnExit(graphics_capture *p) : m_p(p) {}
-	~GraphicsCaptureStopOnExit() {
-		m_p->StopCapture();
-	}
-	void Reset(graphics_capture *p) {
-		m_p = p;
-	}
-
-private:
-	graphics_capture *m_p;
-};
 
 class AudioClientStopOnExit {
 public:
@@ -245,7 +245,7 @@ class ReleaseDCOnExit {
 public:
 	ReleaseDCOnExit(HDC p) : m_p(p) {}
 	~ReleaseDCOnExit() {
-		ReleaseDC(NULL,m_p);
+		ReleaseDC(NULL, m_p);
 	}
 
 private:
@@ -256,9 +256,10 @@ class ReleaseKeyedMutexOnExit {
 public:
 	ReleaseKeyedMutexOnExit(IDXGIKeyedMutex *p, UINT64 key) : m_p(p), m_key(key) {}
 	~ReleaseKeyedMutexOnExit() {
-	
+
 		if (m_p) {
 			m_p->ReleaseSync(m_key);
+			//LOG_TRACE(L"Released keyed mutex with key %d", m_key);
 		}
 	}
 
@@ -269,7 +270,7 @@ private:
 
 class ReleaseDuplicationManagerFrameOnExit {
 public:
-	ReleaseDuplicationManagerFrameOnExit(duplication_manager *manager) : m_p(manager){}
+	ReleaseDuplicationManagerFrameOnExit(duplication_manager *manager) : m_p(manager) {}
 	~ReleaseDuplicationManagerFrameOnExit() {
 
 		if (m_p) {
@@ -281,10 +282,10 @@ private:
 	duplication_manager *m_p;
 };
 
-class CloseVideoCaptureOnExit {
+class CloseMediaReaderOnExit {
 public:
-	CloseVideoCaptureOnExit(video_capture *capture) : m_p(capture) {}
-	~CloseVideoCaptureOnExit() {
+	CloseMediaReaderOnExit(source_reader_base *capture) : m_p(capture) {}
+	~CloseMediaReaderOnExit() {
 
 		if (m_p) {
 			m_p->Close();
@@ -292,12 +293,12 @@ public:
 	}
 
 private:
-	video_capture *m_p;
+	source_reader_base *m_p;
 };
 
 class ReleaseCOMArrayOnExit {
 public:
-	ReleaseCOMArrayOnExit(IUnknown **array, int count) : m_p(array),m_count(count) {}
+	ReleaseCOMArrayOnExit(IUnknown **array, UINT32 &count) : m_p(array), m_count(count) {}
 	~ReleaseCOMArrayOnExit() {
 
 		if (m_p) {
@@ -308,10 +309,10 @@ public:
 			CoTaskMemFree(m_p);
 		}
 	}
-	void SetCount(int count) {
+	void SetCount(int &count) {
 		m_count = count;
 	}
 private:
 	IUnknown **m_p;
-	int m_count;
+	UINT32 &m_count;
 };

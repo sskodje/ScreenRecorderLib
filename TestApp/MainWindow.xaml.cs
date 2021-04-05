@@ -1,6 +1,7 @@
 ﻿using ScreenRecorderLib;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -35,6 +36,7 @@ namespace TestApp
             }
         }
 
+        public List<OverlayModel> Overlays { get; } = new List<OverlayModel>();
         public int VideoBitrate { get; set; } = 7000;
         public int VideoFramerate { get; set; } = 60;
         public int VideoQuality { get; set; } = 70;
@@ -54,12 +56,12 @@ namespace TestApp
         public int MouseClickDuration { get; set; } = 50;
         public Dictionary<string, string> AudioInputsList { get; set; } = new Dictionary<string, string>();
         public Dictionary<string, string> AudioOutputsList { get; set; } = new Dictionary<string, string>();
+        public ObservableCollection<MediaDevice> VideoCaptureDevices { get; set; } = new ObservableCollection<MediaDevice>();
         public bool IsAudioInEnabled { get; set; } = false;
         public bool IsAudioOutEnabled { get; set; } = true;
         public string LogFilePath { get; set; } = "log.txt";
         public bool IsLogToFileEnabled { get; set; }
         public bool IsLogEnabled { get; set; } = true;
-        public DisplayOutput SelectedDisplayOutput { get; set; }
 
         public LogLevel LogSeverityLevel { get; set; } = LogLevel.Debug;
 
@@ -204,7 +206,61 @@ namespace TestApp
         {
             InitializeComponent();
 
+            InitializeDefaultOverlays();
             RefreshCaptureTargetItems();
+        }
+
+        private void InitializeDefaultOverlays()
+        {
+            Overlays.Clear();
+            Overlays.Add(new OverlayModel
+            {
+                Overlay = new CameraCaptureOverlay
+                {
+                    AnchorPosition = Anchor.TopLeft,
+                    Width = 0,
+                    Height = 250,
+                    OffsetX = 100,
+                    OffsetY = 100
+                },
+                IsEnabled = true
+            });
+            Overlays.Add(new OverlayModel
+            {
+                Overlay = new VideoOverlay
+                {
+                    AnchorPosition = Anchor.TopRight,
+                    FilePath = @"testmedia\cat.mp4",
+                    Height = 200,
+                    OffsetX = 50,
+                    OffsetY = 50
+                },
+                IsEnabled = true
+            });
+            Overlays.Add(new OverlayModel
+            {
+                Overlay = new PictureOverlay
+                {
+                    AnchorPosition = Anchor.BottomLeft,
+                    FilePath = @"testmedia\alphatest.png",
+                    Height = 300,
+                    OffsetX = 0,
+                    OffsetY = 0
+                },
+                IsEnabled = true
+            });
+            Overlays.Add(new OverlayModel
+            {
+                Overlay = new PictureOverlay
+                {
+                    AnchorPosition = Anchor.BottomRight,
+                    FilePath = @"testmedia\giftest.gif",
+                    Height = 300,
+                    OffsetX = 75,
+                    OffsetY = 25
+                },
+                IsEnabled = true
+            });
         }
 
         private bool IsValidWindow(WindowHandle window)
@@ -261,10 +317,16 @@ namespace TestApp
 
             var selectedDisplay = this.ScreenComboBox.SelectedItem as DisplayOutput;
 
-            IntPtr selectedWindowHandle = this.WindowComboBox.Items.Count > 0 ? ((RecordableWindow)this.WindowComboBox.SelectedItem).Handle : IntPtr.Zero;
 
             string audioOutputDevice = AudioOutputsComboBox.SelectedValue as string;
             string audioInputDevice = AudioInputsComboBox.SelectedValue as string;
+
+            List<IntPtr> windowsToRecord = this.WindowComboBox.Items.Cast<CheckableRecordableWindow>().Where(x => x.IsSelected).Select(x => x.Handle).ToList();
+            if (windowsToRecord.Count == 0 && this.WindowComboBox.SelectedItem != null)
+            {
+                windowsToRecord.Add(((CheckableRecordableWindow)this.WindowComboBox.SelectedItem).Handle);
+            }
+
             List<string> displayDevicesToRecord = this.ScreenComboBox.Items.Cast<DisplayOutput>().Where(x => x.IsSelected).Select(x => x.DeviceName).ToList();
             if (displayDevicesToRecord.Count == 0 && this.ScreenComboBox.SelectedItem != null)
             {
@@ -311,7 +373,7 @@ namespace TestApp
                 DisplayOptions = new DisplayOptions
                 {
                     DisplayDevices = displayDevicesToRecord,
-                    WindowHandle = selectedWindowHandle,
+                    WindowHandles = windowsToRecord,
                     Left = left,
                     Top = top,
                     Right = right,
@@ -326,6 +388,10 @@ namespace TestApp
                     MouseClickDetectionRadius = this.MouseClickRadius,
                     MouseClickDetectionDuration = this.MouseClickDuration,
                     MouseClickDetectionMode = this.CurrentMouseDetectionMode
+                },
+                OverlayOptions = new OverLayOptions
+                {
+                    Overlays = this.Overlays.Where(x => x.IsEnabled && this.CheckBoxEnableOverlays.IsChecked.GetValueOrDefault(false)).Select(x => x.Overlay).ToList()
                 }
             };
 
@@ -481,8 +547,9 @@ namespace TestApp
         {
             if (e.AddedItems.Count == 0)
                 return;
-            SetComboBoxTitle();
-            if (this.WindowComboBox.SelectedIndex == 0)
+            SetScreenComboBoxTitle();
+            if (this.WindowComboBox.SelectedIndex == 0
+                && this.WindowComboBox.Items.Cast<CheckableRecordableWindow>().Count(x => x.IsSelected) == 0)
             {
                 SetScreenRect();
             }
@@ -496,29 +563,36 @@ namespace TestApp
                 .ThenBy(x => x.Position.Y)
                 .ToList();
 
+            var selectedWindows = this.WindowComboBox.Items.Cast<CheckableRecordableWindow>()
+                .Where(x => x.IsSelected)
+                .ToList();
+
+            if (selectedDisplays.Count == 0 && selectedWindows.Count == 0)
+            {
+                if (WindowComboBox.SelectedIndex > 0)
+                    selectedWindows.Add(this.WindowComboBox.SelectedItem as CheckableRecordableWindow);
+                else if (ScreenComboBox.SelectedIndex > 0)
+                    selectedDisplays.Add(this.ScreenComboBox.SelectedItem as DisplayOutput);
+            }
+            ScreenRecorderLib.Size size;
             if (selectedDisplays.Count > 0)
             {
-                var size = Recorder.GetCombinedOutputSizeForDisplays(selectedDisplays.Select(x => x.DeviceName).ToList());
-                this.RecordingAreaRightTextBox.Text = size.Width.ToString();
-                this.RecordingAreaBottomTextBox.Text = size.Height.ToString(); ;
-                this.RecordingAreaLeftTextBox.Text = 0.ToString();
-                this.RecordingAreaTopTextBox.Text = 0.ToString();
+                size = Recorder.GetCombinedOutputSizeForDisplays(selectedDisplays.Select(x => x.DeviceName).ToList());
+
             }
-            else if (this.ScreenComboBox.SelectedItem != null)
+            else if (selectedWindows.Count > 0)
             {
-                var screen = this.ScreenComboBox.SelectedItem as DisplayOutput;
-                this.RecordingAreaRightTextBox.Text = screen.Width.ToString();
-                this.RecordingAreaBottomTextBox.Text = screen.Height.ToString();
-                this.RecordingAreaLeftTextBox.Text = 0.ToString();
-                this.RecordingAreaTopTextBox.Text = 0.ToString();
+                size = Recorder.GetCombinedOutputSizeForWindows(selectedWindows.Select(x => x.Handle).ToList());
+
             }
             else
             {
-                this.RecordingAreaRightTextBox.Text = 0.ToString();
-                this.RecordingAreaBottomTextBox.Text = 0.ToString();
-                this.RecordingAreaLeftTextBox.Text = 0.ToString();
-                this.RecordingAreaTopTextBox.Text = 0.ToString();
+                size = new ScreenRecorderLib.Size(0, 0);
             }
+            this.RecordingAreaRightTextBox.Text = size.Width.ToString();
+            this.RecordingAreaBottomTextBox.Text = size.Height.ToString();
+            this.RecordingAreaLeftTextBox.Text = 0.ToString();
+            this.RecordingAreaTopTextBox.Text = 0.ToString();
         }
 
         private void Hyperlink_Click(object sender, RoutedEventArgs e)
@@ -620,13 +694,11 @@ namespace TestApp
             if (CurrentRecordingApi == RecorderApi.DesktopDuplication)
             {
                 this.WindowComboBox.Visibility = Visibility.Collapsed;
-                this.CoordinatesPanel.IsEnabled = true;
                 SetScreenRect();
             }
             else if (CurrentRecordingApi == RecorderApi.WindowsGraphicsCapture)
             {
                 this.WindowComboBox.Visibility = Visibility.Visible;
-                this.CoordinatesPanel.IsEnabled = false;
             }
         }
 
@@ -634,22 +706,8 @@ namespace TestApp
         {
             if (e.AddedItems.Count == 0)
                 return;
-
-            var window = this.WindowComboBox.Items[this.WindowComboBox.SelectedIndex] as RecordableWindow;
-            if (window.Handle == IntPtr.Zero)
-            {
-                SetScreenRect();
-            }
-            else
-            {
-                if (NativeMethods.GetWindowRect(window.Handle, out NativeMethods.RECT windowRect))
-                {
-                    this.RecordingAreaRightTextBox.Text = windowRect.Right.ToString();
-                    this.RecordingAreaBottomTextBox.Text = windowRect.Bottom.ToString();
-                    this.RecordingAreaLeftTextBox.Text = windowRect.Left.ToString();
-                    this.RecordingAreaTopTextBox.Text = windowRect.Top.ToString();
-                }
-            }
+            SetWindowComboBoxTitle();
+            SetScreenRect();
         }
         private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
@@ -657,10 +715,24 @@ namespace TestApp
         }
         private void RefreshCaptureTargetItems()
         {
+            RefreshVideoCaptureItems();
             RefreshScreenComboBox();
             RefreshWindowComboBox();
             RefreshAudioComboBoxes();
         }
+
+        private void RefreshVideoCaptureItems()
+        {
+            VideoCaptureDevices.Clear();
+            VideoCaptureDevices.Add(new MediaDevice { ID = null, Name = "Default capture device" });
+            var devices = Recorder.GetSystemVideoCaptureDevices().Select(x => new MediaDevice { ID = x.Key, Name = x.Value });
+            foreach (var device in devices)
+            {
+                VideoCaptureDevices.Add(device);
+            }
+                        (this.Resources["MediaDeviceToDeviceIdConverter"] as MediaDeviceToDeviceIdConverter).MediaDevices = VideoCaptureDevices.ToList();
+        }
+
         private void RefreshScreenComboBox()
         {
             this.ScreenComboBox.Items.Clear();
@@ -690,11 +762,11 @@ namespace TestApp
         private void RefreshWindowComboBox()
         {
             this.WindowComboBox.Items.Clear();
-            this.WindowComboBox.Items.Add(new RecordableWindow("-- No window selected --", IntPtr.Zero));
+            this.WindowComboBox.Items.Add(new CheckableRecordableWindow("-- No window selected --", IntPtr.Zero) { IsCheckable = false });
 
             foreach (RecordableWindow window in Recorder.GetWindows())
             {
-                this.WindowComboBox.Items.Add(window);
+                this.WindowComboBox.Items.Add(new CheckableRecordableWindow(window));
             }
 
             WindowComboBox.SelectedIndex = 0;
@@ -726,12 +798,12 @@ namespace TestApp
             AudioInputsComboBox.SelectedIndex = 0;
         }
 
-        private void CheckBox_CheckedChanged(object sender, RoutedEventArgs e)
+        private void ScreenCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
         {
-            SetComboBoxTitle();
+            SetScreenComboBoxTitle();
             SetScreenRect();
         }
-        private void SetComboBoxTitle()
+        private void SetScreenComboBoxTitle()
         {
             this.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
             {
@@ -741,6 +813,24 @@ namespace TestApp
                     this.ScreenComboBox.Text = string.Join(", ", displays);
                 }
             }));
+        }
+
+        private void SetWindowComboBoxTitle()
+        {
+            this.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
+            {
+                if (this.WindowComboBox.Items.Cast<CheckableRecordableWindow>().Any(x => x.IsSelected))
+                {
+                    var windows = this.WindowComboBox.Items.Cast<CheckableRecordableWindow>().Where(x => x.IsSelected).Select(x => $"{x.Title}");
+                    this.WindowComboBox.Text = string.Join(", ", windows);
+                }
+            }));
+        }
+
+        private void WindowCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            SetScreenRect();
+            SetWindowComboBoxTitle();
         }
     }
 

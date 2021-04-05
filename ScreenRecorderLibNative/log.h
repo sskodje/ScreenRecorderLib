@@ -5,6 +5,8 @@
 #include <iomanip>
 #include <sstream>
 
+#define MEASURE_EXECUTION_TIME true
+
 #define LOG_BUFFER_SIZE 1024
 
 #define LOG_LVL_TRACE 0
@@ -23,7 +25,7 @@ extern bool isLoggingEnabled;
 extern int logSeverityLevel;
 extern std::wstring logFilePath;
 
-inline  void _log(int logLvl, const wchar_t * format, ...) {
+inline  void _log(int logLvl, PCWSTR format, ...) {
 	if (isLoggingEnabled && logLvl >= logSeverityLevel) {
 		wchar_t buffer[LOG_BUFFER_SIZE];
 		va_list args;
@@ -68,3 +70,25 @@ static std::wstring getTimestamp() {
 		<< '.' << std::setfill(L'0') << std::setw(3) << nowMs.count();
 	return nowSs.str();
 }
+
+struct MeasureExecutionTime {
+private:
+	std::wstring m_Name;
+	std::chrono::steady_clock::time_point m_Start;
+public:
+	MeasureExecutionTime(std::wstring name) {
+		if (MEASURE_EXECUTION_TIME == true) {
+			m_Name = name;
+			m_Start = std::chrono::steady_clock::now();
+		}
+	}
+	~MeasureExecutionTime() {
+		if (MEASURE_EXECUTION_TIME == true) {
+			std::chrono::duration<double, std::milli> ms_double = std::chrono::steady_clock::now() - m_Start;
+			LOG_TRACE("Execution time for %ls: %.2f ms", m_Name.c_str(), ms_double.count());
+		}
+	}
+	void SetName(std::wstring name) {
+		m_Name = name;
+	}
+};
