@@ -51,7 +51,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="internal_recorder.h">
+    <ClInclude Include="recording_manager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="native.h">
@@ -137,7 +137,7 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="internal_recorder.cpp">
+    <ClCompile Include="recording_manager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="audio_prefs.cpp">

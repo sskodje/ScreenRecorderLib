@@ -8,7 +8,7 @@ using namespace nlohmann;
 
 Recorder::Recorder(RecorderOptions^ options)
 {
-	lRec = new internal_recorder();
+	lRec = new recording_manager();
 	SetOptions(options);
 }
 
@@ -137,7 +137,7 @@ void Recorder::SetOutputVolume(float volume)
 
 bool Recorder::SetExcludeFromCapture(System::IntPtr hwnd, bool isExcluded)
 {
-	return internal_recorder::SetExcludeFromCapture((HWND)hwnd.ToPointer(), isExcluded);
+	return recording_manager::SetExcludeFromCapture((HWND)hwnd.ToPointer(), isExcluded);
 }
 
 Dictionary<String^, String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)

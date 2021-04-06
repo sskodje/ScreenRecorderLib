@@ -121,11 +121,11 @@ struct FrameWriteModel
 
 LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
 
-class internal_recorder
+class recording_manager
 {
 public:
-	internal_recorder();
-	~internal_recorder();
+	recording_manager();
+	~recording_manager();
 	CallbackErrorFunction RecordingFailedCallback;
 	CallbackCompleteFunction RecordingCompleteCallback;
 	CallbackStatusChangedFunction RecordingStatusChangedCallback;

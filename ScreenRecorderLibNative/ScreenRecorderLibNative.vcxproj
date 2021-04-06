@@ -38,7 +38,7 @@
     <ClInclude Include="graphics_capture.util.h" />
     <ClInclude Include="cleanup.h" />
     <ClInclude Include="fifo_map.h" />
-    <ClInclude Include="internal_recorder.h" />
+    <ClInclude Include="recording_manager.h" />
     <ClInclude Include="log.h" />
     <ClInclude Include="loopback_capture.h" />
     <ClInclude Include="mouse_pointer.h" />
@@ -67,7 +67,7 @@
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>
     </ClCompile>
     <ClCompile Include="graphics_capture.cpp" />
-    <ClCompile Include="internal_recorder.cpp">
+    <ClCompile Include="recording_manager.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>

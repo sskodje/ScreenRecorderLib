@@ -12,7 +12,7 @@
 #include <Wmcodecdsp.h>
 #include <filesystem>
 #include "loopback_capture.h"
-#include "internal_recorder.h"
+#include "recording_manager.h"
 #include "audio_prefs.h"
 #include "log.h"
 #include "cleanup.h"
@@ -66,13 +66,13 @@ D3D_FEATURE_LEVEL m_FeatureLevels[] =
 	D3D_FEATURE_LEVEL_9_1
 };
 
-struct internal_recorder::TaskWrapper {
+struct recording_manager::TaskWrapper {
 	Concurrency::task<void> m_RecordTask = concurrency::task_from_result();
 	Concurrency::cancellation_token_source m_RecordTaskCts;
 };
 
 
-internal_recorder::internal_recorder() :
+recording_manager::recording_manager() :
 	m_TaskWrapperImpl(make_unique<TaskWrapper>()),
 	RecordingCompleteCallback(nullptr),
 	RecordingFailedCallback(nullptr),
@@ -83,7 +83,7 @@ internal_recorder::internal_recorder() :
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 }
 
-internal_recorder::~internal_recorder()
+recording_manager::~recording_manager()
 {
 	UnhookWindowsHookEx(m_Mousehook);
 	if (m_IsRecording) {
@@ -108,20 +108,20 @@ LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
 	}
 	return CallNextHookEx(0, nCode, wParam, lParam);
 }
-void internal_recorder::SetMouseClickDetectionDuration(int value) {
+void recording_manager::SetMouseClickDetectionDuration(int value) {
 	g_MouseClickDetectionDurationMillis = value;
 }
-void internal_recorder::SetIsLogEnabled(bool value) {
+void recording_manager::SetIsLogEnabled(bool value) {
 	isLoggingEnabled = value;
 }
-void internal_recorder::SetLogFilePath(std::wstring value) {
+void recording_manager::SetLogFilePath(std::wstring value) {
 	logFilePath = value;
 }
-void internal_recorder::SetLogSeverityLevel(int value) {
+void recording_manager::SetLogSeverityLevel(int value) {
 	logSeverityLevel = value;
 }
 
-std::vector<BYTE> internal_recorder::MixAudio(_In_ std::vector<BYTE> const &first, _In_ std::vector<BYTE> const &second, _In_ float firstVolume, _In_ float secondVolume)
+std::vector<BYTE> recording_manager::MixAudio(_In_ std::vector<BYTE> const &first, _In_ std::vector<BYTE> const &second, _In_ float firstVolume, _In_ float secondVolume)
 {
 	std::vector<BYTE> newvector(max(first.size(), second.size()));
 	bool clipped = false;
@@ -146,7 +146,7 @@ std::vector<BYTE> internal_recorder::MixAudio(_In_ std::vector<BYTE> const &firs
 	return newvector;
 }
 
-std::wstring internal_recorder::GetImageExtension() {
+std::wstring recording_manager::GetImageExtension() {
 	if (m_ImageEncoderFormat == GUID_ContainerFormatPng) {
 		return L".png";
 	}
@@ -165,11 +165,11 @@ std::wstring internal_recorder::GetImageExtension() {
 	}
 }
 
-std::wstring internal_recorder::GetVideoExtension() {
+std::wstring recording_manager::GetVideoExtension() {
 	return L".mp4";
 }
 
-HRESULT internal_recorder::ConfigureOutputDir(_In_ std::wstring path) {
+HRESULT recording_manager::ConfigureOutputDir(_In_ std::wstring path) {
 	m_OutputFullPath = path;
 	if (!path.empty()) {
 		wstring dir = path;
@@ -227,15 +227,15 @@ HRESULT internal_recorder::ConfigureOutputDir(_In_ std::wstring path) {
 	return S_OK;
 }
 
-HRESULT internal_recorder::BeginRecording(_In_opt_ IStream *stream) {
+HRESULT recording_manager::BeginRecording(_In_opt_ IStream *stream) {
 	return BeginRecording(L"", stream);
 }
 
-HRESULT internal_recorder::BeginRecording(_In_opt_ std::wstring path) {
+HRESULT recording_manager::BeginRecording(_In_opt_ std::wstring path) {
 	return BeginRecording(path, nullptr);
 }
 
-HRESULT internal_recorder::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IStream *stream) {
+HRESULT recording_manager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IStream *stream) {
 	if (m_IsRecording) {
 		if (m_IsPaused) {
 			m_IsPaused = false;
@@ -318,13 +318,13 @@ HRESULT internal_recorder::BeginRecording(_In_opt_ std::wstring path, _In_opt_ I
 			return S_OK;
 }
 
-void internal_recorder::EndRecording() {
+void recording_manager::EndRecording() {
 	if (m_IsRecording) {
 		m_IsPaused = false;
 		m_TaskWrapperImpl->m_RecordTaskCts.cancel();
 	}
 }
-void internal_recorder::PauseRecording() {
+void recording_manager::PauseRecording() {
 	if (m_IsRecording) {
 		m_IsPaused = true;
 		if (RecordingStatusChangedCallback != nullptr) {
@@ -333,7 +333,7 @@ void internal_recorder::PauseRecording() {
 		}
 	}
 }
-void internal_recorder::ResumeRecording() {
+void recording_manager::ResumeRecording() {
 	if (m_IsRecording) {
 		if (m_IsPaused) {
 			m_IsPaused = false;
@@ -345,7 +345,7 @@ void internal_recorder::ResumeRecording() {
 	}
 }
 
-bool internal_recorder::SetExcludeFromCapture(HWND hwnd, bool isExcluded) {
+bool recording_manager::SetExcludeFromCapture(HWND hwnd, bool isExcluded) {
 	// The API call causes ugly black window on older builds of Windows, so skip if the contract is down-level. 
 	if (winrt::Windows::Foundation::Metadata::ApiInformation::IsApiContractPresent(L"Windows.Foundation.UniversalApiContract", 9))
 		return (bool)SetWindowDisplayAffinity(hwnd, isExcluded ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);
@@ -353,7 +353,7 @@ bool internal_recorder::SetExcludeFromCapture(HWND hwnd, bool isExcluded) {
 		return false;
 }
 
-capture_base *internal_recorder::CreateCaptureSession()
+capture_base *recording_manager::CreateCaptureSession()
 {
 	if (m_RecorderApi == API_DESKTOP_DUPLICATION) {
 		return	new duplication_capture();
@@ -364,7 +364,7 @@ capture_base *internal_recorder::CreateCaptureSession()
 	return nullptr;
 }
 
-std::vector<RECORDING_SOURCE> internal_recorder::CreateRecordingSources() {
+std::vector<RECORDING_SOURCE> recording_manager::CreateRecordingSources() {
 	std::vector<RECORDING_SOURCE> sources{};
 	std::vector<DXGI_OUTPUT_DESC> outputDescs{};
 	HRESULT hr = GetOutputDescsForDeviceNames(m_DisplayOutputDevices, &outputDescs);
@@ -391,11 +391,11 @@ std::vector<RECORDING_SOURCE> internal_recorder::CreateRecordingSources() {
 	return sources;
 }
 
-std::vector<RECORDING_OVERLAY> internal_recorder::CreateRecordingOverlays() {
+std::vector<RECORDING_OVERLAY> recording_manager::CreateRecordingOverlays() {
 	return m_Overlays;
 }
 
-HRESULT internal_recorder::FinalizeRecording()
+HRESULT recording_manager::FinalizeRecording()
 {
 	LOG_INFO("Cleaning up resources");
 	LOG_INFO("Finalizing recording");
@@ -432,7 +432,7 @@ HRESULT internal_recorder::FinalizeRecording()
 	return finalizeResult;
 }
 
-void internal_recorder::CleanupResourcesAndShutDownMF()
+void recording_manager::CleanupResourcesAndShutDownMF()
 {
 	SafeRelease(&m_SinkWriter);
 	LOG_DEBUG("Released IMFSinkWriter");
@@ -453,7 +453,7 @@ void internal_recorder::CleanupResourcesAndShutDownMF()
 	LOG_INFO(L"Media Foundation shut down");
 }
 
-void internal_recorder::SetRecordingCompleteStatus(_In_ HRESULT hr)
+void recording_manager::SetRecordingCompleteStatus(_In_ HRESULT hr)
 {
 	std::wstring errMsg = L"";
 	bool isSuccess = SUCCEEDED(hr);
@@ -491,7 +491,7 @@ void internal_recorder::SetRecordingCompleteStatus(_In_ HRESULT hr)
 	}
 }
 
-HRESULT internal_recorder::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_opt_ IStream *pStream)
+HRESULT recording_manager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_opt_ IStream *pStream)
 {
 	std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = nullptr;
 	std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = nullptr;
@@ -814,7 +814,7 @@ HRESULT internal_recorder::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> 
 	return hr;
 }
 
-std::vector<BYTE> internal_recorder::GrabAudioFrame(_In_opt_ std::unique_ptr<loopback_capture> &pLoopbackCaptureOutputDevice, _In_opt_
+std::vector<BYTE> recording_manager::GrabAudioFrame(_In_opt_ std::unique_ptr<loopback_capture> &pLoopbackCaptureOutputDevice, _In_opt_
 	std::unique_ptr<loopback_capture> &pLoopbackCaptureInputDevice)
 {
 	if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled && pLoopbackCaptureOutputDevice && pLoopbackCaptureInputDevice) {
@@ -853,7 +853,7 @@ std::vector<BYTE> internal_recorder::GrabAudioFrame(_In_opt_ std::unique_ptr<loo
 		return std::vector<BYTE>();
 }
 
-HRESULT internal_recorder::InitializeRects(_In_ RECT outputRect, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect) {
+HRESULT recording_manager::InitializeRects(_In_ RECT outputRect, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect) {
 	UINT monitorWidth = RectWidth(outputRect);
 	UINT monitorHeight = RectHeight(outputRect);
 
@@ -875,7 +875,7 @@ HRESULT internal_recorder::InitializeRects(_In_ RECT outputRect, _Out_ RECT *pSo
 	return S_OK;
 }
 
-HRESULT internal_recorder::InitializeDx(_Outptr_ ID3D11DeviceContext **ppContext, _Outptr_ ID3D11Device **ppDevice, _Outptr_opt_result_maybenull_ ID3D11Debug **ppDebug) {
+HRESULT recording_manager::InitializeDx(_Outptr_ ID3D11DeviceContext **ppContext, _Outptr_ ID3D11Device **ppDevice, _Outptr_opt_result_maybenull_ ID3D11Debug **ppDebug) {
 	*ppContext = nullptr;
 	*ppDevice = nullptr;
 	if (ppDebug) {
@@ -955,7 +955,7 @@ HRESULT internal_recorder::InitializeDx(_Outptr_ ID3D11DeviceContext **ppContext
 	return hr;
 }
 
-HRESULT internal_recorder::InitializeVideoSinkWriter(
+HRESULT recording_manager::InitializeVideoSinkWriter(
 	_In_ std::wstring path,
 	_In_opt_ IMFByteStream *pOutStream,
 	_In_ ID3D11Device *pDevice,
@@ -1083,7 +1083,7 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(
 	return S_OK;
 }
 
-HRESULT internal_recorder::ConfigureOutputMediaTypes(
+HRESULT recording_manager::ConfigureOutputMediaTypes(
 	_In_ UINT destWidth,
 	_In_ UINT destHeight,
 	_Outptr_ IMFMediaType **pVideoMediaTypeOut,
@@ -1127,7 +1127,7 @@ HRESULT internal_recorder::ConfigureOutputMediaTypes(
 	return S_OK;
 }
 
-HRESULT internal_recorder::ConfigureInputMediaTypes(
+HRESULT recording_manager::ConfigureInputMediaTypes(
 	_In_ UINT sourceWidth,
 	_In_ UINT sourceHeight,
 	_In_ MFVideoRotationFormat rotationFormat,
@@ -1165,7 +1165,7 @@ HRESULT internal_recorder::ConfigureInputMediaTypes(
 	return S_OK;
 }
 
-HRESULT internal_recorder::InitializeAudioCapture(_Outptr_result_maybenull_ loopback_capture **outputAudioCapture, _Outptr_result_maybenull_ loopback_capture **inputAudioCapture)
+HRESULT recording_manager::InitializeAudioCapture(_Outptr_result_maybenull_ loopback_capture **outputAudioCapture, _Outptr_result_maybenull_ loopback_capture **inputAudioCapture)
 {
 	loopback_capture *pLoopbackCaptureOutputDevice = nullptr;
 	loopback_capture *pLoopbackCaptureInputDevice = nullptr;
@@ -1192,7 +1192,7 @@ HRESULT internal_recorder::InitializeAudioCapture(_Outptr_result_maybenull_ loop
 	return hr;
 }
 
-void internal_recorder::InitializeMouseClickDetection()
+void recording_manager::InitializeMouseClickDetection()
 {
 	if (m_IsMouseClicksDetected) {
 		switch (m_MouseClickDetectionMode)
@@ -1233,7 +1233,7 @@ void internal_recorder::InitializeMouseClickDetection()
 	}
 }
 
-HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
+HRESULT recording_manager::CreateInputMediaTypeFromOutput(
 	_In_ IMFMediaType *pType,    // Pointer to an encoded video type.
 	_In_ const GUID &subtype,    // Uncompressed subtype (eg, RGB-32, AYUV)
 	_Outptr_ IMFMediaType **ppType   // Receives a matching uncompressed video type.
@@ -1288,7 +1288,7 @@ HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
 	return hr;
 }
 
-HRESULT internal_recorder::DrawMousePointer(_In_ ID3D11Texture2D *frame, _In_ mouse_pointer *pMousePointer, _In_ PTR_INFO *ptrInfo, _In_ INT64 durationSinceLastFrame100Nanos)
+HRESULT recording_manager::DrawMousePointer(_In_ ID3D11Texture2D *frame, _In_ mouse_pointer *pMousePointer, _In_ PTR_INFO *ptrInfo, _In_ INT64 durationSinceLastFrame100Nanos)
 {
 	HRESULT hr = S_FALSE;
 	if (g_LastMouseClickDurationRemaining > 0
@@ -1313,7 +1313,7 @@ HRESULT internal_recorder::DrawMousePointer(_In_ ID3D11Texture2D *frame, _In_ mo
 	return hr;
 }
 
-HRESULT internal_recorder::CropFrame(_In_ ID3D11Texture2D *frame, _In_ RECT destRect, _Outptr_ ID3D11Texture2D **pCroppedFrame)
+HRESULT recording_manager::CropFrame(_In_ ID3D11Texture2D *frame, _In_ RECT destRect, _Outptr_ ID3D11Texture2D **pCroppedFrame)
 {
 	D3D11_TEXTURE2D_DESC frameDesc;
 	frame->GetDesc(&frameDesc);
@@ -1335,7 +1335,7 @@ HRESULT internal_recorder::CropFrame(_In_ ID3D11Texture2D *frame, _In_ RECT dest
 	return S_OK;
 }
 
-HRESULT internal_recorder::GetVideoProcessor(_In_ IMFSinkWriter *pSinkWriter, _In_ DWORD streamIndex, _Outptr_ IMFVideoProcessorControl **pVideoProcessor)
+HRESULT recording_manager::GetVideoProcessor(_In_ IMFSinkWriter *pSinkWriter, _In_ DWORD streamIndex, _Outptr_ IMFVideoProcessorControl **pVideoProcessor)
 {
 	HRESULT hr;
 	GUID transformType;
@@ -1357,7 +1357,7 @@ HRESULT internal_recorder::GetVideoProcessor(_In_ IMFSinkWriter *pSinkWriter, _I
 	return hr;
 }
 
-HRESULT internal_recorder::SetAttributeU32(_Inout_ CComPtr<ICodecAPI> &codec, _In_ const GUID &guid, _In_ UINT32 value)
+HRESULT recording_manager::SetAttributeU32(_Inout_ CComPtr<ICodecAPI> &codec, _In_ const GUID &guid, _In_ UINT32 value)
 {
 	VARIANT val;
 	val.vt = VT_UI4;
@@ -1365,7 +1365,7 @@ HRESULT internal_recorder::SetAttributeU32(_Inout_ CComPtr<ICodecAPI> &codec, _I
 	return codec->SetValue(&guid, &val);
 }
 
-HRESULT internal_recorder::RenderFrame(_In_ FrameWriteModel &model) {
+HRESULT recording_manager::RenderFrame(_In_ FrameWriteModel &model) {
 	HRESULT hr(S_OK);
 
 	if (m_RecorderMode == MODE_VIDEO) {
@@ -1434,7 +1434,7 @@ HRESULT internal_recorder::RenderFrame(_In_ FrameWriteModel &model) {
 	return hr;
 }
 
-bool internal_recorder::CheckDependencies(_Out_ std::wstring *error)
+bool recording_manager::CheckDependencies(_Out_ std::wstring *error)
 {
 	wstring errorText;
 	bool result = true;
@@ -1457,7 +1457,7 @@ bool internal_recorder::CheckDependencies(_Out_ std::wstring *error)
 	return result;
 }
 
-std::string internal_recorder::CurrentTimeToFormattedString()
+std::string recording_manager::CurrentTimeToFormattedString()
 {
 	chrono::system_clock::time_point p = chrono::system_clock::now();
 	time_t t = chrono::system_clock::to_time_t(p);
@@ -1473,12 +1473,12 @@ std::string internal_recorder::CurrentTimeToFormattedString()
 	std::replace(time.begin(), time.end(), ':', '-');
 	return time;
 }
-HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath)
+HRESULT recording_manager::WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath)
 {
 	return SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage, m_ImageEncoderFormat, filePath.c_str());
 }
 
-void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath)
+void recording_manager::WriteFrameToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath)
 {
 	pAcquiredDesktopImage->AddRef();
 	concurrency::create_task([this, pAcquiredDesktopImage, filePath]() {
@@ -1510,7 +1510,7 @@ void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D *pAcquiredDe
 /// <summary>
 /// Take screenshots in a video recording, if video recording is file mode.
 /// </summary>
-HRESULT internal_recorder::TakeSnapshotsWithVideo(_In_ ID3D11Texture2D *frame, _In_ RECT destRect)
+HRESULT recording_manager::TakeSnapshotsWithVideo(_In_ ID3D11Texture2D *frame, _In_ RECT destRect)
 {
 	if (m_OutputSnapshotsFolderPath.empty())
 		return S_FALSE;
@@ -1538,7 +1538,7 @@ HRESULT internal_recorder::TakeSnapshotsWithVideo(_In_ ID3D11Texture2D *frame, _
 	return hr;
 }
 
-HRESULT internal_recorder::WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ ID3D11Texture2D *pAcquiredDesktopImage)
+HRESULT recording_manager::WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ ID3D11Texture2D *pAcquiredDesktopImage)
 {
 	IMFMediaBuffer *pMediaBuffer;
 	HRESULT hr = MFCreateDXGISurfaceBuffer(__uuidof(ID3D11Texture2D), pAcquiredDesktopImage, 0, FALSE, &pMediaBuffer);
@@ -1583,7 +1583,7 @@ HRESULT internal_recorder::WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT6
 	SafeRelease(&pMediaBuffer);
 	return hr;
 }
-HRESULT internal_recorder::WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE *pSrc, _In_ DWORD cbData)
+HRESULT recording_manager::WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE *pSrc, _In_ DWORD cbData)
 {
 	IMFMediaBuffer *pBuffer = nullptr;
 	BYTE *pData = nullptr;
