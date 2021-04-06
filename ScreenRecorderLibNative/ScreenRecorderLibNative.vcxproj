@@ -44,7 +44,7 @@
     <ClInclude Include="mouse_pointer.h" />
     <ClInclude Include="native.h" />
     <ClInclude Include="string_format.h" />
-    <ClInclude Include="utilities.h" />
+    <ClInclude Include="util.h" />
     <ClInclude Include="video_reader.h" />
     <ClInclude Include="WWMFResampler.h" />
   </ItemGroup>

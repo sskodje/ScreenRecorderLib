@@ -1,7 +1,7 @@
 #include "graphics_capture.h"
 #include "graphics_capture.util.h"
 
-#include "utilities.h"
+#include "util.h"
 #include "cleanup.h"
 #include "graphics_manager.h"
 

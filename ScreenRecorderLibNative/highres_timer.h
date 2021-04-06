@@ -2,7 +2,7 @@
 #include "common_types.h"
 #include <chrono>
 #include <thread>
-#include "utilities.h"
+#include "util.h"
 class highres_timer
 {
 public:

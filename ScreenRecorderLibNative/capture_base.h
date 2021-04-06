@@ -8,7 +8,7 @@
 #include "common_types.h"
 #include "log.h"
 #include "DX.util.h"
-#include "utilities.h"
+#include "util.h"
 #include "screengrab.h"
 #include "string_format.h"
 

@@ -2,7 +2,7 @@
 
 #include "mouse_pointer.h"
 #include "log.h"
-#include "utilities.h"
+#include "util.h"
 #include <comdef.h>
 #include <commctrl.h>
 #include <mfapi.h>

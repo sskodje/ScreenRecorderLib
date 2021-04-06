@@ -28,7 +28,7 @@
 #include "audio_prefs.h"
 #include "mouse_pointer.h"
 #include "log.h"
-#include "utilities.h"
+#include "util.h"
 #include "string_format.h"
 #include "highres_timer.h"
 
