@@ -74,7 +74,7 @@ HRESULT source_reader_base::GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int ti
 		EnterCriticalSection(&m_CriticalSection);
 		LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"GetFrameBuffer");
 		DWORD len;
-		BYTE* data;
+		BYTE *data;
 		hr = m_Sample->Lock(&data, NULL, &len);
 		if (FAILED(hr))
 		{
@@ -114,7 +114,7 @@ HRESULT source_reader_base::GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int ti
 	return hr;
 }
 
-HRESULT source_reader_base::ResizeFrameBuffer(FRAME_INFO* FrameInfo, int bufferSize) {
+HRESULT source_reader_base::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize) {
 	// Old buffer too small
 	if (bufferSize > (int)FrameInfo->BufferSize)
 	{
@@ -173,7 +173,7 @@ HRESULT source_reader_base::GetFrameRate(_In_ IMFMediaType *pMediaType, _Out_ do
 }
 
 //From IUnknown 
-STDMETHODIMP source_reader_base::QueryInterface(REFIID riid, void** ppvObject)
+STDMETHODIMP source_reader_base::QueryInterface(REFIID riid, void **ppvObject)
 {
 	static const QITAB qit[] = { QITABENT(source_reader_base, IMFSourceReaderCallback),{ 0 }, };
 	return QISearch(this, qit, riid, ppvObject);
@@ -199,7 +199,7 @@ HRESULT source_reader_base::GetDefaultStride(_In_ IMFMediaType *type, _Out_ LONG
 	LONG tempStride = 0;
 
 	// Try to get the default stride from the media type.
-	HRESULT hr = type->GetUINT32(MF_MT_DEFAULT_STRIDE, (UINT32*)&tempStride);
+	HRESULT hr = type->GetUINT32(MF_MT_DEFAULT_STRIDE, (UINT32 *)&tempStride);
 	if (FAILED(hr))
 	{
 		//Setting this atribute to NULL we can obtain the default stride
@@ -358,13 +358,13 @@ HRESULT source_reader_base::OnReadSample(HRESULT status, DWORD streamIndex, DWOR
 				SafeRelease(&m_Sample);
 				SafeRelease(&transformBuffer);
 				//Store the converted media buffer
-				IMFMediaBuffer* mediaBuffer = NULL;
+				IMFMediaBuffer *mediaBuffer = NULL;
 				outputDataBuffer.pSample->GetBufferByIndex(0, &mediaBuffer);
 				outputDataBuffer.pSample->Release();
 				m_Sample = mediaBuffer;
 			}
 			else {
-				IMFMediaBuffer* mediaBuffer = NULL;
+				IMFMediaBuffer *mediaBuffer = NULL;
 				sample->GetBufferByIndex(0, &mediaBuffer);
 				sample->Release();
 				m_Sample = mediaBuffer;
@@ -391,7 +391,7 @@ HRESULT source_reader_base::OnReadSample(HRESULT status, DWORD streamIndex, DWOR
 				auto t2 = std::chrono::high_resolution_clock::now();
 				std::chrono::duration<double, std::milli> ms_double = t2 - t1;
 				double diff = ms_double.count() - sleepTime;
-				measureNextTick.SetName(string_format(L"OnReadSample scheduled wait for %.2f ms for next frame. Actual wait differed by: %.2f ms.", sleepTime, diff));
+				measureNextTick.SetName(string_format(L"OnReadSample scheduled delay for %.2f ms for next frame. Actual delay differed by: %.2f ms, with a total delay of", sleepTime, diff));
 			}
 		}
 	}

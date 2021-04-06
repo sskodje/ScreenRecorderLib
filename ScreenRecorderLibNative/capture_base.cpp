@@ -7,9 +7,9 @@
 using namespace DirectX;
 using namespace std::chrono;
 
-DWORD WINAPI OverlayProc(_In_ void* Param);
-HRESULT ReadMedia(reader_base &reader, OVERLAY_THREAD_DATA* pData);
-HRESULT ReadImage(OVERLAY_THREAD_DATA* pData);
+DWORD WINAPI OverlayProc(_In_ void *Param);
+HRESULT ReadMedia(reader_base &reader, OVERLAY_THREAD_DATA *pData);
+HRESULT ReadImage(OVERLAY_THREAD_DATA *pData);
 
 capture_base::capture_base() :
 	m_Device(nullptr),
@@ -44,7 +44,7 @@ capture_base::~capture_base()
 //
 // Initialize shaders for drawing to screen
 //
-HRESULT capture_base::Initialize(_In_ ID3D11DeviceContext* pDeviceContext, _In_ ID3D11Device* pDevice)
+HRESULT capture_base::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice)
 {
 	CleanDX();
 	m_Device = pDevice;
@@ -123,7 +123,7 @@ HRESULT capture_base::StartCapture(_In_ std::vector<RECORDING_SOURCE> sources, _
 	ResetEvent(m_TerminateThreadsEvent);
 
 	HRESULT hr;
-	std::vector<RECORDING_SOURCE_DATA*> CreatedOutputs{};
+	std::vector<RECORDING_SOURCE_DATA *> CreatedOutputs{};
 	RETURN_ON_BAD_HR(hr = CreateSharedSurf(sources, &CreatedOutputs, &m_OutputRect));
 	m_CaptureThreadCount = (UINT)(CreatedOutputs.size());
 	m_CaptureThreadHandles = new (std::nothrow) HANDLE[m_CaptureThreadCount]{};
@@ -203,7 +203,7 @@ HRESULT capture_base::StopCapture()
 	return S_OK;
 }
 
-HRESULT capture_base::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTURED_FRAME * pFrame)
+HRESULT capture_base::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame)
 {
 	HRESULT hr;
 	// Try to acquire keyed mutex in order to access shared surface
@@ -374,7 +374,7 @@ void capture_base::WaitForThreadTermination()
 	}
 }
 
-void capture_base::ConfigureVertices(_Inout_ VERTEX(&vertices)[NUMVERTICES], _In_ RECORDING_OVERLAY_DATA * pOverlay, _In_ FRAME_INFO * pFrameInfo, _In_opt_ DXGI_MODE_ROTATION rotation)
+void capture_base::ConfigureVertices(_Inout_ VERTEX(&vertices)[NUMVERTICES], _In_ RECORDING_OVERLAY_DATA *pOverlay, _In_ FRAME_INFO *pFrameInfo, _In_opt_ DXGI_MODE_ROTATION rotation)
 {
 	RECT backgroundRect = GetOutputRect();
 	LONG backgroundWidth = RectWidth(backgroundRect);
@@ -453,7 +453,7 @@ _Ret_maybenull_ CAPTURE_THREAD_DATA *capture_base::GetCaptureDataForRect(RECT re
 	return nullptr;
 }
 
-RECT capture_base::GetOverlayRect(_In_ RECT background, _In_ RECORDING_OVERLAY_DATA * pOverlay)
+RECT capture_base::GetOverlayRect(_In_ RECT background, _In_ RECORDING_OVERLAY_DATA *pOverlay)
 {
 	LONG backgroundWidth = RectWidth(background);
 	LONG backgroundHeight = RectHeight(background);
@@ -513,8 +513,8 @@ _Ret_maybenull_ HANDLE capture_base::GetSharedHandle()
 	HANDLE Hnd = nullptr;
 
 	// QI IDXGIResource interface to synchronized shared surface.
-	IDXGIResource* DXGIResource = nullptr;
-	HRESULT hr = m_SharedSurf->QueryInterface(__uuidof(IDXGIResource), reinterpret_cast<void**>(&DXGIResource));
+	IDXGIResource *DXGIResource = nullptr;
+	HRESULT hr = m_SharedSurf->QueryInterface(__uuidof(IDXGIResource), reinterpret_cast<void **>(&DXGIResource));
 	if (SUCCEEDED(hr))
 	{
 		// Obtain handle to IDXGIResource object.
@@ -573,9 +573,9 @@ UINT capture_base::GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCounts)
 	return updatedFrameCount;
 }
 
-HRESULT capture_base::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<RECORDING_SOURCE_DATA*> *pCreatedOutputs, _Out_ RECT * pDeskBounds)
+HRESULT capture_base::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds)
 {
-	*pCreatedOutputs = std::vector<RECORDING_SOURCE_DATA*>();
+	*pCreatedOutputs = std::vector<RECORDING_SOURCE_DATA *>();
 	std::vector<std::pair<RECORDING_SOURCE, RECT>> validOutputs;
 	HRESULT hr = GetOutputRectsForRecordingSources(sources, &validOutputs);
 	if (FAILED(hr)) {
@@ -637,7 +637,7 @@ HRESULT capture_base::CreateSharedSurf(_In_ RECT desktopRect)
 		return hr;
 	}
 	// Get keyed mutex
-	hr = m_SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void**>(&m_KeyMutex));
+	hr = m_SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&m_KeyMutex));
 	if (FAILED(hr))
 	{
 		LOG_ERROR(L"Failed to query for keyed mutex in OUTPUTMANAGER");
@@ -684,7 +684,7 @@ HRESULT capture_base::ProcessOverlays(_Inout_ ID3D11Texture2D *pBackgroundFrame,
 	return S_OK;
 }
 
-HRESULT capture_base::DrawOverlay(_Inout_ ID3D11Texture2D * pBackgroundFrame, _In_ RECORDING_OVERLAY_DATA * pOverlay)
+HRESULT capture_base::DrawOverlay(_Inout_ ID3D11Texture2D *pBackgroundFrame, _In_ RECORDING_OVERLAY_DATA *pOverlay)
 {
 	FRAME_INFO *pFrameInfo = pOverlay->FrameInfo;
 	if (!pFrameInfo || pFrameInfo->PtrFrameBuffer == nullptr || pFrameInfo->BufferSize == 0)
@@ -798,10 +798,10 @@ bool capture_base::IsSingleWindowCapture()
 	return m_CaptureThreadCount == 1 && m_CaptureThreadData[0].RecordingSource->WindowHandle;
 }
 
-DWORD WINAPI OverlayProc(_In_ void* Param) {
+DWORD WINAPI OverlayProc(_In_ void *Param) {
 	HRESULT hr = S_OK;
 	// Data passed in from thread creation
-	OVERLAY_THREAD_DATA* pData = reinterpret_cast<OVERLAY_THREAD_DATA*>(Param);
+	OVERLAY_THREAD_DATA *pData = reinterpret_cast<OVERLAY_THREAD_DATA *>(Param);
 
 	bool isExpectedError = false;
 	bool isUnexpectedError = false;
@@ -844,7 +844,7 @@ DWORD WINAPI OverlayProc(_In_ void* Param) {
 	return 0;
 }
 
-HRESULT ReadImage(OVERLAY_THREAD_DATA * pData) {
+HRESULT ReadImage(OVERLAY_THREAD_DATA *pData) {
 	RECORDING_OVERLAY_DATA *pOverlay = pData->RecordingOverlay;
 
 	CComPtr<IWICBitmapSource> pBitmap;
@@ -882,7 +882,7 @@ HRESULT ReadImage(OVERLAY_THREAD_DATA * pData) {
 	return hr;
 }
 
-HRESULT ReadMedia(reader_base & reader, OVERLAY_THREAD_DATA * pData) {
+HRESULT ReadMedia(reader_base &reader, OVERLAY_THREAD_DATA *pData) {
 	RECORDING_OVERLAY_DATA *pOverlay = pData->RecordingOverlay;
 	HRESULT	hr = reader.Initialize(&pOverlay->DxRes);
 	hr = reader.StartCapture(pOverlay->Source);
@@ -891,18 +891,18 @@ HRESULT ReadMedia(reader_base & reader, OVERLAY_THREAD_DATA * pData) {
 		return hr;
 	}
 	// D3D objects
-	ID3D11Texture2D* SharedSurf = nullptr;
-	IDXGIKeyedMutex* KeyMutex = nullptr;
+	ID3D11Texture2D *SharedSurf = nullptr;
+	IDXGIKeyedMutex *KeyMutex = nullptr;
 
 	// Obtain handle to sync shared Surface
-	hr = pOverlay->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&SharedSurf));
+	hr = pOverlay->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
 	if (FAILED(hr))
 	{
 		LOG_ERROR(L"Opening shared texture failed");
 		return hr;
 	}
 	ReleaseOnExit releaseSharedSurf(SharedSurf);
-	hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void**>(&KeyMutex));
+	hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&KeyMutex));
 	if (FAILED(hr))
 	{
 		LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");

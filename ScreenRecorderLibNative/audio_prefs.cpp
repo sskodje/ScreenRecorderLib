@@ -98,7 +98,7 @@ HRESULT get_default_device(IMMDevice **ppMMDevice, EDataFlow flow) {
 	hr = CoCreateInstance(
 		__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
 		__uuidof(IMMDeviceEnumerator),
-		(void**)&pMMDeviceEnumerator
+		(void **)&pMMDeviceEnumerator
 	);
 	if (FAILED(hr)) {
 		LOG_ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);
@@ -125,7 +125,7 @@ HRESULT CPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wstring
 	hr = CoCreateInstance(
 		__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
 		__uuidof(IMMDeviceEnumerator),
-		(void**)&pMMDeviceEnumerator
+		(void **)&pMMDeviceEnumerator
 	);
 	if (FAILED(hr)) {
 		LOG_ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);
@@ -211,7 +211,7 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 	hr = CoCreateInstance(
 		__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
 		__uuidof(IMMDeviceEnumerator),
-		(void**)&pMMDeviceEnumerator
+		(void **)&pMMDeviceEnumerator
 	);
 	if (FAILED(hr)) {
 		LOG_ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);

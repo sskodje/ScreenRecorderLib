@@ -55,8 +55,8 @@ HRESULT graphics_manager::Initialize(_In_ DX_RESOURCES *pData, _In_ winrt::Windo
 	m_DeviceContext->AddRef();
 
 	// Get DXGI device
-	IDXGIDevice* DxgiDevice = nullptr;
-	HRESULT hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void**>(&DxgiDevice));
+	IDXGIDevice *DxgiDevice = nullptr;
+	HRESULT hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void **>(&DxgiDevice));
 	if (FAILED(hr))
 	{
 		LOG_ERROR(L"Failed to QI for DXGI Device");
@@ -77,16 +77,16 @@ HRESULT graphics_manager::Initialize(_In_ DX_RESOURCES *pData, _In_ winrt::Windo
 	return S_OK;
 }
 
-HRESULT graphics_manager::ProcessFrame(_In_ GRAPHICS_FRAME_DATA* pData, _Inout_ ID3D11Texture2D* pSharedSurf, _In_ INT OffsetX, _In_  INT OffsetY, _In_ RECT &frameRect)
+HRESULT graphics_manager::ProcessFrame(_In_ GRAPHICS_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, _In_ INT OffsetX, _In_  INT OffsetY, _In_ RECT &frameRect)
 {
 	if (pData->IsIconic) {
 		BlankFrame(pSharedSurf, OffsetX, OffsetY);
 		return S_OK;
 	}
 
-	SIZE frameSize = SIZE{ RectWidth(frameRect), RectHeight(frameRect)};
+	SIZE frameSize = SIZE{ RectWidth(frameRect), RectHeight(frameRect) };
 	if (frameSize.cx < RectWidth(m_LastFrameRect)
-		|| frameSize.cy <RectHeight(m_LastFrameRect)) {
+		|| frameSize.cy < RectHeight(m_LastFrameRect)) {
 		BlankFrame(pSharedSurf, OffsetX, OffsetY);
 	}
 	D3D11_BOX Box;

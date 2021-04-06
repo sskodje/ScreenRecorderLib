@@ -128,7 +128,7 @@ std::vector<BYTE> internal_recorder::MixAudio(_In_ std::vector<BYTE> const &firs
 	for (size_t i = 0; i < newvector.size(); i += 2) {
 		short firstSample = first.size() > i + 1 ? static_cast<short>(first[i] | first[i + 1] << 8) : 0;
 		short secondSample = second.size() > i + 1 ? static_cast<short>(second[i] | second[i + 1] << 8) : 0;
-		auto out = reinterpret_cast<short*>(&newvector[i]);
+		auto out = reinterpret_cast<short *>(&newvector[i]);
 		int mixedSample = int(round((firstSample)*firstVolume + (secondSample)*secondVolume));
 		if (mixedSample > MAXSHORT) {
 			clipped = true;
@@ -491,7 +491,7 @@ void internal_recorder::SetRecordingCompleteStatus(_In_ HRESULT hr)
 	}
 }
 
-HRESULT internal_recorder::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_opt_ IStream * pStream)
+HRESULT internal_recorder::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_opt_ IStream *pStream)
 {
 	std::unique_ptr<loopback_capture> pLoopbackCaptureOutputDevice = nullptr;
 	std::unique_ptr<loopback_capture> pLoopbackCaptureInputDevice = nullptr;
@@ -638,8 +638,8 @@ HRESULT internal_recorder::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> 
 					}
 
 					CComPtr<IMFVideoProcessorControl> videoProcessor = nullptr;
-					GetVideoProcessor(m_SinkWriter, m_VideoStreamIndex, &videoProcessor);
-					if (videoProcessor) {
+					hr = GetVideoProcessor(m_SinkWriter, m_VideoStreamIndex, &videoProcessor);
+					if (SUCCEEDED(hr)) {
 						//The source rectangle is the portion of the input frame that is blitted to the destination surface.
 						videoProcessor->SetSourceRectangle(&videoInputFrameRect);
 						//The destination rectangle is the portion of the output surface where the source rectangle is blitted.
@@ -1064,8 +1064,8 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(
 	if (destWidth != sourceWidth || destHeight != sourceHeight) {
 
 		CComPtr<IMFVideoProcessorControl> videoProcessor = nullptr;
-		GetVideoProcessor(pSinkWriter, videoStreamIndex, &videoProcessor);
-		if (videoProcessor) {
+		HRESULT hr = GetVideoProcessor(pSinkWriter, videoStreamIndex, &videoProcessor);
+		if (SUCCEEDED(hr)) {
 			//The source rectangle is the portion of the input frame that is blitted to the destination surface.
 			videoProcessor->SetSourceRectangle(&destRect);
 			videoProcessor->SetRotation(ROTATION_NORMAL);
@@ -1234,9 +1234,9 @@ void internal_recorder::InitializeMouseClickDetection()
 }
 
 HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
-	_In_ IMFMediaType * pType,    // Pointer to an encoded video type.
-	_In_ const GUID & subtype,    // Uncompressed subtype (eg, RGB-32, AYUV)
-	_Outptr_ IMFMediaType * *ppType   // Receives a matching uncompressed video type.
+	_In_ IMFMediaType *pType,    // Pointer to an encoded video type.
+	_In_ const GUID &subtype,    // Uncompressed subtype (eg, RGB-32, AYUV)
+	_Outptr_ IMFMediaType **ppType   // Receives a matching uncompressed video type.
 )
 {
 	CComPtr<IMFMediaType> pTypeUncomp = nullptr;
@@ -1313,7 +1313,7 @@ HRESULT internal_recorder::DrawMousePointer(_In_ ID3D11Texture2D *frame, _In_ mo
 	return hr;
 }
 
-HRESULT internal_recorder::CropFrame(_In_ ID3D11Texture2D * frame, _In_ RECT destRect, _Outptr_ ID3D11Texture2D * *pCroppedFrame)
+HRESULT internal_recorder::CropFrame(_In_ ID3D11Texture2D *frame, _In_ RECT destRect, _Outptr_ ID3D11Texture2D **pCroppedFrame)
 {
 	D3D11_TEXTURE2D_DESC frameDesc;
 	frame->GetDesc(&frameDesc);
@@ -1357,7 +1357,7 @@ HRESULT internal_recorder::GetVideoProcessor(_In_ IMFSinkWriter *pSinkWriter, _I
 	return hr;
 }
 
-HRESULT internal_recorder::SetAttributeU32(_Inout_ CComPtr<ICodecAPI> &codec, _In_ const GUID & guid, _In_ UINT32 value)
+HRESULT internal_recorder::SetAttributeU32(_Inout_ CComPtr<ICodecAPI> &codec, _In_ const GUID &guid, _In_ UINT32 value)
 {
 	VARIANT val;
 	val.vt = VT_UI4;
@@ -1365,7 +1365,7 @@ HRESULT internal_recorder::SetAttributeU32(_Inout_ CComPtr<ICodecAPI> &codec, _I
 	return codec->SetValue(&guid, &val);
 }
 
-HRESULT internal_recorder::RenderFrame(_In_ FrameWriteModel & model) {
+HRESULT internal_recorder::RenderFrame(_In_ FrameWriteModel &model) {
 	HRESULT hr(S_OK);
 
 	if (m_RecorderMode == MODE_VIDEO) {
@@ -1473,7 +1473,7 @@ std::string internal_recorder::CurrentTimeToFormattedString()
 	std::replace(time.begin(), time.end(), ':', '-');
 	return time;
 }
-HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D * pAcquiredDesktopImage, _In_ std::wstring filePath)
+HRESULT internal_recorder::WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath)
 {
 	return SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage, m_ImageEncoderFormat, filePath.c_str());
 }
@@ -1500,7 +1500,7 @@ void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D *pAcquiredDe
 					}
 					// if .get() didn't throw and the HRESULT succeeded, there are no errors.
 				}
-				catch (const exception & e) {
+				catch (const exception &e) {
 					// handle error
 					LOG_ERROR(L"Exception saving snapshot: %s", e.what());
 				}
@@ -1538,7 +1538,7 @@ HRESULT internal_recorder::TakeSnapshotsWithVideo(_In_ ID3D11Texture2D *frame, _
 	return hr;
 }
 
-HRESULT internal_recorder::WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ ID3D11Texture2D * pAcquiredDesktopImage)
+HRESULT internal_recorder::WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ ID3D11Texture2D *pAcquiredDesktopImage)
 {
 	IMFMediaBuffer *pMediaBuffer;
 	HRESULT hr = MFCreateDXGISurfaceBuffer(__uuidof(ID3D11Texture2D), pAcquiredDesktopImage, 0, FALSE, &pMediaBuffer);
@@ -1583,7 +1583,7 @@ HRESULT internal_recorder::WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT6
 	SafeRelease(&pMediaBuffer);
 	return hr;
 }
-HRESULT internal_recorder::WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE * pSrc, _In_ DWORD cbData)
+HRESULT internal_recorder::WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE *pSrc, _In_ DWORD cbData)
 {
 	IMFMediaBuffer *pBuffer = nullptr;
 	BYTE *pData = nullptr;

@@ -12,11 +12,11 @@ namespace {
 		return g_WIC2;
 	}
 
-	IWICImagingFactory* _GetWIC()
+	IWICImagingFactory *_GetWIC()
 	{
 		static INIT_ONCE s_initOnce = INIT_ONCE_STATIC_INIT;
 
-		IWICImagingFactory* factory = nullptr;
+		IWICImagingFactory *factory = nullptr;
 		InitOnceExecuteOnce(&s_initOnce,
 			[](PINIT_ONCE, PVOID, PVOID *factory) -> BOOL
 			{
@@ -54,7 +54,7 @@ namespace {
 					__uuidof(IWICImagingFactory),
 					factory)) ? TRUE : FALSE;
 #endif
-			}, nullptr, reinterpret_cast<LPVOID*>(&factory));
+			}, nullptr, reinterpret_cast<LPVOID *>(&factory));
 
 		return factory;
 	}
@@ -89,10 +89,10 @@ namespace {
 	}
 
 	//--------------------------------------------------------------------------------------
-	HRESULT CaptureTexture(_In_ ID3D11DeviceContext* pContext,
-		_In_ ID3D11Resource* pSource,
-		D3D11_TEXTURE2D_DESC& desc,
-		CComPtr<ID3D11Texture2D>& pStaging)
+	HRESULT CaptureTexture(_In_ ID3D11DeviceContext *pContext,
+		_In_ ID3D11Resource *pSource,
+		D3D11_TEXTURE2D_DESC &desc,
+		CComPtr<ID3D11Texture2D> &pStaging)
 	{
 		if (!pContext || !pSource)
 			return E_INVALIDARG;
@@ -186,12 +186,12 @@ namespace {
 } // anonymous namespace
 
 HRESULT __cdecl SaveWICTextureToFile(
-	_In_ ID3D11DeviceContext* pContext,
-	_In_ ID3D11Resource* pSource,
+	_In_ ID3D11DeviceContext *pContext,
+	_In_ ID3D11Resource *pSource,
 	_In_ REFGUID guidContainerFormat,
-	_In_z_ const wchar_t* filePath,
-	_In_opt_ const GUID* targetFormat,
-	_In_opt_ std::function<void(IPropertyBag2*)> setCustomProps)
+	_In_z_ const wchar_t *filePath,
+	_In_opt_ const GUID *targetFormat,
+	_In_opt_ std::function<void(IPropertyBag2 *)> setCustomProps)
 {
 	if (!filePath)
 		return E_INVALIDARG;
@@ -284,7 +284,7 @@ HRESULT __cdecl SaveWICTextureToFile(
 	{
 		// Opt-in to the WIC2 support for writing 32-bit Windows BMP files with an alpha channel
 		PROPBAG2 option = {};
-		option.pstrName = const_cast<wchar_t*>(L"EnableV5Header32bppBGRA");
+		option.pstrName = const_cast<wchar_t *>(L"EnableV5Header32bppBGRA");
 
 		VARIANT varValue;
 		varValue.vt = VT_BOOL;
@@ -370,7 +370,7 @@ HRESULT __cdecl SaveWICTextureToFile(
 		PropVariantInit(&value);
 
 		value.vt = VT_LPSTR;
-		value.pszVal = const_cast<char*>("DirectXTK");
+		value.pszVal = const_cast<char *>("DirectXTK");
 
 		if (memcmp(&guidContainerFormat, &GUID_ContainerFormatPng, sizeof(GUID)) == 0)
 		{
@@ -411,7 +411,7 @@ HRESULT __cdecl SaveWICTextureToFile(
 		CComPtr<IWICBitmap> source;
 		hr = pWIC->CreateBitmapFromMemory(desc.Width, desc.Height, pfGuid,
 			mapped.RowPitch, mapped.RowPitch * desc.Height,
-			reinterpret_cast<BYTE*>(mapped.pData), &source);
+			reinterpret_cast<BYTE *>(mapped.pData), &source);
 		if (FAILED(hr))
 		{
 			pContext->Unmap(pStaging, 0);
@@ -451,7 +451,7 @@ HRESULT __cdecl SaveWICTextureToFile(
 	else
 	{
 		// No conversion required
-		hr = frame->WritePixels(desc.Height, mapped.RowPitch, mapped.RowPitch * desc.Height, reinterpret_cast<BYTE*>(mapped.pData));
+		hr = frame->WritePixels(desc.Height, mapped.RowPitch, mapped.RowPitch * desc.Height, reinterpret_cast<BYTE *>(mapped.pData));
 		if (FAILED(hr))
 			return hr;
 	}
@@ -471,7 +471,7 @@ HRESULT __cdecl SaveWICTextureToFile(
 	return S_OK;
 }
 
-HRESULT CreateWICBitmapFromFile(_In_z_ const wchar_t* filePath, _In_ const GUID targetFormat, _Outptr_ IWICBitmapSource **ppIWICBitmapSource)
+HRESULT CreateWICBitmapFromFile(_In_z_ const wchar_t *filePath, _In_ const GUID targetFormat, _Outptr_ IWICBitmapSource **ppIWICBitmapSource)
 {
 	HRESULT hr = S_OK;
 	if (ppIWICBitmapSource) {

@@ -16,7 +16,7 @@ public:
 	virtual HRESULT StartCapture(_In_ std::wstring source) override;
 	virtual HRESULT StopCapture();
 	virtual HRESULT GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int timeoutMs) override;
-	virtual HRESULT Initialize(_In_ DX_RESOURCES* Data) override;
+	virtual HRESULT Initialize(_In_ DX_RESOURCES *Data) override;
 
 private:
 	enum DISPOSAL_METHODS
@@ -28,7 +28,7 @@ private:
 	};
 	HRESULT Initialize();
 	HRESULT CreateDeviceResources();
-	HRESULT ResizeFrameBuffer(FRAME_INFO* FrameInfo, int bufferSize);
+	HRESULT ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize);
 
 	HRESULT GetRawFrame(UINT uFrameIndex);
 	HRESULT GetGlobalMetadata();
@@ -63,16 +63,16 @@ private:
 	LARGE_INTEGER m_LastGrabTimeStamp;
 
 
-	ID3D11Texture2D            *m_RenderTexture;
-	ID2D1Factory               *m_pD2DFactory;
-	ID2D1BitmapRenderTarget    *m_pFrameComposeRT;
-	ID2D1RenderTarget          *m_RenderTarget;
-	ID2D1Bitmap                *m_pRawFrame;
-	ID2D1Bitmap                *m_pSavedFrame;          // The temporary bitmap used for disposal 3 method
+	ID3D11Texture2D *m_RenderTexture;
+	ID2D1Factory *m_pD2DFactory;
+	ID2D1BitmapRenderTarget *m_pFrameComposeRT;
+	ID2D1RenderTarget *m_RenderTarget;
+	ID2D1Bitmap *m_pRawFrame;
+	ID2D1Bitmap *m_pSavedFrame;          // The temporary bitmap used for disposal 3 method
 	D2D1_COLOR_F                m_backgroundColor;
 
-	IWICImagingFactory         *m_pIWICFactory;
-	IWICBitmapDecoder          *m_pDecoder;
+	IWICImagingFactory *m_pIWICFactory;
+	IWICBitmapDecoder *m_pDecoder;
 
 	UINT    m_uNextFrameIndex;
 	UINT    m_uTotalLoopCount;  // The number of loops for which the animation will be played

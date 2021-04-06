@@ -56,7 +56,7 @@ struct WWMFPcmFormat {
 /// WWMFSampleData contains new[] ed byte buffer pointer(data) and buffer size(bytes).
 struct WWMFSampleData {
 	DWORD  bytes;
-	BYTE  *data;
+	BYTE *data;
 
 	WWMFSampleData(void) : bytes(0), data(NULL) { }
 

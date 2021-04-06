@@ -37,7 +37,7 @@ HRESULT device_capture::InitializeSourceReader(
 	LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"InitializeSourceReader device capture");
 	UINT32 count = 0;
 	IMFActivate **ppDevices = NULL;
-	ReleaseCOMArrayOnExit releaseDevicesOnExit((IUnknown**)ppDevices, count);
+	ReleaseCOMArrayOnExit releaseDevicesOnExit((IUnknown **)ppDevices, count);
 	// Create an attribute store to specify enumeration parameters.
 	RETURN_ON_BAD_HR(hr = MFCreateAttributes(&pAttributes, 1));
 
@@ -101,7 +101,7 @@ HRESULT device_capture::InitializeMediaSource(
 	CComPtr<IMFAttributes> attributes = nullptr;
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection);
-	HRESULT hr = pDevice->ActivateObject(__uuidof(IMFMediaSource), (void**)&source);
+	HRESULT hr = pDevice->ActivateObject(__uuidof(IMFMediaSource), (void **)&source);
 
 	//Allocate attributes
 	if (SUCCEEDED(hr))

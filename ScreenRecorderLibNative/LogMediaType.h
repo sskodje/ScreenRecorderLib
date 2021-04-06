@@ -11,12 +11,12 @@
 #endif
 
 //extern int logSeverityLevel;
-LPCWSTR GetGUIDNameConst(const GUID& guid);
-HRESULT GetGUIDName(const GUID& guid, WCHAR **ppwsz);
+LPCWSTR GetGUIDNameConst(const GUID &guid);
+HRESULT GetGUIDName(const GUID &guid, WCHAR **ppwsz);
 
 HRESULT LogAttributeValueByIndex(IMFAttributes *pAttr, DWORD index);
-HRESULT SpecialCaseAttributeValue(GUID guid, const PROPVARIANT& var);
+HRESULT SpecialCaseAttributeValue(GUID guid, const PROPVARIANT &var);
 
 void DBGMSG(PCWSTR format, ...);
 
-HRESULT LogMediaType(IMFMediaType * pType);
+HRESULT LogMediaType(IMFMediaType *pType);

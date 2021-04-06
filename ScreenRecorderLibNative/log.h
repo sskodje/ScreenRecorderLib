@@ -47,8 +47,8 @@ inline  void _log(int logLvl, PCWSTR format, ...) {
 	}
 }
 
-constexpr const char* file_name(const char* path) {
-	const char* file = path;
+constexpr const char *file_name(const char *path) {
+	const char *file = path;
 	while (*path) {
 		if (*path++ == '\\') {
 			file = path;

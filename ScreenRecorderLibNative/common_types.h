@@ -13,7 +13,7 @@
 //
 struct PTR_INFO
 {
-	_Field_size_bytes_(BufferSize) BYTE* PtrShapeBuffer;
+	_Field_size_bytes_(BufferSize) BYTE *PtrShapeBuffer;
 	DXGI_OUTDUPL_POINTER_SHAPE_INFO ShapeInfo;
 	POINT Position;
 	bool Visible;
@@ -28,7 +28,7 @@ struct PTR_INFO
 //
 struct FRAME_INFO
 {
-	_Field_size_bytes_(BufferSize) BYTE* PtrFrameBuffer;
+	_Field_size_bytes_(BufferSize) BYTE *PtrFrameBuffer;
 	UINT BufferSize;
 	LONG Stride;
 	UINT Width;
@@ -50,9 +50,9 @@ struct VERTEX
 //
 struct DUPL_FRAME_DATA
 {
-	ID3D11Texture2D* Frame;
+	ID3D11Texture2D *Frame;
 	DXGI_OUTDUPL_FRAME_INFO FrameInfo;
-	_Field_size_bytes_((MoveCount * sizeof(DXGI_OUTDUPL_MOVE_RECT)) + (DirtyCount * sizeof(RECT))) BYTE* MetaData;
+	_Field_size_bytes_((MoveCount * sizeof(DXGI_OUTDUPL_MOVE_RECT)) + (DirtyCount * sizeof(RECT))) BYTE *MetaData;
 	UINT DirtyCount;
 	UINT MoveCount;
 };
@@ -62,7 +62,7 @@ struct DUPL_FRAME_DATA
 //
 struct GRAPHICS_FRAME_DATA
 {
-	ID3D11Texture2D* Frame;
+	ID3D11Texture2D *Frame;
 	SIZE ContentSize;
 	bool IsIconic;
 };
@@ -72,8 +72,8 @@ struct GRAPHICS_FRAME_DATA
 //
 struct DX_RESOURCES
 {
-	ID3D11Device* Device;
-	ID3D11DeviceContext* Context;
+	ID3D11Device *Device;
+	ID3D11DeviceContext *Context;
 };
 
 //
@@ -81,8 +81,8 @@ struct DX_RESOURCES
 //
 struct CAPTURED_FRAME
 {
-	PTR_INFO* PtrInfo;
-	ID3D11Texture2D* Frame;
+	PTR_INFO *PtrInfo;
+	ID3D11Texture2D *Frame;
 	//The number of updates written to the current frame since last fetch.
 	int FrameUpdateCount;
 	//The number of updates written to the frame overlays since last fetch.
@@ -119,7 +119,7 @@ struct RECORDING_SOURCE
 		Type(SourceType::Monitor),
 		IsCursorCaptureEnabled(false) {}
 
-	RECORDING_SOURCE(const RECORDING_SOURCE& source) :
+	RECORDING_SOURCE(const RECORDING_SOURCE &source) :
 		CaptureDevice(source.CaptureDevice),
 		WindowHandle(source.WindowHandle),
 		Type(source.Type),
@@ -154,7 +154,7 @@ struct RECORDING_OVERLAY
 		Size(SIZE()),
 		Anchor(OverlayAnchor::BottomLeft) {}
 
-	RECORDING_OVERLAY(const RECORDING_OVERLAY& overlay) :
+	RECORDING_OVERLAY(const RECORDING_OVERLAY &overlay) :
 		Source(overlay.Source),
 		Type(overlay.Type),
 		Offset(overlay.Offset),
@@ -197,7 +197,7 @@ struct CAPTURE_THREAD_DATA :THREAD_DATA_BASE
 	INT UpdatedFrameCountSinceLastWrite{};
 	INT64 TotalUpdatedFrameCount{};
 	RECT ContentFrameRect{};
-	PTR_INFO* PtrInfo{};
+	PTR_INFO *PtrInfo{};
 };
 
 //

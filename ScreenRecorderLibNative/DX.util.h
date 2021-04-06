@@ -5,10 +5,10 @@ HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_
 HRESULT GetMainOutput(_Outptr_result_maybenull_ IDXGIOutput **ppOutput);
 HRESULT GetOutputDescsForDeviceNames(_In_ std::vector<std::wstring> deviceNames, _Out_ std::vector<DXGI_OUTPUT_DESC> *pOutputDescs);
 HRESULT GetOutputRectsForRecordingSources(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<std::pair<RECORDING_SOURCE, RECT>> *outputs);
-void EnumOutputs(_Out_ std::vector<IDXGIOutput*> *pOutputs);
+void EnumOutputs(_Out_ std::vector<IDXGIOutput *> *pOutputs);
 void GetCombinedRects(_In_ std::vector<RECT> inputs, _Out_ RECT *pOutRect, _Out_opt_ std::vector<SIZE> *pOffsets);
 std::wstring GetMonitorName(HMONITOR monitor);
-std::vector<IDXGIAdapter*> EnumDisplayAdapters();
-void CleanDx(_Inout_ DX_RESOURCES* Data);
+std::vector<IDXGIAdapter *> EnumDisplayAdapters();
+void CleanDx(_Inout_ DX_RESOURCES *Data);
 void SetViewPort(_In_ ID3D11DeviceContext *deviceContext, _In_ UINT Width, _In_ UINT Height);
 void SetDebugName(_In_ ID3D11DeviceChild *child, _In_ const std::string &name);

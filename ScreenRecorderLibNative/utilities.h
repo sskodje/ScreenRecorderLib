@@ -51,7 +51,7 @@
     } \
 }
 
-inline std::wstring s2ws(const std::string& str)
+inline std::wstring s2ws(const std::string &str)
 {
 	if (str.empty()) return std::wstring();
 	int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
@@ -59,7 +59,7 @@ inline std::wstring s2ws(const std::string& str)
 	MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
 	return wstrTo;
 }
-inline std::string ws2s(const std::wstring& wstr)
+inline std::string ws2s(const std::wstring &wstr)
 {
 	if (wstr.empty()) return std::string();
 	int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
@@ -166,25 +166,25 @@ inline ImageFileType getImageTypeByMagic(const char *data)
 	switch (data[0])
 	{
 	case '\xFF':
-		return (!strncmp((const char*)data, "\xFF\xD8\xFF", 3)) ?
+		return (!strncmp((const char *)data, "\xFF\xD8\xFF", 3)) ?
 			ImageFileType::IMAGE_FILE_JPG : ImageFileType::IMAGE_FILE_INVALID;
 
 	case '\x89':
-		return (!strncmp((const char*)data,
+		return (!strncmp((const char *)data,
 			"\x89\x50\x4E\x47\x0D\x0A\x1A\x0A", 8)) ?
 			ImageFileType::IMAGE_FILE_PNG : ImageFileType::IMAGE_FILE_INVALID;
 
 	case 'G':
-		return (!strncmp((const char*)data, "GIF87a", 6) ||
-			!strncmp((const char*)data, "GIF89a", 6)) ?
+		return (!strncmp((const char *)data, "GIF87a", 6) ||
+			!strncmp((const char *)data, "GIF89a", 6)) ?
 			ImageFileType::IMAGE_FILE_GIF : ImageFileType::IMAGE_FILE_INVALID;
 
 	case 'I':
-		return (!strncmp((const char*)data, "\x49\x49\x2A\x00", 4)) ?
+		return (!strncmp((const char *)data, "\x49\x49\x2A\x00", 4)) ?
 			ImageFileType::IMAGE_FILE_TIFF : ImageFileType::IMAGE_FILE_INVALID;
 
 	case 'M':
-		return (!strncmp((const char*)data, "\x4D\x4D\x00\x2A", 4)) ?
+		return (!strncmp((const char *)data, "\x4D\x4D\x00\x2A", 4)) ?
 			ImageFileType::IMAGE_FILE_TIFF : ImageFileType::IMAGE_FILE_INVALID;
 
 	case 'B':
@@ -192,16 +192,16 @@ inline ImageFileType getImageTypeByMagic(const char *data)
 			ImageFileType::IMAGE_FILE_BMP : ImageFileType::IMAGE_FILE_INVALID;
 
 	case 'R':
-		if (strncmp((const char*)data, "RIFF", 4))
+		if (strncmp((const char *)data, "RIFF", 4))
 			return ImageFileType::IMAGE_FILE_INVALID;
-		if (strncmp((const char*)(data + 8), "WEBP", 4))
+		if (strncmp((const char *)(data + 8), "WEBP", 4))
 			return ImageFileType::IMAGE_FILE_INVALID;
 		return ImageFileType::IMAGE_FILE_WEBP;
 
 	case '\0':
-		if (!strncmp((const char*)data, "\x00\x00\x01\x00", 4))
+		if (!strncmp((const char *)data, "\x00\x00\x01\x00", 4))
 			return ImageFileType::IMAGE_FILE_ICO;
-		if (!strncmp((const char*)data, "\x00\x00\x02\x00", 4))
+		if (!strncmp((const char *)data, "\x00\x00\x02\x00", 4))
 			return ImageFileType::IMAGE_FILE_ICO;
 		return ImageFileType::IMAGE_FILE_INVALID;
 
@@ -212,7 +212,7 @@ inline ImageFileType getImageTypeByMagic(const char *data)
 
 inline std::string ReadFileSignature(std::wstring filePath) {
 	char buffer[16]; // Buffer to store data
-	FILE * stream;
+	FILE *stream;
 	_wfopen_s(&stream, filePath.c_str(), L"r");
 	size_t count = fread(&buffer, sizeof(char), 16, stream);
 	fclose(stream);

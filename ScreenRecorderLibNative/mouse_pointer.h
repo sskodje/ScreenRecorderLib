@@ -18,7 +18,7 @@ public:
 
 	HRESULT DrawMousePointer(_In_ PTR_INFO *PtrInfo, _Inout_ ID3D11Texture2D *bgTexture, DXGI_MODE_ROTATION rotation);
 	HRESULT DrawMouseClick(_In_ PTR_INFO *PtrInfo, _In_ ID3D11Texture2D *bgTexture, std::string colorStr, float radius, DXGI_MODE_ROTATION rotation);
-	HRESULT GetMouse(_Inout_ PTR_INFO *PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO *FrameInfo, RECT screenRect, IDXGIOutputDuplication* DeskDupl, int offsetX, int offsetY);
+	HRESULT GetMouse(_Inout_ PTR_INFO *PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO *FrameInfo, RECT screenRect, IDXGIOutputDuplication *DeskDupl, int offsetX, int offsetY);
 	HRESULT GetMouse(_Inout_ PTR_INFO *PtrInfo, bool getShapeBuffer, int offsetX, int offsetY);
 	void CleanDX();
 private:
@@ -41,9 +41,9 @@ private:
 
 	long ParseColorString(std::string color);
 	void GetPointerPosition(_In_ PTR_INFO *PtrInfo, DXGI_MODE_ROTATION rotation, int desktopWidth, int desktopHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop);
-	HRESULT ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, DXGI_MODE_ROTATION rotation, bool IsMono, _Inout_ PTR_INFO* PtrInfo, _Out_ INT* PtrWidth, _Out_ INT* PtrHeight, _Out_ INT* PtrLeft, _Out_ INT* PtrTop, _Outptr_result_bytebuffer_(*PtrHeight * *PtrWidth * BPP) BYTE** InitBuffer, _Out_ D3D11_BOX* Box);
+	HRESULT ProcessMonoMask(_In_ ID3D11Texture2D *bgTexture, DXGI_MODE_ROTATION rotation, bool IsMono, _Inout_ PTR_INFO *PtrInfo, _Out_ INT *PtrWidth, _Out_ INT *PtrHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop, _Outptr_result_bytebuffer_(*PtrHeight **PtrWidth *BPP) BYTE **InitBuffer, _Out_ D3D11_BOX *Box);
 	HRESULT InitShaders(ID3D11DeviceContext *DeviceContext, ID3D11Device *Device);
 	HRESULT InitMouseClickTexture(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device);
-	HRESULT ResizeShapeBuffer(PTR_INFO* PtrInfo, int bufferSize);
+	HRESULT ResizeShapeBuffer(PTR_INFO *PtrInfo, int bufferSize);
 };
 

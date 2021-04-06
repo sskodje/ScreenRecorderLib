@@ -6,7 +6,7 @@
 class highres_timer
 {
 public:
-	 highres_timer();
+	highres_timer();
 	~highres_timer();
 	inline HANDLE GetTickEvent() { return m_TickEvent; }
 	HRESULT StartRecurringTimer(UINT msInterval);

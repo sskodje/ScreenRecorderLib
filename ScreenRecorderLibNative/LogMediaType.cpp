@@ -106,7 +106,7 @@ done:
 	return hr;
 }
 
-HRESULT GetGUIDName(const GUID& guid, WCHAR **ppwsz)
+HRESULT GetGUIDName(const GUID &guid, WCHAR **ppwsz)
 {
 	HRESULT hr = S_OK;
 	WCHAR *pName = NULL;
@@ -122,7 +122,7 @@ HRESULT GetGUIDName(const GUID& guid, WCHAR **ppwsz)
 			goto done;
 		}
 
-		pName = (WCHAR*)CoTaskMemAlloc((cchLength + 1) * sizeof(WCHAR));
+		pName = (WCHAR *)CoTaskMemAlloc((cchLength + 1) * sizeof(WCHAR));
 
 		if (pName == NULL)
 		{
@@ -154,26 +154,26 @@ done:
 	return hr;
 }
 
-void LogUINT32AsUINT64(const PROPVARIANT& var)
+void LogUINT32AsUINT64(const PROPVARIANT &var)
 {
 	UINT32 uHigh = 0, uLow = 0;
 	Unpack2UINT32AsUINT64(var.uhVal.QuadPart, &uHigh, &uLow);
 	DBGMSG(L"%d x %d", uHigh, uLow);
 }
 
-float OffsetToFloat(const MFOffset& offset)
+float OffsetToFloat(const MFOffset &offset)
 {
 	return offset.value + (static_cast<float>(offset.fract) / 65536.0f);
 }
 
-HRESULT LogVideoArea(const PROPVARIANT& var)
+HRESULT LogVideoArea(const PROPVARIANT &var)
 {
 	if (var.caub.cElems < sizeof(MFVideoArea))
 	{
 		return MF_E_BUFFERTOOSMALL;
 	}
 
-	MFVideoArea *pArea = (MFVideoArea*)var.caub.pElems;
+	MFVideoArea *pArea = (MFVideoArea *)var.caub.pElems;
 
 	DBGMSG(L"(%f,%f) (%d,%d)", OffsetToFloat(pArea->OffsetX), OffsetToFloat(pArea->OffsetY),
 		pArea->Area.cx, pArea->Area.cy);
@@ -181,7 +181,7 @@ HRESULT LogVideoArea(const PROPVARIANT& var)
 }
 
 // Handle certain known special cases.
-HRESULT SpecialCaseAttributeValue(GUID guid, const PROPVARIANT& var)
+HRESULT SpecialCaseAttributeValue(GUID guid, const PROPVARIANT &var)
 {
 	if ((guid == MF_MT_FRAME_RATE) || (guid == MF_MT_FRAME_RATE_RANGE_MAX) ||
 		(guid == MF_MT_FRAME_RATE_RANGE_MIN) || (guid == MF_MT_FRAME_SIZE) ||
@@ -207,21 +207,21 @@ HRESULT SpecialCaseAttributeValue(GUID guid, const PROPVARIANT& var)
 void DBGMSG(PCWSTR format, ...)
 {
 	if (LOG_LVL_TRACE >= logSeverityLevel) {
-	va_list args;
-	va_start(args, format);
+		va_list args;
+		va_start(args, format);
 
-	WCHAR msg[MAX_PATH];
+		WCHAR msg[MAX_PATH];
 
-	if (SUCCEEDED(StringCbVPrintf(msg, sizeof(msg), format, args)))
-	{
-		OutputDebugString(msg);
-	}
+		if (SUCCEEDED(StringCbVPrintf(msg, sizeof(msg), format, args)))
+		{
+			OutputDebugString(msg);
+		}
 	}
 }
 
 
 
-LPCWSTR GetGUIDNameConst(const GUID& guid)
+LPCWSTR GetGUIDNameConst(const GUID &guid)
 {
 	IF_EQUAL_RETURN(guid, MF_MT_MAJOR_TYPE);
 	IF_EQUAL_RETURN(guid, MF_MT_MAJOR_TYPE);

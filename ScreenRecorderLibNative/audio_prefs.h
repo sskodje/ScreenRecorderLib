@@ -15,5 +15,5 @@ public:
 	CPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow);
 	~CPrefs();
 	// writes all found devices for chosen flow into devices
-	static HRESULT list_devices(EDataFlow flow, std::map<std::wstring, std::wstring>* devices);
+	static HRESULT list_devices(EDataFlow flow, std::map<std::wstring, std::wstring> *devices);
 };

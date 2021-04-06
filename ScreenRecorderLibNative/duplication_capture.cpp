@@ -4,7 +4,7 @@
 #include "cleanup.h"
 #include "mouse_pointer.h"
 using namespace std::chrono;
-DWORD WINAPI CaptureThreadProc(_In_ void* Param);
+DWORD WINAPI CaptureThreadProc(_In_ void *Param);
 
 duplication_capture::duplication_capture() :
 	capture_base()
@@ -25,7 +25,7 @@ LPTHREAD_START_ROUTINE duplication_capture::GetCaptureThreadProc()
 //
 // Entry point for new duplication threads
 //
-DWORD WINAPI CaptureThreadProc(_In_ void* Param)
+DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 {
 	HRESULT hr = S_OK;
 
@@ -34,14 +34,14 @@ DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 	mouse_pointer pMousePointer{};
 
 	// D3D objects
-	ID3D11Texture2D* SharedSurf = nullptr;
-	IDXGIKeyedMutex* KeyMutex = nullptr;
+	ID3D11Texture2D *SharedSurf = nullptr;
+	IDXGIKeyedMutex *KeyMutex = nullptr;
 
 	bool isExpectedError = false;
 	bool isUnexpectedError = false;
 
 	// Data passed in from thread creation
-	CAPTURE_THREAD_DATA* pData = reinterpret_cast<CAPTURE_THREAD_DATA*>(Param);
+	CAPTURE_THREAD_DATA *pData = reinterpret_cast<CAPTURE_THREAD_DATA *>(Param);
 
 	// Get desktop
 	HDESK CurrentDesktop = nullptr;
@@ -70,14 +70,14 @@ DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 	//This scope must be here for ReleaseOnExit to work.
 	{
 		// Obtain handle to sync shared Surface
-		hr = pSource->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&SharedSurf));
+		hr = pSource->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
 		if (FAILED(hr))
 		{
 			LOG_ERROR(L"Opening shared texture failed");
 			goto Exit;
 		}
 		ReleaseOnExit releaseSharedSurf(SharedSurf);
-		hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void**>(&KeyMutex));
+		hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&KeyMutex));
 		if (FAILED(hr))
 		{
 			LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");

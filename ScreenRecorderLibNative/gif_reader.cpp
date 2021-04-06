@@ -94,7 +94,7 @@ HRESULT gif_reader::StopCapture()
 	return S_OK;
 }
 
-HRESULT gif_reader::GetFrame(FRAME_INFO * pFrameInfo, int timeoutMs)
+HRESULT gif_reader::GetFrame(FRAME_INFO *pFrameInfo, int timeoutMs)
 {
 	DWORD result = WaitForSingleObject(m_NewFrameEvent, timeoutMs);
 	HRESULT hr;
@@ -112,7 +112,7 @@ HRESULT gif_reader::GetFrame(FRAME_INFO * pFrameInfo, int timeoutMs)
 		m_DeviceContext->CopyResource(pStagingTexture, m_RenderTexture);
 		D3D11_MAPPED_SUBRESOURCE mapped;
 		RETURN_ON_BAD_HR(hr = m_DeviceContext->Map(pStagingTexture, 0, D3D11_MAP_READ, 0, &mapped));
-		auto data = (BYTE*)mapped.pData;
+		auto data = (BYTE *)mapped.pData;
 		auto stride = mapped.RowPitch;
 		UINT len = m_cyGifImagePixel * stride;
 		if (FAILED(hr))
@@ -129,7 +129,7 @@ HRESULT gif_reader::GetFrame(FRAME_INFO * pFrameInfo, int timeoutMs)
 			hr = MFCopyImage(
 				pFrameInfo->PtrFrameBuffer,       // Destination buffer.
 				stride,                    // Destination stride. We use the absolute value to flip bitmaps with negative stride. 
-				stride > 0 ? (BYTE*)data : (BYTE*)data + (m_cyGifImagePixel - 1) * stride, // First row in source image with positive stride, or the last row with negative stride.
+				stride > 0 ? (BYTE *)data : (BYTE *)data + (m_cyGifImagePixel - 1) * stride, // First row in source image with positive stride, or the last row with negative stride.
 				stride,						  // Source stride.
 				round(bytesPerPixel * m_cxGifImagePixel),	      // Image width in bytes.
 				m_cyGifImagePixel						  // Image height in pixels.
@@ -155,7 +155,7 @@ HRESULT gif_reader::GetFrame(FRAME_INFO * pFrameInfo, int timeoutMs)
 	return hr;
 }
 
-HRESULT gif_reader::ResizeFrameBuffer(FRAME_INFO* FrameInfo, int bufferSize) {
+HRESULT gif_reader::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize) {
 	// Old buffer too small
 	if (bufferSize > (int)FrameInfo->BufferSize)
 	{
@@ -178,7 +178,7 @@ HRESULT gif_reader::ResizeFrameBuffer(FRAME_INFO* FrameInfo, int bufferSize) {
 	return S_OK;
 }
 
-HRESULT gif_reader::Initialize(_In_ DX_RESOURCES * Data)
+HRESULT gif_reader::Initialize(_In_ DX_RESOURCES *Data)
 {
 	m_Device = Data->Device;
 	m_DeviceContext = Data->Context;
@@ -193,7 +193,7 @@ HRESULT gif_reader::Initialize()
 	HRESULT hr = S_OK;
 	if (!m_pD2DFactory) {
 		// Create D2D factory
-		RETURN_ON_BAD_HR(hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), (void**)&m_pD2DFactory));
+		RETURN_ON_BAD_HR(hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), (void **)&m_pD2DFactory));
 	}
 	if (!m_pIWICFactory) {
 		// Create WIC factory
@@ -241,7 +241,7 @@ HRESULT gif_reader::CreateDeviceResources()
 		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &m_RenderTexture));
 
 		ATL::CComPtr<IDXGISurface> pSharedSurface;
-		RETURN_ON_BAD_HR(hr = m_RenderTexture->QueryInterface(__uuidof(IDXGISurface), (void**)&pSharedSurface));
+		RETURN_ON_BAD_HR(hr = m_RenderTexture->QueryInterface(__uuidof(IDXGISurface), (void **)&pSharedSurface));
 		RETURN_ON_BAD_HR(hr = m_pD2DFactory->CreateDxgiSurfaceRenderTarget(pSharedSurface, RenderTargetProperties, &m_RenderTarget));
 
 

@@ -8,7 +8,7 @@ public:
 	virtual ~video_reader();
 protected:
 	virtual HRESULT InitializeSourceReader(
-		_In_ std::wstring filePath, 
+		_In_ std::wstring filePath,
 		_Out_ long *pStreamIndex,
 		_Outptr_ IMFSourceReader **ppSourceReader,
 		_Outptr_ IMFMediaType **ppInputMediaType,

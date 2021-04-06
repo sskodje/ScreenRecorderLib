@@ -36,13 +36,13 @@ private:
 class DeleteFileOnExit
 {
 public:
-	DeleteFileOnExit(ATL::CComPtr<IWICStream>& hFile, LPCWSTR szFile) noexcept : m_filename(szFile), m_handle(hFile) {}
+	DeleteFileOnExit(ATL::CComPtr<IWICStream> &hFile, LPCWSTR szFile) noexcept : m_filename(szFile), m_handle(hFile) {}
 
-	DeleteFileOnExit(const DeleteFileOnExit&) = delete;
-	DeleteFileOnExit& operator=(const DeleteFileOnExit&) = delete;
+	DeleteFileOnExit(const DeleteFileOnExit &) = delete;
+	DeleteFileOnExit &operator=(const DeleteFileOnExit &) = delete;
 
-	DeleteFileOnExit(const DeleteFileOnExit&&) = delete;
-	DeleteFileOnExit& operator=(const DeleteFileOnExit&&) = delete;
+	DeleteFileOnExit(const DeleteFileOnExit &&) = delete;
+	DeleteFileOnExit &operator=(const DeleteFileOnExit &&) = delete;
 
 	~DeleteFileOnExit()
 	{
@@ -57,7 +57,7 @@ public:
 
 private:
 	LPCWSTR m_filename;
-	ATL::CComPtr<IWICStream>& m_handle;
+	ATL::CComPtr<IWICStream> &m_handle;
 };
 
 class CaptureStopOnExit {

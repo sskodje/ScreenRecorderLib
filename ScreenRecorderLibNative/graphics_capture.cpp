@@ -9,7 +9,7 @@ using namespace capture::util;
 using namespace winrt::Windows::Graphics::Capture;
 using namespace winrt::Windows::Graphics::DirectX;
 
-static DWORD WINAPI CaptureThreadProc(_In_ void* Param);
+static DWORD WINAPI CaptureThreadProc(_In_ void *Param);
 
 graphics_capture::graphics_capture() :
 	capture_base()
@@ -25,7 +25,7 @@ graphics_capture::~graphics_capture()
 RECT graphics_capture::GetOutputRect()
 {
 	if (IsSingleWindowCapture()) {
-		while(IsCapturing() && !IsInitialFrameWriteComplete()) {
+		while (IsCapturing() && !IsInitialFrameWriteComplete()) {
 			Sleep(1);
 		}
 		return GetContentRect();
@@ -43,7 +43,7 @@ LPTHREAD_START_ROUTINE graphics_capture::GetCaptureThreadProc()
 //
 // Entry point for new capture threads
 //
-DWORD WINAPI CaptureThreadProc(_In_ void* Param)
+DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 {
 	HRESULT hr = S_OK;
 
@@ -52,14 +52,14 @@ DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 	graphics_manager graphicsManager{};
 	GraphicsCaptureItem captureItem{ nullptr };
 	// D3D objects
-	ID3D11Texture2D* SharedSurf = nullptr;
-	IDXGIKeyedMutex* KeyMutex = nullptr;
+	ID3D11Texture2D *SharedSurf = nullptr;
+	IDXGIKeyedMutex *KeyMutex = nullptr;
 
 	bool isExpectedError = false;
 	bool isUnexpectedError = false;
 
 	// Data passed in from thread creation
-	CAPTURE_THREAD_DATA* pData = reinterpret_cast<CAPTURE_THREAD_DATA*>(Param);
+	CAPTURE_THREAD_DATA *pData = reinterpret_cast<CAPTURE_THREAD_DATA *>(Param);
 	RECORDING_SOURCE_DATA *pSource = pData->RecordingSource;
 
 	RtlZeroMemory(&pData->ContentFrameRect, sizeof(pData->ContentFrameRect));
@@ -88,14 +88,14 @@ DWORD WINAPI CaptureThreadProc(_In_ void* Param)
 	//This scope must be here for ReleaseOnExit to work.
 	{
 		// Obtain handle to sync shared Surface
-		hr = pSource->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&SharedSurf));
+		hr = pSource->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
 		if (FAILED(hr))
 		{
 			LOG_ERROR(L"Opening shared texture failed");
 			goto Exit;
 		}
 		ReleaseOnExit releaseSharedSurf(SharedSurf);
-		hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void**>(&KeyMutex));
+		hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&KeyMutex));
 		if (FAILED(hr))
 		{
 			LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");

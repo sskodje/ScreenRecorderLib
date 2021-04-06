@@ -41,7 +41,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	hr = pMMDevice->Activate(
 		__uuidof(IAudioClient),
 		CLSCTX_ALL, NULL,
-		(void**)&pAudioClient
+		(void **)&pAudioClient
 	);
 	if (FAILED(hr)) {
 		LOG_ERROR(L"IMMDevice::Activate(IAudioClient) failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
@@ -183,7 +183,7 @@ HRESULT loopback_capture::LoopbackCapture(
 	IAudioCaptureClient *pAudioCaptureClient;
 	hr = pAudioClient->GetService(
 		__uuidof(IAudioCaptureClient),
-		(void**)&pAudioCaptureClient
+		(void **)&pAudioCaptureClient
 	);
 	if (FAILED(hr)) {
 		LOG_ERROR(L"IAudioClient::GetService(IAudioCaptureClient) failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);

@@ -5,7 +5,7 @@
 //
 // Get DX_RESOURCES
 //
-HRESULT InitializeDx(_Out_ DX_RESOURCES* Data)
+HRESULT InitializeDx(_Out_ DX_RESOURCES *Data)
 {
 	HRESULT hr = S_OK;
 
@@ -61,7 +61,7 @@ HRESULT GetOutputDescsForDeviceNames(_In_ std::vector<std::wstring> deviceNames,
 	*outputDescs = std::vector<DXGI_OUTPUT_DESC>();
 
 	// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
-	std::vector<IDXGIOutput*> outputs{};
+	std::vector<IDXGIOutput *> outputs{};
 	EnumOutputs(&outputs);
 	for each (IDXGIOutput * output in outputs)
 	{
@@ -121,7 +121,7 @@ HRESULT GetOutputRectsForRecordingSources(_In_ std::vector<RECORDING_SOURCE> sou
 			break;
 		}
 	}
-	auto sortRect = [](const std::pair<RECORDING_SOURCE, RECT>& p1, const std::pair<RECORDING_SOURCE, RECT>& p2)
+	auto sortRect = [](const std::pair<RECORDING_SOURCE, RECT> &p1, const std::pair<RECORDING_SOURCE, RECT> &p2)
 	{
 		RECT r1 = p1.second;
 		RECT r2 = p2.second;
@@ -138,7 +138,7 @@ HRESULT GetMainOutput(_Outptr_result_maybenull_ IDXGIOutput **ppOutput) {
 		*ppOutput = nullptr;
 	}
 
-	std::vector<IDXGIAdapter*> adapters = EnumDisplayAdapters();
+	std::vector<IDXGIAdapter *> adapters = EnumDisplayAdapters();
 	for (IDXGIAdapter *adapter : adapters)
 	{
 		IDXGIOutput *pOutput;
@@ -178,7 +178,7 @@ HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_
 		*ppOutput = nullptr;
 	}
 	if (deviceName != L"") {
-		std::vector<IDXGIAdapter*> adapters = EnumDisplayAdapters();
+		std::vector<IDXGIAdapter *> adapters = EnumDisplayAdapters();
 		for (IDXGIAdapter *adapter : adapters)
 		{
 			IDXGIOutput *pOutput;
@@ -212,10 +212,10 @@ HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_
 	return hr;
 }
 
-void EnumOutputs(_Out_ std::vector<IDXGIOutput*> *pOutputs)
+void EnumOutputs(_Out_ std::vector<IDXGIOutput *> *pOutputs)
 {
-	*pOutputs = std::vector<IDXGIOutput*>();
-	std::vector<IDXGIAdapter*> adapters = EnumDisplayAdapters();
+	*pOutputs = std::vector<IDXGIOutput *>();
+	std::vector<IDXGIAdapter *> adapters = EnumDisplayAdapters();
 	for (IDXGIAdapter *adapter : adapters)
 	{
 		IDXGIOutput *pOutput;
@@ -233,7 +233,7 @@ void EnumOutputs(_Out_ std::vector<IDXGIOutput*> *pOutputs)
 void GetCombinedRects(_In_ std::vector<RECT> inputs, _Out_ RECT *pOutRect, _Out_opt_ std::vector<SIZE> *pOffsets)
 {
 	*pOutRect = RECT{};
-	auto sortRects = [](const RECT& r1, const RECT& r2)
+	auto sortRects = [](const RECT &r1, const RECT &r2)
 	{
 		return std::tie(r1.left, r1.top) < std::tie(r2.left, r2.top);
 	};
@@ -277,7 +277,7 @@ std::wstring GetMonitorName(HMONITOR monitor) {
 	std::vector<DISPLAYCONFIG_MODE_INFO> modes(requiredModes);
 	QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &requiredPaths, paths.data(), &requiredModes, modes.data(), nullptr);
 
-	for (auto& p : paths) {
+	for (auto &p : paths) {
 		DISPLAYCONFIG_SOURCE_DEVICE_NAME sourceName;
 		sourceName.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
 		sourceName.header.size = sizeof(sourceName);
@@ -297,11 +297,11 @@ std::wstring GetMonitorName(HMONITOR monitor) {
 	return L"";
 }
 
-std::vector<IDXGIAdapter*> EnumDisplayAdapters()
+std::vector<IDXGIAdapter *> EnumDisplayAdapters()
 {
-	std::vector<IDXGIAdapter*> vAdapters;
-	IDXGIFactory1 * pFactory;
-	HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory), (void**)(&pFactory));
+	std::vector<IDXGIAdapter *> vAdapters;
+	IDXGIFactory1 *pFactory;
+	HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory), (void **)(&pFactory));
 	if (SUCCEEDED(hr)) {
 		UINT i = 0;
 		IDXGIAdapter *pAdapter;
@@ -318,7 +318,7 @@ std::vector<IDXGIAdapter*> EnumDisplayAdapters()
 //
 // Clean up DX_RESOURCES
 //
-void CleanDx(_Inout_ DX_RESOURCES* Data)
+void CleanDx(_Inout_ DX_RESOURCES *Data)
 {
 	SafeRelease(&Data->Device);
 	SafeRelease(&Data->Context);
@@ -326,7 +326,7 @@ void CleanDx(_Inout_ DX_RESOURCES* Data)
 //
 // Set new viewport
 //
-void SetViewPort(_In_ ID3D11DeviceContext * deviceContext, _In_ UINT Width, _In_ UINT Height)
+void SetViewPort(_In_ ID3D11DeviceContext *deviceContext, _In_ UINT Width, _In_ UINT Height)
 {
 	D3D11_VIEWPORT VP;
 	VP.Width = static_cast<FLOAT>(Width);
@@ -338,7 +338,7 @@ void SetViewPort(_In_ ID3D11DeviceContext * deviceContext, _In_ UINT Width, _In_
 	deviceContext->RSSetViewports(1, &VP);
 }
 
-void SetDebugName(_In_ ID3D11DeviceChild * child, _In_ const std::string & name)
+void SetDebugName(_In_ ID3D11DeviceChild *child, _In_ const std::string &name)
 {
 #if _DEBUG
 	if (child != nullptr)

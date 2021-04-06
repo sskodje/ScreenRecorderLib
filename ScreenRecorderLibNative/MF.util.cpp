@@ -59,7 +59,7 @@ HRESULT FindVideoDecoder(
 	if (inputSubtype) {
 		inputInfo = new MFT_REGISTER_TYPE_INFO{ MFMediaType_Video, *inputSubtype };
 	}
-	MFT_REGISTER_TYPE_INFO  *outputInfo = nullptr;
+	MFT_REGISTER_TYPE_INFO *outputInfo = nullptr;
 	if (outputSubtype) {
 		outputInfo = new MFT_REGISTER_TYPE_INFO{ MFMediaType_Video, *outputSubtype };
 	}
@@ -154,13 +154,13 @@ HRESULT CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMedi
 	return hr;
 }
 
-HRESULT EnumVideoCaptureDevices(std::map<std::wstring, std::wstring>* devices)
+HRESULT EnumVideoCaptureDevices(std::map<std::wstring, std::wstring> *devices)
 {
 	HRESULT hr = S_OK;
 	CComPtr<IMFAttributes> pAttributes = nullptr;
 	UINT32 count = 0;
 	IMFActivate **ppDevices = NULL;
-	ReleaseCOMArrayOnExit releaseDevicesOnExit((IUnknown**)ppDevices, count);
+	ReleaseCOMArrayOnExit releaseDevicesOnExit((IUnknown **)ppDevices, count);
 	// Create an attribute store to specify enumeration parameters.
 	RETURN_ON_BAD_HR(hr = MFCreateAttributes(&pAttributes, 1));
 

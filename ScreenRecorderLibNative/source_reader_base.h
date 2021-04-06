@@ -21,14 +21,14 @@ public:
 	virtual HRESULT StartCapture(_In_ std::wstring source) override;
 
 	virtual HRESULT GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int timeoutMs) override;
-	virtual HRESULT Initialize(_In_ DX_RESOURCES* Data) override;
+	virtual HRESULT Initialize(_In_ DX_RESOURCES *Data) override;
 
 	//  the class must implement the methods from IMFSourceReaderCallback 
 	STDMETHODIMP OnReadSample(HRESULT status, DWORD streamIndex, DWORD streamFlags, LONGLONG timeStamp, IMFSample *sample);
 	STDMETHODIMP OnEvent(DWORD, IMFMediaEvent *);
 	STDMETHODIMP OnFlush(DWORD);
 	// the class must implement the methods from IUnknown 
-	STDMETHODIMP QueryInterface(REFIID iid, void** ppv);
+	STDMETHODIMP QueryInterface(REFIID iid, void **ppv);
 	STDMETHODIMP_(ULONG) AddRef();
 	STDMETHODIMP_(ULONG) Release();
 
@@ -45,7 +45,7 @@ protected:
 	virtual HRESULT GetDefaultStride(_In_ IMFMediaType *pType, _Out_ LONG *plStride);
 	virtual HRESULT CreateOutputMediaType(_In_ SIZE frameSize, _Outptr_ IMFMediaType **pType, _Out_ LONG *stride);
 	virtual HRESULT CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMediaType, _Outptr_ IMFTransform **pColorConverter, _Outptr_ IMFMediaType **ppOutputMediaType);
-	virtual HRESULT source_reader_base::ResizeFrameBuffer(FRAME_INFO* FrameInfo, int bufferSize);
+	virtual HRESULT source_reader_base::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize);
 	CRITICAL_SECTION m_CriticalSection;
 private:
 	long m_ReferenceCount;
@@ -53,12 +53,12 @@ private:
 	LARGE_INTEGER m_LastSampleReceivedTimeStamp;
 	LARGE_INTEGER m_LastGrabTimeStamp;
 	IMFMediaBuffer *m_Sample;
-	ID3D11Device* m_Device;
-	ID3D11DeviceContext* m_DeviceContext;
+	ID3D11Device *m_Device;
+	ID3D11DeviceContext *m_DeviceContext;
 	highres_timer *m_FramerateTimer;
 	IMFMediaType *m_OutputMediaType;
 	IMFMediaType *m_InputMediaType;
-	IMFSourceReader* m_SourceReader;
+	IMFSourceReader *m_SourceReader;
 	IMFTransform *m_MediaTransform;
 	LONG m_Stride;
 	SIZE m_FrameSize;

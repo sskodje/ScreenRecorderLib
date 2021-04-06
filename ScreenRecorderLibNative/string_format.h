@@ -3,7 +3,7 @@
 #include <string>
 
 template<typename ... Args>
-std::wstring string_format(const std::wstring& format, Args ... args)
+std::wstring string_format(const std::wstring &format, Args ... args)
 {
 	size_t size = swprintf(nullptr, 0, format.c_str(), args ...) + 1; // Extra space for '\0'
 	if (size <= 0) { throw std::runtime_error("Error during formatting."); }

@@ -56,7 +56,7 @@ HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *pImmediateContext, ID3D11
 }
 
 HRESULT mouse_pointer::InitMouseClickTexture(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device) {
-	HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), (void**)&m_D2DFactory);
+	HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), (void **)&m_D2DFactory);
 	return hr;
 }
 
@@ -97,10 +97,10 @@ void mouse_pointer::GetPointerPosition(_In_ PTR_INFO *PtrInfo, DXGI_MODE_ROTATIO
 }
 
 
-HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Texture2D* bgTexture, std::string colorStr, float radius, DXGI_MODE_ROTATION rotation)
+HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO *PtrInfo, _In_ ID3D11Texture2D *bgTexture, std::string colorStr, float radius, DXGI_MODE_ROTATION rotation)
 {
 	ATL::CComPtr<IDXGISurface> pSharedSurface;
-	HRESULT hr = bgTexture->QueryInterface(__uuidof(IDXGISurface), (void**)&pSharedSurface);
+	HRESULT hr = bgTexture->QueryInterface(__uuidof(IDXGISurface), (void **)&pSharedSurface);
 
 	// Create the DXGI Surface Render Target.
 	UINT dpi = GetDpiForSystem();
@@ -162,14 +162,14 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Texture
 //
 // Draw mouse provided in buffer to backbuffer
 //
-HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _Inout_ ID3D11Texture2D* bgTexture, DXGI_MODE_ROTATION rotation)
+HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO *PtrInfo, _Inout_ ID3D11Texture2D *bgTexture, DXGI_MODE_ROTATION rotation)
 {
 	if (!PtrInfo || !PtrInfo->Visible || PtrInfo->PtrShapeBuffer == nullptr)
 		return S_FALSE;
 	// Vars to be used
-	ID3D11Texture2D* MouseTex = nullptr;
-	ID3D11ShaderResourceView* ShaderRes = nullptr;
-	ID3D11Buffer* VertexBufferMouse = nullptr;
+	ID3D11Texture2D *MouseTex = nullptr;
+	ID3D11ShaderResourceView *ShaderRes = nullptr;
+	ID3D11Buffer *VertexBufferMouse = nullptr;
 	D3D11_SUBRESOURCE_DATA InitData = { 0 };
 	D3D11_TEXTURE2D_DESC Desc = { 0 };
 	D3D11_SHADER_RESOURCE_VIEW_DESC SDesc;
@@ -200,7 +200,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _Inout_ ID3D11Te
 	INT PtrTop = 0;
 
 	// Buffer used if necessary (in case of monochrome or masked pointer)
-	BYTE* InitBuffer = nullptr;
+	BYTE *InitBuffer = nullptr;
 
 	// Used for copying pixels
 	D3D11_BOX Box = { 0 };
@@ -349,7 +349,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _Inout_ ID3D11Te
 		LOG_ERROR(L"Failed to create mouse pointer vertex buffer: %ls", err.ErrorMessage());
 		return hr;
 	}
-	ID3D11RenderTargetView* RTV;
+	ID3D11RenderTargetView *RTV;
 	// Create a render target view
 	hr = m_Device->CreateRenderTargetView(bgTexture, nullptr, &RTV);
 	// Set resources
@@ -395,7 +395,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _Inout_ ID3D11Te
 //
 // Process both masked and monochrome pointers
 //
-HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, DXGI_MODE_ROTATION rotation, bool IsMono, _Inout_ PTR_INFO* PtrInfo, _Out_ INT* PtrWidth, _Out_ INT* PtrHeight, _Out_ INT* PtrLeft, _Out_ INT* PtrTop, _Outptr_result_bytebuffer_(*PtrHeight * *PtrWidth * BPP) BYTE** InitBuffer, _Out_ D3D11_BOX* Box)
+HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D *bgTexture, DXGI_MODE_ROTATION rotation, bool IsMono, _Inout_ PTR_INFO *PtrInfo, _Out_ INT *PtrWidth, _Out_ INT *PtrHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop, _Outptr_result_bytebuffer_(*PtrHeight **PtrWidth *BPP) BYTE **InitBuffer, _Out_ D3D11_BOX *Box)
 {
 	D3D11_TEXTURE2D_DESC desc;
 	bgTexture->GetDesc(&desc);
@@ -461,7 +461,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, DXGI_MOD
 	CopyBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 	CopyBufferDesc.MiscFlags = 0;
 
-	ID3D11Texture2D* CopyBuffer = nullptr;
+	ID3D11Texture2D *CopyBuffer = nullptr;
 	HRESULT hr = m_Device->CreateTexture2D(&CopyBufferDesc, nullptr, &CopyBuffer);
 	if (FAILED(hr))
 	{
@@ -478,7 +478,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, DXGI_MOD
 	m_DeviceContext->CopySubresourceRegion(CopyBuffer, 0, 0, 0, 0, bgTexture, 0, Box);
 
 	// QI for IDXGISurface
-	IDXGISurface* CopySurface = nullptr;
+	IDXGISurface *CopySurface = nullptr;
 	hr = CopyBuffer->QueryInterface(__uuidof(IDXGISurface), (void **)&CopySurface);
 	CopyBuffer->Release();
 	CopyBuffer = nullptr;
@@ -511,10 +511,10 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, DXGI_MOD
 	*InitBuffer = &(_InitBuffer[0]);
 
 	// New temp mouseshape buffer for rotation
-	BYTE* DesktopBuffer = &(_DesktopBuffer[0]);
+	BYTE *DesktopBuffer = &(_DesktopBuffer[0]);
 
-	UINT* InitBuffer32 = reinterpret_cast<UINT*>(*InitBuffer);
-	UINT* DesktopBuffer32 = reinterpret_cast<UINT*>(DesktopBuffer);
+	UINT *InitBuffer32 = reinterpret_cast<UINT *>(*InitBuffer);
+	UINT *DesktopBuffer32 = reinterpret_cast<UINT *>(DesktopBuffer);
 	UINT  DesktopPitchInPixels = MappedSurface.Pitch / sizeof(UINT);
 
 	// What to skip (pixel offset)
@@ -525,7 +525,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, DXGI_MOD
 	if (rotation == DXGI_MODE_ROTATION_ROTATE90
 		|| rotation == DXGI_MODE_ROTATION_ROTATE180
 		|| rotation == DXGI_MODE_ROTATION_ROTATE270) {
-		UINT* Desktop32 = reinterpret_cast<UINT*>(MappedSurface.pBits);
+		UINT *Desktop32 = reinterpret_cast<UINT *>(MappedSurface.pBits);
 		for (INT Row = 0; Row < *PtrHeight; ++Row)
 		{
 			for (INT Col = 0; Col < *PtrWidth; ++Col)
@@ -551,7 +551,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, DXGI_MOD
 		}
 	}
 	else {
-		DesktopBuffer32 = reinterpret_cast<UINT*>(MappedSurface.pBits);
+		DesktopBuffer32 = reinterpret_cast<UINT *>(MappedSurface.pBits);
 	}
 
 	if (IsMono)
@@ -586,7 +586,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, DXGI_MOD
 	}
 	else
 	{
-		UINT* Buffer32 = reinterpret_cast<UINT*>(PtrInfo->PtrShapeBuffer);
+		UINT *Buffer32 = reinterpret_cast<UINT *>(PtrInfo->PtrShapeBuffer);
 
 		// Iterate through pixels
 		for (INT Row = 0; Row < *PtrHeight; ++Row)
@@ -625,7 +625,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, DXGI_MOD
 //
 // Initialize shaders for drawing to screen
 //
-HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Device* Device)
+HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext *DeviceContext, ID3D11Device *Device)
 {
 	HRESULT hr;
 	UINT Size = ARRAYSIZE(g_VS);
@@ -662,7 +662,7 @@ HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Dev
 	return hr;
 }
 
-HRESULT mouse_pointer::ResizeShapeBuffer(PTR_INFO* PtrInfo, int bufferSize) {
+HRESULT mouse_pointer::ResizeShapeBuffer(PTR_INFO *PtrInfo, int bufferSize) {
 	// Old buffer too small
 	if (bufferSize > (int)PtrInfo->BufferSize)
 	{
@@ -688,7 +688,7 @@ HRESULT mouse_pointer::ResizeShapeBuffer(PTR_INFO* PtrInfo, int bufferSize) {
 //
 // Retrieves mouse info and write it into PtrInfo
 //
-HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO* FrameInfo, RECT screenRect, IDXGIOutputDuplication* DeskDupl, int offsetX, int offsetY)
+HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO *PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO *FrameInfo, RECT screenRect, IDXGIOutputDuplication *DeskDupl, int offsetX, int offsetY)
 {
 	PtrInfo->IsPointerShapeUpdated = false;
 	// A non-zero mouse update timestamp indicates that there is a mouse position update and optionally a shape change
@@ -733,7 +733,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 
 	// Get shape
 	UINT BufferSizeRequired;
-	HRESULT hr = DeskDupl->GetFramePointerShape(FrameInfo->PointerShapeBufferSize, reinterpret_cast<VOID*>(PtrInfo->PtrShapeBuffer), &BufferSizeRequired, &(PtrInfo->ShapeInfo));
+	HRESULT hr = DeskDupl->GetFramePointerShape(FrameInfo->PointerShapeBufferSize, reinterpret_cast<VOID *>(PtrInfo->PtrShapeBuffer), &BufferSizeRequired, &(PtrInfo->ShapeInfo));
 	if (FAILED(hr))
 	{
 		delete[] PtrInfo->PtrShapeBuffer;
@@ -747,7 +747,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 	return S_OK;
 }
 
-HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, bool getShapeBuffer, int offsetX, int offsetY)
+HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO *PtrInfo, bool getShapeBuffer, int offsetX, int offsetY)
 {
 	PtrInfo->IsPointerShapeUpdated = false;
 	CURSORINFO cursorInfo = { 0 };
@@ -797,7 +797,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, bool getShapeBuffer,
 
 			CAutoVectorPtr<UCHAR> bitmapInfo;
 			bitmapInfo.Allocate(nBmInfoSize);
-			BITMAPINFO* pBmInfo = (BITMAPINFO*)(UCHAR*)bitmapInfo;
+			BITMAPINFO *pBmInfo = (BITMAPINFO *)(UCHAR *)bitmapInfo;
 			memcpy(pBmInfo, &bmInfo, sizeof(BITMAPINFOHEADER));
 
 			// Get bitmap data:
@@ -835,7 +835,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, bool getShapeBuffer,
 			RETURN_ON_BAD_HR(ResizeShapeBuffer(PtrInfo, maskInfo.bmiHeader.biSizeImage));
 			CAutoVectorPtr<UCHAR> maskInfoBytes;
 			maskInfoBytes.Allocate(sizeof(BITMAPINFO) + 2 * sizeof(RGBQUAD));
-			BITMAPINFO* pMaskInfo = (BITMAPINFO*)(UCHAR*)maskInfoBytes;
+			BITMAPINFO *pMaskInfo = (BITMAPINFO *)(UCHAR *)maskInfoBytes;
 			memcpy(pMaskInfo, &maskInfo, sizeof(maskInfo));
 			pMaskInfo->bmiHeader.biBitCount = colorBits;
 			pMaskInfo->bmiHeader.biCompression = BI_RGB;
