@@ -48,6 +48,7 @@
     <ClInclude Include="WWMFResampler.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Log.cpp" />
     <ClCompile Include="ScreenCaptureBase.cpp" />
     <ClCompile Include="CameraCapture.cpp" />
     <ClCompile Include="GifReader.cpp" />

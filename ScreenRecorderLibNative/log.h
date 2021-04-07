@@ -1,4 +1,5 @@
 #pragma once
+#include <Windows.h>
 #include <string>
 #include <fstream>
 #include <chrono>
@@ -24,28 +25,7 @@
 extern bool isLoggingEnabled;
 extern int logSeverityLevel;
 extern std::wstring logFilePath;
-
-inline  void _log(int logLvl, PCWSTR format, ...) {
-	if (isLoggingEnabled && logLvl >= logSeverityLevel) {
-		wchar_t buffer[LOG_BUFFER_SIZE];
-		va_list args;
-		va_start(args, format);
-		vswprintf(buffer, LOG_BUFFER_SIZE, format, args);
-		if (!logFilePath.empty()) {
-
-			std::wofstream logFile(logFilePath, std::ios_base::app | std::ios_base::out);
-			if (logFile.is_open())
-			{
-				logFile << buffer;
-				logFile.close();
-			}
-		}
-		else {
-			OutputDebugStringW(buffer);
-		}
-		va_end(args);
-	}
-}
+void _log(int logLvl, PCWSTR format, ...);
 
 constexpr const char *file_name(const char *path) {
 	const char *file = path;

@@ -191,6 +191,9 @@
     <ClCompile Include="GifReader.cpp">
       <Filter>Source Files\Video Capture\Overlay Capture</Filter>
     </ClCompile>
+    <ClCompile Include="Log.cpp">
+      <Filter>Source Files\Utils</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="VertexShader.hlsl" />
