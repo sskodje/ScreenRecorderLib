@@ -84,7 +84,7 @@ HRESULT GifReader::StartCapture(_In_ std::wstring source)
 HRESULT GifReader::StopCapture()
 {
 	if (m_FramerateTimer) {
-		LOG_DEBUG("Stopping media reader sync timer");
+		LOG_DEBUG("Stopping GIF reader sync timer");
 		HRESULT hr = m_FramerateTimer->StopTimer(true);
 		if (FAILED(hr)) {
 			return hr;

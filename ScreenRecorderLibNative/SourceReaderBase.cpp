@@ -56,14 +56,14 @@ void SourceReaderBase::Close()
 	EnterCriticalSection(&m_CriticalSection);
 	SafeRelease(&m_Sample);
 	if (m_FramerateTimer) {
-		LOG_DEBUG("Stopping media reader sync timer");
+		LOG_DEBUG("Stopping source reader sync timer");
 		m_FramerateTimer->StopTimer(true);
 	}
 	SafeRelease(&m_SourceReader);
 	SafeRelease(&m_InputMediaType);
 	SafeRelease(&m_MediaTransform);
 	LeaveCriticalSection(&m_CriticalSection);
-	LOG_DEBUG("Closed media reader");
+	LOG_DEBUG("Closed source reader");
 }
 
 HRESULT SourceReaderBase::GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int timeoutMs)
@@ -382,7 +382,7 @@ HRESULT SourceReaderBase::OnReadSample(HRESULT status, DWORD streamIndex, DWORD 
 				auto t1 = std::chrono::high_resolution_clock::now();
 				auto sleepTime = m_FramerateTimer->GetMillisUntilNextTick();
 				//LOG_TRACE("OnReadSample waiting for %.2f ms", sleepTime);
-				MeasureExecutionTime measureNextTick(L"");
+				MeasureExecutionTime measureNextTick(L"OnReadSample scheduled delay");
 				hr = m_FramerateTimer->WaitForNextTick();
 				if (FAILED(hr)) {
 					return hr;
