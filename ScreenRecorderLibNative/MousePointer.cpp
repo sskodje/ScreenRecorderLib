@@ -1,13 +1,13 @@
 #pragma warning (disable : 26451)
 
-#include "mouse_pointer.h"
-#include "log.h"
-#include "util.h"
+#include "MousePointer.h"
+#include "Log.h"
+#include "Util.h"
 #include <comdef.h>
 #include <commctrl.h>
 #include <mfapi.h>
 #include <Dxgiformat.h>
-#include "cleanup.h"
+#include "Cleanup.h"
 using namespace DirectX;
 
 #pragma comment(lib, "comctl32.lib")
@@ -15,7 +15,7 @@ using namespace DirectX;
 #define NUMVERTICES 6
 #define BPP         4
 
-HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *pImmediateContext, ID3D11Device *pDevice)
+HRESULT MousePointer::Initialize(ID3D11DeviceContext *pImmediateContext, ID3D11Device *pDevice)
 {
 	CleanDX();
 	// Create the sample state
@@ -55,13 +55,13 @@ HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *pImmediateContext, ID3D11
 	return hr;
 }
 
-HRESULT mouse_pointer::InitMouseClickTexture(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device) {
+HRESULT MousePointer::InitMouseClickTexture(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device) {
 	HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), (void **)&m_D2DFactory);
 	return hr;
 }
 
 
-long mouse_pointer::ParseColorString(std::string color)
+long MousePointer::ParseColorString(std::string color)
 {
 	if (color.length() == 0)
 		return D2D1::ColorF::Yellow;
@@ -71,7 +71,7 @@ long mouse_pointer::ParseColorString(std::string color)
 	return std::strtoul(color.data(), 0, 16);
 }
 
-void mouse_pointer::GetPointerPosition(_In_ PTR_INFO *PtrInfo, DXGI_MODE_ROTATION rotation, int desktopWidth, int desktopHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop)
+void MousePointer::GetPointerPosition(_In_ PTR_INFO *PtrInfo, DXGI_MODE_ROTATION rotation, int desktopWidth, int desktopHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop)
 {
 	switch (rotation)
 	{
@@ -97,7 +97,7 @@ void mouse_pointer::GetPointerPosition(_In_ PTR_INFO *PtrInfo, DXGI_MODE_ROTATIO
 }
 
 
-HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO *PtrInfo, _In_ ID3D11Texture2D *bgTexture, std::string colorStr, float radius, DXGI_MODE_ROTATION rotation)
+HRESULT MousePointer::DrawMouseClick(_In_ PTR_INFO *PtrInfo, _In_ ID3D11Texture2D *bgTexture, std::string colorStr, float radius, DXGI_MODE_ROTATION rotation)
 {
 	ATL::CComPtr<IDXGISurface> pSharedSurface;
 	HRESULT hr = bgTexture->QueryInterface(__uuidof(IDXGISurface), (void **)&pSharedSurface);
@@ -162,7 +162,7 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO *PtrInfo, _In_ ID3D11Texture
 //
 // Draw mouse provided in buffer to backbuffer
 //
-HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO *PtrInfo, _Inout_ ID3D11Texture2D *bgTexture, DXGI_MODE_ROTATION rotation)
+HRESULT MousePointer::DrawMousePointer(_In_ PTR_INFO *PtrInfo, _Inout_ ID3D11Texture2D *bgTexture, DXGI_MODE_ROTATION rotation)
 {
 	if (!PtrInfo || !PtrInfo->Visible || PtrInfo->PtrShapeBuffer == nullptr)
 		return S_FALSE;
@@ -395,7 +395,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO *PtrInfo, _Inout_ ID3D11Te
 //
 // Process both masked and monochrome pointers
 //
-HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D *bgTexture, DXGI_MODE_ROTATION rotation, bool IsMono, _Inout_ PTR_INFO *PtrInfo, _Out_ INT *PtrWidth, _Out_ INT *PtrHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop, _Outptr_result_bytebuffer_(*PtrHeight **PtrWidth *BPP) BYTE **InitBuffer, _Out_ D3D11_BOX *Box)
+HRESULT MousePointer::ProcessMonoMask(_In_ ID3D11Texture2D *bgTexture, DXGI_MODE_ROTATION rotation, bool IsMono, _Inout_ PTR_INFO *PtrInfo, _Out_ INT *PtrWidth, _Out_ INT *PtrHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop, _Outptr_result_bytebuffer_(*PtrHeight **PtrWidth *BPP) BYTE **InitBuffer, _Out_ D3D11_BOX *Box)
 {
 	D3D11_TEXTURE2D_DESC desc;
 	bgTexture->GetDesc(&desc);
@@ -625,7 +625,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D *bgTexture, DXGI_MOD
 //
 // Initialize shaders for drawing to screen
 //
-HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext *DeviceContext, ID3D11Device *Device)
+HRESULT MousePointer::InitShaders(ID3D11DeviceContext *DeviceContext, ID3D11Device *Device)
 {
 	HRESULT hr;
 	UINT Size = ARRAYSIZE(g_VS);
@@ -662,7 +662,7 @@ HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext *DeviceContext, ID3D11Dev
 	return hr;
 }
 
-HRESULT mouse_pointer::ResizeShapeBuffer(PTR_INFO *PtrInfo, int bufferSize) {
+HRESULT MousePointer::ResizeShapeBuffer(PTR_INFO *PtrInfo, int bufferSize) {
 	// Old buffer too small
 	if (bufferSize > (int)PtrInfo->BufferSize)
 	{
@@ -688,7 +688,7 @@ HRESULT mouse_pointer::ResizeShapeBuffer(PTR_INFO *PtrInfo, int bufferSize) {
 //
 // Retrieves mouse info and write it into PtrInfo
 //
-HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO *PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO *FrameInfo, RECT screenRect, IDXGIOutputDuplication *DeskDupl, int offsetX, int offsetY)
+HRESULT MousePointer::GetMouse(_Inout_ PTR_INFO *PtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO *FrameInfo, RECT screenRect, IDXGIOutputDuplication *DeskDupl, int offsetX, int offsetY)
 {
 	PtrInfo->IsPointerShapeUpdated = false;
 	// A non-zero mouse update timestamp indicates that there is a mouse position update and optionally a shape change
@@ -747,7 +747,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO *PtrInfo, _In_ DXGI_OUTDUPL_FRA
 	return S_OK;
 }
 
-HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO *PtrInfo, bool getShapeBuffer, int offsetX, int offsetY)
+HRESULT MousePointer::GetMouse(_Inout_ PTR_INFO *PtrInfo, bool getShapeBuffer, int offsetX, int offsetY)
 {
 	PtrInfo->IsPointerShapeUpdated = false;
 	CURSORINFO cursorInfo = { 0 };
@@ -868,7 +868,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO *PtrInfo, bool getShapeBuffer, 
 	return S_OK;
 }
 
-void mouse_pointer::CleanDX()
+void MousePointer::CleanDX()
 {
 	if (m_SamplerLinear)
 		m_SamplerLinear.Release();

@@ -1,5 +1,5 @@
 #pragma once
-#include "common_types.h"
+#include "CommonTypes.h"
 HRESULT InitializeDx(_Out_ DX_RESOURCES *Data);
 HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **ppOutput);
 HRESULT GetMainOutput(_Outptr_result_maybenull_ IDXGIOutput **ppOutput);

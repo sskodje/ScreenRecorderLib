@@ -1,13 +1,13 @@
-#include "duplication_capture.h"
-#include "duplication_manager.h"
+#include "DesktopDuplicationCapture.h"
+#include "DesktopDuplicationManager.h"
 #include <chrono>
-#include "cleanup.h"
-#include "mouse_pointer.h"
+#include "Cleanup.h"
+#include "MousePointer.h"
 using namespace std::chrono;
 DWORD WINAPI CaptureThreadProc(_In_ void *Param);
 
 duplication_capture::duplication_capture() :
-	capture_base()
+	ScreenCaptureBase()
 {
 
 }
@@ -30,8 +30,8 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	HRESULT hr = S_OK;
 
 	// Classes
-	duplication_manager pDuplicationManager{};
-	mouse_pointer pMousePointer{};
+	DesktopDuplicationManager pDuplicationManager{};
+	MousePointer pMousePointer{};
 
 	// D3D objects
 	ID3D11Texture2D *SharedSurf = nullptr;

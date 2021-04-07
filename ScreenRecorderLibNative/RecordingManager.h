@@ -21,16 +21,15 @@
 #include <winrt/Windows.Graphics.Capture.h>
 #include <winrt/Windows.Foundation.Metadata.h>
 
-#include "graphics_capture.h"
-#include "graphics_capture.util.h"
-#include "duplication_capture.h"
+#include "WindowsGraphicsCapture.h"
+#include "WindowsGraphicsCapture.util.h"
+#include "DesktopDuplicationCapture.h"
 #include "fifo_map.h"
-#include "audio_prefs.h"
-#include "mouse_pointer.h"
-#include "log.h"
-#include "util.h"
-#include "string_format.h"
-#include "highres_timer.h"
+#include "AudioPrefs.h"
+#include "MousePointer.h"
+#include "Log.h"
+#include "Util.h"
+#include "HighresTimer.h"
 
 typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_map<std::wstring, int>);
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
@@ -52,7 +51,7 @@ typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
 #define API_DESKTOP_DUPLICATION 0
 #define API_GRAPHICS_CAPTURE 1
 
-class loopback_capture;
+class LoopbackCapture;
 
 class CMFSinkWriterCallback : public IMFSinkWriterCallback {
 
@@ -121,11 +120,11 @@ struct FrameWriteModel
 
 LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
 
-class recording_manager
+class RecordingManager
 {
 public:
-	recording_manager();
-	~recording_manager();
+	RecordingManager();
+	~RecordingManager();
 	CallbackErrorFunction RecordingFailedCallback;
 	CallbackCompleteFunction RecordingCompleteCallback;
 	CallbackStatusChangedFunction RecordingStatusChangedCallback;
@@ -254,10 +253,10 @@ private:
 	//functions
 	std::string CurrentTimeToFormattedString();
 	bool CheckDependencies(_Out_ std::wstring *error);
-	capture_base *CreateCaptureSession();
+	ScreenCaptureBase *CreateCaptureSession();
 	std::vector<RECORDING_SOURCE> CreateRecordingSources();
 	std::vector<RECORDING_OVERLAY> CreateRecordingOverlays();
-	std::vector<BYTE> GrabAudioFrame(_In_opt_ std::unique_ptr<loopback_capture> &pLoopbackCaptureOutputDevice, _In_opt_ std::unique_ptr<loopback_capture> &pLoopbackCaptureInputDevice);
+	std::vector<BYTE> GrabAudioFrame(_In_opt_ std::unique_ptr<LoopbackCapture> &pLoopbackCaptureOutputDevice, _In_opt_ std::unique_ptr<LoopbackCapture> &pLoopbackCaptureInputDevice);
 	std::vector<BYTE> MixAudio(_In_ std::vector<BYTE> const &first, _In_ std::vector<BYTE> const &second, _In_ float firstVolume, _In_ float secondVolume);
 	std::wstring GetImageExtension();
 	std::wstring GetVideoExtension();
@@ -279,7 +278,7 @@ private:
 	HRESULT InitializeVideoSinkWriter(_In_ std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device *pDevice, _In_ RECT sourceRect, _In_ RECT destRect, _In_ DXGI_MODE_ROTATION rotation, _In_ IMFSinkWriterCallback *pCallback, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex);
 	HRESULT ConfigureOutputMediaTypes(_In_ UINT destWidth, _In_ UINT destHeight, _Outptr_ IMFMediaType **pVideoMediaTypeOut, _Outptr_result_maybenull_ IMFMediaType **pAudioMediaTypeOut);
 	HRESULT ConfigureInputMediaTypes(_In_ UINT sourceWidth, _In_ UINT sourceHeight, _In_ MFVideoRotationFormat rotationFormat, _In_ IMFMediaType *pVideoMediaTypeOut, _Outptr_ IMFMediaType **pVideoMediaTypeIn, _Outptr_result_maybenull_ IMFMediaType **pAudioMediaTypeIn);
-	HRESULT InitializeAudioCapture(_Outptr_result_maybenull_ loopback_capture **outputAudioCapture, _Outptr_result_maybenull_ loopback_capture **inputAudioCapture);
+	HRESULT InitializeAudioCapture(_Outptr_result_maybenull_ LoopbackCapture **outputAudioCapture, _Outptr_result_maybenull_ LoopbackCapture **inputAudioCapture);
 	void InitializeMouseClickDetection();
 	HRESULT WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ ID3D11Texture2D *pAcquiredDesktopImage);
 	HRESULT WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath);
@@ -288,7 +287,7 @@ private:
 	HRESULT WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE *pSrc, _In_ DWORD cbData);
 	HRESULT SetAttributeU32(_Inout_ ATL::CComPtr<ICodecAPI> &codec, _In_ const GUID &guid, _In_ UINT32 value);
 	HRESULT CreateInputMediaTypeFromOutput(_In_ IMFMediaType *pType, _In_ const GUID &subtype, _Outptr_ IMFMediaType **ppType);
-	HRESULT DrawMousePointer(_In_ ID3D11Texture2D *frame, _In_ mouse_pointer *pointer, _In_ PTR_INFO *ptrInfo, _In_ INT64 durationSinceLastFrame100Nanos);
+	HRESULT DrawMousePointer(_In_ ID3D11Texture2D *frame, _In_ MousePointer *pointer, _In_ PTR_INFO *ptrInfo, _In_ INT64 durationSinceLastFrame100Nanos);
 	HRESULT CropFrame(_In_ ID3D11Texture2D *frame, _In_ RECT destRect, _Outptr_ ID3D11Texture2D **pCroppedFrame);
 	HRESULT GetVideoProcessor(_In_ IMFSinkWriter *pSinkWriter, _In_ DWORD streamIndex, _Outptr_ IMFVideoProcessorControl **pVideoProcessor);
 };

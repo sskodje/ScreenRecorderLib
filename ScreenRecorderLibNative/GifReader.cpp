@@ -1,7 +1,7 @@
-#include "gif_reader.h"
-#include "cleanup.h"
+#include "GifReader.h"
+#include "Cleanup.h"
 
-gif_reader::gif_reader()
+GifReader::GifReader()
 	:
 	m_RenderTarget(NULL),
 	m_RenderTexture(NULL),
@@ -20,7 +20,7 @@ gif_reader::gif_reader()
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 }
 
-gif_reader::~gif_reader()
+GifReader::~GifReader()
 {
 	StopCapture();
 	SafeRelease(&m_RenderTarget);
@@ -38,7 +38,7 @@ gif_reader::~gif_reader()
 	DeleteCriticalSection(&m_CriticalSection);
 }
 
-HRESULT gif_reader::StartCapture(_In_ std::wstring source)
+HRESULT GifReader::StartCapture(_In_ std::wstring source)
 {
 	HRESULT hr;
 	RETURN_ON_BAD_HR(hr = Initialize());
@@ -81,7 +81,7 @@ HRESULT gif_reader::StartCapture(_In_ std::wstring source)
 	return hr;
 }
 
-HRESULT gif_reader::StopCapture()
+HRESULT GifReader::StopCapture()
 {
 	if (m_FramerateTimer) {
 		LOG_DEBUG("Stopping media reader sync timer");
@@ -94,7 +94,7 @@ HRESULT gif_reader::StopCapture()
 	return S_OK;
 }
 
-HRESULT gif_reader::GetFrame(FRAME_INFO *pFrameInfo, int timeoutMs)
+HRESULT GifReader::GetFrame(FRAME_INFO *pFrameInfo, int timeoutMs)
 {
 	DWORD result = WaitForSingleObject(m_NewFrameEvent, timeoutMs);
 	HRESULT hr;
@@ -155,7 +155,7 @@ HRESULT gif_reader::GetFrame(FRAME_INFO *pFrameInfo, int timeoutMs)
 	return hr;
 }
 
-HRESULT gif_reader::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize) {
+HRESULT GifReader::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize) {
 	// Old buffer too small
 	if (bufferSize > (int)FrameInfo->BufferSize)
 	{
@@ -178,7 +178,7 @@ HRESULT gif_reader::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize) {
 	return S_OK;
 }
 
-HRESULT gif_reader::Initialize(_In_ DX_RESOURCES *Data)
+HRESULT GifReader::Initialize(_In_ DX_RESOURCES *Data)
 {
 	m_Device = Data->Device;
 	m_DeviceContext = Data->Context;
@@ -188,7 +188,7 @@ HRESULT gif_reader::Initialize(_In_ DX_RESOURCES *Data)
 	return S_OK;
 }
 
-HRESULT gif_reader::Initialize()
+HRESULT GifReader::Initialize()
 {
 	HRESULT hr = S_OK;
 	if (!m_pD2DFactory) {
@@ -207,7 +207,7 @@ HRESULT gif_reader::Initialize()
 	return hr;
 }
 
-HRESULT gif_reader::CreateDeviceResources()
+HRESULT GifReader::CreateDeviceResources()
 {
 	HRESULT hr = S_OK;
 
@@ -260,7 +260,7 @@ HRESULT gif_reader::CreateDeviceResources()
 	return hr;
 }
 
-HRESULT gif_reader::GetGlobalMetadata()
+HRESULT GifReader::GetGlobalMetadata()
 {
 	PROPVARIANT propValue;
 	PropVariantInit(&propValue);
@@ -415,7 +415,7 @@ HRESULT gif_reader::GetGlobalMetadata()
 	return hr;
 }
 
-HRESULT gif_reader::GetRawFrame(UINT uFrameIndex)
+HRESULT GifReader::GetRawFrame(UINT uFrameIndex)
 {
 	IWICFormatConverter *pConverter = NULL;
 	IWICBitmapFrameDecode *pWicFrame = NULL;
@@ -585,7 +585,7 @@ HRESULT gif_reader::GetRawFrame(UINT uFrameIndex)
 	return hr;
 }
 
-HRESULT gif_reader::GetBackgroundColor(
+HRESULT GifReader::GetBackgroundColor(
 	IWICMetadataQueryReader *pMetadataQueryReader)
 {
 	DWORD dwBGColor;
@@ -664,7 +664,7 @@ HRESULT gif_reader::GetBackgroundColor(
 	return hr;
 }
 
-HRESULT gif_reader::RestoreSavedFrame()
+HRESULT GifReader::RestoreSavedFrame()
 {
 	HRESULT hr = S_OK;
 
@@ -688,7 +688,7 @@ HRESULT gif_reader::RestoreSavedFrame()
 	return hr;
 }
 
-HRESULT gif_reader::ClearCurrentFrameArea()
+HRESULT GifReader::ClearCurrentFrameArea()
 {
 	m_pFrameComposeRT->BeginDraw();
 
@@ -705,7 +705,7 @@ HRESULT gif_reader::ClearCurrentFrameArea()
 	return m_pFrameComposeRT->EndDraw();
 }
 
-HRESULT gif_reader::DisposeCurrentFrame()
+HRESULT GifReader::DisposeCurrentFrame()
 {
 	HRESULT hr = S_OK;
 
@@ -733,7 +733,7 @@ HRESULT gif_reader::DisposeCurrentFrame()
 	return hr;
 }
 
-HRESULT gif_reader::OverlayNextFrame()
+HRESULT GifReader::OverlayNextFrame()
 {
 	// Get Frame information
 	HRESULT hr = GetRawFrame(m_uNextFrameIndex);
@@ -781,7 +781,7 @@ HRESULT gif_reader::OverlayNextFrame()
 	return hr;
 }
 
-HRESULT gif_reader::SaveComposedFrame()
+HRESULT GifReader::SaveComposedFrame()
 {
 	HRESULT hr = S_OK;
 
@@ -816,11 +816,11 @@ HRESULT gif_reader::SaveComposedFrame()
 	return hr;
 }
 
-HRESULT gif_reader::StartCaptureLoop()
+HRESULT GifReader::StartCaptureLoop()
 {
 	m_CaptureTask = concurrency::create_task([this]() {
 		if (!m_FramerateTimer) {
-			m_FramerateTimer = new highres_timer();
+			m_FramerateTimer = new HighresTimer();
 		}
 		do
 		{
@@ -845,7 +845,7 @@ HRESULT gif_reader::StartCaptureLoop()
 	return S_OK;
 }
 
-HRESULT gif_reader::ComposeNextFrame()
+HRESULT GifReader::ComposeNextFrame()
 {
 	HRESULT hr = S_OK;
 	// Check to see if the render targets are initialized

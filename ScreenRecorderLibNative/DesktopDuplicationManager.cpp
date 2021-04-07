@@ -1,6 +1,6 @@
-#include "duplication_manager.h"
-#include "log.h"
-#include "cleanup.h"
+#include "DesktopDuplicationManager.h"
+#include "Log.h"
+#include "Cleanup.h"
 #include <suppress.h>
 #include "DX.util.h"
 using namespace DirectX;
@@ -8,7 +8,7 @@ using namespace DirectX;
 //
 // Constructor sets up references / variables
 //
-duplication_manager::duplication_manager() :
+DesktopDuplicationManager::DesktopDuplicationManager() :
 	m_DeskDupl(nullptr),
 	m_AcquiredDesktopImage(nullptr),
 	m_MetaDataBuffer(nullptr),
@@ -31,7 +31,7 @@ duplication_manager::duplication_manager() :
 //
 // Destructor simply calls CleanRefs to destroy everything
 //
-duplication_manager::~duplication_manager()
+DesktopDuplicationManager::~DesktopDuplicationManager()
 {
 	CleanRefs();
 
@@ -51,7 +51,7 @@ duplication_manager::~duplication_manager()
 //
 // Initialize duplication interfaces
 //
-HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES *Data, std::wstring Output)
+HRESULT DesktopDuplicationManager::Initialize(_In_ DX_RESOURCES *Data, std::wstring Output)
 {
 	m_OutputName = Output;
 	m_Device = Data->Device;
@@ -154,7 +154,7 @@ HRESULT duplication_manager::Initialize(_In_ DX_RESOURCES *Data, std::wstring Ou
 //
 // Get next frame and write it into Data
 //
-HRESULT duplication_manager::GetFrame(_Out_ DUPL_FRAME_DATA *Data)
+HRESULT DesktopDuplicationManager::GetFrame(_Out_ DUPL_FRAME_DATA *Data)
 {
 	IDXGIResource *DesktopResource = nullptr;
 	DXGI_OUTDUPL_FRAME_INFO FrameInfo;
@@ -242,7 +242,7 @@ HRESULT duplication_manager::GetFrame(_Out_ DUPL_FRAME_DATA *Data)
 //
 // Release frame
 //
-HRESULT duplication_manager::ReleaseFrame()
+HRESULT DesktopDuplicationManager::ReleaseFrame()
 {
 	HRESULT hr = m_DeskDupl->ReleaseFrame();
 	if (FAILED(hr))
@@ -257,7 +257,7 @@ HRESULT duplication_manager::ReleaseFrame()
 //
 // Gets output desc into DescPtr
 //
-void duplication_manager::GetOutputDesc(_Out_ DXGI_OUTPUT_DESC *DescPtr)
+void DesktopDuplicationManager::GetOutputDesc(_Out_ DXGI_OUTPUT_DESC *DescPtr)
 {
 	*DescPtr = m_OutputDesc;
 }
@@ -265,7 +265,7 @@ void duplication_manager::GetOutputDesc(_Out_ DXGI_OUTPUT_DESC *DescPtr)
 //
 // Process a given frame and its metadata
 //
-HRESULT duplication_manager::ProcessFrame(_In_ DUPL_FRAME_DATA *Data, _Inout_ ID3D11Texture2D *SharedSurf, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc)
+HRESULT DesktopDuplicationManager::ProcessFrame(_In_ DUPL_FRAME_DATA *Data, _Inout_ ID3D11Texture2D *SharedSurf, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc)
 {
 	HRESULT hr = S_OK;
 
@@ -296,7 +296,7 @@ HRESULT duplication_manager::ProcessFrame(_In_ DUPL_FRAME_DATA *Data, _Inout_ ID
 //
 // Set appropriate source and destination rects for move rects
 //
-void duplication_manager::SetMoveRect(_Out_ RECT *SrcRect, _Out_ RECT *DestRect, _In_ DXGI_OUTPUT_DESC *DeskDesc, _In_ DXGI_OUTDUPL_MOVE_RECT *MoveRect, INT TexWidth, INT TexHeight)
+void DesktopDuplicationManager::SetMoveRect(_Out_ RECT *SrcRect, _Out_ RECT *DestRect, _In_ DXGI_OUTPUT_DESC *DeskDesc, _In_ DXGI_OUTDUPL_MOVE_RECT *MoveRect, INT TexWidth, INT TexHeight)
 {
 	switch (DeskDesc->Rotation)
 	{
@@ -362,7 +362,7 @@ void duplication_manager::SetMoveRect(_Out_ RECT *SrcRect, _Out_ RECT *DestRect,
 //
 // Copy move rectangles
 //
-HRESULT duplication_manager::CopyMove(_Inout_ ID3D11Texture2D *SharedSurf, _In_reads_(MoveCount) DXGI_OUTDUPL_MOVE_RECT *MoveBuffer, UINT MoveCount, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc, INT TexWidth, INT TexHeight)
+HRESULT DesktopDuplicationManager::CopyMove(_Inout_ ID3D11Texture2D *SharedSurf, _In_reads_(MoveCount) DXGI_OUTDUPL_MOVE_RECT *MoveBuffer, UINT MoveCount, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc, INT TexWidth, INT TexHeight)
 {
 	D3D11_TEXTURE2D_DESC FullDesc;
 	SharedSurf->GetDesc(&FullDesc);
@@ -420,7 +420,7 @@ HRESULT duplication_manager::CopyMove(_Inout_ ID3D11Texture2D *SharedSurf, _In_r
 #pragma warning(push)
 #pragma warning(disable:__WARNING_USING_UNINIT_VAR) // false positives in SetDirtyVert due to tool bug
 
-void duplication_manager::SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX *Vertices, _In_ RECT *Dirty, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc, _In_ D3D11_TEXTURE2D_DESC *FullDesc, _In_ D3D11_TEXTURE2D_DESC *ThisDesc)
+void DesktopDuplicationManager::SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX *Vertices, _In_ RECT *Dirty, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc, _In_ D3D11_TEXTURE2D_DESC *FullDesc, _In_ D3D11_TEXTURE2D_DESC *ThisDesc)
 {
 	INT CenterX = FullDesc->Width / 2;
 	INT CenterY = FullDesc->Height / 2;
@@ -511,7 +511,7 @@ void duplication_manager::SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX *Vertice
 //
 // Copies dirty rectangles
 //
-HRESULT duplication_manager::CopyDirty(_In_ ID3D11Texture2D *SrcSurface, _Inout_ ID3D11Texture2D *SharedSurf, _In_reads_(DirtyCount) RECT *DirtyBuffer, UINT DirtyCount, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc)
+HRESULT DesktopDuplicationManager::CopyDirty(_In_ ID3D11Texture2D *SrcSurface, _Inout_ ID3D11Texture2D *SharedSurf, _In_reads_(DirtyCount) RECT *DirtyBuffer, UINT DirtyCount, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc)
 {
 	HRESULT hr;
 
@@ -628,7 +628,7 @@ HRESULT duplication_manager::CopyDirty(_In_ ID3D11Texture2D *SrcSurface, _Inout_
 //
 // Clean all references
 //
-void duplication_manager::CleanRefs()
+void DesktopDuplicationManager::CleanRefs()
 {
 	SafeRelease(&m_DeskDupl);
 	SafeRelease(&m_AcquiredDesktopImage);

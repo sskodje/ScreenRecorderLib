@@ -6,9 +6,9 @@
 #include <mmdeviceapi.h>
 #include <audioclient.h>
 #include <functiondiscoverykeys_devpkey.h>
-#include "log.h"
-#include "audio_prefs.h"
-#include "cleanup.h"
+#include "Log.h"
+#include "AudioPrefs.h"
+#include "Cleanup.h"
 
 
 
@@ -18,7 +18,7 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 HRESULT open_file(LPCWSTR szFileName, HMMIO *phFile);
 
 
-CPrefs::CPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow)
+AudioPrefs::AudioPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow)
 	: m_pMMDevice(NULL)
 	, m_hFile(NULL)
 	, m_bInt16(false)
@@ -76,7 +76,7 @@ CPrefs::CPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow)
 	}
 }
 
-CPrefs::~CPrefs() {
+AudioPrefs::~AudioPrefs() {
 	if (NULL != m_pMMDevice) {
 		m_pMMDevice->Release();
 	}
@@ -116,7 +116,7 @@ HRESULT get_default_device(IMMDevice **ppMMDevice, EDataFlow flow) {
 	return S_OK;
 }
 
-HRESULT CPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wstring> *devices) {
+HRESULT AudioPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wstring> *devices) {
 	HRESULT hr = S_OK;
 
 	// get an enumerator

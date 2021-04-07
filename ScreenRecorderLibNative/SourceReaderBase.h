@@ -7,17 +7,17 @@
 #include <propvarutil.h>
 #include <Shlwapi.h>
 #include <atlbase.h>
-#include "common_types.h"
-#include "highres_timer.h"
+#include "CommonTypes.h"
+#include "HighresTimer.h"
 #include "LogMediaType.h"
-#include "reader_base.h"
-#include "string_format.h"
-class source_reader_base abstract : public reader_base, public IMFSourceReaderCallback  //this class inherits from IMFSourceReaderCallback
+#include "CaptureBase.h"
+
+class SourceReaderBase abstract : public CaptureBase, public IMFSourceReaderCallback  //this class inherits from IMFSourceReaderCallback
 {
 public:
 	virtual void Close();
-	source_reader_base();
-	virtual ~source_reader_base();
+	SourceReaderBase();
+	virtual ~SourceReaderBase();
 	virtual HRESULT StartCapture(_In_ std::wstring source) override;
 
 	virtual HRESULT GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int timeoutMs) override;
@@ -45,7 +45,7 @@ protected:
 	virtual HRESULT GetDefaultStride(_In_ IMFMediaType *pType, _Out_ LONG *plStride);
 	virtual HRESULT CreateOutputMediaType(_In_ SIZE frameSize, _Outptr_ IMFMediaType **pType, _Out_ LONG *stride);
 	virtual HRESULT CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMediaType, _Outptr_ IMFTransform **pColorConverter, _Outptr_ IMFMediaType **ppOutputMediaType);
-	virtual HRESULT source_reader_base::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize);
+	virtual HRESULT SourceReaderBase::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize);
 	CRITICAL_SECTION m_CriticalSection;
 private:
 	long m_ReferenceCount;
@@ -55,7 +55,7 @@ private:
 	IMFMediaBuffer *m_Sample;
 	ID3D11Device *m_Device;
 	ID3D11DeviceContext *m_DeviceContext;
-	highres_timer *m_FramerateTimer;
+	HighresTimer *m_FramerateTimer;
 	IMFMediaType *m_OutputMediaType;
 	IMFMediaType *m_InputMediaType;
 	IMFSourceReader *m_SourceReader;

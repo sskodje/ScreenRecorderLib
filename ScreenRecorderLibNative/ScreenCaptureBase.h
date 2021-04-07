@@ -5,18 +5,17 @@
 #include <atlbase.h>
 #include <algorithm>
 
-#include "common_types.h"
-#include "log.h"
+#include "CommonTypes.h"
+#include "Log.h"
 #include "DX.util.h"
-#include "util.h"
-#include "screengrab.h"
-#include "string_format.h"
+#include "Util.h"
+#include "Screengrab.h"
 
-class capture_base abstract
+class ScreenCaptureBase abstract
 {
 public:
-	capture_base();
-	virtual ~capture_base();
+	ScreenCaptureBase();
+	virtual ~ScreenCaptureBase();
 	virtual HRESULT Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice);
 	virtual inline PTR_INFO *GetPointerInfo() {
 		return &m_PtrInfo;

@@ -1,6 +1,6 @@
 #pragma warning (disable : 26451)
 #include "DX.util.h"
-#include "cleanup.h"
+#include "Cleanup.h"
 
 //
 // Get DX_RESOURCES

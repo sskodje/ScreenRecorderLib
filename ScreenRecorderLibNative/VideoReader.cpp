@@ -1,15 +1,15 @@
-#include "video_reader.h"
-#include "cleanup.h"
+#include "VideoReader.h"
+#include "Cleanup.h"
 #include "LogMediaType.h"
-video_reader::video_reader() :source_reader_base()
+VideoReader::VideoReader() :SourceReaderBase()
 {
 }
 
-video_reader::~video_reader()
+VideoReader::~VideoReader()
 {
 }
 
-HRESULT video_reader::InitializeSourceReader(
+HRESULT VideoReader::InitializeSourceReader(
 	_In_ std::wstring filePath,
 	_Out_ long *pStreamIndex,
 	_Outptr_ IMFSourceReader **ppSourceReader,

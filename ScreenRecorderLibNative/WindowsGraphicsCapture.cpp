@@ -1,28 +1,28 @@
-#include "graphics_capture.h"
-#include "graphics_capture.util.h"
+#include "WindowsGraphicsCapture.h"
+#include "WindowsGraphicsCapture.util.h"
 
-#include "util.h"
-#include "cleanup.h"
-#include "graphics_manager.h"
+#include "Util.h"
+#include "Cleanup.h"
+#include "WindowsGraphicsManager.h"
 
-using namespace capture::util;
+using namespace Graphics::Capture::Util;
 using namespace winrt::Windows::Graphics::Capture;
 using namespace winrt::Windows::Graphics::DirectX;
 
 static DWORD WINAPI CaptureThreadProc(_In_ void *Param);
 
-graphics_capture::graphics_capture() :
-	capture_base()
+WindowsGraphicsCapture::WindowsGraphicsCapture() :
+	ScreenCaptureBase()
 {
 
 }
 
-graphics_capture::~graphics_capture()
+WindowsGraphicsCapture::~WindowsGraphicsCapture()
 {
 
 }
 
-RECT graphics_capture::GetOutputRect()
+RECT WindowsGraphicsCapture::GetOutputRect()
 {
 	if (IsSingleWindowCapture()) {
 		while (IsCapturing() && !IsInitialFrameWriteComplete()) {
@@ -35,7 +35,7 @@ RECT graphics_capture::GetOutputRect()
 	}
 }
 
-LPTHREAD_START_ROUTINE graphics_capture::GetCaptureThreadProc()
+LPTHREAD_START_ROUTINE WindowsGraphicsCapture::GetCaptureThreadProc()
 {
 	return CaptureThreadProc;
 }
@@ -48,8 +48,8 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	HRESULT hr = S_OK;
 
 	// Classes
-	mouse_pointer pMousePointer{};
-	graphics_manager graphicsManager{};
+	MousePointer pMousePointer{};
+	WindowsGraphicsManager graphicsManager{};
 	GraphicsCaptureItem captureItem{ nullptr };
 	// D3D objects
 	ID3D11Texture2D *SharedSurf = nullptr;
@@ -64,7 +64,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 
 	RtlZeroMemory(&pData->ContentFrameRect, sizeof(pData->ContentFrameRect));
 	if (pData->RecordingSource->WindowHandle != nullptr) {
-		captureItem = capture::util::CreateCaptureItemForWindow(pSource->WindowHandle);
+		captureItem = CreateCaptureItemForWindow(pSource->WindowHandle);
 		pData->ContentFrameRect.right = captureItem.Size().Width;
 		pData->ContentFrameRect.bottom = captureItem.Size().Height;
 	}
@@ -81,7 +81,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 		}
 		DXGI_OUTPUT_DESC outputDesc;
 		output->GetDesc(&outputDesc);
-		captureItem = capture::util::CreateCaptureItemForMonitor(outputDesc.Monitor);
+		captureItem = CreateCaptureItemForMonitor(outputDesc.Monitor);
 		pData->ContentFrameRect = outputDesc.DesktopCoordinates;
 	}
 	pMousePointer.Initialize(pSource->DxRes.Context, pSource->DxRes.Device);

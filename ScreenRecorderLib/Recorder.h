@@ -441,7 +441,7 @@ namespace ScreenRecorderLib {
 			_status = value;
 		}
 		}
-		recording_manager *lRec;
+		RecordingManager *m_Rec;
 		void Record(System::String^ path);
 		void Record(System::Runtime::InteropServices::ComTypes::IStream^ stream);
 		void Record(System::IO::Stream^ stream);

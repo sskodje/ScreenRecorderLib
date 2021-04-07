@@ -1,19 +1,19 @@
 //https://github.com/mvaneerde/blog/tree/master/loopback-capture
-#include "cleanup.h"
-#include "loopback_capture.h"
+#include "Cleanup.h"
+#include "LoopbackCapture.h"
 
 using namespace std;
-loopback_capture::loopback_capture(std::wstring tag)
+LoopbackCapture::LoopbackCapture(std::wstring tag)
 {
 	std::mutex(mtx);
 	m_Tag = tag;
 }
-loopback_capture::loopback_capture()
+LoopbackCapture::LoopbackCapture()
 {
 	std::mutex(mtx);
 	m_Tag = L"";
 }
-loopback_capture::~loopback_capture()
+LoopbackCapture::~LoopbackCapture()
 {
 	StopCapture();
 	CloseHandle(m_CaptureStopEvent);
@@ -21,7 +21,7 @@ loopback_capture::~loopback_capture()
 	m_Resampler.Finalize();
 }
 
-HRESULT loopback_capture::LoopbackCapture(
+HRESULT LoopbackCapture::StartLoopbackCapture(
 	IMMDevice *pMMDevice,
 	HMMIO hFile,
 	bool bInt16,
@@ -343,12 +343,12 @@ HRESULT loopback_capture::LoopbackCapture(
 	} // capture loop
 	return hr;
 }
-std::vector<BYTE> loopback_capture::PeakRecordedBytes()
+std::vector<BYTE> LoopbackCapture::PeakRecordedBytes()
 {
 	return m_RecordedBytes;
 }
 
-std::vector<BYTE> loopback_capture::GetRecordedBytes()
+std::vector<BYTE> LoopbackCapture::GetRecordedBytes()
 {
 	auto byteCount = m_RecordedBytes.size();
 	m_Mutex.lock();
@@ -373,18 +373,18 @@ std::vector<BYTE> loopback_capture::GetRecordedBytes()
 		m_OverflowBytes.clear();
 	}
 	m_RecordedBytes.erase(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
-	LOG_TRACE(L"Got %d bytes from loopback_capture %ls. %d bytes remaining", newvector.size(), m_Tag.c_str(), m_RecordedBytes.size());
+	LOG_TRACE(L"Got %d bytes from LoopbackCapture %ls. %d bytes remaining", newvector.size(), m_Tag.c_str(), m_RecordedBytes.size());
 	m_Mutex.unlock();
 	return newvector;
 }
 
-HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, std::wstring device, EDataFlow flow)
+HRESULT LoopbackCapture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, std::wstring device, EDataFlow flow)
 {
 	HRESULT hr = E_FAIL;
 	bool isDeviceEmpty = device.empty();
 	LPCWSTR argv[3] = { L"", L"--device", device.c_str() };
 	int argc = isDeviceEmpty ? 1 : SIZEOF_ARRAY(argv);
-	CPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, flow);
+	AudioPrefs prefs(argc, isDeviceEmpty ? nullptr : argv, hr, flow);
 	if (SUCCEEDED(hr)) {
 		m_CaptureStartedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 		if (nullptr == m_CaptureStartedEvent) {
@@ -401,7 +401,7 @@ HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, 
 		IMMDevice *device = prefs.m_pMMDevice;
 		auto file = prefs.m_hFile;
 		m_CaptureTask = concurrency::create_task([this, flow, sampleRate, audioChannels, device, file]() {
-			if (FAILED(LoopbackCapture(device,
+			if (FAILED(StartLoopbackCapture(device,
 				file,
 				true,
 				m_CaptureStartedEvent,
@@ -418,30 +418,30 @@ HRESULT loopback_capture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, 
 	return hr;
 }
 
-HRESULT loopback_capture::StopCapture()
+HRESULT LoopbackCapture::StopCapture()
 {
 	SetEvent(m_CaptureStopEvent);
 	m_CaptureTask.wait();
 	return S_OK;
 }
 
-void loopback_capture::ReturnAudioBytesToBuffer(std::vector<BYTE> bytes)
+void LoopbackCapture::ReturnAudioBytesToBuffer(std::vector<BYTE> bytes)
 {
 	m_OverflowBytes.swap(bytes);
-	LOG_TRACE(L"Returned %d bytes to buffer in loopback_capture %ls", m_OverflowBytes.size(), m_Tag.c_str());
+	LOG_TRACE(L"Returned %d bytes to buffer in LoopbackCapture %ls", m_OverflowBytes.size(), m_Tag.c_str());
 }
 
-bool loopback_capture::requiresResampling()
+bool LoopbackCapture::requiresResampling()
 {
 	return m_InputFormat.sampleRate != m_OutputFormat.sampleRate
 		|| m_InputFormat.nChannels != m_OutputFormat.nChannels;
 }
 
-bool loopback_capture::IsCapturing() {
+bool LoopbackCapture::IsCapturing() {
 	return m_IsCapturing;
 }
 
-void loopback_capture::ClearRecordedBytes()
+void LoopbackCapture::ClearRecordedBytes()
 {
 	m_Mutex.lock();
 	m_RecordedBytes.clear();

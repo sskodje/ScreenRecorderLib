@@ -6,8 +6,8 @@
 #include <ppltasks.h> 
 #include <mmdeviceapi.h>
 #include "WWMFResampler.h"
-#include "audio_prefs.h"
-#include "log.h"
+#include "AudioPrefs.h"
+#include "Log.h"
 
 #include <thread>
 #include <stdio.h>
@@ -17,15 +17,15 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "winmm.lib")
 
-class loopback_capture
+class LoopbackCapture
 {
 public:
-	loopback_capture(std::wstring tag);
-	loopback_capture();
-	~loopback_capture();
+	LoopbackCapture(std::wstring tag);
+	LoopbackCapture();
+	~LoopbackCapture();
 	void ClearRecordedBytes();
 	bool IsCapturing();
-	HRESULT LoopbackCapture(
+	HRESULT StartLoopbackCapture(
 		IMMDevice *pMMDevice,
 		HMMIO hFile,
 		bool bInt16,

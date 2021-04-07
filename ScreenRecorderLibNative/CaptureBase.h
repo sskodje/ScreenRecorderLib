@@ -1,6 +1,6 @@
 #pragma once
 
-class reader_base abstract
+class CaptureBase abstract
 {
 public:
 	virtual HRESULT StartCapture(_In_ std::wstring source) abstract;

@@ -7,11 +7,11 @@
 #include <dxgi1_2.h>
 #include <d2d1.h>
 #include <atlbase.h>
-#include "common_types.h"
+#include "CommonTypes.h"
 
 #pragma comment(lib, "D2d1.lib")
 
-class mouse_pointer
+class MousePointer
 {
 public:
 	HRESULT Initialize(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device);

@@ -1,15 +1,15 @@
-// cleanup.h
+// Cleanup.h
 #pragma once
 #include <audioclient.h>
 #include "WWMFResampler.h"
 #include <atlbase.h>
 #include <dxgi1_2.h>
 #include <wincodec.h>
-#include "log.h"
-#include "duplication_capture.h"
-#include "graphics_capture.h"
-#include "duplication_manager.h"
-#include "source_reader_base.h"
+#include "Log.h"
+#include "DesktopDuplicationCapture.h"
+#include "WindowsGraphicsCapture.h"
+#include "DesktopDuplicationManager.h"
+#include "SourceReaderBase.h"
 template <class T> void SafeRelease(T **ppT)
 {
 	if (*ppT)
@@ -62,16 +62,16 @@ private:
 
 class CaptureStopOnExit {
 public:
-	CaptureStopOnExit(capture_base *p) : m_p(p) {}
+	CaptureStopOnExit(ScreenCaptureBase *p) : m_p(p) {}
 	~CaptureStopOnExit() {
 		m_p->StopCapture();
 	}
-	void Reset(capture_base *p) {
+	void Reset(ScreenCaptureBase *p) {
 		m_p = p;
 	}
 
 private:
-	capture_base *m_p;
+	ScreenCaptureBase *m_p;
 };
 
 
@@ -270,7 +270,7 @@ private:
 
 class ReleaseDuplicationManagerFrameOnExit {
 public:
-	ReleaseDuplicationManagerFrameOnExit(duplication_manager *manager) : m_p(manager) {}
+	ReleaseDuplicationManagerFrameOnExit(DesktopDuplicationManager *manager) : m_p(manager) {}
 	~ReleaseDuplicationManagerFrameOnExit() {
 
 		if (m_p) {
@@ -279,12 +279,12 @@ public:
 	}
 
 private:
-	duplication_manager *m_p;
+	DesktopDuplicationManager *m_p;
 };
 
 class CloseMediaReaderOnExit {
 public:
-	CloseMediaReaderOnExit(source_reader_base *capture) : m_p(capture) {}
+	CloseMediaReaderOnExit(SourceReaderBase *capture) : m_p(capture) {}
 	~CloseMediaReaderOnExit() {
 
 		if (m_p) {
@@ -293,7 +293,7 @@ public:
 	}
 
 private:
-	source_reader_base *m_p;
+	SourceReaderBase *m_p;
 };
 
 class ReleaseCOMArrayOnExit {

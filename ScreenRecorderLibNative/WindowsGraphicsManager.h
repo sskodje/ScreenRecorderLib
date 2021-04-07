@@ -9,13 +9,13 @@
 #include <inspectable.h>
 #include <winrt/Windows.Graphics.Capture.h>
 
-#include "common_types.h"
+#include "CommonTypes.h"
 
-class graphics_manager
+class WindowsGraphicsManager
 {
 public:
-	graphics_manager();
-	~graphics_manager();
+	WindowsGraphicsManager();
+	~WindowsGraphicsManager();
 	void Close();
 	winrt::Windows::Graphics::Capture::GraphicsCaptureItem CaptureItem() { return m_item; }
 	HRESULT Initialize(_In_ DX_RESOURCES *Data, _In_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem Output, _In_ bool isCursorCaptureEnabled, _In_ winrt::Windows::Graphics::DirectX::DirectXPixelFormat pixelFormat);

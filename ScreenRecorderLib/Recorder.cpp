@@ -8,38 +8,38 @@ using namespace nlohmann;
 
 Recorder::Recorder(RecorderOptions^ options)
 {
-	lRec = new recording_manager();
+	m_Rec = new RecordingManager();
 	SetOptions(options);
 }
 
 void Recorder::SetOptions(RecorderOptions^ options) {
-	if (options && lRec) {
+	if (options && m_Rec) {
 		if (options->VideoOptions) {
-			lRec->SetVideoBitrate(options->VideoOptions->Bitrate);
-			lRec->SetVideoQuality(options->VideoOptions->Quality);
-			lRec->SetVideoFps(options->VideoOptions->Framerate);
-			lRec->SetFixedFramerate(options->VideoOptions->IsFixedFramerate);
-			lRec->SetH264EncoderProfile((UINT32)options->VideoOptions->EncoderProfile);
-			lRec->SetVideoBitrateMode((UINT32)options->VideoOptions->BitrateMode);
-			lRec->SetTakeSnapshotsWithVideo(options->VideoOptions->SnapshotsWithVideo);
-			lRec->SetSnapshotsWithVideoInterval(options->VideoOptions->SnapshotsInterval);
+			m_Rec->SetVideoBitrate(options->VideoOptions->Bitrate);
+			m_Rec->SetVideoQuality(options->VideoOptions->Quality);
+			m_Rec->SetVideoFps(options->VideoOptions->Framerate);
+			m_Rec->SetFixedFramerate(options->VideoOptions->IsFixedFramerate);
+			m_Rec->SetH264EncoderProfile((UINT32)options->VideoOptions->EncoderProfile);
+			m_Rec->SetVideoBitrateMode((UINT32)options->VideoOptions->BitrateMode);
+			m_Rec->SetTakeSnapshotsWithVideo(options->VideoOptions->SnapshotsWithVideo);
+			m_Rec->SetSnapshotsWithVideoInterval(options->VideoOptions->SnapshotsInterval);
 			if (options->VideoOptions->SnapshotsDirectory != nullptr) {
-				lRec->SetSnapshotDirectory(msclr::interop::marshal_as<std::wstring>(options->VideoOptions->SnapshotsDirectory));
+				m_Rec->SetSnapshotDirectory(msclr::interop::marshal_as<std::wstring>(options->VideoOptions->SnapshotsDirectory));
 			}
 			switch (options->VideoOptions->SnapshotFormat)
 			{
 			case ImageFormat::BMP:
-				lRec->SetSnapshotSaveFormat(GUID_ContainerFormatBmp);
+				m_Rec->SetSnapshotSaveFormat(GUID_ContainerFormatBmp);
 				break;
 			case ImageFormat::JPEG:
-				lRec->SetSnapshotSaveFormat(GUID_ContainerFormatJpeg);
+				m_Rec->SetSnapshotSaveFormat(GUID_ContainerFormatJpeg);
 				break;
 			case ImageFormat::TIFF:
-				lRec->SetSnapshotSaveFormat(GUID_ContainerFormatTiff);
+				m_Rec->SetSnapshotSaveFormat(GUID_ContainerFormatTiff);
 				break;
 			default:
 			case ImageFormat::PNG:
-				lRec->SetSnapshotSaveFormat(GUID_ContainerFormatPng);
+				m_Rec->SetSnapshotSaveFormat(GUID_ContainerFormatPng);
 				break;
 			}
 		}
@@ -49,7 +49,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			rect.top = options->DisplayOptions->Top;
 			rect.right = options->DisplayOptions->Right;
 			rect.bottom = options->DisplayOptions->Bottom;
-			lRec->SetDestRectangle(rect);
+			m_Rec->SetDestRectangle(rect);
 			if (options->DisplayOptions->DisplayDevices) {
 				std::vector<std::wstring> displays{};
 				displays.reserve(options->DisplayOptions->DisplayDevices->Count);
@@ -59,7 +59,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 						displays.push_back(msclr::interop::marshal_as<std::wstring>(str));
 					}
 				}
-				lRec->SetDisplayOutput(displays);
+				m_Rec->SetDisplayOutput(displays);
 			}
 
 			if (options->DisplayOptions->WindowHandles)
@@ -73,71 +73,71 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 						windows.push_back(window);
 					}
 				}
-				lRec->SetWindowHandles(windows);
+				m_Rec->SetWindowHandles(windows);
 			}
 		}
 		if (options->AudioOptions) {
-			lRec->SetAudioEnabled(options->AudioOptions->IsAudioEnabled);
-			lRec->SetOutputDeviceEnabled(options->AudioOptions->IsOutputDeviceEnabled);
-			lRec->SetInputDeviceEnabled(options->AudioOptions->IsInputDeviceEnabled);
-			lRec->SetAudioBitrate((UINT32)options->AudioOptions->Bitrate);
-			lRec->SetAudioChannels((UINT32)options->AudioOptions->Channels);
+			m_Rec->SetAudioEnabled(options->AudioOptions->IsAudioEnabled);
+			m_Rec->SetOutputDeviceEnabled(options->AudioOptions->IsOutputDeviceEnabled);
+			m_Rec->SetInputDeviceEnabled(options->AudioOptions->IsInputDeviceEnabled);
+			m_Rec->SetAudioBitrate((UINT32)options->AudioOptions->Bitrate);
+			m_Rec->SetAudioChannels((UINT32)options->AudioOptions->Channels);
 			if (options->AudioOptions->AudioOutputDevice != nullptr) {
-				lRec->SetOutputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioOutputDevice));
+				m_Rec->SetOutputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioOutputDevice));
 			}
 			if (options->AudioOptions->AudioInputDevice != nullptr) {
-				lRec->SetInputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioInputDevice));
+				m_Rec->SetInputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioInputDevice));
 			}
-			lRec->SetInputVolume(options->AudioOptions->InputVolume);
-			lRec->SetOutputVolume(options->AudioOptions->OutputVolume);
+			m_Rec->SetInputVolume(options->AudioOptions->InputVolume);
+			m_Rec->SetOutputVolume(options->AudioOptions->OutputVolume);
 		}
 		if (options->MouseOptions) {
-			lRec->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled);
-			lRec->SetDetectMouseClicks(options->MouseOptions->IsMouseClicksDetected);
-			lRec->SetMouseClickDetectionLMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionColor));
-			lRec->SetMouseClickDetectionRMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseRightClickDetectionColor));
-			lRec->SetMouseClickDetectionRadius(options->MouseOptions->MouseClickDetectionRadius);
-			lRec->SetMouseClickDetectionDuration(options->MouseOptions->MouseClickDetectionDuration);
-			lRec->SetMouseClickDetectionMode((UINT32)options->MouseOptions->MouseClickDetectionMode);
+			m_Rec->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled);
+			m_Rec->SetDetectMouseClicks(options->MouseOptions->IsMouseClicksDetected);
+			m_Rec->SetMouseClickDetectionLMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionColor));
+			m_Rec->SetMouseClickDetectionRMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseRightClickDetectionColor));
+			m_Rec->SetMouseClickDetectionRadius(options->MouseOptions->MouseClickDetectionRadius);
+			m_Rec->SetMouseClickDetectionDuration(options->MouseOptions->MouseClickDetectionDuration);
+			m_Rec->SetMouseClickDetectionMode((UINT32)options->MouseOptions->MouseClickDetectionMode);
 		}
 		if (options->OverlayOptions) {
-			lRec->SetOverlays(CreateNativeOverlayList(options->OverlayOptions->Overlays));
+			m_Rec->SetOverlays(CreateNativeOverlayList(options->OverlayOptions->Overlays));
 		}
 
-		lRec->SetRecorderMode((UINT32)options->RecorderMode);
-		lRec->SetRecorderApi((UINT32)options->RecorderApi);
-		lRec->SetIsThrottlingDisabled(options->IsThrottlingDisabled);
-		lRec->SetIsLowLatencyModeEnabled(options->IsLowLatencyEnabled);
-		lRec->SetIsFastStartEnabled(options->IsMp4FastStartEnabled);
-		lRec->SetIsHardwareEncodingEnabled(options->IsHardwareEncodingEnabled);
-		lRec->SetIsFragmentedMp4Enabled(options->IsFragmentedMp4Enabled);
-		lRec->SetIsLogEnabled(options->IsLogEnabled);
+		m_Rec->SetRecorderMode((UINT32)options->RecorderMode);
+		m_Rec->SetRecorderApi((UINT32)options->RecorderApi);
+		m_Rec->SetIsThrottlingDisabled(options->IsThrottlingDisabled);
+		m_Rec->SetIsLowLatencyModeEnabled(options->IsLowLatencyEnabled);
+		m_Rec->SetIsFastStartEnabled(options->IsMp4FastStartEnabled);
+		m_Rec->SetIsHardwareEncodingEnabled(options->IsHardwareEncodingEnabled);
+		m_Rec->SetIsFragmentedMp4Enabled(options->IsFragmentedMp4Enabled);
+		m_Rec->SetIsLogEnabled(options->IsLogEnabled);
 		if (options->LogFilePath != nullptr) {
-			lRec->SetLogFilePath(msclr::interop::marshal_as<std::wstring>(options->LogFilePath));
+			m_Rec->SetLogFilePath(msclr::interop::marshal_as<std::wstring>(options->LogFilePath));
 		}
-		lRec->SetLogSeverityLevel((UINT32)options->LogSeverityLevel);
+		m_Rec->SetLogSeverityLevel((UINT32)options->LogSeverityLevel);
 	}
 }
 
 void Recorder::SetInputVolume(float volume)
 {
-	if (lRec)
+	if (m_Rec)
 	{
-		lRec->SetInputVolume(volume);
+		m_Rec->SetInputVolume(volume);
 	}
 }
 
 void Recorder::SetOutputVolume(float volume)
 {
-	if (lRec)
+	if (m_Rec)
 	{
-		lRec->SetOutputVolume(volume);
+		m_Rec->SetOutputVolume(volume);
 	}
 }
 
 bool Recorder::SetExcludeFromCapture(System::IntPtr hwnd, bool isExcluded)
 {
-	return recording_manager::SetExcludeFromCapture((HWND)hwnd.ToPointer(), isExcluded);
+	return RecordingManager::SetExcludeFromCapture((HWND)hwnd.ToPointer(), isExcluded);
 }
 
 Dictionary<String^, String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
@@ -161,7 +161,7 @@ Dictionary<String^, String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource 
 
 	Dictionary<String^, String^>^ devices = gcnew Dictionary<String^, String^>();
 
-	HRESULT hr = CPrefs::list_devices(dFlow, &map);
+	HRESULT hr = AudioPrefs::list_devices(dFlow, &map);
 
 	if (SUCCEEDED(hr))
 	{
@@ -269,9 +269,9 @@ Recorder::~Recorder()
 }
 
 Recorder::!Recorder() {
-	if (lRec) {
-		delete lRec;
-		lRec = nullptr;
+	if (m_Rec) {
+		delete m_Rec;
+		m_Rec = nullptr;
 	}
 	if (m_ManagedStream) {
 		delete m_ManagedStream;
@@ -302,26 +302,26 @@ List<RecordableWindow^>^ ScreenRecorderLib::Recorder::GetWindows()
 void Recorder::Record(System::Runtime::InteropServices::ComTypes::IStream^ stream) {
 	SetupCallbacks();
 	IStream *pNativeStream = (IStream*)Marshal::GetComInterfaceForObject(stream, System::Runtime::InteropServices::ComTypes::IStream::typeid).ToPointer();
-	lRec->BeginRecording(pNativeStream);
+	m_Rec->BeginRecording(pNativeStream);
 }
 void Recorder::Record(System::IO::Stream^ stream) {
 	SetupCallbacks();
 	m_ManagedStream = new ManagedIStream(stream);
-	lRec->BeginRecording(m_ManagedStream);
+	m_Rec->BeginRecording(m_ManagedStream);
 }
 void Recorder::Record(System::String^ path) {
 	SetupCallbacks();
 	std::wstring stdPathString = msclr::interop::marshal_as<std::wstring>(path);
-	lRec->BeginRecording(stdPathString);
+	m_Rec->BeginRecording(stdPathString);
 }
 void Recorder::Pause() {
-	lRec->PauseRecording();
+	m_Rec->PauseRecording();
 }
 void Recorder::Resume() {
-	lRec->ResumeRecording();
+	m_Rec->ResumeRecording();
 }
 void Recorder::Stop() {
-	lRec->EndRecording();
+	m_Rec->EndRecording();
 }
 
 void Recorder::SetupCallbacks() {
@@ -402,7 +402,7 @@ void Recorder::CreateErrorCallback() {
 	_errorDelegateGcHandler = GCHandle::Alloc(fp);
 	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
 	CallbackErrorFunction cb = static_cast<CallbackErrorFunction>(ip.ToPointer());
-	lRec->RecordingFailedCallback = cb;
+	m_Rec->RecordingFailedCallback = cb;
 
 }
 void Recorder::CreateCompletionCallback() {
@@ -410,21 +410,21 @@ void Recorder::CreateCompletionCallback() {
 	_completedDelegateGcHandler = GCHandle::Alloc(fp);
 	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
 	CallbackCompleteFunction cb = static_cast<CallbackCompleteFunction>(ip.ToPointer());
-	lRec->RecordingCompleteCallback = cb;
+	m_Rec->RecordingCompleteCallback = cb;
 }
 void Recorder::CreateStatusCallback() {
 	InternalStatusCallbackDelegate^ fp = gcnew InternalStatusCallbackDelegate(this, &Recorder::EventStatusChanged);
 	_statusChangedDelegateGcHandler = GCHandle::Alloc(fp);
 	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
 	CallbackStatusChangedFunction cb = static_cast<CallbackStatusChangedFunction>(ip.ToPointer());
-	lRec->RecordingStatusChangedCallback = cb;
+	m_Rec->RecordingStatusChangedCallback = cb;
 }
 void Recorder::CreateSnapshotCallback() {
 	InternalSnapshotCallbackDelegate^ fp = gcnew InternalSnapshotCallbackDelegate(this, &Recorder::EventSnapshotCreated);
 	_snapshotDelegateGcHandler = GCHandle::Alloc(fp);
 	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
 	CallbackSnapshotFunction cb = static_cast<CallbackSnapshotFunction>(ip.ToPointer());
-	lRec->RecordingSnapshotCreatedCallback = cb;
+	m_Rec->RecordingSnapshotCreatedCallback = cb;
 }
 void Recorder::EventComplete(std::wstring str, fifo_map<std::wstring, int> delays)
 {

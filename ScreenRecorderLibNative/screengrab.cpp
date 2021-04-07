@@ -1,9 +1,9 @@
 #pragma once
-#include "screengrab.h"
+#include "Screengrab.h"
 #include <Windows.h>
-#include "log.h"
+#include "Log.h"
 #include <atlbase.h>
-#include "cleanup.h"
+#include "Cleanup.h"
 namespace {
 	bool g_WIC2 = false;
 

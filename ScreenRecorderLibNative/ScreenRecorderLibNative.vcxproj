@@ -19,70 +19,69 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="capture_base.h" />
-    <ClInclude Include="device_capture.h" />
-    <ClInclude Include="gif_reader.h" />
+    <ClInclude Include="ScreenCaptureBase.h" />
+    <ClInclude Include="CameraCapture.h" />
+    <ClInclude Include="GifReader.h" />
     <ClInclude Include="LogMediaType.h" />
     <ClInclude Include="MF.util.h" />
-    <ClInclude Include="highres_timer.h" />
-    <ClInclude Include="source_reader_base.h" />
-    <ClInclude Include="common_types.h" />
-    <ClInclude Include="duplication_capture.h" />
-    <ClInclude Include="duplication_manager.h" />
+    <ClInclude Include="HighresTimer.h" />
+    <ClInclude Include="SourceReaderBase.h" />
+    <ClInclude Include="CommonTypes.h" />
+    <ClInclude Include="DesktopDuplicationCapture.h" />
+    <ClInclude Include="DesktopDuplicationManager.h" />
     <ClInclude Include="DX.util.h" />
-    <ClInclude Include="graphics_manager.h" />
-    <ClInclude Include="reader_base.h" />
-    <ClInclude Include="screengrab.h" />
-    <ClInclude Include="audio_prefs.h" />
-    <ClInclude Include="graphics_capture.h" />
-    <ClInclude Include="graphics_capture.util.h" />
-    <ClInclude Include="cleanup.h" />
+    <ClInclude Include="WindowsGraphicsManager.h" />
+    <ClInclude Include="CaptureBase.h" />
+    <ClInclude Include="Screengrab.h" />
+    <ClInclude Include="AudioPrefs.h" />
+    <ClInclude Include="WindowsGraphicsCapture.h" />
+    <ClInclude Include="WindowsGraphicsCapture.util.h" />
+    <ClInclude Include="Cleanup.h" />
     <ClInclude Include="fifo_map.h" />
-    <ClInclude Include="recording_manager.h" />
-    <ClInclude Include="log.h" />
-    <ClInclude Include="loopback_capture.h" />
-    <ClInclude Include="mouse_pointer.h" />
-    <ClInclude Include="native.h" />
-    <ClInclude Include="string_format.h" />
-    <ClInclude Include="util.h" />
-    <ClInclude Include="video_reader.h" />
+    <ClInclude Include="RecordingManager.h" />
+    <ClInclude Include="Log.h" />
+    <ClInclude Include="LoopbackCapture.h" />
+    <ClInclude Include="MousePointer.h" />
+    <ClInclude Include="Native.h" />
+    <ClInclude Include="Util.h" />
+    <ClInclude Include="VideoReader.h" />
     <ClInclude Include="WWMFResampler.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="capture_base.cpp" />
-    <ClCompile Include="device_capture.cpp" />
-    <ClCompile Include="gif_reader.cpp" />
+    <ClCompile Include="ScreenCaptureBase.cpp" />
+    <ClCompile Include="CameraCapture.cpp" />
+    <ClCompile Include="GifReader.cpp" />
     <ClCompile Include="LogMediaType.cpp" />
     <ClCompile Include="MF.util.cpp" />
-    <ClCompile Include="highres_timer.cpp" />
-    <ClCompile Include="source_reader_base.cpp" />
-    <ClCompile Include="duplication_capture.cpp" />
-    <ClCompile Include="duplication_manager.cpp" />
+    <ClCompile Include="HighresTimer.cpp" />
+    <ClCompile Include="SourceReaderBase.cpp" />
+    <ClCompile Include="DesktopDuplicationCapture.cpp" />
+    <ClCompile Include="DesktopDuplicationManager.cpp" />
     <ClCompile Include="DX.util.cpp" />
-    <ClCompile Include="graphics_manager.cpp" />
-    <ClCompile Include="screengrab.cpp" />
-    <ClCompile Include="audio_prefs.cpp">
+    <ClCompile Include="WindowsGraphicsManager.cpp" />
+    <ClCompile Include="Screengrab.cpp" />
+    <ClCompile Include="AudioPrefs.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>
     </ClCompile>
-    <ClCompile Include="graphics_capture.cpp" />
-    <ClCompile Include="recording_manager.cpp">
+    <ClCompile Include="WindowsGraphicsCapture.cpp" />
+    <ClCompile Include="RecordingManager.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>
     </ClCompile>
-    <ClCompile Include="loopback_capture.cpp">
+    <ClCompile Include="LoopbackCapture.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>
     </ClCompile>
-    <ClCompile Include="mouse_pointer.cpp">
+    <ClCompile Include="MousePointer.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>
     </ClCompile>
-    <ClCompile Include="video_reader.cpp" />
+    <ClCompile Include="VideoReader.cpp" />
     <ClCompile Include="WWMFResampler.cpp" />
   </ItemGroup>
   <ItemGroup>

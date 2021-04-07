@@ -1,8 +1,8 @@
-#include "source_reader_base.h"
+#include "SourceReaderBase.h"
 #include <Mferror.h>
-#include "cleanup.h"
+#include "Cleanup.h"
 
-source_reader_base::source_reader_base() :
+SourceReaderBase::SourceReaderBase() :
 	m_Sample{ nullptr },
 	m_Device(nullptr),
 	m_DeviceContext(nullptr),
@@ -22,7 +22,7 @@ source_reader_base::source_reader_base() :
 	InitializeCriticalSection(&m_CriticalSection);
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 }
-source_reader_base::~source_reader_base()
+SourceReaderBase::~SourceReaderBase()
 {
 	Close();
 	EnterCriticalSection(&m_CriticalSection);
@@ -35,7 +35,7 @@ source_reader_base::~source_reader_base()
 	DeleteCriticalSection(&m_CriticalSection);
 }
 
-HRESULT source_reader_base::StartCapture(_In_ std::wstring source)
+HRESULT SourceReaderBase::StartCapture(_In_ std::wstring source)
 {
 	HRESULT hr;
 	long streamIndex;
@@ -51,7 +51,7 @@ HRESULT source_reader_base::StartCapture(_In_ std::wstring source)
 	return hr;
 }
 
-void source_reader_base::Close()
+void SourceReaderBase::Close()
 {
 	EnterCriticalSection(&m_CriticalSection);
 	SafeRelease(&m_Sample);
@@ -66,7 +66,7 @@ void source_reader_base::Close()
 	LOG_DEBUG("Closed media reader");
 }
 
-HRESULT source_reader_base::GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int timeoutMs)
+HRESULT SourceReaderBase::GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int timeoutMs)
 {
 	DWORD result = WaitForSingleObject(m_NewFrameEvent, timeoutMs);
 	HRESULT hr;
@@ -114,7 +114,7 @@ HRESULT source_reader_base::GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int ti
 	return hr;
 }
 
-HRESULT source_reader_base::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize) {
+HRESULT SourceReaderBase::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize) {
 	// Old buffer too small
 	if (bufferSize > (int)FrameInfo->BufferSize)
 	{
@@ -137,7 +137,7 @@ HRESULT source_reader_base::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferS
 	return S_OK;
 }
 
-HRESULT source_reader_base::Initialize(_In_ DX_RESOURCES *Data)
+HRESULT SourceReaderBase::Initialize(_In_ DX_RESOURCES *Data)
 {
 	m_Device = Data->Device;
 	m_DeviceContext = Data->Context;
@@ -147,7 +147,7 @@ HRESULT source_reader_base::Initialize(_In_ DX_RESOURCES *Data)
 	return S_OK;
 }
 
-HRESULT source_reader_base::GetFrameSize(_In_ IMFMediaType *pMediaType, _Out_ SIZE *pFrameSize)
+HRESULT SourceReaderBase::GetFrameSize(_In_ IMFMediaType *pMediaType, _Out_ SIZE *pFrameSize)
 {
 	UINT32 width;
 	UINT32 height;
@@ -157,7 +157,7 @@ HRESULT source_reader_base::GetFrameSize(_In_ IMFMediaType *pMediaType, _Out_ SI
 	return S_OK;
 }
 
-HRESULT source_reader_base::GetFrameRate(_In_ IMFMediaType *pMediaType, _Out_ double *pFramerate)
+HRESULT SourceReaderBase::GetFrameRate(_In_ IMFMediaType *pMediaType, _Out_ double *pFramerate)
 {
 	UINT32 numerator;
 	UINT32 denominator;
@@ -173,13 +173,13 @@ HRESULT source_reader_base::GetFrameRate(_In_ IMFMediaType *pMediaType, _Out_ do
 }
 
 //From IUnknown 
-STDMETHODIMP source_reader_base::QueryInterface(REFIID riid, void **ppvObject)
+STDMETHODIMP SourceReaderBase::QueryInterface(REFIID riid, void **ppvObject)
 {
-	static const QITAB qit[] = { QITABENT(source_reader_base, IMFSourceReaderCallback),{ 0 }, };
+	static const QITAB qit[] = { QITABENT(SourceReaderBase, IMFSourceReaderCallback),{ 0 }, };
 	return QISearch(this, qit, riid, ppvObject);
 }
 //From IUnknown
-ULONG source_reader_base::Release()
+ULONG SourceReaderBase::Release()
 {
 	ULONG count = InterlockedDecrement(&m_ReferenceCount);
 	if (count == 0)
@@ -188,13 +188,13 @@ ULONG source_reader_base::Release()
 	return count;
 }
 //From IUnknown
-ULONG source_reader_base::AddRef()
+ULONG SourceReaderBase::AddRef()
 {
 	return InterlockedIncrement(&m_ReferenceCount);
 }
 
 //Calculates the default stride based on the format and size of the frames
-HRESULT source_reader_base::GetDefaultStride(_In_ IMFMediaType *type, _Out_ LONG *stride)
+HRESULT SourceReaderBase::GetDefaultStride(_In_ IMFMediaType *type, _Out_ LONG *stride)
 {
 	LONG tempStride = 0;
 
@@ -226,7 +226,7 @@ HRESULT source_reader_base::GetDefaultStride(_In_ IMFMediaType *type, _Out_ LONG
 	return hr;
 }
 
-HRESULT source_reader_base::CreateOutputMediaType(_In_ SIZE frameSize, _Outptr_ IMFMediaType **pType, _Out_ LONG *stride)
+HRESULT SourceReaderBase::CreateOutputMediaType(_In_ SIZE frameSize, _Outptr_ IMFMediaType **pType, _Out_ LONG *stride)
 {
 	*pType = nullptr;
 	HRESULT hr;
@@ -246,7 +246,7 @@ HRESULT source_reader_base::CreateOutputMediaType(_In_ SIZE frameSize, _Outptr_ 
 	return hr;
 }
 
-HRESULT source_reader_base::CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMediaType, _Outptr_ IMFTransform **ppTransform, _Outptr_ IMFMediaType **ppOutputMediaType)
+HRESULT SourceReaderBase::CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMediaType, _Outptr_ IMFTransform **ppTransform, _Outptr_ IMFMediaType **ppOutputMediaType)
 {
 	if (ppTransform) {
 		*ppTransform = nullptr;
@@ -304,7 +304,7 @@ HRESULT source_reader_base::CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFM
 }
 
 //Method from IMFSourceReaderCallback
-HRESULT source_reader_base::OnReadSample(HRESULT status, DWORD streamIndex, DWORD streamFlags, LONGLONG timeStamp, IMFSample *sample)
+HRESULT SourceReaderBase::OnReadSample(HRESULT status, DWORD streamIndex, DWORD streamFlags, LONGLONG timeStamp, IMFSample *sample)
 {
 	HRESULT hr = status;
 	if (FAILED(hr))
@@ -375,7 +375,7 @@ HRESULT source_reader_base::OnReadSample(HRESULT status, DWORD streamIndex, DWOR
 		}
 		if (SUCCEEDED(hr)) {
 			if (!m_FramerateTimer) {
-				m_FramerateTimer = new highres_timer();
+				m_FramerateTimer = new HighresTimer();
 				m_FramerateTimer->StartRecurringTimer((UINT)round(m_FrameRate));
 			}
 			if (m_FrameRate > 0) {
@@ -402,6 +402,6 @@ HRESULT source_reader_base::OnReadSample(HRESULT status, DWORD streamIndex, DWOR
 	return hr;
 }
 //Method from IMFSourceReaderCallback 
-STDMETHODIMP source_reader_base::OnEvent(DWORD, IMFMediaEvent *) { return S_OK; }
+STDMETHODIMP SourceReaderBase::OnEvent(DWORD, IMFMediaEvent *) { return S_OK; }
 //Method from IMFSourceReaderCallback 
-STDMETHODIMP source_reader_base::OnFlush(DWORD) { return S_OK; }
+STDMETHODIMP SourceReaderBase::OnFlush(DWORD) { return S_OK; }

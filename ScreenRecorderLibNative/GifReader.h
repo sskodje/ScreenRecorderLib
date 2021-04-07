@@ -3,16 +3,16 @@
 #include <wincodec.h>
 #include <concrt.h>
 #include <ppltasks.h> 
-#include "common_types.h"
+#include "CommonTypes.h"
 #include "DX.util.h"
-#include "highres_timer.h"
-#include "reader_base.h"
-class gif_reader : public reader_base
+#include "HighresTimer.h"
+#include "CaptureBase.h"
+class GifReader : public CaptureBase
 {
 public:
 
-	gif_reader();
-	~gif_reader();
+	GifReader();
+	~GifReader();
 	virtual HRESULT StartCapture(_In_ std::wstring source) override;
 	virtual HRESULT StopCapture();
 	virtual HRESULT GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int timeoutMs) override;
@@ -57,7 +57,7 @@ private:
 	HANDLE m_NewFrameEvent;
 	CRITICAL_SECTION m_CriticalSection;
 	Concurrency::task<void> m_CaptureTask = concurrency::task_from_result();
-	highres_timer *m_FramerateTimer;
+	HighresTimer *m_FramerateTimer;
 	ID3D11Device *m_Device;
 	ID3D11DeviceContext *m_DeviceContext;
 	LARGE_INTEGER m_LastGrabTimeStamp;

@@ -1,8 +1,8 @@
-#include "highres_timer.h"
-#include "log.h"
+#include "HighresTimer.h"
+#include "Log.h"
 
 using namespace std::chrono;
-highres_timer::highres_timer() :
+HighresTimer::HighresTimer() :
 	m_TimerResolution(0),
 	m_TickEvent(nullptr),
 	m_StopEvent(nullptr),
@@ -27,7 +27,7 @@ highres_timer::highres_timer() :
 	m_EventArray[1] = m_TickEvent;
 }
 
-highres_timer::~highres_timer()
+HighresTimer::~HighresTimer()
 {
 	if (m_TimerResolution > 0) {
 		timeEndPeriod(m_TimerResolution);
@@ -36,7 +36,7 @@ highres_timer::~highres_timer()
 	CloseHandle(m_StopEvent);
 }
 
-HRESULT highres_timer::StartRecurringTimer(UINT msInterval)
+HRESULT HighresTimer::StartRecurringTimer(UINT msInterval)
 {
 	if (NULL == m_TickEvent) {
 		DWORD dwErr = GetLastError();
@@ -67,7 +67,7 @@ HRESULT highres_timer::StartRecurringTimer(UINT msInterval)
 	return S_OK;
 }
 
-HRESULT highres_timer::StopTimer(bool waitForCompletion)
+HRESULT HighresTimer::StopTimer(bool waitForCompletion)
 {
 	SetEvent(m_StopEvent);
 	if (waitForCompletion && m_IsActive) {
@@ -81,7 +81,7 @@ HRESULT highres_timer::StopTimer(bool waitForCompletion)
 	return S_OK;
 }
 
-HRESULT highres_timer::WaitForNextTick()
+HRESULT HighresTimer::WaitForNextTick()
 {
 	//WAIT_OBJECT_0 means the first handle in the array, the stop event, signaled the stop, so exit.
 	if (WaitForMultipleObjects(ARRAYSIZE(m_EventArray), m_EventArray, FALSE, INFINITE) == WAIT_OBJECT_0) {
@@ -94,7 +94,7 @@ HRESULT highres_timer::WaitForNextTick()
 	return S_OK;
 }
 
-HRESULT highres_timer::WaitFor(UINT64 interval100Nanos)
+HRESULT HighresTimer::WaitFor(UINT64 interval100Nanos)
 {
 	LARGE_INTEGER liFirstFire;
 	liFirstFire.QuadPart = -interval100Nanos; // negative means relative time
@@ -120,7 +120,7 @@ HRESULT highres_timer::WaitFor(UINT64 interval100Nanos)
 	return S_OK;
 }
 
-double highres_timer::GetMillisUntilNextTick()
+double HighresTimer::GetMillisUntilNextTick()
 {
 	if (m_TickCount == 0)
 		return 0;

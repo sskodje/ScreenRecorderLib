@@ -1,13 +1,13 @@
 #pragma once
-#include "common_types.h"
+#include "CommonTypes.h"
 #include <chrono>
 #include <thread>
-#include "util.h"
-class highres_timer
+#include "Util.h"
+class HighresTimer
 {
 public:
-	highres_timer();
-	~highres_timer();
+	HighresTimer();
+	~HighresTimer();
 	inline HANDLE GetTickEvent() { return m_TickEvent; }
 	HRESULT StartRecurringTimer(UINT msInterval);
 	HRESULT StopTimer(bool waitForCompletion);

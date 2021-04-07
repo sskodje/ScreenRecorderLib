@@ -1,11 +1,11 @@
 #pragma once
-#include "common_types.h"
+#include "CommonTypes.h"
 
-class duplication_manager
+class DesktopDuplicationManager
 {
 public:
-	duplication_manager();
-	~duplication_manager();
+	DesktopDuplicationManager();
+	~DesktopDuplicationManager();
 	HRESULT GetFrame(_Out_ DUPL_FRAME_DATA *Data);
 	HRESULT ReleaseFrame();
 	HRESULT Initialize(_In_ DX_RESOURCES *Data, std::wstring Output);

@@ -1,8 +1,8 @@
 #pragma once
-#include "capture_base.h"
+#include "ScreenCaptureBase.h"
 #include <map>
 
-class duplication_capture : public capture_base
+class duplication_capture : public ScreenCaptureBase
 {
 public:
 	duplication_capture();

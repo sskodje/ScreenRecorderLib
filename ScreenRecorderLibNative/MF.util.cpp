@@ -1,5 +1,5 @@
 #include "MF.util.h"
-#include "cleanup.h"
+#include "Cleanup.h"
 HRESULT FindDecoderEx(const GUID &subtype, BOOL bAudio, IMFTransform **ppDecoder)
 {
 	HRESULT hr = S_OK;

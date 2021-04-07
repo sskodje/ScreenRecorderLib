@@ -51,49 +51,46 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="recording_manager.h">
+    <ClInclude Include="RecordingManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="native.h">
+    <ClInclude Include="Native.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="audio_prefs.h">
+    <ClInclude Include="AudioPrefs.h">
       <Filter>Header Files\Audio Capture</Filter>
     </ClInclude>
     <ClInclude Include="WWMFResampler.h">
       <Filter>Header Files\Audio Capture</Filter>
     </ClInclude>
-    <ClInclude Include="loopback_capture.h">
+    <ClInclude Include="LoopbackCapture.h">
       <Filter>Header Files\Audio Capture</Filter>
     </ClInclude>
-    <ClInclude Include="duplication_manager.h">
+    <ClInclude Include="DesktopDuplicationManager.h">
       <Filter>Header Files\Video Capture\Desktop Duplication</Filter>
     </ClInclude>
-    <ClInclude Include="duplication_capture.h">
+    <ClInclude Include="DesktopDuplicationCapture.h">
       <Filter>Header Files\Video Capture\Desktop Duplication</Filter>
     </ClInclude>
-    <ClInclude Include="graphics_manager.h">
+    <ClInclude Include="WindowsGraphicsManager.h">
       <Filter>Header Files\Video Capture\Windows Graphics Capture</Filter>
     </ClInclude>
-    <ClInclude Include="graphics_capture.util.h">
+    <ClInclude Include="WindowsGraphicsCapture.util.h">
       <Filter>Header Files\Video Capture\Windows Graphics Capture</Filter>
     </ClInclude>
-    <ClInclude Include="graphics_capture.h">
+    <ClInclude Include="WindowsGraphicsCapture.h">
       <Filter>Header Files\Video Capture\Windows Graphics Capture</Filter>
     </ClInclude>
-    <ClInclude Include="source_reader_base.h">
+    <ClInclude Include="SourceReaderBase.h">
       <Filter>Header Files\Video Capture\Overlay Capture</Filter>
     </ClInclude>
-    <ClInclude Include="string_format.h">
+    <ClInclude Include="Util.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
-    <ClInclude Include="util.h">
+    <ClInclude Include="Screengrab.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
-    <ClInclude Include="screengrab.h">
-      <Filter>Header Files\Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="log.h">
+    <ClInclude Include="Log.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
     <ClInclude Include="fifo_map.h">
@@ -102,87 +99,87 @@
     <ClInclude Include="DX.util.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
-    <ClInclude Include="cleanup.h">
+    <ClInclude Include="Cleanup.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
-    <ClInclude Include="capture_base.h">
+    <ClInclude Include="ScreenCaptureBase.h">
       <Filter>Header Files\Video Capture</Filter>
     </ClInclude>
-    <ClInclude Include="common_types.h">
+    <ClInclude Include="CommonTypes.h">
       <Filter>Header Files\Video Capture</Filter>
     </ClInclude>
-    <ClInclude Include="mouse_pointer.h">
+    <ClInclude Include="MousePointer.h">
       <Filter>Header Files\Video Capture</Filter>
     </ClInclude>
-    <ClInclude Include="device_capture.h">
+    <ClInclude Include="CameraCapture.h">
       <Filter>Header Files\Video Capture\Overlay Capture</Filter>
     </ClInclude>
-    <ClInclude Include="video_reader.h">
+    <ClInclude Include="VideoReader.h">
       <Filter>Header Files\Video Capture\Overlay Capture</Filter>
     </ClInclude>
     <ClInclude Include="LogMediaType.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
-    <ClInclude Include="highres_timer.h">
+    <ClInclude Include="HighresTimer.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
     <ClInclude Include="MF.util.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
-    <ClInclude Include="gif_reader.h">
+    <ClInclude Include="GifReader.h">
       <Filter>Header Files\Video Capture\Overlay Capture</Filter>
     </ClInclude>
-    <ClInclude Include="reader_base.h">
+    <ClInclude Include="CaptureBase.h">
       <Filter>Header Files\Video Capture\Overlay Capture</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="recording_manager.cpp">
+    <ClCompile Include="RecordingManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="audio_prefs.cpp">
+    <ClCompile Include="AudioPrefs.cpp">
       <Filter>Source Files\Audio Capture</Filter>
     </ClCompile>
     <ClCompile Include="WWMFResampler.cpp">
       <Filter>Source Files\Audio Capture</Filter>
     </ClCompile>
-    <ClCompile Include="loopback_capture.cpp">
+    <ClCompile Include="LoopbackCapture.cpp">
       <Filter>Source Files\Audio Capture</Filter>
     </ClCompile>
-    <ClCompile Include="duplication_manager.cpp">
+    <ClCompile Include="DesktopDuplicationManager.cpp">
       <Filter>Source Files\Video Capture\Desktop Duplication</Filter>
     </ClCompile>
-    <ClCompile Include="duplication_capture.cpp">
+    <ClCompile Include="DesktopDuplicationCapture.cpp">
       <Filter>Source Files\Video Capture\Desktop Duplication</Filter>
     </ClCompile>
-    <ClCompile Include="graphics_manager.cpp">
+    <ClCompile Include="WindowsGraphicsManager.cpp">
       <Filter>Source Files\Video Capture\Windows Graphics Capture</Filter>
     </ClCompile>
-    <ClCompile Include="graphics_capture.cpp">
+    <ClCompile Include="WindowsGraphicsCapture.cpp">
       <Filter>Source Files\Video Capture\Windows Graphics Capture</Filter>
     </ClCompile>
-    <ClCompile Include="source_reader_base.cpp">
+    <ClCompile Include="SourceReaderBase.cpp">
       <Filter>Source Files\Video Capture\Overlay Capture</Filter>
     </ClCompile>
     <ClCompile Include="DX.util.cpp">
       <Filter>Source Files\Utils</Filter>
     </ClCompile>
-    <ClCompile Include="screengrab.cpp">
+    <ClCompile Include="Screengrab.cpp">
       <Filter>Source Files\Utils</Filter>
     </ClCompile>
-    <ClCompile Include="capture_base.cpp">
+    <ClCompile Include="ScreenCaptureBase.cpp">
       <Filter>Source Files\Video Capture</Filter>
     </ClCompile>
-    <ClCompile Include="mouse_pointer.cpp">
+    <ClCompile Include="MousePointer.cpp">
       <Filter>Source Files\Video Capture</Filter>
     </ClCompile>
-    <ClCompile Include="device_capture.cpp">
+    <ClCompile Include="CameraCapture.cpp">
       <Filter>Source Files\Video Capture\Overlay Capture</Filter>
     </ClCompile>
-    <ClCompile Include="video_reader.cpp">
+    <ClCompile Include="VideoReader.cpp">
       <Filter>Source Files\Video Capture\Overlay Capture</Filter>
     </ClCompile>
-    <ClCompile Include="highres_timer.cpp">
+    <ClCompile Include="HighresTimer.cpp">
       <Filter>Source Files\Utils</Filter>
     </ClCompile>
     <ClCompile Include="LogMediaType.cpp">
@@ -191,7 +188,7 @@
     <ClCompile Include="MF.util.cpp">
       <Filter>Source Files\Utils</Filter>
     </ClCompile>
-    <ClCompile Include="gif_reader.cpp">
+    <ClCompile Include="GifReader.cpp">
       <Filter>Source Files\Video Capture\Overlay Capture</Filter>
     </ClCompile>
   </ItemGroup>

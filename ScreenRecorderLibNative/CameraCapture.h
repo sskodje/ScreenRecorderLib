@@ -1,11 +1,11 @@
 #pragma once
-#include "source_reader_base.h"
+#include "SourceReaderBase.h"
 #include "MF.util.h"
-class device_capture : public source_reader_base
+class CameraCapture : public SourceReaderBase
 {
 public:
-	device_capture();
-	virtual ~device_capture();
+	CameraCapture();
+	virtual ~CameraCapture();
 
 protected:
 	virtual HRESULT InitializeSourceReader(

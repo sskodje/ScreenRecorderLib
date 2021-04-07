@@ -1,17 +1,17 @@
-#include "device_capture.h"
-#include "cleanup.h"
-#include "video_reader.h"
-#include "gif_reader.h"
+#include "CameraCapture.h"
+#include "Cleanup.h"
+#include "VideoReader.h"
+#include "GifReader.h"
 #include <chrono>
 
 using namespace DirectX;
 using namespace std::chrono;
 
 DWORD WINAPI OverlayProc(_In_ void *Param);
-HRESULT ReadMedia(reader_base &reader, OVERLAY_THREAD_DATA *pData);
+HRESULT ReadMedia(CaptureBase &reader, OVERLAY_THREAD_DATA *pData);
 HRESULT ReadImage(OVERLAY_THREAD_DATA *pData);
 
-capture_base::capture_base() :
+ScreenCaptureBase::ScreenCaptureBase() :
 	m_Device(nullptr),
 	m_DeviceContext(nullptr),
 	m_TerminateThreadsEvent(nullptr),
@@ -36,7 +36,7 @@ capture_base::capture_base() :
 	m_TerminateThreadsEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 }
 
-capture_base::~capture_base()
+ScreenCaptureBase::~ScreenCaptureBase()
 {
 	Clean();
 }
@@ -44,7 +44,7 @@ capture_base::~capture_base()
 //
 // Initialize shaders for drawing to screen
 //
-HRESULT capture_base::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice)
+HRESULT ScreenCaptureBase::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice)
 {
 	CleanDX();
 	m_Device = pDevice;
@@ -118,7 +118,7 @@ HRESULT capture_base::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ 
 //
 // Start up threads for DDA
 //
-HRESULT capture_base::StartCapture(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
+HRESULT ScreenCaptureBase::StartCapture(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
 {
 	ResetEvent(m_TerminateThreadsEvent);
 
@@ -192,7 +192,7 @@ HRESULT capture_base::StartCapture(_In_ std::vector<RECORDING_SOURCE> sources, _
 	return hr;
 }
 
-HRESULT capture_base::StopCapture()
+HRESULT ScreenCaptureBase::StopCapture()
 {
 	if (!SetEvent(m_TerminateThreadsEvent)) {
 		LOG_ERROR("Could not terminate capture thread");
@@ -203,7 +203,7 @@ HRESULT capture_base::StopCapture()
 	return S_OK;
 }
 
-HRESULT capture_base::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame)
+HRESULT ScreenCaptureBase::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame)
 {
 	HRESULT hr;
 	// Try to acquire keyed mutex in order to access shared surface
@@ -267,7 +267,7 @@ HRESULT capture_base::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTUR
 //
 // Clean up resources
 //
-void capture_base::Clean()
+void ScreenCaptureBase::Clean()
 {
 	if (m_SharedSurf) {
 		m_SharedSurf->Release();
@@ -351,7 +351,7 @@ void capture_base::Clean()
 	CloseHandle(m_TerminateThreadsEvent);
 }
 
-void capture_base::CleanDX()
+void ScreenCaptureBase::CleanDX()
 {
 	SafeRelease(&m_SamplerLinear);
 	SafeRelease(&m_BlendState);
@@ -363,7 +363,7 @@ void capture_base::CleanDX()
 //
 // Waits infinitely for all spawned threads to terminate
 //
-void capture_base::WaitForThreadTermination()
+void ScreenCaptureBase::WaitForThreadTermination()
 {
 	if (m_OverlayThreadCount != 0)
 	{
@@ -374,7 +374,7 @@ void capture_base::WaitForThreadTermination()
 	}
 }
 
-void capture_base::ConfigureVertices(_Inout_ VERTEX(&vertices)[NUMVERTICES], _In_ RECORDING_OVERLAY_DATA *pOverlay, _In_ FRAME_INFO *pFrameInfo, _In_opt_ DXGI_MODE_ROTATION rotation)
+void ScreenCaptureBase::ConfigureVertices(_Inout_ VERTEX(&vertices)[NUMVERTICES], _In_ RECORDING_OVERLAY_DATA *pOverlay, _In_ FRAME_INFO *pFrameInfo, _In_opt_ DXGI_MODE_ROTATION rotation)
 {
 	RECT backgroundRect = GetOutputRect();
 	LONG backgroundWidth = RectWidth(backgroundRect);
@@ -439,7 +439,7 @@ void capture_base::ConfigureVertices(_Inout_ VERTEX(&vertices)[NUMVERTICES], _In
 	vertices[4].Pos.y = vertices[1].Pos.y;
 }
 
-_Ret_maybenull_ CAPTURE_THREAD_DATA *capture_base::GetCaptureDataForRect(RECT rect)
+_Ret_maybenull_ CAPTURE_THREAD_DATA *ScreenCaptureBase::GetCaptureDataForRect(RECT rect)
 {
 	POINT pt{ rect.left,rect.top };
 	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
@@ -453,7 +453,7 @@ _Ret_maybenull_ CAPTURE_THREAD_DATA *capture_base::GetCaptureDataForRect(RECT re
 	return nullptr;
 }
 
-RECT capture_base::GetOverlayRect(_In_ RECT background, _In_ RECORDING_OVERLAY_DATA *pOverlay)
+RECT ScreenCaptureBase::GetOverlayRect(_In_ RECT background, _In_ RECORDING_OVERLAY_DATA *pOverlay)
 {
 	LONG backgroundWidth = RectWidth(background);
 	LONG backgroundHeight = RectHeight(background);
@@ -505,7 +505,7 @@ RECT capture_base::GetOverlayRect(_In_ RECT background, _In_ RECORDING_OVERLAY_D
 //
 // Returns shared handle
 //
-_Ret_maybenull_ HANDLE capture_base::GetSharedHandle()
+_Ret_maybenull_ HANDLE ScreenCaptureBase::GetSharedHandle()
 {
 	if (!m_SharedSurf) {
 		return nullptr;
@@ -526,7 +526,7 @@ _Ret_maybenull_ HANDLE capture_base::GetSharedHandle()
 	return Hnd;
 }
 
-bool capture_base::IsUpdatedFramesAvailable()
+bool ScreenCaptureBase::IsUpdatedFramesAvailable()
 {
 	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
 	{
@@ -543,7 +543,7 @@ bool capture_base::IsUpdatedFramesAvailable()
 	return false;
 }
 
-bool capture_base::IsInitialFrameWriteComplete()
+bool ScreenCaptureBase::IsInitialFrameWriteComplete()
 {
 	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
 	{
@@ -557,7 +557,7 @@ bool capture_base::IsInitialFrameWriteComplete()
 	return true;
 }
 
-UINT capture_base::GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCounts)
+UINT ScreenCaptureBase::GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCounts)
 {
 	int updatedFrameCount = 0;
 
@@ -573,7 +573,7 @@ UINT capture_base::GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCounts)
 	return updatedFrameCount;
 }
 
-HRESULT capture_base::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds)
+HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds)
 {
 	*pCreatedOutputs = std::vector<RECORDING_SOURCE_DATA *>();
 	std::vector<std::pair<RECORDING_SOURCE, RECT>> validOutputs;
@@ -611,10 +611,10 @@ HRESULT capture_base::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> source
 	}
 
 	// Set created outputs
-	return capture_base::CreateSharedSurf(*pDeskBounds);
+	return ScreenCaptureBase::CreateSharedSurf(*pDeskBounds);
 }
 
-HRESULT capture_base::CreateSharedSurf(_In_ RECT desktopRect)
+HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ RECT desktopRect)
 {
 	// Create shared texture for all capture threads to draw into
 	D3D11_TEXTURE2D_DESC DeskTexD;
@@ -647,13 +647,13 @@ HRESULT capture_base::CreateSharedSurf(_In_ RECT desktopRect)
 	return hr;
 }
 
-SIZE capture_base::GetContentSize()
+SIZE ScreenCaptureBase::GetContentSize()
 {
 	RECT combinedRect = GetContentRect();
 	return SIZE{ RectWidth(combinedRect),RectHeight(combinedRect) };
 }
 
-RECT capture_base::GetContentRect()
+RECT ScreenCaptureBase::GetContentRect()
 {
 	RECT combinedRect{};
 	std::vector<RECT> contentRects{};
@@ -665,7 +665,7 @@ RECT capture_base::GetContentRect()
 	return combinedRect;
 }
 
-HRESULT capture_base::ProcessOverlays(_Inout_ ID3D11Texture2D *pBackgroundFrame, _Out_ int *updateCount)
+HRESULT ScreenCaptureBase::ProcessOverlays(_Inout_ ID3D11Texture2D *pBackgroundFrame, _Out_ int *updateCount)
 {
 	int count = 0;
 	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
@@ -684,7 +684,7 @@ HRESULT capture_base::ProcessOverlays(_Inout_ ID3D11Texture2D *pBackgroundFrame,
 	return S_OK;
 }
 
-HRESULT capture_base::DrawOverlay(_Inout_ ID3D11Texture2D *pBackgroundFrame, _In_ RECORDING_OVERLAY_DATA *pOverlay)
+HRESULT ScreenCaptureBase::DrawOverlay(_Inout_ ID3D11Texture2D *pBackgroundFrame, _In_ RECORDING_OVERLAY_DATA *pOverlay)
 {
 	FRAME_INFO *pFrameInfo = pOverlay->FrameInfo;
 	if (!pFrameInfo || pFrameInfo->PtrFrameBuffer == nullptr || pFrameInfo->BufferSize == 0)
@@ -793,7 +793,7 @@ HRESULT capture_base::DrawOverlay(_Inout_ ID3D11Texture2D *pBackgroundFrame, _In
 	return hr;
 }
 
-bool capture_base::IsSingleWindowCapture()
+bool ScreenCaptureBase::IsSingleWindowCapture()
 {
 	return m_CaptureThreadCount == 1 && m_CaptureThreadData[0].RecordingSource->WindowHandle;
 }
@@ -812,7 +812,7 @@ DWORD WINAPI OverlayProc(_In_ void *Param) {
 		std::string signature = ReadFileSignature(pOverlay->Source.c_str());
 		ImageFileType imageType = getImageTypeByMagic(signature.c_str());
 		if (imageType == ImageFileType::IMAGE_FILE_GIF) {
-			gif_reader gifReader{};
+			GifReader gifReader{};
 			hr = ReadMedia(gifReader, pData);
 		}
 		else {
@@ -821,12 +821,12 @@ DWORD WINAPI OverlayProc(_In_ void *Param) {
 		break;
 	}
 	case OverlayType::Video: {
-		video_reader videoReader{};
+		VideoReader videoReader{};
 		hr = ReadMedia(videoReader, pData);
 		break;
 	}
 	case OverlayType::CameraCapture: {
-		device_capture videoCapture{};
+		CameraCapture videoCapture{};
 		hr = ReadMedia(videoCapture, pData);
 		break;
 	}
@@ -882,7 +882,7 @@ HRESULT ReadImage(OVERLAY_THREAD_DATA *pData) {
 	return hr;
 }
 
-HRESULT ReadMedia(reader_base &reader, OVERLAY_THREAD_DATA *pData) {
+HRESULT ReadMedia(CaptureBase &reader, OVERLAY_THREAD_DATA *pData) {
 	RECORDING_OVERLAY_DATA *pOverlay = pData->RecordingOverlay;
 	HRESULT	hr = reader.Initialize(&pOverlay->DxRes);
 	hr = reader.StartCapture(pOverlay->Source);

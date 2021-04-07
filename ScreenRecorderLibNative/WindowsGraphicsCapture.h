@@ -7,16 +7,16 @@
 #include <Unknwn.h>
 #include <inspectable.h>
 
-#include "common_types.h"
+#include "CommonTypes.h"
 #include "DX.util.h"
-#include "mouse_pointer.h"
-#include "capture_base.h"
+#include "MousePointer.h"
+#include "ScreenCaptureBase.h"
 
-class graphics_capture : public capture_base
+class WindowsGraphicsCapture : public ScreenCaptureBase
 {
 public:
-	graphics_capture();
-	~graphics_capture();
+	WindowsGraphicsCapture();
+	~WindowsGraphicsCapture();
 	RECT GetOutputRect();
 private:
 	LPTHREAD_START_ROUTINE GetCaptureThreadProc();

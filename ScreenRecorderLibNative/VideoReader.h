@@ -1,11 +1,11 @@
 #pragma once
-#include "source_reader_base.h"
+#include "SourceReaderBase.h"
 #include "MF.util.h"
-class video_reader :public source_reader_base
+class VideoReader :public SourceReaderBase
 {
 public:
-	video_reader();
-	virtual ~video_reader();
+	VideoReader();
+	virtual ~VideoReader();
 protected:
 	virtual HRESULT InitializeSourceReader(
 		_In_ std::wstring filePath,

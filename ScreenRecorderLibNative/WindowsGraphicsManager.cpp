@@ -1,12 +1,12 @@
-#include "graphics_manager.h"
-#include "log.h"
+#include "WindowsGraphicsManager.h"
+#include "Log.h"
 #include "DX.util.h"
-#include "graphics_capture.util.h"
-#include "cleanup.h"
+#include "WindowsGraphicsCapture.util.h"
+#include "Cleanup.h"
 
 using namespace winrt::Windows::Graphics::Capture;
 
-graphics_manager::graphics_manager() :
+WindowsGraphicsManager::WindowsGraphicsManager() :
 	m_closed{ false },
 	m_item(nullptr),
 	m_framePool(nullptr),
@@ -19,7 +19,7 @@ graphics_manager::graphics_manager() :
 
 }
 
-graphics_manager::~graphics_manager()
+WindowsGraphicsManager::~WindowsGraphicsManager()
 {
 	Close();
 	CleanRefs();
@@ -28,7 +28,7 @@ graphics_manager::~graphics_manager()
 //
 // Clean all references
 //
-void graphics_manager::CleanRefs()
+void WindowsGraphicsManager::CleanRefs()
 {
 	if (m_DeviceContext)
 	{
@@ -44,7 +44,7 @@ void graphics_manager::CleanRefs()
 }
 
 
-HRESULT graphics_manager::Initialize(_In_ DX_RESOURCES *pData, _In_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem captureItem, _In_ bool isCursorCaptureEnabled, _In_ winrt::Windows::Graphics::DirectX::DirectXPixelFormat pixelFormat)
+HRESULT WindowsGraphicsManager::Initialize(_In_ DX_RESOURCES *pData, _In_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem captureItem, _In_ bool isCursorCaptureEnabled, _In_ winrt::Windows::Graphics::DirectX::DirectXPixelFormat pixelFormat)
 {
 	m_item = captureItem;
 	m_PixelFormat = pixelFormat;
@@ -62,7 +62,7 @@ HRESULT graphics_manager::Initialize(_In_ DX_RESOURCES *pData, _In_ winrt::Windo
 		LOG_ERROR(L"Failed to QI for DXGI Device");
 		return hr;
 	}
-	auto direct3DDevice = capture::util::CreateDirect3DDevice(DxgiDevice);
+	auto direct3DDevice = Graphics::Capture::Util::CreateDirect3DDevice(DxgiDevice);
 	// Creating our frame pool with 'Create' instead of 'CreateFreeThreaded'
 	// means that the frame pool's FrameArrived event is called on the thread
 	// the frame pool was created on. This also means that the creating thread
@@ -77,7 +77,7 @@ HRESULT graphics_manager::Initialize(_In_ DX_RESOURCES *pData, _In_ winrt::Windo
 	return S_OK;
 }
 
-HRESULT graphics_manager::ProcessFrame(_In_ GRAPHICS_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, _In_ INT OffsetX, _In_  INT OffsetY, _In_ RECT &frameRect)
+HRESULT WindowsGraphicsManager::ProcessFrame(_In_ GRAPHICS_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, _In_ INT OffsetX, _In_  INT OffsetY, _In_ RECT &frameRect)
 {
 	if (pData->IsIconic) {
 		BlankFrame(pSharedSurf, OffsetX, OffsetY);
@@ -102,7 +102,7 @@ HRESULT graphics_manager::ProcessFrame(_In_ GRAPHICS_FRAME_DATA *pData, _Inout_ 
 	return S_OK;
 }
 
-HRESULT graphics_manager::BlankFrame(_Inout_ ID3D11Texture2D *pSharedSurf, _In_ INT OffsetX, _In_  INT OffsetY) {
+HRESULT WindowsGraphicsManager::BlankFrame(_Inout_ ID3D11Texture2D *pSharedSurf, _In_ INT OffsetX, _In_  INT OffsetY) {
 	int width = RectWidth(m_LastFrameRect);
 	int height = RectHeight(m_LastFrameRect);
 	D3D11_BOX Box{};
@@ -124,11 +124,11 @@ HRESULT graphics_manager::BlankFrame(_Inout_ ID3D11Texture2D *pSharedSurf, _In_ 
 	return S_OK;
 }
 
-HRESULT graphics_manager::GetFrame(_Out_ GRAPHICS_FRAME_DATA *pData)
+HRESULT WindowsGraphicsManager::GetFrame(_Out_ GRAPHICS_FRAME_DATA *pData)
 {
 	Direct3D11CaptureFrame frame = m_framePool.TryGetNextFrame();
 	if (frame) {
-		auto surfaceTexture = capture::util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
+		auto surfaceTexture = Graphics::Capture::Util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
 		pData->Frame = surfaceTexture.get();
 		pData->ContentSize.cx = frame.ContentSize().Width;
 		pData->ContentSize.cy = frame.ContentSize().Height;
@@ -138,7 +138,7 @@ HRESULT graphics_manager::GetFrame(_Out_ GRAPHICS_FRAME_DATA *pData)
 	return DXGI_ERROR_WAIT_TIMEOUT;
 }
 
-SIZE graphics_manager::ItemSize()
+SIZE WindowsGraphicsManager::ItemSize()
 {
 	SIZE size{ };
 	size.cx = m_item.Size().Width;
@@ -146,7 +146,7 @@ SIZE graphics_manager::ItemSize()
 	return size;
 }
 
-void graphics_manager::Close()
+void WindowsGraphicsManager::Close()
 {
 	auto expected = false;
 	if (m_closed.compare_exchange_strong(expected, true))

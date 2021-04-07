@@ -6,7 +6,7 @@
 #include <windows.graphics.capture.interop.h>
 #include <windows.graphics.capture.h>
 
-namespace capture::util
+namespace Graphics::Capture::Util
 {
 	extern "C"
 	{

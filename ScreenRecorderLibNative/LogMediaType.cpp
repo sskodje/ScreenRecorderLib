@@ -1,5 +1,5 @@
 #include "LogMediaType.h"
-#include "log.h"
+#include "Log.h"
 
 HRESULT LogMediaType(IMFMediaType *pType)
 {

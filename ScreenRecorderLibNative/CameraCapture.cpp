@@ -1,15 +1,15 @@
-#include "device_capture.h"
-#include "cleanup.h"
+#include "CameraCapture.h"
+#include "Cleanup.h"
 
-device_capture::device_capture() :source_reader_base()
+CameraCapture::CameraCapture() :SourceReaderBase()
 {
 }
 
-device_capture::~device_capture()
+CameraCapture::~CameraCapture()
 {
 }
 
-HRESULT device_capture::InitializeSourceReader(
+HRESULT CameraCapture::InitializeSourceReader(
 	_In_ std::wstring source,
 	_Out_ long *pStreamIndex,
 	_Outptr_ IMFSourceReader **ppSourceReader,
@@ -87,7 +87,7 @@ HRESULT device_capture::InitializeSourceReader(
 	return hr;
 }
 
-HRESULT device_capture::InitializeMediaSource(
+HRESULT CameraCapture::InitializeMediaSource(
 	_In_ IMFActivate *pDevice,
 	_Out_ long *pStreamIndex,
 	_Outptr_ IMFSourceReader **ppSourceReader,
