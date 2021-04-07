@@ -254,7 +254,7 @@ Size^ Recorder::GetCombinedOutputSizeForWindows(List<IntPtr>^ windowHandles)
 	std::vector<RECT> outputRects{};
 	std::vector<std::pair< RECORDING_SOURCE, RECT>> validOutputs{};
 	HRESULT hr = GetOutputRectsForRecordingSources(sources, &validOutputs);
-	for each (auto const &pair in validOutputs) {
+	for each (auto const& pair in validOutputs) {
 		outputRects.push_back(pair.second);
 	}
 	RECT deskBounds;
@@ -284,7 +284,7 @@ Recorder^ Recorder::CreateRecorder() {
 	return gcnew Recorder(nullptr);
 }
 
-Recorder^ Recorder::CreateRecorder(RecorderOptions ^ options)
+Recorder^ Recorder::CreateRecorder(RecorderOptions^ options)
 {
 	Recorder^ rec = gcnew Recorder(options);
 	return rec;
@@ -301,7 +301,7 @@ List<RecordableWindow^>^ ScreenRecorderLib::Recorder::GetWindows()
 }
 void Recorder::Record(System::Runtime::InteropServices::ComTypes::IStream^ stream) {
 	SetupCallbacks();
-	IStream *pNativeStream = (IStream*)Marshal::GetComInterfaceForObject(stream, System::Runtime::InteropServices::ComTypes::IStream::typeid).ToPointer();
+	IStream* pNativeStream = (IStream*)Marshal::GetComInterfaceForObject(stream, System::Runtime::InteropServices::ComTypes::IStream::typeid).ToPointer();
 	m_Rec->BeginRecording(pNativeStream);
 }
 void Recorder::Record(System::IO::Stream^ stream) {
@@ -342,7 +342,7 @@ void Recorder::ClearCallbacks() {
 		_snapshotDelegateGcHandler.Free();
 }
 
-std::vector<RECORDING_OVERLAY> Recorder::CreateNativeOverlayList(List<RecordingOverlay^>^ managedOverlays){
+std::vector<RECORDING_OVERLAY> Recorder::CreateNativeOverlayList(List<RecordingOverlay^>^ managedOverlays) {
 	std::vector<RECORDING_OVERLAY> overlays{};
 	if (managedOverlays != nullptr) {
 		for each (RecordingOverlay^ managedOverlay in managedOverlays)

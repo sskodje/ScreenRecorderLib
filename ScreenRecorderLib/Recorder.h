@@ -441,7 +441,7 @@ namespace ScreenRecorderLib {
 			_status = value;
 		}
 		}
-		RecordingManager *m_Rec;
+		RecordingManager* m_Rec;
 		void Record(System::String^ path);
 		void Record(System::Runtime::InteropServices::ComTypes::IStream^ stream);
 		void Record(System::IO::Stream^ stream);
@@ -464,6 +464,6 @@ namespace ScreenRecorderLib {
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;
 		event EventHandler<SnapshotSavedEventArgs^>^ OnSnapshotSaved;
-		ManagedIStream *m_ManagedStream;
+		ManagedIStream* m_ManagedStream;
 	};
 }
