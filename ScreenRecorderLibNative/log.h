@@ -65,7 +65,9 @@ public:
 	~MeasureExecutionTime() {
 		if (MEASURE_EXECUTION_TIME == true) {
 			std::chrono::duration<double, std::milli> ms_double = std::chrono::steady_clock::now() - m_Start;
-			LOG_TRACE("Execution time for %ls: %.2f ms", m_Name.c_str(), ms_double.count());
+			if (!m_Name.empty()) {
+				LOG_TRACE("Execution time for %ls: %.2f ms", m_Name.c_str(), ms_double.count());
+			}
 		}
 	}
 	void SetName(std::wstring name) {
