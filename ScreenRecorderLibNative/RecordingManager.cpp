@@ -638,8 +638,8 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 					}
 
 					CComPtr<IMFVideoProcessorControl> videoProcessor = nullptr;
-					hr = GetVideoProcessor(m_SinkWriter, m_VideoStreamIndex, &videoProcessor);
-					if (SUCCEEDED(hr)) {
+					GetVideoProcessor(m_SinkWriter, m_VideoStreamIndex, &videoProcessor);
+					if (videoProcessor) {
 						//The source rectangle is the portion of the input frame that is blitted to the destination surface.
 						videoProcessor->SetSourceRectangle(&videoInputFrameRect);
 						//The destination rectangle is the portion of the output surface where the source rectangle is blitted.
