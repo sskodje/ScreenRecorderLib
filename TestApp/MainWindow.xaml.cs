@@ -730,7 +730,7 @@ namespace TestApp
             {
                 VideoCaptureDevices.Add(device);
             }
-                        (this.Resources["MediaDeviceToDeviceIdConverter"] as MediaDeviceToDeviceIdConverter).MediaDevices = VideoCaptureDevices.ToList();
+            (this.Resources["MediaDeviceToDeviceIdConverter"] as MediaDeviceToDeviceIdConverter).MediaDevices = VideoCaptureDevices.ToList();
         }
 
         private void RefreshScreenComboBox()

@@ -392,7 +392,7 @@ namespace ScreenRecorderLib {
 		property IntPtr Handle;
 	};
 
-	public ref class Display {
+	public ref class RecordableDisplay {
 	public:
 		property String^ DeviceName;
 		property String^ MonitorName;
@@ -457,7 +457,7 @@ namespace ScreenRecorderLib {
 		static List<RecordableWindow^>^ GetWindows();
 		static Dictionary<String^, String^>^ GetSystemAudioDevices(AudioDeviceSource source);
 		static Dictionary<String^, String^>^ GetSystemVideoCaptureDevices();
-		static List<Display^>^ GetDisplays();
+		static List<RecordableDisplay^>^ GetDisplays();
 		static Size^ GetCombinedOutputSizeForDisplays(List<String^>^ displays);
 		static Size^ GetCombinedOutputSizeForWindows(List<IntPtr>^ windowHandles);
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;

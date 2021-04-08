@@ -53,9 +53,9 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			if (options->DisplayOptions->DisplayDevices) {
 				std::vector<std::wstring> displays{};
 				displays.reserve(options->DisplayOptions->DisplayDevices->Count);
-				for each (String ^ str in options->DisplayOptions->DisplayDevices)
+				for each (String^ str in options->DisplayOptions->DisplayDevices)
 				{
-					if (str) {
+					if (!String::IsNullOrEmpty(str)) {
 						displays.push_back(msclr::interop::marshal_as<std::wstring>(str));
 					}
 				}
@@ -66,7 +66,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			{
 				std::vector<HWND> windows{};
 				windows.reserve(options->DisplayOptions->WindowHandles->Count);
-				for each (IntPtr ^ ptr in options->DisplayOptions->WindowHandles)
+				for each (IntPtr^ ptr in options->DisplayOptions->WindowHandles)
 				{
 					HWND window = (HWND)ptr->ToPointer();
 					if (window) {
@@ -192,18 +192,18 @@ Dictionary<String^, String^>^ ScreenRecorderLib::Recorder::GetSystemVideoCapture
 	return devices;
 }
 
-List<Display^>^ ScreenRecorderLib::Recorder::GetDisplays()
+List<RecordableDisplay^>^ ScreenRecorderLib::Recorder::GetDisplays()
 {
-	List<Display^>^ displays = gcnew List<Display^>();
+	List<RecordableDisplay^>^ displays = gcnew List<RecordableDisplay^>();
 	std::vector<IDXGIOutput*> outputs{};
 	EnumOutputs(&outputs);
 
-	for each (IDXGIOutput * output in outputs)
+	for each (IDXGIOutput* output in outputs)
 	{
 		DXGI_OUTPUT_DESC desc;
 		if (SUCCEEDED(output->GetDesc(&desc))) {
 			if (desc.AttachedToDesktop) {
-				auto display = gcnew Display();
+				auto display = gcnew RecordableDisplay();
 				display->DeviceName = gcnew String(desc.DeviceName);
 				display->PosX = desc.DesktopCoordinates.left;
 				display->PosY = desc.DesktopCoordinates.top;
@@ -218,30 +218,46 @@ List<Display^>^ ScreenRecorderLib::Recorder::GetDisplays()
 	return displays;
 }
 
+List<RecordableWindow^>^ ScreenRecorderLib::Recorder::GetWindows()
+{
+	List<RecordableWindow^>^ windows = gcnew List<RecordableWindow^>();
+	for each (const Window & win in EnumerateWindows())
+	{
+		RecordableWindow^ recordableWin = gcnew RecordableWindow(gcnew String(win.Title().c_str()), IntPtr(win.Hwnd()));
+		windows->Add(recordableWin);
+	}
+	return windows;
+}
+
 Size^ Recorder::GetCombinedOutputSizeForDisplays(List<String^>^ displays)
 {
-	std::vector<RECT> monitorRects{};
-	RECT combinedRect{};
-	std::vector<IDXGIOutput*> outputs{};
-	EnumOutputs(&outputs);
-	for each (IDXGIOutput * output in outputs) {
-		DXGI_OUTPUT_DESC desc;
-		if (SUCCEEDED(output->GetDesc(&desc))) {
-			if (displays->Contains(gcnew String(desc.DeviceName))) {
-				monitorRects.push_back(desc.DesktopCoordinates);
-			}
+	std::vector<RECORDING_SOURCE> sources{};
+	sources.reserve(displays->Count);
+	for each (String ^ deviceName in displays)
+	{
+		if (!String::IsNullOrEmpty(deviceName)) {
+			RECORDING_SOURCE source{};
+			source.Type = SourceType::Monitor;
+			source.CaptureDevice = msclr::interop::marshal_as<std::wstring>(deviceName);
+			sources.push_back(source);
 		}
-		output->Release();
 	}
-	GetCombinedRects(monitorRects, &combinedRect, nullptr);
-	return gcnew Size(RectWidth(combinedRect), RectHeight(combinedRect));
+	std::vector<RECT> outputRects{};
+	std::vector<std::pair< RECORDING_SOURCE, RECT>> validOutputs{};
+	HRESULT hr = GetOutputRectsForRecordingSources(sources, &validOutputs);
+	for each (auto const& pair in validOutputs) {
+		outputRects.push_back(pair.second);
+	}
+	RECT deskBounds;
+	GetCombinedRects(outputRects, &deskBounds, nullptr);
+	return gcnew Size(RectWidth(deskBounds), RectHeight(deskBounds));
 }
 
 Size^ Recorder::GetCombinedOutputSizeForWindows(List<IntPtr>^ windowHandles)
 {
 	std::vector<RECORDING_SOURCE> sources{};
 	sources.reserve(windowHandles->Count);
-	for each (IntPtr ^ ptr in windowHandles)
+	for each (IntPtr^ ptr in windowHandles)
 	{
 		HWND hwnd = (HWND)ptr->ToPointer();
 		if (hwnd) {
@@ -288,16 +304,6 @@ Recorder^ Recorder::CreateRecorder(RecorderOptions^ options)
 {
 	Recorder^ rec = gcnew Recorder(options);
 	return rec;
-}
-List<RecordableWindow^>^ ScreenRecorderLib::Recorder::GetWindows()
-{
-	List<RecordableWindow^>^ windows = gcnew List<RecordableWindow^>();
-	for each (const Window & win in EnumerateWindows())
-	{
-		RecordableWindow^ recordableWin = gcnew RecordableWindow(gcnew String(win.Title().c_str()), IntPtr(win.Hwnd()));
-		windows->Add(recordableWin);
-	}
-	return windows;
 }
 void Recorder::Record(System::Runtime::InteropServices::ComTypes::IStream^ stream) {
 	SetupCallbacks();
