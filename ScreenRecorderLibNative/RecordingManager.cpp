@@ -86,10 +86,11 @@ RecordingManager::RecordingManager() :
 RecordingManager::~RecordingManager()
 {
 	UnhookWindowsHookEx(m_Mousehook);
-	if (m_IsRecording) {
+	if (!m_TaskWrapperImpl->m_RecordTask.is_done()) {
 		LOG_WARN("Recording is in progress while destructing, cancelling recording task and waiting for completion.");
 		m_TaskWrapperImpl->m_RecordTaskCts.cancel();
 		m_TaskWrapperImpl->m_RecordTask.wait();
+		LOG_DEBUG("Wait for recording task completed.");
 	}
 }
 
@@ -264,8 +265,18 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 
 	RETURN_ON_BAD_HR(ConfigureOutputDir(path));
 
+	auto recordingSources = CreateRecordingSources();
+	auto recordingOverlays = CreateRecordingOverlays();
+	if (recordingSources.size() == 0) {
+		std::wstring error = L"Recording source parameters are empty.";
+		LOG_ERROR("%ls", error.c_str());
+		if (RecordingFailedCallback != nullptr)
+			RecordingFailedCallback(error);
+		return S_FALSE;
+	}
+
 	m_TaskWrapperImpl->m_RecordTaskCts = cancellation_token_source();
-	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, stream]() {
+	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, stream, recordingSources, recordingOverlays]() {
 		LOG_INFO(L"Starting recording task");
 		m_IsRecording = true;
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
@@ -288,7 +299,8 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		else if (m_RecorderApi == API_DESKTOP_DUPLICATION) {
 			LOG_DEBUG("Starting Desktop Duplication recorder loop");
 		}
-		hr = StartRecorderLoop(CreateRecordingSources(), CreateRecordingOverlays(), stream);
+
+		hr = StartRecorderLoop(recordingSources, recordingOverlays, stream);
 		LOG_INFO("Exiting recording task");
 		return hr;
 		}).then([this](HRESULT recordingResult) {
@@ -369,7 +381,7 @@ std::vector<RECORDING_SOURCE> RecordingManager::CreateRecordingSources() {
 	std::vector<DXGI_OUTPUT_DESC> outputDescs{};
 	HRESULT hr = GetOutputDescsForDeviceNames(m_DisplayOutputDevices, &outputDescs);
 	if (SUCCEEDED(hr)) {
-		for each (const DXGI_OUTPUT_DESC & desc in outputDescs)
+		for each (const DXGI_OUTPUT_DESC &desc in outputDescs)
 		{
 			RECORDING_SOURCE source{};
 			source.Type = SourceType::Monitor;

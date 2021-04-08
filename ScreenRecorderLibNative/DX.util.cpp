@@ -67,7 +67,7 @@ HRESULT GetOutputDescsForDeviceNames(_In_ std::vector<std::wstring> deviceNames,
 	{
 		DXGI_OUTPUT_DESC desc;
 		output->GetDesc(&desc);
-		if (deviceNames.size() == 0 || std::find(deviceNames.begin(), deviceNames.end(), desc.DeviceName) != deviceNames.end())
+		if (std::find(deviceNames.begin(), deviceNames.end(), desc.DeviceName) != deviceNames.end())
 		{
 			outputDescs->push_back(desc);
 		}
