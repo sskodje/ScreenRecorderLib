@@ -67,7 +67,8 @@ HRESULT GetOutputDescsForDeviceNames(_In_ std::vector<std::wstring> deviceNames,
 	{
 		DXGI_OUTPUT_DESC desc;
 		output->GetDesc(&desc);
-		if (std::find(deviceNames.begin(), deviceNames.end(), desc.DeviceName) != deviceNames.end())
+		if (std::find(deviceNames.begin(), deviceNames.end(), desc.DeviceName) != deviceNames.end()
+			|| std::find(deviceNames.begin(), deviceNames.end(), ALL_MONITORS_ID) != deviceNames.end())
 		{
 			outputDescs->push_back(desc);
 		}
@@ -84,34 +85,50 @@ HRESULT GetOutputRectsForRecordingSources(_In_ std::vector<RECORDING_SOURCE> sou
 	{
 		switch (source.Type)
 		{
-		case SourceType::Monitor: {
-			// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
-			DXGI_OUTPUT_DESC outputDesc{};
-			CComPtr<IDXGIOutput> output;
-			HRESULT hr = GetOutputForDeviceName(source.CaptureDevice, &output);
-			if (FAILED(hr))
-			{
-				LOG_ERROR(L"Failed to get output descs for selected devices");
-				return hr;
+		case RecordingSourceType::Display: {
+			if (source.CaptureDevice == ALL_MONITORS_ID) {
+				std::vector<IDXGIOutput *> outputs;
+				EnumOutputs(&outputs);
+				for each (IDXGIOutput *output in outputs)
+				{
+					DXGI_OUTPUT_DESC outputDesc;
+					output->GetDesc(&outputDesc);
+					outputDesc.DesktopCoordinates.left += xOffset;
+					outputDesc.DesktopCoordinates.right += xOffset;
+					std::pair<RECORDING_SOURCE, RECT> tuple(source, outputDesc.DesktopCoordinates);
+					validOutputs.push_back(tuple);
+					output->Release();
+				}
 			}
-			output->GetDesc(&outputDesc);
-			outputDesc.DesktopCoordinates.left += xOffset;
-			outputDesc.DesktopCoordinates.right += xOffset;
-			std::pair<RECORDING_SOURCE, RECT> tuple(source, outputDesc.DesktopCoordinates);
-			validOutputs.push_back(tuple);
+			else {
+				// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
+				DXGI_OUTPUT_DESC outputDesc;
+				CComPtr<IDXGIOutput> output;
+				HRESULT hr = GetOutputForDeviceName(source.CaptureDevice, &output);
+				if (FAILED(hr))
+				{
+					LOG_ERROR(L"Failed to get output descs for selected devices");
+					return hr;
+				}
+				RETURN_ON_BAD_HR(hr = output->GetDesc(&outputDesc));
+				outputDesc.DesktopCoordinates.left += xOffset;
+				outputDesc.DesktopCoordinates.right += xOffset;
+				std::pair<RECORDING_SOURCE, RECT> tuple(source, outputDesc.DesktopCoordinates);
+				validOutputs.push_back(tuple);
+			}
 			break;
 		}
-		case SourceType::Window: {
+		case RecordingSourceType::Window: {
 			RECT rect;
 			if (GetWindowRect(source.WindowHandle, &rect))
 			{
 				rect = RECT{ 0,0, RectWidth(rect),RectHeight(rect) };
+				LONG width = RectWidth(rect);
 				if (validOutputs.size() > 0) {
-					LONG width = RectWidth(rect);
 					rect.right = validOutputs.back().second.right + width;
 					rect.left = rect.right - width;
-					xOffset += width;
 				}
+				xOffset += width;
 				std::pair<RECORDING_SOURCE, RECT> tuple(source, rect);
 				validOutputs.push_back(tuple);
 			}

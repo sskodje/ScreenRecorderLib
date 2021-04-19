@@ -157,9 +157,7 @@ public:
 	void SetSnapshotsWithVideoInterval(UINT32 value) { m_SnapshotsWithVideoInterval = std::chrono::seconds(value); }
 	void SetSnapshotDirectory(std::wstring string) { m_OutputSnapshotsFolderPath = string; }
 	static bool SetExcludeFromCapture(HWND hwnd, bool isExcluded);
-	void SetDisplayOutput(std::wstring output) { m_DisplayOutputDevices = { output }; }
-	void SetDisplayOutput(std::vector<std::wstring> outputs) { m_DisplayOutputDevices = outputs; }
-	void SetWindowHandles(std::vector<HWND> handles) { m_WindowHandles = handles; }
+	void SetRecordingSources(std::vector<RECORDING_SOURCE> sources) { m_RecordingSources = sources; }
 	void SetRecorderMode(UINT32 mode) { m_RecorderMode = mode; }
 	void SetRecorderApi(UINT32 api) { m_RecorderApi = api; }
 	void SetFixedFramerate(bool value) { m_IsFixedFramerate = value; }
@@ -213,8 +211,7 @@ private:
 	UINT32 m_MaxFrameLength100Nanos = MillisToHundredNanos(500); //500 milliseconds in 100 nanoseconds measure.
 	UINT32 m_RecorderMode = MODE_VIDEO;
 	UINT32 m_RecorderApi = API_DESKTOP_DUPLICATION;
-	std::vector<std::wstring> m_DisplayOutputDevices = {};
-	std::vector<HWND> m_WindowHandles = {};
+	std::vector<RECORDING_SOURCE> m_RecordingSources{};
 	RECT m_DestRect = { 0,0,0,0 };
 	std::wstring m_AudioOutputDevice = L"";
 	std::wstring m_AudioInputDevice = L"";
@@ -254,8 +251,6 @@ private:
 	std::string CurrentTimeToFormattedString();
 	bool CheckDependencies(_Out_ std::wstring *error);
 	ScreenCaptureBase *CreateCaptureSession();
-	std::vector<RECORDING_SOURCE> CreateRecordingSources();
-	std::vector<RECORDING_OVERLAY> CreateRecordingOverlays();
 	std::vector<BYTE> GrabAudioFrame(_In_opt_ std::unique_ptr<LoopbackCapture> &pLoopbackCaptureOutputDevice, _In_opt_ std::unique_ptr<LoopbackCapture> &pLoopbackCaptureInputDevice);
 	std::vector<BYTE> MixAudio(_In_ std::vector<BYTE> const &first, _In_ std::vector<BYTE> const &second, _In_ float firstVolume, _In_ float secondVolume);
 	std::wstring GetImageExtension();

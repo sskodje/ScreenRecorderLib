@@ -102,8 +102,8 @@ enum class OverlayType {
 	Video,
 	CameraCapture
 };
-enum class SourceType {
-	Monitor,
+enum class RecordingSourceType {
+	Display,
 	Window
 };
 
@@ -111,12 +111,12 @@ struct RECORDING_SOURCE
 {
 	std::wstring CaptureDevice;
 	HWND WindowHandle;
-	SourceType Type;
+	RecordingSourceType Type;
 	bool IsCursorCaptureEnabled{};
 	RECORDING_SOURCE() :
 		CaptureDevice(L""),
 		WindowHandle(NULL),
-		Type(SourceType::Monitor),
+		Type(RecordingSourceType::Display),
 		IsCursorCaptureEnabled(false) {}
 
 	RECORDING_SOURCE(const RECORDING_SOURCE &source) :

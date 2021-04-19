@@ -98,12 +98,12 @@
                                 <TextBlock>
                                     <TextBlock.Text>
                                         <MultiBinding StringFormat="{}{0} ({1}) [{2},{3},{4},{5}]">
-                                            <Binding  Path="DisplayName" />
+                                            <Binding  Path="MonitorName" />
                                             <Binding  Path="DeviceName" />
-                                            <Binding  Path="Position.X" />
-                                            <Binding  Path="Position.Y" />
-                                            <Binding  Path="Width" />
-                                            <Binding  Path="Height" />
+                                            <Binding  Path="ScreenCoordinates.Left" />
+                                            <Binding  Path="ScreenCoordinates.Top" />
+                                            <Binding  Path="ScreenCoordinates.Right" />
+                                            <Binding  Path="ScreenCoordinates.Bottom" />
                                         </MultiBinding>
                                     </TextBlock.Text>
                                 </TextBlock>
@@ -116,6 +116,7 @@
                           Visibility="Collapsed"
                           IsEditable="True"
                           IsReadOnly="True"
+                          DropDownOpened="WindowComboBox_DropDownOpened"
                           SelectionChanged="WindowComboBox_SelectionChanged">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
@@ -126,7 +127,17 @@
                                               Unchecked="WindowCheckBox_CheckedChanged"
                                               IsEnabled="{Binding IsCheckable}"
                                               Width="20" />
-                                    <TextBlock Text="{Binding Title, Mode=OneTime}" />
+                                    <TextBlock>
+                                        <TextBlock.Text>
+                                            <MultiBinding StringFormat="{}{0} [{1},{2},{3},{4}]">
+                                                <Binding  Path="Title" />
+                                                <Binding  Path="ScreenCoordinates.Left" />
+                                                <Binding  Path="ScreenCoordinates.Top" />
+                                                <Binding  Path="ScreenCoordinates.Right" />
+                                                <Binding  Path="ScreenCoordinates.Bottom" />
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
                                 </StackPanel>
                             </StackPanel>
                         </DataTemplate>

@@ -265,10 +265,8 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 
 	RETURN_ON_BAD_HR(ConfigureOutputDir(path));
 
-	auto recordingSources = CreateRecordingSources();
-	auto recordingOverlays = CreateRecordingOverlays();
-	if (recordingSources.size() == 0) {
-		std::wstring error = L"Recording source parameters are empty.";
+	if (m_RecordingSources.size() == 0) {
+		std::wstring error = L"No valid recording sources found in recorder parameters.";
 		LOG_ERROR("%ls", error.c_str());
 		if (RecordingFailedCallback != nullptr)
 			RecordingFailedCallback(error);
@@ -276,7 +274,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 	}
 
 	m_TaskWrapperImpl->m_RecordTaskCts = cancellation_token_source();
-	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, stream, recordingSources, recordingOverlays]() {
+	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, stream]() {
 		LOG_INFO(L"Starting recording task");
 		m_IsRecording = true;
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
@@ -300,7 +298,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 			LOG_DEBUG("Starting Desktop Duplication recorder loop");
 		}
 
-		hr = StartRecorderLoop(recordingSources, recordingOverlays, stream);
+		hr = StartRecorderLoop(m_RecordingSources, m_Overlays, stream);
 		LOG_INFO("Exiting recording task");
 		return hr;
 		}).then([this](HRESULT recordingResult) {
@@ -374,37 +372,6 @@ ScreenCaptureBase *RecordingManager::CreateCaptureSession()
 		return new WindowsGraphicsCapture();
 	}
 	return nullptr;
-}
-
-std::vector<RECORDING_SOURCE> RecordingManager::CreateRecordingSources() {
-	std::vector<RECORDING_SOURCE> sources{};
-	std::vector<DXGI_OUTPUT_DESC> outputDescs{};
-	HRESULT hr = GetOutputDescsForDeviceNames(m_DisplayOutputDevices, &outputDescs);
-	if (SUCCEEDED(hr)) {
-		for each (const DXGI_OUTPUT_DESC &desc in outputDescs)
-		{
-			RECORDING_SOURCE source{};
-			source.Type = SourceType::Monitor;
-			source.CaptureDevice = desc.DeviceName;
-			source.IsCursorCaptureEnabled = m_IsMousePointerEnabled;
-			sources.push_back(source);
-		}
-	}
-
-	for each (HWND window in m_WindowHandles)
-	{
-		RECORDING_SOURCE source{};
-		source.Type = SourceType::Window;
-		source.WindowHandle = window;
-		source.IsCursorCaptureEnabled = m_IsMousePointerEnabled;
-		sources.push_back(source);
-	}
-
-	return sources;
-}
-
-std::vector<RECORDING_OVERLAY> RecordingManager::CreateRecordingOverlays() {
-	return m_Overlays;
 }
 
 HRESULT RecordingManager::FinalizeRecording()

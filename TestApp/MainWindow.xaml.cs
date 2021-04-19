@@ -263,11 +263,6 @@ namespace TestApp
             });
         }
 
-        private bool IsValidWindow(WindowHandle window)
-        {
-            return window.IsVisible() && window.IsValid && !String.IsNullOrEmpty(window.GetWindowText());
-        }
-
         protected void RaisePropertyChanged(string propertyName)
         {
             PropertyChangedEventHandler handler = PropertyChanged;
@@ -315,23 +310,30 @@ namespace TestApp
             Int32.TryParse(this.RecordingAreaLeftTextBox.Text, out int left);
             Int32.TryParse(this.RecordingAreaTopTextBox.Text, out int top);
 
-            var selectedDisplay = this.ScreenComboBox.SelectedItem as DisplayOutput;
-
+            var selectedDisplay = this.ScreenComboBox.SelectedItem as CheckableRecordableDisplay;
 
             string audioOutputDevice = AudioOutputsComboBox.SelectedValue as string;
             string audioInputDevice = AudioInputsComboBox.SelectedValue as string;
 
-            List<IntPtr> windowsToRecord = this.WindowComboBox.Items.Cast<CheckableRecordableWindow>().Where(x => x.IsSelected).Select(x => x.Handle).ToList();
-            if (windowsToRecord.Count == 0 && this.WindowComboBox.SelectedItem != null)
+            var windowsToRecord = this.WindowComboBox.Items.Cast<CheckableRecordableWindow>().Where(x => x.IsSelected).ToList();
+            if (windowsToRecord.Count == 0
+                && this.WindowComboBox.SelectedItem != null
+                && ((CheckableRecordableWindow)this.WindowComboBox.SelectedItem).IsCheckable)
             {
-                windowsToRecord.Add(((CheckableRecordableWindow)this.WindowComboBox.SelectedItem).Handle);
+                windowsToRecord.Add((CheckableRecordableWindow)this.WindowComboBox.SelectedItem);
             }
 
-            List<string> displayDevicesToRecord = this.ScreenComboBox.Items.Cast<DisplayOutput>().Where(x => x.IsSelected).Select(x => x.DeviceName).ToList();
-            if (displayDevicesToRecord.Count == 0 && this.ScreenComboBox.SelectedItem != null)
+            var displayDevicesToRecord = this.ScreenComboBox.Items.Cast<CheckableRecordableDisplay>().Where(x => x.IsSelected).ToList();
+            if (displayDevicesToRecord.Count == 0
+                && this.ScreenComboBox.SelectedItem != null
+                && ((CheckableRecordableDisplay)this.ScreenComboBox.SelectedItem).IsCheckable)
             {
-                displayDevicesToRecord.Add(((DisplayOutput)this.ScreenComboBox.SelectedItem).DeviceName);
+                displayDevicesToRecord.Add((CheckableRecordableDisplay)this.ScreenComboBox.SelectedItem);
             }
+
+            List<RecordingSource> recordingSources = new List<ScreenRecorderLib.RecordingSource>();
+            recordingSources.AddRange(windowsToRecord);
+            recordingSources.AddRange(displayDevicesToRecord);
 
             RecorderOptions options = new RecorderOptions
             {
@@ -372,8 +374,7 @@ namespace TestApp
                 },
                 DisplayOptions = new DisplayOptions
                 {
-                    DisplayDevices = displayDevicesToRecord,
-                    WindowHandles = windowsToRecord,
+                    RecordingSources = recordingSources,
                     Left = left,
                     Top = top,
                     Right = right,
@@ -548,47 +549,39 @@ namespace TestApp
             if (e.AddedItems.Count == 0)
                 return;
             SetScreenComboBoxTitle();
-            if (this.WindowComboBox.SelectedIndex == 0
-                && this.WindowComboBox.Items.Cast<CheckableRecordableWindow>().Count(x => x.IsSelected) == 0)
-            {
-                SetScreenRect();
-            }
+            //if (this.WindowComboBox.SelectedIndex == 0
+            //    && this.WindowComboBox.Items.Cast<CheckableRecordableWindow>().Count(x => x.IsSelected) == 0)
+            //{
+            SetScreenRect();
+            //}
         }
 
         private void SetScreenRect()
         {
-            var selectedDisplays = this.ScreenComboBox.Items.Cast<DisplayOutput>()
+            var selectedDisplays = this.ScreenComboBox.Items.Cast<CheckableRecordableDisplay>()
                 .Where(x => x.IsSelected)
-                .OrderBy(x => x.Position.X)
-                .ThenBy(x => x.Position.Y)
+                .OrderBy(x => x.ScreenCoordinates.Left)
+                .ThenBy(x => x.ScreenCoordinates.Top)
                 .ToList();
 
             var selectedWindows = this.WindowComboBox.Items.Cast<CheckableRecordableWindow>()
                 .Where(x => x.IsSelected)
                 .ToList();
 
-            if (selectedDisplays.Count == 0 && selectedWindows.Count == 0)
+            if (selectedDisplays.Count == 0
+                && this.ScreenComboBox.SelectedItem != null
+                && ((CheckableRecordableDisplay)this.ScreenComboBox.SelectedItem).IsCheckable)
             {
-                if (WindowComboBox.SelectedIndex > 0)
-                    selectedWindows.Add(this.WindowComboBox.SelectedItem as CheckableRecordableWindow);
-                else if (ScreenComboBox.SelectedIndex > 0)
-                    selectedDisplays.Add(this.ScreenComboBox.SelectedItem as DisplayOutput);
+                selectedDisplays.Add(this.ScreenComboBox.SelectedItem as CheckableRecordableDisplay);
             }
-            ScreenRecorderLib.Size size;
-            if (selectedDisplays.Count > 0)
+            if (selectedWindows.Count == 0
+                && this.WindowComboBox.SelectedItem != null
+                && ((CheckableRecordableWindow)this.WindowComboBox.SelectedItem).IsCheckable)
             {
-                size = Recorder.GetCombinedOutputSizeForDisplays(selectedDisplays.Select(x => x.DeviceName).ToList());
+                selectedWindows.Add(this.WindowComboBox.SelectedItem as CheckableRecordableWindow);
+            }
+            var size = Recorder.GetCombinedOutputSizeForRecordingSources(selectedDisplays.Cast<RecordingSource>().Union(selectedWindows.Cast<RecordingSource>()).ToList());
 
-            }
-            else if (selectedWindows.Count > 0)
-            {
-                size = Recorder.GetCombinedOutputSizeForWindows(selectedWindows.Select(x => x.Handle).ToList());
-
-            }
-            else
-            {
-                size = new ScreenRecorderLib.Size(0, 0);
-            }
             this.RecordingAreaRightTextBox.Text = size.Width.ToString();
             this.RecordingAreaBottomTextBox.Text = size.Height.ToString();
             this.RecordingAreaLeftTextBox.Text = 0.ToString();
@@ -700,6 +693,10 @@ namespace TestApp
             {
                 this.WindowComboBox.Visibility = Visibility.Visible;
             }
+            if (this.IsLoaded)
+            {
+                RefreshCaptureTargetItems();
+            }
         }
 
         private void WindowComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -736,28 +733,34 @@ namespace TestApp
         private void RefreshScreenComboBox()
         {
             this.ScreenComboBox.Items.Clear();
-            this.ScreenComboBox.Items.Add(new DisplayOutput
+            this.ScreenComboBox.Items.Add(new CheckableRecordableDisplay()
             {
                 DeviceName = null,
-                DisplayName = "All monitors",
-                IsCheckable = false,
-                Width = 0,
-                Height = 0
+                MonitorName = "-- No monitor selected --",
+                IsCheckable = false
+            });
+
+            var allMonitorsSize = Recorder.GetCombinedOutputSizeForRecordingSources(new List<RecordingSource>() { DisplayRecordingSource.AllMonitors });
+            this.ScreenComboBox.Items.Add(new CheckableRecordableDisplay
+            {
+                DeviceName = DisplayRecordingSource.AllMonitors.DeviceName,
+                MonitorName = "All monitors",
+                IsCheckable = true,
+                ScreenCoordinates = new Rect(0, 0, allMonitorsSize.Width, allMonitorsSize.Height)
             });
 
             foreach (var target in Recorder.GetDisplays())
             {
-                this.ScreenComboBox.Items.Add(new DisplayOutput
-                {
-                    DeviceName = target.DeviceName,
-                    DisplayName = target.MonitorName,
-                    Width = target.Width,
-                    Height = target.Height,
-                    Position = new System.Drawing.Point(target.PosX, target.PosY)
-                });
+                this.ScreenComboBox.Items.Add(new CheckableRecordableDisplay(target));
             }
-
-            ScreenComboBox.SelectedIndex = 0;
+            if (this.CurrentRecordingApi == RecorderApi.DesktopDuplication)
+            {
+                ScreenComboBox.SelectedIndex = 1;
+            }
+            else
+            {
+                ScreenComboBox.SelectedIndex = 0;
+            }
         }
         private void RefreshWindowComboBox()
         {
@@ -768,9 +771,31 @@ namespace TestApp
             {
                 this.WindowComboBox.Items.Add(new CheckableRecordableWindow(window));
             }
-
+            RefreshWindowSizeAndAvailability();
             WindowComboBox.SelectedIndex = 0;
         }
+
+        private void RefreshWindowSizeAndAvailability()
+        {
+            foreach (CheckableRecordableWindow window in this.WindowComboBox.Items)
+            {
+                if (window.Handle == IntPtr.Zero || window.IsMinmimized() || !window.IsValidWindow())
+                {
+                    window.IsCheckable = false;
+                    window.ScreenCoordinates = Rect.Empty;
+                }
+                else
+                {
+                    window.UpdateScreenCoordinates();
+                    if (!window.ScreenCoordinates.IsEmpty)
+                    {
+                        window.IsCheckable = true;
+
+                    }
+                }
+            }
+        }
+
         private void RefreshAudioComboBoxes()
         {
             AudioOutputsList.Clear();
@@ -807,9 +832,9 @@ namespace TestApp
         {
             this.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
             {
-                if (this.ScreenComboBox.Items.Cast<DisplayOutput>().Any(x => x.IsSelected))
+                if (this.ScreenComboBox.Items.Cast<CheckableRecordableDisplay>().Any(x => x.IsSelected))
                 {
-                    var displays = this.ScreenComboBox.Items.Cast<DisplayOutput>().Where(x => x.IsSelected).Select(x => $"{x.DisplayName} ({x.DeviceName})");
+                    var displays = this.ScreenComboBox.Items.Cast<CheckableRecordableDisplay>().Where(x => x.IsSelected).Select(x => $"{x.MonitorName} ({x.DeviceName})");
                     this.ScreenComboBox.Text = string.Join(", ", displays);
                 }
             }));
@@ -832,21 +857,10 @@ namespace TestApp
             SetScreenRect();
             SetWindowComboBoxTitle();
         }
-    }
 
-    internal class NativeMethods
-    {
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct RECT
+        private void WindowComboBox_DropDownOpened(object sender, EventArgs e)
         {
-            public int Left;        // x position of upper-left corner
-            public int Top;         // y position of upper-left corner
-            public int Right;       // x position of lower-right corner
-            public int Bottom;      // y position of lower-right corner
+            RefreshWindowSizeAndAvailability();
         }
     }
 }

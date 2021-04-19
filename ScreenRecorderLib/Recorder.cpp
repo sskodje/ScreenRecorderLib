@@ -50,32 +50,8 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			rect.right = options->DisplayOptions->Right;
 			rect.bottom = options->DisplayOptions->Bottom;
 			m_Rec->SetDestRectangle(rect);
-			if (options->DisplayOptions->DisplayDevices) {
-				std::vector<std::wstring> displays{};
-				displays.reserve(options->DisplayOptions->DisplayDevices->Count);
-				for each (String^ str in options->DisplayOptions->DisplayDevices)
-				{
-					if (!String::IsNullOrEmpty(str)) {
-						displays.push_back(msclr::interop::marshal_as<std::wstring>(str));
-					}
-				}
-				m_Rec->SetDisplayOutput(displays);
-			}
-
-			if (options->DisplayOptions->WindowHandles)
-			{
-				std::vector<HWND> windows{};
-				windows.reserve(options->DisplayOptions->WindowHandles->Count);
-				for each (IntPtr^ ptr in options->DisplayOptions->WindowHandles)
-				{
-					HWND window = (HWND)ptr->ToPointer();
-					if (window) {
-						windows.push_back(window);
-					}
-				}
-				m_Rec->SetWindowHandles(windows);
-			}
 		}
+		m_Rec->SetRecordingSources(CreateRecordingSourceList(options));
 		if (options->AudioOptions) {
 			m_Rec->SetAudioEnabled(options->AudioOptions->IsAudioEnabled);
 			m_Rec->SetOutputDeviceEnabled(options->AudioOptions->IsOutputDeviceEnabled);
@@ -101,7 +77,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			m_Rec->SetMouseClickDetectionMode((UINT32)options->MouseOptions->MouseClickDetectionMode);
 		}
 		if (options->OverlayOptions) {
-			m_Rec->SetOverlays(CreateNativeOverlayList(options->OverlayOptions->Overlays));
+			m_Rec->SetOverlays(CreateOverlayList(options->OverlayOptions->Overlays));
 		}
 
 		m_Rec->SetRecorderMode((UINT32)options->RecorderMode);
@@ -205,10 +181,6 @@ List<RecordableDisplay^>^ ScreenRecorderLib::Recorder::GetDisplays()
 			if (desc.AttachedToDesktop) {
 				auto display = gcnew RecordableDisplay();
 				display->DeviceName = gcnew String(desc.DeviceName);
-				display->PosX = desc.DesktopCoordinates.left;
-				display->PosY = desc.DesktopCoordinates.top;
-				display->Width = RectWidth(desc.DesktopCoordinates);
-				display->Height = RectHeight(desc.DesktopCoordinates);
 				display->MonitorName = gcnew String(GetMonitorName(desc.Monitor).c_str());
 				displays->Add(display);
 			}
@@ -223,50 +195,50 @@ List<RecordableWindow^>^ ScreenRecorderLib::Recorder::GetWindows()
 	List<RecordableWindow^>^ windows = gcnew List<RecordableWindow^>();
 	for each (const Window & win in EnumerateWindows())
 	{
+		RECT rect;
+		GetWindowRect(win.Hwnd(), &rect);
 		RecordableWindow^ recordableWin = gcnew RecordableWindow(gcnew String(win.Title().c_str()), IntPtr(win.Hwnd()));
 		windows->Add(recordableWin);
 	}
 	return windows;
 }
 
-Size^ Recorder::GetCombinedOutputSizeForDisplays(List<String^>^ displays)
+ScreenSize^ ScreenRecorderLib::Recorder::GetCombinedOutputSizeForRecordingSources(List<RecordingSource^>^ recordingSources)
 {
 	std::vector<RECORDING_SOURCE> sources{};
-	sources.reserve(displays->Count);
-	for each (String ^ deviceName in displays)
+	sources.reserve(recordingSources->Count);
+	for each (RecordingSource^ recordingSource in recordingSources)
 	{
-		if (!String::IsNullOrEmpty(deviceName)) {
-			RECORDING_SOURCE source{};
-			source.Type = SourceType::Monitor;
-			source.CaptureDevice = msclr::interop::marshal_as<std::wstring>(deviceName);
-			sources.push_back(source);
+		switch (recordingSource->SourceType)
+		{
+		case RecordingSourceType::Window: {
+			WindowRecordingSource^ windowRecordingSource = (WindowRecordingSource^)recordingSource;
+			if (windowRecordingSource->Handle != IntPtr::Zero) {
+				HWND hwnd = (HWND)windowRecordingSource->Handle.ToPointer();
+				if (hwnd) {
+					RECORDING_SOURCE source{};
+					source.Type = RecordingSourceType::Window;
+					source.WindowHandle = hwnd;
+					sources.push_back(source);
+				}
+			}
+			break;
+		}
+		case RecordingSourceType::Display: {
+			DisplayRecordingSource^ displayRecordingSource = (DisplayRecordingSource^)recordingSource;
+			if (!String::IsNullOrEmpty(displayRecordingSource->DeviceName)) {
+				RECORDING_SOURCE source{};
+				source.Type = RecordingSourceType::Display;
+				source.CaptureDevice = msclr::interop::marshal_as<std::wstring>(displayRecordingSource->DeviceName);
+				sources.push_back(source);
+			}
+			break;
+		}
+		default:
+			break;
 		}
 	}
-	std::vector<RECT> outputRects{};
-	std::vector<std::pair< RECORDING_SOURCE, RECT>> validOutputs{};
-	HRESULT hr = GetOutputRectsForRecordingSources(sources, &validOutputs);
-	for each (auto const& pair in validOutputs) {
-		outputRects.push_back(pair.second);
-	}
-	RECT deskBounds;
-	GetCombinedRects(outputRects, &deskBounds, nullptr);
-	return gcnew Size(RectWidth(deskBounds), RectHeight(deskBounds));
-}
 
-Size^ Recorder::GetCombinedOutputSizeForWindows(List<IntPtr>^ windowHandles)
-{
-	std::vector<RECORDING_SOURCE> sources{};
-	sources.reserve(windowHandles->Count);
-	for each (IntPtr^ ptr in windowHandles)
-	{
-		HWND hwnd = (HWND)ptr->ToPointer();
-		if (hwnd) {
-			RECORDING_SOURCE source{};
-			source.Type = SourceType::Window;
-			source.WindowHandle = hwnd;
-			sources.push_back(source);
-		}
-	}
 	std::vector<RECT> outputRects{};
 	std::vector<std::pair< RECORDING_SOURCE, RECT>> validOutputs{};
 	HRESULT hr = GetOutputRectsForRecordingSources(sources, &validOutputs);
@@ -275,7 +247,7 @@ Size^ Recorder::GetCombinedOutputSizeForWindows(List<IntPtr>^ windowHandles)
 	}
 	RECT deskBounds;
 	GetCombinedRects(outputRects, &deskBounds, nullptr);
-	return gcnew Size(RectWidth(deskBounds), RectHeight(deskBounds));
+	return gcnew ScreenSize(RectWidth(deskBounds), RectHeight(deskBounds));
 }
 
 Recorder::~Recorder()
@@ -348,7 +320,63 @@ void Recorder::ClearCallbacks() {
 		_snapshotDelegateGcHandler.Free();
 }
 
-std::vector<RECORDING_OVERLAY> Recorder::CreateNativeOverlayList(List<RecordingOverlay^>^ managedOverlays) {
+std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOptions^ options) {
+	std::vector<RECORDING_SOURCE> sources{};
+	if (options->DisplayOptions->RecordingSources->Count == 0) {
+		options->DisplayOptions->RecordingSources->Add(DisplayRecordingSource::AllMonitors);
+	}
+	if (options->DisplayOptions && options->DisplayOptions->RecordingSources) {
+		for each (RecordingSource^ source in options->DisplayOptions->RecordingSources)
+		{
+			switch (source->SourceType)
+			{
+			case RecordingSourceType::Display:
+			{
+				DisplayRecordingSource^ displaySource = (DisplayRecordingSource^)source;
+				if (!String::IsNullOrEmpty(displaySource->DeviceName)) {
+					std::wstring deviceName = msclr::interop::marshal_as<std::wstring>(displaySource->DeviceName);
+					CComPtr<IDXGIOutput> output;
+					HRESULT hr = GetOutputForDeviceName(deviceName, &output);
+					if (SUCCEEDED(hr)) {
+						DXGI_OUTPUT_DESC desc;
+						hr = output->GetDesc(&desc);
+						if (SUCCEEDED(hr)) {
+							RECORDING_SOURCE source{};
+							source.Type = displaySource->SourceType;
+							source.CaptureDevice = desc.DeviceName;
+							if (options->MouseOptions && options->MouseOptions->IsMousePointerEnabled) {
+								source.IsCursorCaptureEnabled = true;
+							}
+							sources.push_back(source);
+						}
+					}
+				}
+				break;
+			}
+			case RecordingSourceType::Window: {
+
+				WindowRecordingSource^ windowSource = (WindowRecordingSource^)source;
+				if (windowSource->Handle != IntPtr::Zero) {
+					HWND window = (HWND)(windowSource->Handle.ToPointer());
+					RECORDING_SOURCE source{};
+					source.Type = windowSource->SourceType;
+					source.WindowHandle = window;
+					if (options->MouseOptions && options->MouseOptions->IsMousePointerEnabled) {
+						source.IsCursorCaptureEnabled = true;
+					}
+					sources.push_back(source);
+				}
+				break;
+			}
+			default:
+				break;
+			}
+		}
+		return sources;
+	}
+}
+
+std::vector<RECORDING_OVERLAY> Recorder::CreateOverlayList(List<RecordingOverlay^>^ managedOverlays) {
 	std::vector<RECORDING_OVERLAY> overlays{};
 	if (managedOverlays != nullptr) {
 		for each (RecordingOverlay^ managedOverlay in managedOverlays)

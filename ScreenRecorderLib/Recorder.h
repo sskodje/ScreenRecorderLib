@@ -17,15 +17,44 @@ delegate void InternalErrorCallbackDelegate(std::wstring path);
 delegate void InternalSnapshotCallbackDelegate(std::wstring path);
 
 namespace ScreenRecorderLib {
-	public ref class Size {
+	public ref class ScreenSize {
 	public:
 		property int Width;
 		property int Height;
-		Size(int width, int height) {
+		ScreenSize(int width, int height) {
 			Width = width;
 			Height = height;
 		}
 	};
+
+	public ref class ScreenRect {
+	public:
+		property int Left;
+		property int Top;
+		property int Right;
+		property int Bottom;
+		ScreenRect() {
+
+		}
+		ScreenRect(int left, int top, int width, int height) {
+			Left = left;
+			Top = top;
+			Right = left + width;
+			Bottom = top + height;
+		}
+
+		property int Width {
+			int get() {
+				return Right - Left;
+			}
+		}
+		property int Height {
+			int get() {
+				return Bottom - Top;
+			}
+		}
+	};
+
 	public enum class LogLevel
 	{
 		Trace = 0,
@@ -114,6 +143,53 @@ namespace ScreenRecorderLib {
 		}
 	};
 
+	public interface class RecordingSource {
+		property RecordingSourceType SourceType
+		{
+			RecordingSourceType get();
+		}
+	};
+
+	public ref class WindowRecordingSource : public RecordingSource {
+	public:
+		property IntPtr Handle;
+
+		WindowRecordingSource() {	}
+		WindowRecordingSource(IntPtr windowHandle) {
+			Handle = windowHandle;
+		}
+
+		virtual property RecordingSourceType SourceType {
+			RecordingSourceType get() {
+				return RecordingSourceType::Window;
+			}
+		}
+	};
+
+	public ref class DisplayRecordingSource : public RecordingSource {
+	private:
+		static DisplayRecordingSource^ _allMonitors = gcnew DisplayRecordingSource(gcnew String(ALL_MONITORS_ID));
+	public:
+		static property DisplayRecordingSource^ AllMonitors {
+			DisplayRecordingSource^ get() {
+				return _allMonitors;
+			}
+		}
+
+		property String^ DeviceName;
+
+		DisplayRecordingSource() {	}
+		DisplayRecordingSource(String^ deviceName) {
+			DeviceName = deviceName;
+		}
+
+		virtual property RecordingSourceType SourceType {
+			RecordingSourceType get() {
+				return RecordingSourceType::Display;
+			}
+		}
+	};
+
 	public enum class Anchor {
 		TopLeft,
 		TopRight,
@@ -146,15 +222,13 @@ namespace ScreenRecorderLib {
 	};
 	public ref class DisplayOptions {
 	public:
-		property List<String^>^ DisplayDevices;
-		property List<IntPtr>^ WindowHandles;
+		property List<RecordingSource^>^ RecordingSources;
 		property int Left;
 		property int Top;
 		property int Right;
 		property int Bottom;
 		DisplayOptions() {
-			DisplayDevices = gcnew List<String^>();
-			WindowHandles = gcnew List<IntPtr>();
+			RecordingSources = gcnew List<RecordingSource^>();
 		}
 	};
 
@@ -385,21 +459,64 @@ namespace ScreenRecorderLib {
 		}
 	};
 
-	public ref class RecordableWindow {
+	public ref class RecordableWindow : WindowRecordingSource {
 	public:
-		RecordableWindow(String^ title, IntPtr handle) { Title = title; Handle = handle; }
+		RecordableWindow() {}
+		RecordableWindow(String^ title, IntPtr handle) :WindowRecordingSource(handle)
+		{
+			Title = title;
+		}
 		property String^ Title;
-		property IntPtr Handle;
+
+		bool IsMinmimized() {
+			return IsIconic(((HWND)Handle.ToPointer()));
+		}
+		bool IsValidWindow() {
+			return IsWindow(((HWND)Handle.ToPointer()));
+		}
+		ScreenRect^ GetScreenCoordinates() {
+			if (Handle != IntPtr::Zero) {
+				HWND hwnd = (HWND)Handle.ToPointer();
+				if (IsWindow(hwnd)) {
+					RECT rect;
+					GetWindowRect(hwnd, &rect);
+					if (rect.right > rect.left) {
+						return gcnew ScreenRect(rect.left, rect.top, RectWidth(rect), RectHeight(rect));
+					}
+				}
+			}
+			return gcnew ScreenRect();
+		}
 	};
 
-	public ref class RecordableDisplay {
+	public ref class RecordableDisplay : DisplayRecordingSource {
 	public:
-		property String^ DeviceName;
+		RecordableDisplay() :DisplayRecordingSource() {
+			//ScreenCoordinates = gcnew ScreenRect();
+		}
+		RecordableDisplay(String^ monitorName, String^ deviceName) :DisplayRecordingSource(deviceName) {
+			MonitorName = monitorName;
+			//ScreenCoordinates = gcnew ScreenRect();
+		}
+		//RecordableDisplay(String^ monitorName, String^ deviceName, ScreenRect^ screenRect) :DisplayRecordingSource(deviceName) {
+		//	MonitorName = monitorName;
+		//	ScreenCoordinates = screenRect;
+		//}
 		property String^ MonitorName;
-		property int PosX;
-		property int PosY;
-		property int Width;
-		property int Height;
+		//property ScreenRect^ ScreenCoordinates;
+		ScreenRect^ GetScreenCoordinates() {
+			if (!String::IsNullOrEmpty(DeviceName)) {
+				RECT rect;
+				IDXGIOutput* pOutput;
+				if (SUCCEEDED(GetOutputForDeviceName(msclr::interop::marshal_as<std::wstring>(DeviceName), &pOutput))) {
+					DXGI_OUTPUT_DESC desc;
+					pOutput->GetDesc(&desc);
+					pOutput->Release();
+					return gcnew ScreenRect(desc.DesktopCoordinates.left, desc.DesktopCoordinates.top, RectWidth(desc.DesktopCoordinates), RectHeight(desc.DesktopCoordinates));
+				}
+			}
+			return gcnew ScreenRect();
+		}
 	};
 
 	public ref class SnapshotSavedEventArgs :System::EventArgs {
@@ -426,7 +543,6 @@ namespace ScreenRecorderLib {
 		void EventSnapshotCreated(std::wstring str);
 		void SetupCallbacks();
 		void ClearCallbacks();
-		std::vector<RECORDING_OVERLAY> CreateNativeOverlayList(List<RecordingOverlay^>^ managedOverlays);
 		GCHandle _statusChangedDelegateGcHandler;
 		GCHandle _errorDelegateGcHandler;
 		GCHandle _completedDelegateGcHandler;
@@ -451,6 +567,10 @@ namespace ScreenRecorderLib {
 		void SetOptions(RecorderOptions^ options);
 		void SetInputVolume(float volume);
 		void SetOutputVolume(float volume);
+
+		std::vector<RECORDING_SOURCE> CreateRecordingSourceList(RecorderOptions^ options);
+		std::vector<RECORDING_OVERLAY> CreateOverlayList(List<RecordingOverlay^>^ managedOverlays);
+
 		static bool SetExcludeFromCapture(System::IntPtr hwnd, bool isExcluded);
 		static Recorder^ CreateRecorder();
 		static Recorder^ CreateRecorder(RecorderOptions^ options);
@@ -458,8 +578,9 @@ namespace ScreenRecorderLib {
 		static Dictionary<String^, String^>^ GetSystemAudioDevices(AudioDeviceSource source);
 		static Dictionary<String^, String^>^ GetSystemVideoCaptureDevices();
 		static List<RecordableDisplay^>^ GetDisplays();
-		static Size^ GetCombinedOutputSizeForDisplays(List<String^>^ displays);
-		static Size^ GetCombinedOutputSizeForWindows(List<IntPtr>^ windowHandles);
+		//static ScreenSize^ GetCombinedOutputSizeForDisplays(List<String^>^ displays);
+		//static ScreenSize^ GetCombinedOutputSizeForWindows(List<IntPtr>^ windowHandles);
+		static ScreenSize^ GetCombinedOutputSizeForRecordingSources(List<RecordingSource^>^ recordingSources);
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;
