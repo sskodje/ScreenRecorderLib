@@ -9,6 +9,9 @@ using namespace nlohmann;
 Recorder::Recorder(RecorderOptions^ options)
 {
 	m_Rec = new RecordingManager();
+	if (!options) {
+		options = gcnew RecorderOptions();
+	}
 	SetOptions(options);
 }
 
@@ -174,7 +177,7 @@ List<RecordableDisplay^>^ ScreenRecorderLib::Recorder::GetDisplays()
 	std::vector<IDXGIOutput*> outputs{};
 	EnumOutputs(&outputs);
 
-	for each (IDXGIOutput* output in outputs)
+	for each (IDXGIOutput * output in outputs)
 	{
 		DXGI_OUTPUT_DESC desc;
 		if (SUCCEEDED(output->GetDesc(&desc))) {
@@ -321,7 +324,10 @@ void Recorder::ClearCallbacks() {
 }
 
 std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOptions^ options) {
-	std::vector<RECORDING_SOURCE> sources{};
+	std::set<RECORDING_SOURCE> sources{};
+	if (!options->DisplayOptions) {
+		options->DisplayOptions = gcnew DisplayOptions();
+	}
 	if (options->DisplayOptions->RecordingSources->Count == 0) {
 		options->DisplayOptions->RecordingSources->Add(DisplayRecordingSource::AllMonitors);
 	}
@@ -333,21 +339,40 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOption
 			case RecordingSourceType::Display:
 			{
 				DisplayRecordingSource^ displaySource = (DisplayRecordingSource^)source;
-				if (!String::IsNullOrEmpty(displaySource->DeviceName)) {
-					std::wstring deviceName = msclr::interop::marshal_as<std::wstring>(displaySource->DeviceName);
-					CComPtr<IDXGIOutput> output;
-					HRESULT hr = GetOutputForDeviceName(deviceName, &output);
-					if (SUCCEEDED(hr)) {
+				if (displaySource->DeviceName == DisplayRecordingSource::AllMonitors->DeviceName) {
+					std::vector<IDXGIOutput*> outputs;
+					EnumOutputs(&outputs);
+					for each (IDXGIOutput* output in outputs)
+					{
 						DXGI_OUTPUT_DESC desc;
-						hr = output->GetDesc(&desc);
-						if (SUCCEEDED(hr)) {
+						output->GetDesc(&desc);
 							RECORDING_SOURCE source{};
 							source.Type = displaySource->SourceType;
 							source.CaptureDevice = desc.DeviceName;
 							if (options->MouseOptions && options->MouseOptions->IsMousePointerEnabled) {
 								source.IsCursorCaptureEnabled = true;
 							}
-							sources.push_back(source);
+							sources.insert(sources.end(),source);
+						output->Release();
+					}
+				}
+				else {
+					if (!String::IsNullOrEmpty(displaySource->DeviceName)) {
+						std::wstring deviceName = msclr::interop::marshal_as<std::wstring>(displaySource->DeviceName);
+						CComPtr<IDXGIOutput> output;
+						HRESULT hr = GetOutputForDeviceName(deviceName, &output);
+						if (SUCCEEDED(hr)) {
+							DXGI_OUTPUT_DESC desc;
+							hr = output->GetDesc(&desc);
+							if (SUCCEEDED(hr)) {
+									RECORDING_SOURCE source{};
+									source.Type = displaySource->SourceType;
+									source.CaptureDevice = desc.DeviceName;
+									if (options->MouseOptions && options->MouseOptions->IsMousePointerEnabled) {
+										source.IsCursorCaptureEnabled = true;
+									}
+									sources.insert(sources.end(), source);
+							}
 						}
 					}
 				}
@@ -364,7 +389,7 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOption
 					if (options->MouseOptions && options->MouseOptions->IsMousePointerEnabled) {
 						source.IsCursorCaptureEnabled = true;
 					}
-					sources.push_back(source);
+					sources.insert(sources.end(), source);
 				}
 				break;
 			}
@@ -372,7 +397,12 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOption
 				break;
 			}
 		}
-		return sources;
+		std::vector<RECORDING_SOURCE> sourceVector{};
+		for each (auto obj in sources)
+		{
+			sourceVector.push_back(obj);
+		}
+		return sourceVector;
 	}
 }
 

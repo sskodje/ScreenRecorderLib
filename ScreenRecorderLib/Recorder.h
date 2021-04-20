@@ -3,6 +3,7 @@
 #include <atlbase.h>
 #include <vcclr.h>
 #include <vector>
+#include <set>
 #include "../ScreenRecorderLibNative/Native.h"
 #include "ManagedIStream.h"
 #include "Win32WindowEnumeration.h"
@@ -492,21 +493,13 @@ namespace ScreenRecorderLib {
 	public ref class RecordableDisplay : DisplayRecordingSource {
 	public:
 		RecordableDisplay() :DisplayRecordingSource() {
-			//ScreenCoordinates = gcnew ScreenRect();
 		}
 		RecordableDisplay(String^ monitorName, String^ deviceName) :DisplayRecordingSource(deviceName) {
 			MonitorName = monitorName;
-			//ScreenCoordinates = gcnew ScreenRect();
 		}
-		//RecordableDisplay(String^ monitorName, String^ deviceName, ScreenRect^ screenRect) :DisplayRecordingSource(deviceName) {
-		//	MonitorName = monitorName;
-		//	ScreenCoordinates = screenRect;
-		//}
 		property String^ MonitorName;
-		//property ScreenRect^ ScreenCoordinates;
 		ScreenRect^ GetScreenCoordinates() {
 			if (!String::IsNullOrEmpty(DeviceName)) {
-				RECT rect;
 				IDXGIOutput* pOutput;
 				if (SUCCEEDED(GetOutputForDeviceName(msclr::interop::marshal_as<std::wstring>(DeviceName), &pOutput))) {
 					DXGI_OUTPUT_DESC desc;
@@ -578,8 +571,6 @@ namespace ScreenRecorderLib {
 		static Dictionary<String^, String^>^ GetSystemAudioDevices(AudioDeviceSource source);
 		static Dictionary<String^, String^>^ GetSystemVideoCaptureDevices();
 		static List<RecordableDisplay^>^ GetDisplays();
-		//static ScreenSize^ GetCombinedOutputSizeForDisplays(List<String^>^ displays);
-		//static ScreenSize^ GetCombinedOutputSizeForWindows(List<IntPtr>^ windowHandles);
 		static ScreenSize^ GetCombinedOutputSizeForRecordingSources(List<RecordingSource^>^ recordingSources);
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;

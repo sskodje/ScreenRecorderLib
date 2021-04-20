@@ -601,8 +601,13 @@ HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> s
 		if (source.Type == RecordingSourceType::Display) {
 			data->OffsetX -= pDeskBounds->left;
 			data->OffsetY -= pDeskBounds->top;
+			if (i > 0 && validOutputs.at(i - 1).first.Type == RecordingSourceType::Window) {
+				data->OffsetX += sourceRect.left;
+			}
 		}
+		else if (source.Type == RecordingSourceType::Window) {
 			data->OffsetX += sourceRect.left;
+		}
 		data->OffsetX -= outputOffsets.at(i).cx;
 		data->OffsetY -= outputOffsets.at(i).cy;
 		pCreatedOutputs->push_back(data);

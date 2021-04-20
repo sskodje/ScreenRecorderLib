@@ -124,6 +124,27 @@ struct RECORDING_SOURCE
 		WindowHandle(source.WindowHandle),
 		Type(source.Type),
 		IsCursorCaptureEnabled(source.IsCursorCaptureEnabled) {}
+
+	friend bool operator< (const RECORDING_SOURCE &a, const RECORDING_SOURCE &b) {
+		switch (a.Type)
+		{
+		case RecordingSourceType::Display: {
+			if (b.Type == RecordingSourceType::Window) {
+				return true;
+			}
+			return (a.CaptureDevice.compare(b.CaptureDevice) < 0);
+		}
+		case RecordingSourceType::Window: {
+			if (b.Type == RecordingSourceType::Display) {
+				return false;
+			}
+			return a.WindowHandle < b.WindowHandle;
+		}
+		default:
+			return 0;
+			break;
+		}
+	}
 };
 
 struct RECORDING_SOURCE_DATA :RECORDING_SOURCE {
