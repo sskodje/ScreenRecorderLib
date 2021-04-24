@@ -261,6 +261,14 @@ namespace TestApp
             Int32.TryParse(this.RecordingAreaLeftTextBox.Text, out left);
             int top = 0;
             Int32.TryParse(this.RecordingAreaTopTextBox.Text, out top);
+            int scaledWidth = 0;
+            Int32.TryParse(this.ScaledWidthTextBox.Text, out scaledWidth);
+            int scaledHeight = 0;
+            Int32.TryParse(this.ScaledHeightTextBox.Text, out scaledHeight);
+            double scaledFrameRatio;
+            Double.TryParse(this.ScaledFrameRatioTextBox.Text, out scaledFrameRatio);
+            if (scaledFrameRatio == 0)
+                scaledFrameRatio = 1.0;
 
             Display selectedDisplay = (Display)this.ScreenComboBox.SelectedItem;
 
@@ -304,7 +312,10 @@ namespace TestApp
                     EncoderProfile = this.CurrentH264Profile,
                     SnapshotFormat = CurrentImageFormat,
                     SnapshotsWithVideo = this.SnapshotsWithVideo,
-                    SnapshotsInterval = this.SnapshotsIntervalInSec
+                    SnapshotsInterval = this.SnapshotsIntervalInSec,
+                    ScaledFrameWidth = scaledWidth,
+                    ScaledFrameHeight = scaledHeight,
+                    ScaledFrameRatio = scaledFrameRatio
                 },
                 DisplayOptions = new DisplayOptions
                 {
@@ -687,6 +698,23 @@ namespace TestApp
 
             AudioOutputsComboBox.SelectedIndex = 0;
             AudioInputsComboBox.SelectedIndex = 0;
+        }
+
+        private void ScaledWidthTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ScaledFrameRatioTextBox.IsEnabled = !IsValidSizeInScaledWidthHeight();
+        }
+        private void ScaledHeightTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ScaledFrameRatioTextBox.IsEnabled = !IsValidSizeInScaledWidthHeight();
+        }
+        private bool IsValidSizeInScaledWidthHeight()
+        {
+            int width = 0;
+            Int32.TryParse(this.ScaledWidthTextBox.Text, out width);
+            int height = 0;
+            Int32.TryParse(this.ScaledHeightTextBox.Text, out height);
+            return width != 0 && height != 0;
         }
     }
 

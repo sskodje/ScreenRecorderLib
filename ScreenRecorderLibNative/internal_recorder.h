@@ -140,6 +140,9 @@ public:
 	void SetOutputVolume(float volume) { m_OutputVolumeModifier = volume; }
 	void SetTakeSnapthotsWithVideo(bool isEnabled) { m_TakesSnapshotsWithVideo = isEnabled; }
 	void SetSnapthotsWithVideoInterval(UINT32 value) { m_SnapshotsWithVideoInterval = std::chrono::seconds(value); }
+	void SetScaledFrameWidth(UINT32 value) { m_ScaledFrameWidth = value; }
+	void SetScaledFrameHeight(UINT32 value) { m_ScaledFrameHeight = value; }
+	void SetScaledFrameRatio(double value) { m_ScaledFrameRatio = value; }
 	static bool SetExcludeFromCapture(HWND hwnd, bool isExcluded);
 
 	[[deprecated]]
@@ -213,6 +216,10 @@ private:
 	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
 	UINT32 m_VideoBitrateControlMode = eAVEncCommonRateControlMode_Quality;
 	std::chrono::seconds m_SnapshotsWithVideoInterval = std::chrono::seconds(10);
+	UINT32 m_ScaledFrameWidth = 0;
+	UINT32 m_ScaledFrameHeight = 0;
+	double m_ScaledFrameRatio = 1.0;
+	bool m_IsScalingEnabled = false;
 	bool m_IsMousePointerEnabled = true;
 	bool m_IsAudioEnabled = false;
 	bool m_IsOutputDeviceEnabled = true;
@@ -252,6 +259,7 @@ private:
 		return m_previousSnapshotTaken == (std::chrono::steady_clock::time_point::min)() ||
 		(std::chrono::steady_clock::now() - m_previousSnapshotTaken) > m_SnapshotsWithVideoInterval;
 	}
+	void DetermineScalingParameters(int originalWidth, int originalHeight);
 
 	HRESULT FinalizeRecording();
 	void CleanupResourcesAndShutDownMF();
@@ -271,12 +279,13 @@ private:
 	HRESULT WriteFrameToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ ID3D11Texture2D* pAcquiredDesktopImage);
 	HRESULT WriteFrameToImage(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath);
 	void WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDesktopImage, std::wstring filePath);
-	HRESULT TakeSnapshotsWithVideo(ID3D11Texture2D* frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect);
+	HRESULT TakeSnapshotsWithVideo(ID3D11Texture2D* frame, RECT destRect);
 	HRESULT WriteAudioSamplesToVideo(INT64 frameStartPos, INT64 frameDuration, DWORD streamIndex, _In_ BYTE *pSrc, DWORD cbData);
 	HRESULT GetOutputForDeviceName(std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **adapter);
 	HRESULT SetAttributeU32(_Inout_ ATL::CComPtr<ICodecAPI>& codec, const GUID& guid, UINT32 value);
 	HRESULT CreateInputMediaTypeFromOutput(_In_ IMFMediaType *pType, const GUID& subtype, _Outptr_ IMFMediaType **ppType);
-	HRESULT DrawMousePointer(ID3D11Texture2D *frame, mouse_pointer *pointer, mouse_pointer::PTR_INFO ptrInfo, DXGI_MODE_ROTATION screenRotation, INT64 durationSinceLastFrame100Nanos);
+	HRESULT DrawMouseClick(ID3D11Texture2D* frame, mouse_pointer* pointer, mouse_pointer::PTR_INFO ptrInfo, DXGI_MODE_ROTATION screenRotation, INT64 durationSinceLastFrame100Nanos);
+	HRESULT DrawMousePointer(ID3D11Texture2D *frame, mouse_pointer *pointer, mouse_pointer::PTR_INFO ptrInfo, DXGI_MODE_ROTATION screenRotation, ID3D11Texture2D* desktopTexture = nullptr);
 	HRESULT CropFrame(ID3D11Texture2D *frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect, _Outptr_ ID3D11Texture2D **pCroppedFrame);
 	HRESULT CreateCaptureItem(_Out_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem *captureItem);
 	HRESULT GetVideoProcessor(IMFSinkWriter *pSinkWriter, DWORD streamIndex, IMFVideoProcessorControl **pVideoProcessor);

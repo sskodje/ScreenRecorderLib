@@ -168,10 +168,14 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Texture
 //
 // Draw mouse provided in buffer to backbuffer
 //
-HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11DeviceContext* DeviceContext, _In_ ID3D11Device* Device, _Inout_ ID3D11Texture2D* bgTexture, DXGI_MODE_ROTATION rotation)
+HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11DeviceContext* DeviceContext, _In_ ID3D11Device* Device, _Inout_ ID3D11Texture2D* targetTexture, DXGI_MODE_ROTATION rotation, _In_ ID3D11Texture2D* desktopTexture)
 {
 	if (!PtrInfo || !PtrInfo->Visible || PtrInfo->PtrShapeBuffer == nullptr)
 		return S_FALSE;
+
+	if (desktopTexture == nullptr)
+		desktopTexture = targetTexture;
+
 	// Vars to be used
 	ID3D11Texture2D* MouseTex = nullptr;
 	ID3D11ShaderResourceView* ShaderRes = nullptr;
@@ -180,7 +184,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 	D3D11_TEXTURE2D_DESC Desc = { 0 };
 	D3D11_SHADER_RESOURCE_VIEW_DESC SDesc;
 	D3D11_TEXTURE2D_DESC DesktopDesc = { 0 };
-	bgTexture->GetDesc(&DesktopDesc);
+	desktopTexture->GetDesc(&DesktopDesc);
 	// Position will be changed based on mouse position
 	VERTEX Vertices[NUMVERTICES] =
 	{
@@ -242,12 +246,12 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 	}
 	case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME:
 	{
-		ProcessMonoMask(bgTexture, DeviceContext, Device, rotation, true, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
+		ProcessMonoMask(desktopTexture, DeviceContext, Device, rotation, true, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
 		break;
 	}
 	case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
 	{
-		ProcessMonoMask(bgTexture, DeviceContext, Device, rotation, false, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
+		ProcessMonoMask(desktopTexture, DeviceContext, Device, rotation, false, PtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer, &Box);
 		break;
 	}
 	default:
@@ -368,7 +372,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 	}
 	ID3D11RenderTargetView* RTV;
 	// Create a render target view
-	hr = Device->CreateRenderTargetView(bgTexture, nullptr, &RTV);
+	hr = Device->CreateRenderTargetView(targetTexture, nullptr, &RTV);
 	// Set resources
 	FLOAT BlendFactor[4] = { 0.f, 0.f, 0.f, 0.f };
 	UINT Stride = sizeof(VERTEX);
@@ -412,10 +416,10 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 //
 // Process both masked and monochrome pointers
 //
-HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3D11DeviceContext* DeviceContext, _In_ ID3D11Device* Device, DXGI_MODE_ROTATION rotation, bool IsMono, _Inout_ PTR_INFO* PtrInfo, _Out_ INT* PtrWidth, _Out_ INT* PtrHeight, _Out_ INT* PtrLeft, _Out_ INT* PtrTop, _Outptr_result_bytebuffer_(*PtrHeight * *PtrWidth * BPP) BYTE** InitBuffer, _Out_ D3D11_BOX* Box)
+HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* desktopTexture, _In_ ID3D11DeviceContext* DeviceContext, _In_ ID3D11Device* Device, DXGI_MODE_ROTATION rotation, bool IsMono, _Inout_ PTR_INFO* PtrInfo, _Out_ INT* PtrWidth, _Out_ INT* PtrHeight, _Out_ INT* PtrLeft, _Out_ INT* PtrTop, _Outptr_result_bytebuffer_(*PtrHeight * *PtrWidth * BPP) BYTE** InitBuffer, _Out_ D3D11_BOX* Box)
 {
 	D3D11_TEXTURE2D_DESC desc;
-	bgTexture->GetDesc(&desc);
+	desktopTexture->GetDesc(&desc);
 	//// Desktop dimensions
 	INT DesktopWidth = desc.Width;
 	INT DesktopHeight = desc.Height;
@@ -492,7 +496,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 	Box->top = *PtrTop;
 	Box->right = *PtrLeft + *PtrWidth;
 	Box->bottom = *PtrTop + *PtrHeight;
-	DeviceContext->CopySubresourceRegion(CopyBuffer, 0, 0, 0, 0, bgTexture, 0, Box);
+	DeviceContext->CopySubresourceRegion(CopyBuffer, 0, 0, 0, 0, desktopTexture, 0, Box);
 
 	// QI for IDXGISurface
 	IDXGISurface* CopySurface = nullptr;

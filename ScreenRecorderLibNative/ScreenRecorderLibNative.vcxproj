@@ -19,6 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Resizer.h" />
     <ClInclude Include="screengrab.h" />
     <ClInclude Include="audio_prefs.h" />
     <ClInclude Include="graphics_capture.h" />
@@ -36,6 +37,7 @@
     <ClInclude Include="WWMFResampler.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Resizer.cpp" />
     <ClCompile Include="screengrab.cpp" />
     <ClCompile Include="audio_prefs.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>

@@ -88,3 +88,10 @@ inline INT64 HundredNanosToMillis(INT64 hundredNanos) {
 	return round((double)hundredNanos / 10 / 1000);
 }
 
+// Make odd number even (e.g. 2559 to be 2560).
+inline UINT32 MakeEven(UINT32 number) {
+	if (number % 2 != 0) {
+		++number;
+	}
+	return number;
+}
