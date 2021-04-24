@@ -24,6 +24,9 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			lRec->SetVideoBitrateMode((UINT32)options->VideoOptions->BitrateMode);
 			lRec->SetTakeSnapthotsWithVideo(options->VideoOptions->SnapshotsWithVideo);
 			lRec->SetSnapthotsWithVideoInterval(options->VideoOptions->SnapshotsInterval);
+			lRec->SetScaledFrameWidth(options->VideoOptions->ScaledFrameWidth);
+			lRec->SetScaledFrameHeight(options->VideoOptions->ScaledFrameHeight);
+			lRec->SetScaledFrameRatio(options->VideoOptions->ScaledFrameRatio);
 			switch (options->VideoOptions->SnapshotFormat)
 			{
 			case ImageFormat::BMP:

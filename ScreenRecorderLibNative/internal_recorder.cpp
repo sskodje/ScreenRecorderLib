@@ -22,6 +22,7 @@
 #include "graphics_capture.h"
 #include "graphics_capture.util.h"
 #include "monitor_list.h"
+#include "Resizer.h"
 
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "D3D11.lib")
@@ -167,6 +168,23 @@ std::wstring internal_recorder::GetImageExtension() {
 
 std::wstring internal_recorder::GetVideoExtension() {
 	return L".mp4";
+}
+
+//Updates member variables for scaling. Scaling ratio will be ignored if absolute width and height are specified.
+void internal_recorder::DetermineScalingParameters(int originalWidth, int originalHeight)
+{
+	if (m_ScaledFrameWidth != 0 && m_ScaledFrameHeight != 0) {
+		m_ScaledFrameWidth = MakeEven(m_ScaledFrameWidth);
+		m_ScaledFrameHeight = MakeEven(m_ScaledFrameHeight);
+		m_IsScalingEnabled = true;
+	}
+	else if (m_ScaledFrameRatio != 1.0) {
+		m_ScaledFrameWidth = MakeEven(static_cast<UINT32>(originalWidth * m_ScaledFrameRatio));
+		m_ScaledFrameHeight = MakeEven(static_cast<UINT32>(originalHeight * m_ScaledFrameRatio));
+		m_IsScalingEnabled = true;
+	}
+	else 
+		m_IsScalingEnabled = false;
 }
 
 HRESULT internal_recorder::ConfigureOutputDir(std::wstring path) {
@@ -493,6 +511,12 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 	//These values will be overwritten on a frame by frame basis.
 	videoInputFrameRect.right += 2;
 	videoInputFrameRect.bottom += 2;
+
+	DetermineScalingParameters(videoOutputFrameRect.right - videoOutputFrameRect.left, videoOutputFrameRect.bottom - videoOutputFrameRect.top);
+	std::unique_ptr<Resizer> pResizer = make_unique<Resizer>();
+	if (m_IsScalingEnabled)
+		RETURN_ON_BAD_HR(hr = pResizer->Initialize(m_ImmediateContext, m_Device));
+
 	HANDLE hMarkEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	if (m_RecorderMode == MODE_VIDEO) {
@@ -553,20 +577,16 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		auto frame = pCapture->TryGetNextFrame();
 
 		winrt::com_ptr<ID3D11Texture2D> surfaceTexture = nullptr;
-		UINT contentWidth = 0;
-		UINT contentHeight = 0;
+
 		if (frame) {
 			auto contentSize = frame.ContentSize();
 			surfaceTexture = capture::util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
 			surfaceTexture->GetDesc(&sourceFrameDesc);
 			// Clear flags that we don't need
 			sourceFrameDesc.Usage = D3D11_USAGE_DEFAULT;
-			sourceFrameDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
+			sourceFrameDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;	//Frames to be put to shader when resized.
 			sourceFrameDesc.CPUAccessFlags = 0;
 			sourceFrameDesc.MiscFlags = 0;
-
-			contentWidth = contentSize.Width;
-			contentHeight = contentSize.Height;
 
 			videoInputFrameRect.right = contentSize.Width - videoInputFrameRect.left;
 			videoInputFrameRect.bottom = contentSize.Height - videoInputFrameRect.top;
@@ -674,18 +694,24 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		}
 
 		if (gotMousePointer) {
-			hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, DXGI_MODE_ROTATION_IDENTITY, durationSinceLastFrame100Nanos);
-			if (FAILED(hr)) {
-				_com_error err(hr);
-				ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
-				//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
-			}
+			DrawMouseClick(pFrameCopy, pMousePointer.get(), PtrInfo, DXGI_MODE_ROTATION_IDENTITY, durationSinceLastFrame100Nanos);
+		}
+
+		if (m_IsScalingEnabled) {
+			ID3D11Texture2D* pResizedFrameCopy;
+			//Adjust view port as input size varies along with content size.
+			hr = pResizer->Resize(pFrameCopy, &pResizedFrameCopy, m_ScaledFrameWidth, m_ScaledFrameHeight,
+				(double)sourceFrameDesc.Width / ((double)videoInputFrameRect.right - (double)videoInputFrameRect.left),
+				(double)sourceFrameDesc.Height / ((double)videoInputFrameRect.bottom - (double)videoInputFrameRect.top));
+			RETURN_ON_BAD_HR(hr);
+			pFrameCopy.Release();
+			pFrameCopy.Attach(pResizedFrameCopy);
 		}
 
 		SetDebugName(pFrameCopy, "FrameCopy");
 
 		if (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot()) {
-			TakeSnapshotsWithVideo(pFrameCopy, sourceFrameDesc, videoInputFrameRect);
+			TakeSnapshotsWithVideo(pFrameCopy, videoInputFrameRect);
 		}
 
 		if (token.is_canceled()) {
@@ -745,6 +771,11 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 
 	RETURN_ON_BAD_HR(hr = InitializeDesc(outputDuplDesc, &sourceFrameDesc, &destFrameDesc, &videoInputFrameRect, &videoOutputFrameRect));
 	bool isDestRectEqualToSourceRect = EqualRect(&videoInputFrameRect, &videoOutputFrameRect);
+
+	DetermineScalingParameters(videoOutputFrameRect.right - videoOutputFrameRect.left, videoOutputFrameRect.bottom - videoOutputFrameRect.top);
+	std::unique_ptr<Resizer> pResizer = make_unique<Resizer>();
+	if (m_IsScalingEnabled)
+		RETURN_ON_BAD_HR(hr = pResizer->Initialize(m_ImmediateContext, m_Device));
 
 	std::unique_ptr<mouse_pointer> pMousePointer = make_unique<mouse_pointer>();
 	RETURN_ON_BAD_HR(hr = pMousePointer->Initialize(m_ImmediateContext, m_Device));
@@ -977,29 +1008,50 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 
 			SetDebugName(pFrameCopy, "FrameCopy");
 
-			if (gotMousePointer) {
-				hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
-				if (FAILED(hr)) {
-					_com_error err(hr);
-					ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
-					//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
-				}
-			}
 			if (token.is_canceled()) {
 				DEBUG("Recording task was cancelled");
 				hr = S_OK;
 				break;
 			}
 
-			if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
+			if (gotMousePointer) {
+				//Clicks need to be drawn before rendering scaled image, while it seems pointer needs to be processed later.
+				DrawMouseClick(pFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, durationSinceLastFrame100Nanos);
+			}
+			//For scaled video, we directly crop a frame here. For non-scaled video, SetSourceRectangle does the job so we skip cropping. 
+			if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT || m_IsScalingEnabled) && !isDestRectEqualToSourceRect) {
 				ID3D11Texture2D *pCroppedFrameCopy;
 				RETURN_ON_BAD_HR(hr = CropFrame(pFrameCopy, destFrameDesc, videoOutputFrameRect, &pCroppedFrameCopy));
 				pFrameCopy.Release();
 				pFrameCopy.Attach(pCroppedFrameCopy);
 			}
+			if (m_IsScalingEnabled) {
+				ID3D11Texture2D *pResizedFrameCopy;
+				hr = pResizer->Resize(pFrameCopy, &pResizedFrameCopy, m_ScaledFrameWidth, m_ScaledFrameHeight);
+				RETURN_ON_BAD_HR(hr);
+				if (gotMousePointer) {
+					//Pass desktop texture as well to draw pointer's surroundings
+					hr = DrawMousePointer(pResizedFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, pFrameCopy);
+					if (FAILED(hr)) {
+						_com_error err(hr);
+						ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
+						//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
+					}
+				}
+				pFrameCopy.Release();
+				pFrameCopy.Attach(pResizedFrameCopy);
+			}
+			else if (gotMousePointer) {
+				hr = DrawMousePointer(pFrameCopy, pMousePointer.get(), PtrInfo, screenRotation);
+				if (FAILED(hr)) {
+					_com_error err(hr);
+					ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
+					//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
+				}
+			}
 
 			if (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot()) {
-				TakeSnapshotsWithVideo(pFrameCopy, sourceFrameDesc, videoOutputFrameRect);
+				TakeSnapshotsWithVideo(pFrameCopy, videoOutputFrameRect);
 			}
 
 			FrameWriteModel model;
@@ -1027,14 +1079,33 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 	if (pPreviousFrameCopy != nullptr) {
 		INT64 duration = duration_cast<nanoseconds>(chrono::steady_clock::now() - lastFrame).count() / 100;
 		if (gotMousePointer) {
-			DrawMousePointer(pPreviousFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, duration);
+			DrawMouseClick(pPreviousFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, duration);
 		}
-		if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
+		if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT || m_IsScalingEnabled) && !isDestRectEqualToSourceRect) {
 			ID3D11Texture2D *pCroppedFrameCopy;
 			RETURN_ON_BAD_HR(hr = CropFrame(pPreviousFrameCopy, destFrameDesc, videoOutputFrameRect, &pCroppedFrameCopy));
 			pPreviousFrameCopy.Release();
 			pPreviousFrameCopy.Attach(pCroppedFrameCopy);
 		}
+		if (m_IsScalingEnabled) {
+			ID3D11Texture2D *pResizedFrameCopy;
+			hr = pResizer->Resize(pPreviousFrameCopy, &pResizedFrameCopy, m_ScaledFrameWidth, m_ScaledFrameHeight);
+			RETURN_ON_BAD_HR(hr);
+			if (gotMousePointer) {
+				hr = DrawMousePointer(pResizedFrameCopy, pMousePointer.get(), PtrInfo, screenRotation, pPreviousFrameCopy);
+				if (FAILED(hr)) {
+					_com_error err(hr);
+					ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
+					//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
+				}
+			}
+			pPreviousFrameCopy.Release();
+			pPreviousFrameCopy.Attach(pResizedFrameCopy);
+		}
+		else if (gotMousePointer) {
+			DrawMousePointer(pPreviousFrameCopy, pMousePointer.get(), PtrInfo, screenRotation);
+		}
+
 		FrameWriteModel model;
 		RtlZeroMemory(&model, sizeof(model));
 		model.Frame = pPreviousFrameCopy;
@@ -1093,7 +1164,6 @@ HRESULT internal_recorder::InitializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out
 	UINT monitorHeight = (outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE90 || outputDuplDesc.Rotation == DXGI_MODE_ROTATION_ROTATE270)
 		? outputDuplDesc.ModeDesc.Width : outputDuplDesc.ModeDesc.Height;
 
-
 	RECT sourceRect;
 	sourceRect.left = 0;
 	sourceRect.right = monitorWidth;
@@ -1114,7 +1184,7 @@ HRESULT internal_recorder::InitializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out
 	sourceFrameDesc.Height = monitorHeight;
 	sourceFrameDesc.Format = DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM;
 	sourceFrameDesc.ArraySize = 1;
-	sourceFrameDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
+	sourceFrameDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET | D3D11_BIND_FLAG::D3D11_BIND_SHADER_RESOURCE;
 	sourceFrameDesc.MiscFlags = 0;
 	sourceFrameDesc.SampleDesc.Count = 1;
 	sourceFrameDesc.SampleDesc.Quality = 0;
@@ -1127,7 +1197,7 @@ HRESULT internal_recorder::InitializeDesc(DXGI_OUTDUPL_DESC outputDuplDesc, _Out
 	destFrameDesc.Height = destRect.bottom - destRect.top;
 	destFrameDesc.Format = DXGI_FORMAT::DXGI_FORMAT_B8G8R8A8_UNORM;
 	destFrameDesc.ArraySize = 1;
-	destFrameDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET;
+	destFrameDesc.BindFlags = D3D11_BIND_FLAG::D3D11_BIND_RENDER_TARGET | D3D11_BIND_FLAG::D3D11_BIND_SHADER_RESOURCE;
 	destFrameDesc.MiscFlags = 0;
 	destFrameDesc.SampleDesc.Count = 1;
 	destFrameDesc.SampleDesc.Quality = 0;
@@ -1398,6 +1468,14 @@ HRESULT internal_recorder::InitializeVideoSinkWriter(std::wstring path, _In_opt_
 	UINT destWidth = max(0, destRect.right - destRect.left);
 	UINT destHeight = max(0, destRect.bottom - destRect.top);
 
+	if (m_IsScalingEnabled) {
+		sourceWidth = m_ScaledFrameWidth;
+		sourceHeight = m_ScaledFrameHeight;
+		//We'll leverage CopySubresourceRegion instead of SetSourceRectangle to crop when the scaling option is enabled. This may not be the best approach.
+		destWidth = m_ScaledFrameWidth;
+		destHeight = m_ScaledFrameHeight;
+	}
+
 	RETURN_ON_BAD_HR(ConfigureOutputMediaTypes(destWidth, destHeight, &pVideoMediaTypeOut, &pAudioMediaTypeOut));
 	RETURN_ON_BAD_HR(ConfigureInputMediaTypes(sourceWidth, sourceHeight, rotationFormat, pVideoMediaTypeOut, &pVideoMediaTypeIn, &pAudioMediaTypeIn));
 
@@ -1662,7 +1740,7 @@ HRESULT internal_recorder::CreateInputMediaTypeFromOutput(
 	return hr;
 }
 
-HRESULT internal_recorder::DrawMousePointer(ID3D11Texture2D * frame, mouse_pointer * pMousePointer, mouse_pointer::PTR_INFO ptrInfo, DXGI_MODE_ROTATION screenRotation, INT64 durationSinceLastFrame100Nanos)
+HRESULT internal_recorder::DrawMouseClick(ID3D11Texture2D* frame, mouse_pointer* pMousePointer, mouse_pointer::PTR_INFO ptrInfo, DXGI_MODE_ROTATION screenRotation, INT64 durationSinceLastFrame100Nanos)
 {
 	HRESULT hr = S_FALSE;
 	if (g_LastMouseClickDurationRemaining > 0
@@ -1680,11 +1758,23 @@ HRESULT internal_recorder::DrawMousePointer(ID3D11Texture2D * frame, mouse_point
 		g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millis, 0);
 		DEBUG("Drawing mouse click, duration remaining on click is %u ms", g_LastMouseClickDurationRemaining);
 	}
-
-	if (m_IsMousePointerEnabled) {
-		hr = pMousePointer->DrawMousePointer(&ptrInfo, m_ImmediateContext, m_Device, frame, screenRotation);
-	}
 	return hr;
+}
+HRESULT internal_recorder::DrawMousePointer(ID3D11Texture2D* targetTexture, mouse_pointer* pMousePointer, mouse_pointer::PTR_INFO ptrInfo, DXGI_MODE_ROTATION screenRotation, ID3D11Texture2D* desktopTexture)
+{
+	if (!m_IsMousePointerEnabled)
+		return S_FALSE;
+
+	if (m_IsScalingEnabled) {
+		//Adjust pointer position since we CropFrame when scaling is enabled. Exit if it's out of range.
+		if (ptrInfo.Position.x < m_DestRect.left || ptrInfo.Position.x > m_DestRect.right || 
+			ptrInfo.Position.y < m_DestRect.top || ptrInfo.Position.y > m_DestRect.bottom)
+			return S_FALSE;
+		ptrInfo.Position.x -= m_DestRect.left;
+		ptrInfo.Position.y -= m_DestRect.top;
+	}
+
+	return pMousePointer->DrawMousePointer(&ptrInfo, m_ImmediateContext, m_Device, targetTexture, screenRotation, desktopTexture);
 }
 
 HRESULT internal_recorder::CropFrame(ID3D11Texture2D *frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect, ID3D11Texture2D **pCroppedFrame)
@@ -1879,7 +1969,7 @@ void internal_recorder::WriteFrameToImageAsync(_In_ ID3D11Texture2D* pAcquiredDe
 /// <summary>
 /// Take screenshots in a video recording, if video recording is file mode.
 /// </summary>
-HRESULT internal_recorder::TakeSnapshotsWithVideo(ID3D11Texture2D* frame, D3D11_TEXTURE2D_DESC frameDesc, RECT destRect)
+HRESULT internal_recorder::TakeSnapshotsWithVideo(ID3D11Texture2D* frame, RECT destRect)
 {
 	if (m_OutputSnapshotsFolderPath.empty())
 		return S_FALSE;
@@ -1887,19 +1977,22 @@ HRESULT internal_recorder::TakeSnapshotsWithVideo(ID3D11Texture2D* frame, D3D11_
 	HRESULT hr = S_OK;
 	CComPtr<ID3D11Texture2D> m_pFrameCopyForSnapshotsWithVideo = nullptr;
 
+	D3D11_TEXTURE2D_DESC frameDesc;
+	frame->GetDesc(&frameDesc);
+
 	int destWidth = destRect.right - destRect.left;
 	int destHeight = destRect.bottom - destRect.top;
-	if (frameDesc.Width != destWidth
-		|| frameDesc.Height != destHeight) {
+	//We already crop the image when scaling is enabled.
+	if (m_IsScalingEnabled || frameDesc.Width == destWidth && frameDesc.Height == destHeight) {
+		m_Device->CreateTexture2D(&frameDesc, nullptr, &m_pFrameCopyForSnapshotsWithVideo);
+		// Copy the current frame for a separate thread to write it to a file asynchronously.
+		m_ImmediateContext->CopyResource(m_pFrameCopyForSnapshotsWithVideo, frame);
+	}
+	else {
 		//If the source frame is larger than the destionation rect, we crop it, to avoid black borders around the snapshots.
 		frameDesc.Width = min(destWidth, frameDesc.Width);
 		frameDesc.Height = min(destHeight, frameDesc.Height);
 		RETURN_ON_BAD_HR(hr = CropFrame(frame, frameDesc, destRect, &m_pFrameCopyForSnapshotsWithVideo));
-	}
-	else {
-		m_Device->CreateTexture2D(&frameDesc, nullptr, &m_pFrameCopyForSnapshotsWithVideo);
-		// Copy the current frame for a separate thread to write it to a file asynchronously.
-		m_ImmediateContext->CopyResource(m_pFrameCopyForSnapshotsWithVideo, frame);
 	}
 
 	m_previousSnapshotTaken = steady_clock::now();

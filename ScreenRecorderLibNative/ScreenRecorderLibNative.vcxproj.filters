@@ -60,6 +60,9 @@
     <ClInclude Include="screengrab.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Resizer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="audio_prefs.cpp">
@@ -84,6 +87,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="screengrab.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Resizer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

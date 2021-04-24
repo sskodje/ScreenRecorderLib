@@ -107,30 +107,47 @@
                         <TextBox x:Name="RecordingAreaLeftTextBox"
                              VerticalContentAlignment="Center"
                              GotFocus="TextBox_GotFocus"
-                             MinWidth="
-                         30" />
+                             MinWidth="30" Height="25"/>
                         <Label Content="top" />
                         <TextBox x:Name="RecordingAreaTopTextBox"
                              VerticalContentAlignment="Center"
                              GotFocus="TextBox_GotFocus"
-                             MinWidth="30" />
+                             MinWidth="30" Height="25"/>
                         <Label Content="right" />
                         <TextBox x:Name="RecordingAreaRightTextBox"
                              VerticalContentAlignment="Center"
                              GotFocus="TextBox_GotFocus"
-                             MinWidth="
-                         30" />
+                             MinWidth="30" Height="25"/>
                         <Label Content="bottom" />
                         <TextBox x:Name="RecordingAreaBottomTextBox"
                              VerticalContentAlignment="Center"
                              GotFocus="TextBox_GotFocus"
-                             MinWidth="30" />
+                             MinWidth="30" Height="25"/>
                     </StackPanel>
                     <Button HorizontalAlignment="Right" Margin="0,2" MinWidth="90"
                             Content="Refresh targets"
                             Click="RefreshButton_Click"/>
                 </DockPanel>
-
+                <StackPanel Orientation="Horizontal">
+                    <Label Content="Scale to:   width"/>
+                    <TextBox x:Name="ScaledWidthTextBox"
+                             VerticalContentAlignment="Center"
+                             GotFocus="TextBox_GotFocus"
+                             TextChanged="ScaledWidthTextBox_TextChanged"
+                             MinWidth="30" Height="25"/>
+                    <Label Content="height"/>
+                    <TextBox x:Name="ScaledHeightTextBox"
+                             VerticalContentAlignment="Center"
+                             GotFocus="TextBox_GotFocus"
+                             TextChanged="ScaledHeightTextBox_TextChanged"
+                             MinWidth="30" Height="25"/>
+                    <Label Content="ratio" Margin="10,0,0,0"/>
+                    <TextBox x:Name="ScaledFrameRatioTextBox"
+                             VerticalContentAlignment="Center"
+                             GotFocus="TextBox_GotFocus"
+                             MinWidth="30" Height="25"/>
+                </StackPanel>
+                
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -489,33 +506,31 @@
             <StackPanel Orientation="Vertical"
                         x:Name="ControlsPanel">
                 <CheckBox Content="Exclude this window from capture"
-                                  x:Name="CheckBoxExclude"
-                                  IsChecked="{Binding ElementName=MainWin,Path=IsExcludeWindowEnabled}"
-                                  Margin="0" />
-                <TextBlock FontSize="72"
+                              x:Name="CheckBoxExclude"
+                              IsChecked="{Binding ElementName=MainWin,Path=IsExcludeWindowEnabled}"
+                              Margin="0"/>
+                <TextBlock FontSize="32"
                            Text="00:00:00"
                            HorizontalAlignment="Center"
-                           x:Name="TimeStampTextBlock"
-                           Margin="10,0" />
-                <TextBlock FontSize="42"
+                           x:Name="TimeStampTextBlock" />
+                <TextBlock FontSize="28"
                            Text="Idle"
                            HorizontalAlignment="Center"
                            x:Name="StatusTextBlock" />
                 <TextBlock FontSize="12"
                            Text=""
-                           Margin="10,0"
                            TextWrapping="Wrap"
                            MaxWidth="{Binding ElementName=ControlsPanel,Path=ActualWidth}"
                            HorizontalAlignment="Center"
                            x:Name="ErrorTextBlock" />
-                <Button Height="50"
+                <Button Height="40"
                         Width="150"
                         x:Name="RecordButton"
                         Content="Record"
                         FontSize="28"
                         Click="RecordButton_Click" />
                 <Button x:Name="PauseButton"
-                        Height="50"
+                        Height="40"
                         Width="150"
                         Content="Pause"
                         FontSize="28"

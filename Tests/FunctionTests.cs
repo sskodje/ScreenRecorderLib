@@ -471,6 +471,56 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
+        public void ScreenshotTestWithResize()
+        {
+            RecorderOptions options = new RecorderOptions();
+            options.RecorderMode = RecorderMode.Snapshot;
+            options.VideoOptions = new VideoOptions { ScaledFrameWidth = 1279, ScaledFrameHeight = 719 };
+            string filePath = Path.Combine(Path.GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".png"));
+            try
+            {
+                using (var rec = Recorder.CreateRecorder(options))
+                {
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        finalizeResetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
+                    };
+
+                    rec.Record(filePath);
+                    recordingResetEvent.WaitOne(3000);
+                    rec.Stop();
+                    finalizeResetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath);
+                    Assert.IsTrue(mediaInfo.Format == "PNG");
+                    using (var img = System.Drawing.Image.FromFile(filePath))
+                    {
+                        Assert.IsTrue(img.Width == 1280 && img.Height == 720); // Rounded to larger even value
+                    }
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+            }
+        }
+
+
+        [TestMethod]
         public void SlideshowTest()
         {
             string directoryPath = Path.Combine(Path.GetTempPath(), Path.GetFileNameWithoutExtension(Path.GetRandomFileName()));
@@ -672,6 +722,144 @@ namespace ScreenRecorderLib
                     foreach (var snapshot in snapshotsOnDisk)
                     {
                         Assert.IsTrue(new MediaInfoWrapper(snapshot).Format == "JPEG");
+                    }
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+                Directory.Delete(snapshotsDir, recursive: true);
+            }
+        }
+
+        [TestMethod]
+        public void RecordingToFileWithSnapshotsAndResizeTest()
+        {
+            string filePath = Path.Combine(Path.GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            string snapshotsDir = Path.ChangeExtension(filePath, null);
+            try
+            {
+                RecorderOptions options = new RecorderOptions();
+                options.VideoOptions = new VideoOptions 
+                {
+                    SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG,
+                    ScaledFrameWidth = 640, ScaledFrameHeight = 480
+                };
+                options.DisplayOptions = new DisplayOptions { Left = 100, Top = 100, Right = 1200, Bottom = 1200 };
+                using (var rec = Recorder.CreateRecorder(options))
+                {
+                    List<string> snapshotCallbackList = new List<string>();
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        finalizeResetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
+                    };
+                    rec.OnSnapshotSaved += (s, args) =>
+                    {
+                        snapshotCallbackList.Add(args.SnapshotPath);
+                    };
+                    rec.Record(filePath);
+                    recordingResetEvent.WaitOne(11900); // 10 < x < 12 sec
+                    rec.Stop();
+                    finalizeResetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                    Assert.IsTrue(mediaInfo.Width == 640 && mediaInfo.Height == 480);
+
+                    var snapshotsOnDisk = Directory.GetFiles(snapshotsDir);
+                    Assert.AreEqual(6, snapshotsOnDisk.Count());  // First snapshot taken at time 0.
+                    Assert.IsTrue(Enumerable.SequenceEqual(snapshotCallbackList, snapshotsOnDisk));
+                    foreach (var snapshot in snapshotsOnDisk)
+                    {
+                        Assert.IsTrue(new MediaInfoWrapper(snapshot).Format == "JPEG");
+                        using (var img = System.Drawing.Image.FromFile(snapshot))
+                        {
+                            Assert.IsTrue(img.Width == 640 && img.Height == 480);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+                Directory.Delete(snapshotsDir, recursive: true);
+            }
+        }
+
+        [TestMethod]
+        public void RecordingToFileWithResizeGraphicsCaptureApiTest()
+        {
+            string filePath = Path.Combine(Path.GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            string snapshotsDir = Path.ChangeExtension(filePath, null);
+            try
+            {
+                RecorderOptions options = new RecorderOptions();
+                options.VideoOptions = new VideoOptions 
+                { 
+                    SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG,
+                    ScaledFrameWidth = 1280, ScaledFrameHeight = 720
+                };
+                options.RecorderApi = RecorderApi.WindowsGraphicsCapture;
+                using (var rec = Recorder.CreateRecorder(options))
+                {
+                    List<string> snapshotCallbackList = new List<string>();
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        finalizeResetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
+                    };
+                    rec.OnSnapshotSaved += (s, args) =>
+                    {
+                        snapshotCallbackList.Add(args.SnapshotPath);
+                    };
+                    rec.Record(filePath);
+                    recordingResetEvent.WaitOne(11900); // 10 < x < 12 sec
+                    rec.Stop();
+                    finalizeResetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                    Assert.IsTrue(mediaInfo.Width == 1280 && mediaInfo.Height == 720);
+
+                    var snapshotsOnDisk = Directory.GetFiles(snapshotsDir);
+                    Assert.AreEqual(6, snapshotsOnDisk.Count());  // First snapshot taken at time 0.
+                    Assert.IsTrue(Enumerable.SequenceEqual(snapshotCallbackList, snapshotsOnDisk));
+                    foreach (var snapshot in snapshotsOnDisk)
+                    {
+                        Assert.IsTrue(new MediaInfoWrapper(snapshot).Format == "JPEG");
+                        using (var img = System.Drawing.Image.FromFile(snapshot))
+                        {
+                            Assert.IsTrue(img.Width == 1280 && img.Height == 720);
+                        }
                     }
                 }
             }
