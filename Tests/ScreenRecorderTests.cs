@@ -1018,6 +1018,84 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
+        public void TwoSimultaneousGCRecorderInstancesTest()
+        {
+            string filePath1 = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            string filePath2 = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
+            {
+                using (var rec = Recorder.CreateRecorder(new RecorderOptions { RecorderApi = RecorderApi.WindowsGraphicsCapture }))
+                {
+                    string error = "";
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent finalizingResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        finalizingResetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        error = args.Error;
+                        finalizingResetEvent.Set();
+                        recordingResetEvent.Set();
+                    };
+
+                    rec.Record(filePath1);
+
+                    using (var rec2 = Recorder.CreateRecorder(new RecorderOptions { RecorderApi = RecorderApi.WindowsGraphicsCapture }))
+                    {
+                        string error2 = "";
+                        bool isError2 = false;
+                        bool isComplete2 = false;
+                        ManualResetEvent finalizingResetEvent2 = new ManualResetEvent(false);
+                        ManualResetEvent recordingResetEvent2 = new ManualResetEvent(false);
+                        rec2.OnRecordingComplete += (s, args) =>
+                        {
+                            isComplete2 = true;
+                            finalizingResetEvent2.Set();
+                        };
+                        rec2.OnRecordingFailed += (s, args) =>
+                        {
+                            isError2 = true;
+                            error2 = args.Error;
+                            finalizingResetEvent2.Set();
+                            recordingResetEvent2.Set();
+                        };
+
+                        rec2.Record(filePath2);
+                        recordingResetEvent2.WaitOne(2 * 1000);
+                        rec2.Stop();
+                        finalizingResetEvent2.WaitOne(5000);
+                        Assert.IsFalse(isError2, error2);
+                        Assert.IsTrue(isComplete2);
+                        Assert.IsTrue(new FileInfo(filePath2).Length > 0);
+                        var mediaInfo2 = new MediaInfoWrapper(filePath2);
+                        Assert.IsTrue(mediaInfo2.Format == "MPEG-4");
+                        Assert.IsTrue(mediaInfo2.VideoStreams.Count > 0);
+                    }
+                    recordingResetEvent.WaitOne(2 * 1000);
+                    rec.Stop();
+                    finalizingResetEvent.WaitOne(5000);
+                    Assert.IsFalse(isError, error);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath1).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath1);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                }
+            }
+            finally
+            {
+                File.Delete(filePath1);
+                File.Delete(filePath2);
+            }
+        }
+
+        [TestMethod]
         public void Run50RecordingsTestWithDifferentInstances()
         {
             for (int i = 0; i < 50; i++)
