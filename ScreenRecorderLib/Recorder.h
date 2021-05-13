@@ -176,7 +176,17 @@ namespace ScreenRecorderLib {
 				return _allMonitors;
 			}
 		}
-
+		static property DisplayRecordingSource^ MainMonitor {
+			DisplayRecordingSource^ get() {
+				DisplayRecordingSource^ source = gcnew DisplayRecordingSource();
+				IDXGIOutput* output;
+				GetMainOutput(&output);
+				DXGI_OUTPUT_DESC outputDesc;
+				output->GetDesc(&outputDesc);
+				source->DeviceName = gcnew String(outputDesc.DeviceName);
+				return source;
+			}
+		}
 		property String^ DeviceName;
 
 		DisplayRecordingSource() {	}
@@ -223,6 +233,20 @@ namespace ScreenRecorderLib {
 	};
 	public ref class DisplayOptions {
 	public:
+		static property DisplayOptions^ AllMonitors {
+			DisplayOptions^ get() {
+				DisplayOptions^ options = gcnew DisplayOptions();
+				options->RecordingSources->Add(DisplayRecordingSource::AllMonitors);
+				return options;
+			}
+		}
+		static property DisplayOptions^ MainMonitor {
+			DisplayOptions^ get() {
+				DisplayOptions^ options = gcnew DisplayOptions();
+				options->RecordingSources->Add(DisplayRecordingSource::MainMonitor);
+				return options;
+			}
+		}
 		property List<RecordingSource^>^ RecordingSources;
 		property int Left;
 		property int Top;
@@ -379,6 +403,20 @@ namespace ScreenRecorderLib {
 	};
 	public ref class RecorderOptions {
 	public:
+		static property RecorderOptions^ DefaultAllMonitors {
+			RecorderOptions^ get() {
+				RecorderOptions^ rec = gcnew RecorderOptions();
+				rec->DisplayOptions = ScreenRecorderLib::DisplayOptions::AllMonitors;
+				return rec;
+			}
+		}
+		static property RecorderOptions^ DefaultMainMonitor {
+			RecorderOptions^ get() {
+				RecorderOptions^ rec = gcnew RecorderOptions();
+				rec->DisplayOptions = ScreenRecorderLib::DisplayOptions::MainMonitor;
+				return rec;
+			}
+		}
 		RecorderOptions() {
 			RecorderMode = ScreenRecorderLib::RecorderMode::Video;
 			RecorderApi = ScreenRecorderLib::RecorderApi::DesktopDuplication;

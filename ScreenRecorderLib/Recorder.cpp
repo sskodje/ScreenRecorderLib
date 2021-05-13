@@ -326,10 +326,7 @@ void Recorder::ClearCallbacks() {
 std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOptions^ options) {
 	std::set<RECORDING_SOURCE> sources{};
 	if (!options->DisplayOptions) {
-		options->DisplayOptions = gcnew DisplayOptions();
-	}
-	if (options->DisplayOptions->RecordingSources->Count == 0) {
-		options->DisplayOptions->RecordingSources->Add(DisplayRecordingSource::AllMonitors);
+		options->DisplayOptions = DisplayOptions::MainMonitor;
 	}
 	if (options->DisplayOptions && options->DisplayOptions->RecordingSources) {
 		for each (RecordingSource^ source in options->DisplayOptions->RecordingSources)

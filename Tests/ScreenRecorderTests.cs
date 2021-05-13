@@ -28,7 +28,7 @@ namespace ScreenRecorderLib
             {
                 using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                 {
-                    using (var rec = Recorder.CreateRecorder())
+                    using (var rec = Recorder.CreateRecorder(RecorderOptions.DefaultMainMonitor))
                     {
                         string error = "";
                         bool isError = false;
@@ -425,7 +425,14 @@ namespace ScreenRecorderLib
             using (var outStream = new MemoryStream())
             {
                 RecorderOptions options = new RecorderOptions();
-                options.DisplayOptions = new DisplayOptions { Left = 100, Top = 100, Right = 500, Bottom = 500 };
+                options.DisplayOptions = new DisplayOptions
+                {
+                    RecordingSources = { DisplayRecordingSource.MainMonitor },
+                    Left = 100,
+                    Top = 100,
+                    Right = 500,
+                    Bottom = 500
+                };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
                     string error = "";
@@ -592,7 +599,14 @@ namespace ScreenRecorderLib
         {
             RecorderOptions options = new RecorderOptions();
             options.RecorderMode = RecorderMode.Snapshot;
-            options.DisplayOptions = new DisplayOptions { Left = 100, Top = 100, Right = 200, Bottom = 200 };
+            options.DisplayOptions = new DisplayOptions
+            {
+                RecordingSources = { DisplayRecordingSource.MainMonitor },
+                Left = 100,
+                Top = 100,
+                Right = 200,
+                Bottom = 200
+            };
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".png"));
             try
             {
@@ -787,6 +801,7 @@ namespace ScreenRecorderLib
             try
             {
                 RecorderOptions options = new RecorderOptions();
+                options.DisplayOptions = DisplayOptions.MainMonitor;
                 options.VideoOptions = new VideoOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
@@ -920,7 +935,14 @@ namespace ScreenRecorderLib
             {
                 RecorderOptions options = new RecorderOptions();
                 options.VideoOptions = new VideoOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
-                options.DisplayOptions = new DisplayOptions { Left = 100, Top = 100, Right = 200, Bottom = 200 };
+                options.DisplayOptions = new DisplayOptions
+                {
+                    RecordingSources = { DisplayRecordingSource.MainMonitor },
+                    Left = 100,
+                    Top = 100,
+                    Right = 200,
+                    Bottom = 200
+                };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
                     List<string> snapshotCallbackList = new List<string>();
@@ -1131,7 +1153,7 @@ namespace ScreenRecorderLib
 
                         Assert.IsTrue(finalizeResetEvent.WaitOne(5000), $"[{i}] Recording finalize timed out");
                         Assert.IsNotNull(outStream, $"[{i}] Outstream is null");
-                        Assert.IsFalse(isError, $"[{i}]: "+ error);
+                        Assert.IsFalse(isError, $"[{i}]: " + error);
                         Assert.IsTrue(isComplete, $"[{i}] Recording not complete");
                         Assert.AreNotEqual(outStream.Length, 0, $"[{i}] Outstream length is 0");
                     }
