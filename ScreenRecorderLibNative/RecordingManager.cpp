@@ -504,7 +504,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 
 	RECT videoInputFrameRect{};
 	RECT videoOutputFrameRect{};
-	RECT previousInputFrameRect = videoInputFrameRect;
+	RECT previousInputFrameRect{};
 	RETURN_ON_BAD_HR(hr = InitializeRects(pCapture->GetOutputRect(), &videoInputFrameRect, &videoOutputFrameRect));
 	bool isDestRectEqualToSourceRect;
 
@@ -602,8 +602,11 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 				pPtrInfo = capturedFrame.PtrInfo;
 			}
 
-			videoInputFrameRect.right = capturedFrame.ContentSize.cx - videoInputFrameRect.left;
-			videoInputFrameRect.bottom = capturedFrame.ContentSize.cy - videoInputFrameRect.top;
+
+			videoInputFrameRect.left = videoOutputFrameRect.left;
+			videoInputFrameRect.top = videoOutputFrameRect.top;
+			videoInputFrameRect.right = capturedFrame.ContentSize.cx;
+			videoInputFrameRect.bottom = capturedFrame.ContentSize.cy;
 			videoInputFrameRect = MakeRectEven(videoInputFrameRect);
 
 			if (!EqualRect(&videoInputFrameRect, &previousInputFrameRect)) {
@@ -621,8 +624,6 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 					if (videoProcessor) {
 						//The source rectangle is the portion of the input frame that is blitted to the destination surface.
 						videoProcessor->SetSourceRectangle(&videoInputFrameRect);
-						//The destination rectangle is the portion of the output surface where the source rectangle is blitted.
-						videoProcessor->SetDestinationRectangle(&videoOutputFrameRect);
 						LOG_TRACE("Changing video processor surface rect: source=%dx%d, dest = %dx%d", RectWidth(videoInputFrameRect), RectHeight(videoInputFrameRect), RectWidth(videoOutputFrameRect), RectHeight(videoOutputFrameRect));
 					}
 					SetViewPort(m_ImmediateContext, RectWidth(videoInputFrameRect), RectHeight(videoInputFrameRect));
@@ -1243,8 +1244,8 @@ HRESULT RecordingManager::CreateInputMediaTypeFromOutput(
 		hr = MFGetAttributeRatio(
 			pTypeUncomp,
 			MF_MT_PIXEL_ASPECT_RATIO,
-			(UINT32*)&par.Numerator,
-			(UINT32*)&par.Denominator
+			(UINT32 *)&par.Numerator,
+			(UINT32 *)&par.Denominator
 		);
 
 		// Default to square pixels.
