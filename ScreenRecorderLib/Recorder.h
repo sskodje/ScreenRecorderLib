@@ -231,6 +231,7 @@ namespace ScreenRecorderLib {
 	public:
 		property String^ FilePath;
 	};
+
 	public ref class SourceOptions {
 	public:
 		static property SourceOptions^ AllMonitors {
@@ -331,11 +332,11 @@ namespace ScreenRecorderLib {
 		property AudioBitrate Bitrate;
 		property AudioChannels Channels;
 		/// <summary>
-		///Audio playback device to capture audio from. Pass null or empty string to select system default.
+		///Audio device to capture system audio from via loopback capture. Pass null or empty string to select system default.
 		/// </summary>
 		property String^ AudioOutputDevice;
 		/// <summary>
-		///Audio input device to capture audio from. Pass null or empty string to select system default.
+		///Audio input device (e.g. microphone) to capture audio from. Pass null or empty string to select system default.
 		/// </summary>
 		property String^ AudioInputDevice;
 
