@@ -372,7 +372,7 @@ namespace TestApp
                     SnapshotsWithVideo = this.SnapshotsWithVideo,
                     SnapshotsInterval = this.SnapshotsIntervalInSec
                 },
-                DisplayOptions = new DisplayOptions
+                SourceOptions = new SourceOptions
                 {
                     RecordingSources = recordingSources,
                     Left = left,

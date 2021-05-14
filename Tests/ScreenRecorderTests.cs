@@ -84,7 +84,7 @@ namespace ScreenRecorderLib
                         var options = new RecorderOptions
                         {
                             RecorderApi = RecorderApi.DesktopDuplication,
-                            DisplayOptions = new DisplayOptions { RecordingSources = { display } }
+                            SourceOptions = new SourceOptions { RecordingSources = { display } }
                         };
                         using (var rec = Recorder.CreateRecorder(options))
                         {
@@ -143,7 +143,7 @@ namespace ScreenRecorderLib
                         var options = new RecorderOptions
                         {
                             RecorderApi = RecorderApi.WindowsGraphicsCapture,
-                            DisplayOptions = new DisplayOptions { RecordingSources = { display } }
+                            SourceOptions = new SourceOptions { RecordingSources = { display } }
                         };
                         using (var rec = Recorder.CreateRecorder(options))
                         {
@@ -425,7 +425,7 @@ namespace ScreenRecorderLib
             using (var outStream = new MemoryStream())
             {
                 RecorderOptions options = new RecorderOptions();
-                options.DisplayOptions = new DisplayOptions
+                options.SourceOptions = new SourceOptions
                 {
                     RecordingSources = { DisplayRecordingSource.MainMonitor },
                     Left = 100,
@@ -599,7 +599,7 @@ namespace ScreenRecorderLib
         {
             RecorderOptions options = new RecorderOptions();
             options.RecorderMode = RecorderMode.Snapshot;
-            options.DisplayOptions = new DisplayOptions
+            options.SourceOptions = new SourceOptions
             {
                 RecordingSources = { DisplayRecordingSource.MainMonitor },
                 Left = 100,
@@ -801,7 +801,7 @@ namespace ScreenRecorderLib
             try
             {
                 RecorderOptions options = new RecorderOptions();
-                options.DisplayOptions = DisplayOptions.MainMonitor;
+                options.SourceOptions = SourceOptions.MainMonitor;
                 options.VideoOptions = new VideoOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
@@ -935,7 +935,7 @@ namespace ScreenRecorderLib
             {
                 RecorderOptions options = new RecorderOptions();
                 options.VideoOptions = new VideoOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
-                options.DisplayOptions = new DisplayOptions
+                options.SourceOptions = new SourceOptions
                 {
                     RecordingSources = { DisplayRecordingSource.MainMonitor },
                     Left = 100,

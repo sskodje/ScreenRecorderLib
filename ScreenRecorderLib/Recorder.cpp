@@ -46,12 +46,12 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 				break;
 			}
 		}
-		if (options->DisplayOptions) {
+		if (options->SourceOptions) {
 			RECT rect;
-			rect.left = options->DisplayOptions->Left;
-			rect.top = options->DisplayOptions->Top;
-			rect.right = options->DisplayOptions->Right;
-			rect.bottom = options->DisplayOptions->Bottom;
+			rect.left = options->SourceOptions->Left;
+			rect.top = options->SourceOptions->Top;
+			rect.right = options->SourceOptions->Right;
+			rect.bottom = options->SourceOptions->Bottom;
 			m_Rec->SetDestRectangle(rect);
 		}
 		m_Rec->SetRecordingSources(CreateRecordingSourceList(options));
@@ -325,11 +325,11 @@ void Recorder::ClearCallbacks() {
 
 std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOptions^ options) {
 	std::set<RECORDING_SOURCE> sources{};
-	if (!options->DisplayOptions) {
-		options->DisplayOptions = DisplayOptions::MainMonitor;
+	if (!options->SourceOptions) {
+		options->SourceOptions = SourceOptions::MainMonitor;
 	}
-	if (options->DisplayOptions && options->DisplayOptions->RecordingSources) {
-		for each (RecordingSource^ source in options->DisplayOptions->RecordingSources)
+	if (options->SourceOptions && options->SourceOptions->RecordingSources) {
+		for each (RecordingSource^ source in options->SourceOptions->RecordingSources)
 		{
 			switch (source->SourceType)
 			{

@@ -128,9 +128,9 @@ namespace ScreenRecorderLib {
 		Quality
 	};
 	public enum class RecorderApi {
-		///<summary>Desktop Duplication is supported on all Windows 8 and 10 versions. This API supports recording of a whole screen or an area of a screen set in DisplayOptions.</summary>
+		///<summary>Desktop Duplication is supported on all Windows 8 and 10 versions. This API supports recording of screens.</summary>
 		DesktopDuplication = 0,
-		///<summary>WindowsGraphicsCapture requires Windows 10 version 1803 or newer. This API supports recording single windows in addition to whole screens, by setting WindowHandle in DisplayOptions.</summary>
+		///<summary>WindowsGraphicsCapture requires Windows 10 version 1803 or newer. This API supports recording windows in addition to screens.</summary>
 		WindowsGraphicsCapture = 1,
 	};
 	public ref class FrameData {
@@ -231,18 +231,18 @@ namespace ScreenRecorderLib {
 	public:
 		property String^ FilePath;
 	};
-	public ref class DisplayOptions {
+	public ref class SourceOptions {
 	public:
-		static property DisplayOptions^ AllMonitors {
-			DisplayOptions^ get() {
-				DisplayOptions^ options = gcnew DisplayOptions();
+		static property SourceOptions^ AllMonitors {
+			SourceOptions^ get() {
+				SourceOptions^ options = gcnew SourceOptions();
 				options->RecordingSources->Add(DisplayRecordingSource::AllMonitors);
 				return options;
 			}
 		}
-		static property DisplayOptions^ MainMonitor {
-			DisplayOptions^ get() {
-				DisplayOptions^ options = gcnew DisplayOptions();
+		static property SourceOptions^ MainMonitor {
+			SourceOptions^ get() {
+				SourceOptions^ options = gcnew SourceOptions();
 				options->RecordingSources->Add(DisplayRecordingSource::MainMonitor);
 				return options;
 			}
@@ -252,7 +252,7 @@ namespace ScreenRecorderLib {
 		property int Top;
 		property int Right;
 		property int Bottom;
-		DisplayOptions() {
+		SourceOptions() {
 			RecordingSources = gcnew List<RecordingSource^>();
 		}
 	};
@@ -406,14 +406,14 @@ namespace ScreenRecorderLib {
 		static property RecorderOptions^ DefaultAllMonitors {
 			RecorderOptions^ get() {
 				RecorderOptions^ rec = gcnew RecorderOptions();
-				rec->DisplayOptions = ScreenRecorderLib::DisplayOptions::AllMonitors;
+				rec->SourceOptions = ScreenRecorderLib::SourceOptions::AllMonitors;
 				return rec;
 			}
 		}
 		static property RecorderOptions^ DefaultMainMonitor {
 			RecorderOptions^ get() {
 				RecorderOptions^ rec = gcnew RecorderOptions();
-				rec->DisplayOptions = ScreenRecorderLib::DisplayOptions::MainMonitor;
+				rec->SourceOptions = ScreenRecorderLib::SourceOptions::MainMonitor;
 				return rec;
 			}
 		}
@@ -468,7 +468,7 @@ namespace ScreenRecorderLib {
 		property LogLevel LogSeverityLevel;
 
 		property VideoOptions^ VideoOptions;
-		property DisplayOptions^ DisplayOptions;
+		property SourceOptions^ SourceOptions;
 		property AudioOptions^ AudioOptions;
 		property MouseOptions^ MouseOptions;
 		property OverLayOptions^ OverlayOptions;
