@@ -339,11 +339,6 @@ namespace TestApp
             {
                 RecorderMode = CurrentRecordingMode,
                 RecorderApi = CurrentRecordingApi,
-                IsThrottlingDisabled = this.IsThrottlingDisabled,
-                IsHardwareEncodingEnabled = this.IsHardwareEncodingEnabled,
-                IsLowLatencyEnabled = this.IsLowLatencyEnabled,
-                IsMp4FastStartEnabled = this.IsMp4FastStartEnabled,
-                IsFragmentedMp4Enabled = this.IsFragmentedMp4Enabled,
                 IsLogEnabled = this.IsLogEnabled,
                 LogSeverityLevel = this.LogSeverityLevel,
                 LogFilePath = IsLogToFileEnabled ? this.LogFilePath : "",
@@ -360,7 +355,7 @@ namespace TestApp
                     InputVolume = (float)InputVolumeSlider.Value,
                     OutputVolume = (float)OutputVolumeSlider.Value
                 },
-                VideoOptions = new VideoOptions
+                VideoEncoderOptions = new VideoEncoderOptions
                 {
                     BitrateMode = this.CurrentVideoBitrateMode,
                     Bitrate = VideoBitrate * 1000,
@@ -368,6 +363,11 @@ namespace TestApp
                     Quality = this.VideoQuality,
                     IsFixedFramerate = this.IsFixedFramerate,
                     EncoderProfile = this.CurrentH264Profile,
+                    IsThrottlingDisabled = this.IsThrottlingDisabled,
+                    IsHardwareEncodingEnabled = this.IsHardwareEncodingEnabled,
+                    IsLowLatencyEnabled = this.IsLowLatencyEnabled,
+                    IsMp4FastStartEnabled = this.IsMp4FastStartEnabled,
+                    IsFragmentedMp4Enabled = this.IsFragmentedMp4Enabled,
                     SnapshotFormat = CurrentImageFormat,
                     SnapshotsWithVideo = this.SnapshotsWithVideo,
                     SnapshotsInterval = this.SnapshotsIntervalInSec

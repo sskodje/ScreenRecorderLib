@@ -196,7 +196,7 @@ namespace ScreenRecorderLib
             long lowestQualitySize;
             using (var outStream = new MemoryStream())
             {
-                using (var rec = Recorder.CreateRecorder(new RecorderOptions { VideoOptions = new VideoOptions { BitrateMode = BitrateControlMode.Quality, Quality = 100 } }))
+                using (var rec = Recorder.CreateRecorder(new RecorderOptions { VideoEncoderOptions = new VideoEncoderOptions { BitrateMode = BitrateControlMode.Quality, Quality = 100 } }))
                 {
                     string error = "";
                     bool isError = false;
@@ -229,7 +229,7 @@ namespace ScreenRecorderLib
             }
             using (var outStream = new MemoryStream())
             {
-                using (var rec = Recorder.CreateRecorder(new RecorderOptions { VideoOptions = new VideoOptions { BitrateMode = BitrateControlMode.Quality, Quality = 0 } }))
+                using (var rec = Recorder.CreateRecorder(new RecorderOptions { VideoEncoderOptions = new VideoEncoderOptions { BitrateMode = BitrateControlMode.Quality, Quality = 0 } }))
                 {
                     string error = "";
                     bool isError = false;
@@ -268,8 +268,7 @@ namespace ScreenRecorderLib
         {
             using (var outStream = new MemoryStream())
             {
-                RecorderOptions options = new RecorderOptions();
-                options.IsHardwareEncodingEnabled = false;
+                RecorderOptions options = new RecorderOptions() { VideoEncoderOptions = new VideoEncoderOptions { IsHardwareEncodingEnabled = false } };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
                     string error = "";
@@ -471,7 +470,7 @@ namespace ScreenRecorderLib
             using (var outStream = new MemoryStream())
             {
                 RecorderOptions options = new RecorderOptions();
-                options.VideoOptions = new VideoOptions { IsFixedFramerate = true };
+                options.VideoEncoderOptions = new VideoEncoderOptions { IsFixedFramerate = true };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
                     string error = "";
@@ -510,7 +509,7 @@ namespace ScreenRecorderLib
             using (var outStream = new MemoryStream())
             {
                 RecorderOptions options = new RecorderOptions();
-                options.VideoOptions = new VideoOptions
+                options.VideoEncoderOptions = new VideoEncoderOptions
                 {
                     BitrateMode = BitrateControlMode.CBR,
                     Bitrate = 4000
@@ -657,7 +656,7 @@ namespace ScreenRecorderLib
             {
                 RecorderOptions options = new RecorderOptions();
                 options.RecorderMode = RecorderMode.Slideshow;
-                options.VideoOptions = new VideoOptions { Framerate = 5 };
+                options.VideoEncoderOptions = new VideoEncoderOptions { Framerate = 5 };
                 Directory.CreateDirectory(directoryPath);
                 Assert.IsTrue(Directory.Exists(directoryPath));
                 using (var rec = Recorder.CreateRecorder(options))
@@ -802,7 +801,7 @@ namespace ScreenRecorderLib
             {
                 RecorderOptions options = new RecorderOptions();
                 options.SourceOptions = SourceOptions.MainMonitor;
-                options.VideoOptions = new VideoOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
+                options.VideoEncoderOptions = new VideoEncoderOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
                     List<string> snapshotCallbackList = new List<string>();
@@ -865,7 +864,7 @@ namespace ScreenRecorderLib
                 using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                 {
                     RecorderOptions options = new RecorderOptions();
-                    options.VideoOptions = new VideoOptions
+                    options.VideoEncoderOptions = new VideoEncoderOptions
                     {
                         SnapshotsWithVideo = true,
                         SnapshotsInterval = 2,
@@ -934,7 +933,7 @@ namespace ScreenRecorderLib
             try
             {
                 RecorderOptions options = new RecorderOptions();
-                options.VideoOptions = new VideoOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
+                options.VideoEncoderOptions = new VideoEncoderOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
                 options.SourceOptions = new SourceOptions
                 {
                     RecordingSources = { DisplayRecordingSource.MainMonitor },
@@ -1125,7 +1124,7 @@ namespace ScreenRecorderLib
                 using (Stream outStream = new MemoryStream())
                 {
                     RecorderOptions options = new RecorderOptions();
-                    options.VideoOptions = new VideoOptions { Framerate = 60, IsFixedFramerate = false };
+                    options.VideoEncoderOptions = new VideoEncoderOptions { Framerate = 60, IsFixedFramerate = false };
                     options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled = true, IsOutputDeviceEnabled = true };
                     using (var rec = Recorder.CreateRecorder(options))
                     {
@@ -1169,7 +1168,7 @@ namespace ScreenRecorderLib
             AutoResetEvent finalizeResetEvent = new AutoResetEvent(false);
             ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
             RecorderOptions options = new RecorderOptions();
-            options.VideoOptions = new VideoOptions { Framerate = 60, IsFixedFramerate = false };
+            options.VideoEncoderOptions = new VideoEncoderOptions { Framerate = 60, IsFixedFramerate = false };
             options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled = true, IsOutputDeviceEnabled = true };
             using (var rec = Recorder.CreateRecorder(options))
             {

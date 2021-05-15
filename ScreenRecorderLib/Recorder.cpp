@@ -17,19 +17,24 @@ Recorder::Recorder(RecorderOptions^ options)
 
 void Recorder::SetOptions(RecorderOptions^ options) {
 	if (options && m_Rec) {
-		if (options->VideoOptions) {
-			m_Rec->SetVideoBitrate(options->VideoOptions->Bitrate);
-			m_Rec->SetVideoQuality(options->VideoOptions->Quality);
-			m_Rec->SetVideoFps(options->VideoOptions->Framerate);
-			m_Rec->SetFixedFramerate(options->VideoOptions->IsFixedFramerate);
-			m_Rec->SetH264EncoderProfile((UINT32)options->VideoOptions->EncoderProfile);
-			m_Rec->SetVideoBitrateMode((UINT32)options->VideoOptions->BitrateMode);
-			m_Rec->SetTakeSnapshotsWithVideo(options->VideoOptions->SnapshotsWithVideo);
-			m_Rec->SetSnapshotsWithVideoInterval(options->VideoOptions->SnapshotsInterval);
-			if (options->VideoOptions->SnapshotsDirectory != nullptr) {
-				m_Rec->SetSnapshotDirectory(msclr::interop::marshal_as<std::wstring>(options->VideoOptions->SnapshotsDirectory));
+		if (options->VideoEncoderOptions) {
+			m_Rec->SetVideoBitrate(options->VideoEncoderOptions->Bitrate);
+			m_Rec->SetVideoQuality(options->VideoEncoderOptions->Quality);
+			m_Rec->SetVideoFps(options->VideoEncoderOptions->Framerate);
+			m_Rec->SetFixedFramerate(options->VideoEncoderOptions->IsFixedFramerate);
+			m_Rec->SetH264EncoderProfile((UINT32)options->VideoEncoderOptions->EncoderProfile);
+			m_Rec->SetVideoBitrateMode((UINT32)options->VideoEncoderOptions->BitrateMode);
+			m_Rec->SetTakeSnapshotsWithVideo(options->VideoEncoderOptions->SnapshotsWithVideo);
+			m_Rec->SetSnapshotsWithVideoInterval(options->VideoEncoderOptions->SnapshotsInterval);
+			m_Rec->SetIsThrottlingDisabled(options->VideoEncoderOptions->IsThrottlingDisabled);
+			m_Rec->SetIsLowLatencyModeEnabled(options->VideoEncoderOptions->IsLowLatencyEnabled);
+			m_Rec->SetIsFastStartEnabled(options->VideoEncoderOptions->IsMp4FastStartEnabled);
+			m_Rec->SetIsHardwareEncodingEnabled(options->VideoEncoderOptions->IsHardwareEncodingEnabled);
+			m_Rec->SetIsFragmentedMp4Enabled(options->VideoEncoderOptions->IsFragmentedMp4Enabled);
+			if (options->VideoEncoderOptions->SnapshotsDirectory != nullptr) {
+				m_Rec->SetSnapshotDirectory(msclr::interop::marshal_as<std::wstring>(options->VideoEncoderOptions->SnapshotsDirectory));
 			}
-			switch (options->VideoOptions->SnapshotFormat)
+			switch (options->VideoEncoderOptions->SnapshotFormat)
 			{
 			case ImageFormat::BMP:
 				m_Rec->SetSnapshotSaveFormat(GUID_ContainerFormatBmp);
@@ -85,11 +90,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 
 		m_Rec->SetRecorderMode((UINT32)options->RecorderMode);
 		m_Rec->SetRecorderApi((UINT32)options->RecorderApi);
-		m_Rec->SetIsThrottlingDisabled(options->IsThrottlingDisabled);
-		m_Rec->SetIsLowLatencyModeEnabled(options->IsLowLatencyEnabled);
-		m_Rec->SetIsFastStartEnabled(options->IsMp4FastStartEnabled);
-		m_Rec->SetIsHardwareEncodingEnabled(options->IsHardwareEncodingEnabled);
-		m_Rec->SetIsFragmentedMp4Enabled(options->IsFragmentedMp4Enabled);
+
 		m_Rec->SetIsLogEnabled(options->IsLogEnabled);
 		if (options->LogFilePath != nullptr) {
 			m_Rec->SetLogFilePath(msclr::interop::marshal_as<std::wstring>(options->LogFilePath));

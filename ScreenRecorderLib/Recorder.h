@@ -110,11 +110,11 @@ namespace ScreenRecorderLib {
 		Video = MODE_VIDEO,
 		///<summary>Record one PNG picture for each frame. </summary>
 		Slideshow = MODE_SLIDESHOW,
-		///<summary>Create a screenshot. This can not be used on a video recording in progress. Set a snapshot interval in VideoOptions to get snapshots from a runnning Recorder instance.</summary>
+		///<summary>Create a screenshot. This can not be used on a video recording in progress. Set a snapshot interval in VideoEncoderOptions to get snapshots from a runnning Recorder instance.</summary>
 		Snapshot = MODE_SNAPSHOT
 	};
-	public enum class H264Profile
-	{
+
+	public enum class H264Profile {
 		Baseline = 66,
 		Main = 77,
 		High = 100
@@ -124,7 +124,7 @@ namespace ScreenRecorderLib {
 		CBR = 0,
 		///<summary>Default is unconstrained variable bitrate. Overall bitrate will average towards the Bitrate property, but can fluctuate greatly over and under it.</summary>
 		UnconstrainedVBR = 2,
-		///<summary>Quality-based VBR encoding. The encoder selects the bit rate to match a specified quality level. Set Quality level in VideoOptions from 1-100. Default is 70. </summary>
+		///<summary>Quality-based VBR encoding. The encoder selects the bit rate to match a specified quality level. Set Quality level in VideoEncoderOptions from 1-100. Default is 70. </summary>
 		Quality
 	};
 	public enum class RecorderApi {
@@ -258,9 +258,9 @@ namespace ScreenRecorderLib {
 		}
 	};
 
-	public ref class VideoOptions {
+	public ref class VideoEncoderOptions {
 	public:
-		VideoOptions() {
+		VideoEncoderOptions() {
 			Framerate = 30;
 			Quality = 70;
 			Bitrate = 4000 * 1000;
@@ -270,6 +270,10 @@ namespace ScreenRecorderLib {
 			SnapshotFormat = ImageFormat::PNG;
 			SnapshotsWithVideo = false;
 			SnapshotsInterval = 10;
+			IsThrottlingDisabled = false;
+			IsLowLatencyEnabled = false;
+			IsHardwareEncodingEnabled = true;
+			IsMp4FastStartEnabled = true;
 		}
 		property H264Profile EncoderProfile;
 		/// <summary>
@@ -292,6 +296,26 @@ namespace ScreenRecorderLib {
 		///Send data to the video encoder every frame, even if it means duplicating the previous frame(s). Can fix stutter issues in fringe cases, but uses more resources.
 		/// </summary>
 		property bool IsFixedFramerate;
+		/// <summary>
+		///Disable throttling of video renderer. If this is disabled, all frames are sent to renderer as fast as they come. Can cause out of memory crashes.
+		/// </summary>
+		property bool IsThrottlingDisabled;
+		/// <summary>
+		///Faster rendering, but can affect quality. Use when speed is more important than quality.
+		/// </summary>
+		property bool IsLowLatencyEnabled;
+		/// <summary>
+		///Enable hardware encoding if available. This is enabled by default.
+		/// </summary>
+		property bool IsHardwareEncodingEnabled;
+		/// <summary>
+		/// Place the mp4 header at the start of the file instead of the end. This allows streaming to start before entire file is downloaded.
+		/// </summary>
+		property bool IsMp4FastStartEnabled;
+		/// <summary>
+		/// Fragments the video into a list of individually playable blocks. This allows playback of video segments that has no end, i.e. live streaming.
+		/// </summary>
+		property bool IsFragmentedMp4Enabled;
 		/// <summary>
 		///Image format for snapshots. This is only used with Snapshot and Slideshow modes.
 		/// </summary>
@@ -421,10 +445,6 @@ namespace ScreenRecorderLib {
 		RecorderOptions() {
 			RecorderMode = ScreenRecorderLib::RecorderMode::Video;
 			RecorderApi = ScreenRecorderLib::RecorderApi::DesktopDuplication;
-			IsThrottlingDisabled = false;
-			IsLowLatencyEnabled = false;
-			IsHardwareEncodingEnabled = true;
-			IsMp4FastStartEnabled = true;
 #if _DEBUG
 			IsLogEnabled = true;
 			LogSeverityLevel = LogLevel::Debug;
@@ -435,26 +455,7 @@ namespace ScreenRecorderLib {
 		}
 		property RecorderMode RecorderMode;
 		property RecorderApi RecorderApi;
-		/// <summary>
-		///Disable throttling of video renderer. If this is disabled, all frames are sent to renderer as fast as they come. Can cause out of memory crashes.
-		/// </summary>
-		property bool IsThrottlingDisabled;
-		/// <summary>
-		///Faster rendering, but can affect quality. Use when speed is more important than quality.
-		/// </summary>
-		property bool IsLowLatencyEnabled;
-		/// <summary>
-		///Enable hardware encoding if available. This is enabled by default.
-		/// </summary>
-		property bool IsHardwareEncodingEnabled;
-		/// <summary>
-		/// Place the mp4 header at the start of the file instead of the end. This allows streaming to start before entire file is downloaded.
-		/// </summary>
-		property bool IsMp4FastStartEnabled;
-		/// <summary>
-		/// Fragments the video into a list of individually playable blocks. This allows playback of video segments that has no end, i.e. live streaming.
-		/// </summary>
-		property bool IsFragmentedMp4Enabled;
+
 		/// <summary>
 		/// Toggles logging. Default is on when debugging, off in release mode, this setting overrides it.
 		/// </summary>
@@ -468,7 +469,7 @@ namespace ScreenRecorderLib {
 		/// </summary>
 		property LogLevel LogSeverityLevel;
 
-		property VideoOptions^ VideoOptions;
+		property VideoEncoderOptions^ VideoEncoderOptions;
 		property SourceOptions^ SourceOptions;
 		property AudioOptions^ AudioOptions;
 		property MouseOptions^ MouseOptions;
