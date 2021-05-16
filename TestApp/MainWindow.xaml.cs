@@ -253,20 +253,13 @@ namespace TestApp
             _progressTimer.Interval = TimeSpan.FromSeconds(1);
             _progressTimer.Start();
 
-            int right = 0;
-            Int32.TryParse(this.RecordingAreaRightTextBox.Text, out right);
-            int bottom = 0;
-            Int32.TryParse(this.RecordingAreaBottomTextBox.Text, out bottom);
-            int left = 0;
-            Int32.TryParse(this.RecordingAreaLeftTextBox.Text, out left);
-            int top = 0;
-            Int32.TryParse(this.RecordingAreaTopTextBox.Text, out top);
-            int scaledWidth = 0;
-            Int32.TryParse(this.ScaledWidthTextBox.Text, out scaledWidth);
-            int scaledHeight = 0;
-            Int32.TryParse(this.ScaledHeightTextBox.Text, out scaledHeight);
-            double scaledFrameRatio;
-            Double.TryParse(this.ScaledFrameRatioTextBox.Text, out scaledFrameRatio);
+            Int32.TryParse(this.RecordingAreaRightTextBox.Text, out int right);
+            Int32.TryParse(this.RecordingAreaBottomTextBox.Text, out int bottom);
+            Int32.TryParse(this.RecordingAreaLeftTextBox.Text, out int left);
+            Int32.TryParse(this.RecordingAreaTopTextBox.Text, out int top);
+            Int32.TryParse(this.ScaledWidthTextBox.Text, out int scaledWidth);
+            Int32.TryParse(this.ScaledHeightTextBox.Text, out int scaledHeight);
+            Double.TryParse(this.ScaledFrameRatioTextBox.Text, out double scaledFrameRatio);
             if (scaledFrameRatio == 0)
                 scaledFrameRatio = 1.0;
 
@@ -630,8 +623,7 @@ namespace TestApp
             }
             else
             {
-                NativeMethods.RECT windowRect;
-                if (NativeMethods.GetWindowRect(window.Handle, out windowRect))
+                if (0 == NativeMethods.DwmGetWindowAttribute(window.Handle, 9, out NativeMethods.RECT windowRect, Marshal.SizeOf(typeof(NativeMethods.RECT))))
                 {
                     this.RecordingAreaRightTextBox.Text = windowRect.Right.ToString();
                     this.RecordingAreaBottomTextBox.Text = windowRect.Bottom.ToString();
@@ -723,6 +715,18 @@ namespace TestApp
         [DllImport("user32.dll")]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        /// <summary>
+        /// Retrieves actual window size that is not affected by the drop shadow or DPI setting.
+        /// Specify DWMWA_EXTENDED_FRAME_BOUNDS (9) as dwAttribute.
+        /// </summary>
+        /// <param name="hWnd"></param>
+        /// <param name="dwAttribute"></param>
+        /// <param name="rect">out parameter of RECT</param>
+        /// <param name="cbAttribute">size of RECT</param>
+        /// <returns>0 if success</returns>
+        [DllImport("dwmapi.dll")]
+        public static extern int DwmGetWindowAttribute(IntPtr hWnd, int dwAttribute, out RECT rect, int cbAttribute);
 
         [StructLayout(LayoutKind.Sequential)]
         public struct RECT
