@@ -95,3 +95,11 @@ inline UINT32 MakeEven(UINT32 number) {
 	}
 	return number;
 }
+
+inline LONG Width(RECT rect) {
+	return rect.right - rect.left;
+}
+
+inline LONG Height(RECT rect) {
+	return rect.bottom - rect.top;
+}

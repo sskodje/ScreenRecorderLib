@@ -25,7 +25,7 @@ public:
     HRESULT Resize(ID3D11Texture2D* orgTexture, ID3D11Texture2D** pResizedTexture, UINT targetWidth, UINT targetHeight, double viewPortRatio_width = 1.0, double viewPortRatio_height = 1.0);
 
 private:
-    void SetViewPort(UINT width, UINT height, double viewPortRatio_width, double viewPortRatio_height);
+    void SetViewPort(FLOAT width, FLOAT height);
     HRESULT InitShaders();
     HRESULT InitializeDesc(_In_ UINT width, _In_ UINT height, _Out_ D3D11_TEXTURE2D_DESC* pTargetDesc);
     void CleanRefs();
