@@ -101,8 +101,15 @@ HRESULT Resizer::Resize(ID3D11Texture2D* orgTexture, ID3D11Texture2D** pResizedT
 
     m_DeviceContext->OMSetRenderTargets(1, &RTV, nullptr);
 
+    // Save current view port so we can restore later
+    D3D11_VIEWPORT VP;
+    UINT numViewports = 1;
+    m_DeviceContext->RSGetViewports(&numViewports, &VP);
+
     // Set view port
-    SetViewPort(targetWidth, targetHeight, viewPortRatio_width, viewPortRatio_height);
+    FLOAT viewportWidth = static_cast<FLOAT>(targetWidth * viewPortRatio_width);
+    FLOAT viewportHeight = static_cast<FLOAT>(targetHeight * viewPortRatio_height);
+    SetViewPort(viewportWidth, viewportHeight);
 
     // Vertices for drawing whole texture
     VERTEX Vertices[] =
@@ -150,6 +157,9 @@ HRESULT Resizer::Resize(ID3D11Texture2D* orgTexture, ID3D11Texture2D** pResizedT
     // Draw textured quad onto render target
     m_DeviceContext->Draw(_countof(Vertices), 0);
 
+    // Restore view port
+    m_DeviceContext->RSSetViewports(1, &VP);
+
     // Clean up
     VertexBuffer->Release();
     VertexBuffer = nullptr;
@@ -181,11 +191,11 @@ HRESULT Resizer::InitializeDesc(_In_ UINT width, _In_ UINT height, _Out_ D3D11_T
     return S_OK;
 }
 
-void Resizer::SetViewPort(UINT width, UINT height, double viewPortRatio_width, double viewPortRatio_height)
+void Resizer::SetViewPort(FLOAT width, FLOAT height)
 {
     D3D11_VIEWPORT VP;
-    VP.Width = static_cast<FLOAT>(width * viewPortRatio_width);
-    VP.Height = static_cast<FLOAT>(height * viewPortRatio_height);
+    VP.Width = width;
+    VP.Height = height;
     VP.MinDepth = 0.0f;
     VP.MaxDepth = 1.0f;
     VP.TopLeftX = 0;
