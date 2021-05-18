@@ -73,12 +73,14 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			}
 		}
 		if (options->SourceOptions) {
-			RECT rect;
-			rect.left = options->SourceOptions->Left;
-			rect.top = options->SourceOptions->Top;
-			rect.right = options->SourceOptions->Right;
-			rect.bottom = options->SourceOptions->Bottom;
-			m_Rec->SetDestRectangle(rect);
+			if (options->SourceOptions->SourceRect) {
+				RECT rect;
+				rect.left = options->SourceOptions->SourceRect->Left;
+				rect.top = options->SourceOptions->SourceRect->Top;
+				rect.right = options->SourceOptions->SourceRect->Right;
+				rect.bottom = options->SourceOptions->SourceRect->Bottom;
+				m_Rec->SetDestRectangle(rect);
+			}
 		}
 		m_Rec->SetRecordingSources(CreateRecordingSourceList(options));
 		if (options->AudioOptions) {

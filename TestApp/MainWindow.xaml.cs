@@ -363,7 +363,6 @@ namespace TestApp
             List<RecordingSource> recordingSources = new List<ScreenRecorderLib.RecordingSource>();
             recordingSources.AddRange(windowsToRecord);
             recordingSources.AddRange(displayDevicesToRecord);
-
             var foo = new H264VideoEncoder()
             {
                 BitrateMode = CurrentH264VideoBitrateMode,
@@ -429,10 +428,7 @@ namespace TestApp
                 SourceOptions = new SourceOptions
                 {
                     RecordingSources = recordingSources,
-                    Left = left,
-                    Top = top,
-                    Right = right,
-                    Bottom = bottom
+                    SourceRect = new ScreenRect(left, top, left + right, top + bottom)
                 },
                 MouseOptions = new MouseOptions
                 {

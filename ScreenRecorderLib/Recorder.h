@@ -267,10 +267,11 @@ namespace ScreenRecorderLib {
 			}
 		}
 		property List<RecordingSource^>^ RecordingSources;
-		property int Left;
-		property int Top;
-		property int Right;
-		property int Bottom;
+		/// <summary>
+		/// The portion of the source area to record. Null or empty rect records the entire source area.
+		/// </summary>
+		property ScreenRect^ SourceRect;
+
 		SourceOptions() {
 			RecordingSources = gcnew List<RecordingSource^>();
 		}
@@ -286,8 +287,8 @@ namespace ScreenRecorderLib {
 	};
 
 	/// <summary>
-/// Encode video with H264 encoder.
-/// </summary>
+	/// Encode video with H264 encoder.
+	/// </summary>
 	public ref class H264VideoEncoder : public VideoEncoder {
 	public:
 		H264VideoEncoder() {
