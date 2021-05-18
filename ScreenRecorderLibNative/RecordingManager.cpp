@@ -79,7 +79,7 @@ RecordingManager::RecordingManager() :
 	RecordingSnapshotCreatedCallback(nullptr),
 	RecordingStatusChangedCallback(nullptr),
 	m_Mousehook(nullptr),
-	m_EncoderOptions(nullptr)
+	m_EncoderOptions(new H264_ENCODER_OPTIONS())
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 }
