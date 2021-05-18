@@ -238,8 +238,6 @@ protected:
 	UINT32 m_VideoFps = 30;
 	UINT32 m_VideoBitrate = 4000 * 1000;//Bitrate in bits per second
 	UINT32 m_VideoQuality = 70;//Video quality from 1 to 100. Is only used with eAVEncCommonRateControlMode_Quality.
-	UINT32 m_AudioBitrate = (96 / 8) * 1000; //Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
-	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
 	bool m_IsFixedFramerate = false;
 	bool m_IsThrottlingDisabled = false;
 	bool m_IsLowLatencyModeEnabled = false;
