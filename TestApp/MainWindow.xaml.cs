@@ -156,19 +156,48 @@ namespace TestApp
             }
         }
 
-        private BitrateControlMode _currentVideoBitrateMode = BitrateControlMode.Quality;
-        public BitrateControlMode CurrentVideoBitrateMode
+        private VideoEncoderFormat _currentVideoEncoderFormat;
+        public VideoEncoderFormat CurrentVideoEncoderFormat
         {
-            get { return _currentVideoBitrateMode; }
+            get { return _currentVideoEncoderFormat; }
             set
             {
-                if (_currentVideoBitrateMode != value)
+                if (_currentVideoEncoderFormat != value)
                 {
-                    _currentVideoBitrateMode = value;
-                    RaisePropertyChanged("CurrentVideoBitrateMode");
+                    _currentVideoEncoderFormat = value;
+                    RaisePropertyChanged(nameof(CurrentVideoEncoderFormat));
                 }
             }
         }
+
+        private H264BitrateControlMode _currentH264VideoBitrateMode = H264BitrateControlMode.Quality;
+        public H264BitrateControlMode CurrentH264VideoBitrateMode
+        {
+            get { return _currentH264VideoBitrateMode; }
+            set
+            {
+                if (_currentH264VideoBitrateMode != value)
+                {
+                    _currentH264VideoBitrateMode = value;
+                    RaisePropertyChanged(nameof(CurrentH264VideoBitrateMode));
+                }
+            }
+        }
+
+        private H265BitrateControlMode _currentH265VideoBitrateMode = H265BitrateControlMode.Quality;
+        public H265BitrateControlMode CurrentH265VideoBitrateMode
+        {
+            get { return _currentH265VideoBitrateMode; }
+            set
+            {
+                if (_currentH265VideoBitrateMode != value)
+                {
+                    _currentH265VideoBitrateMode = value;
+                    RaisePropertyChanged(nameof(CurrentH265VideoBitrateMode));
+                }
+            }
+        }
+
 
         private ImageFormat _currentImageFormat;
         public ImageFormat CurrentImageFormat
@@ -199,8 +228,8 @@ namespace TestApp
         }
 
 
-        public H264Profile CurrentH264Profile { get; set; } = H264Profile.Main;
-
+        public H264Profile CurrentH264Profile { get; set; } = H264Profile.High;
+        public H265Profile CurrentH265Profile { get; set; } = H265Profile.Main;
 
         public MainWindow()
         {
@@ -335,6 +364,29 @@ namespace TestApp
             recordingSources.AddRange(windowsToRecord);
             recordingSources.AddRange(displayDevicesToRecord);
 
+            var foo = new H264VideoEncoder()
+            {
+                BitrateMode = CurrentH264VideoBitrateMode,
+                EncoderProfile = CurrentH264Profile
+            };
+            var bar = new H265VideoEncoder()
+            {
+                BitrateMode = CurrentH265VideoBitrateMode,
+                EncoderProfile = CurrentH265Profile
+            };
+
+            VideoEncoder videoEncoder = null;
+            switch (CurrentVideoEncoderFormat)
+            {
+                default:
+                case VideoEncoderFormat.H264:
+                    videoEncoder = new H264VideoEncoder { BitrateMode = CurrentH264VideoBitrateMode, EncoderProfile = CurrentH264Profile };
+                    break;
+                case VideoEncoderFormat.H265:
+                    videoEncoder = new H265VideoEncoder { BitrateMode = CurrentH265VideoBitrateMode, EncoderProfile = CurrentH265Profile };
+                    break;
+            }
+
             RecorderOptions options = new RecorderOptions
             {
                 RecorderMode = CurrentRecordingMode,
@@ -357,17 +409,19 @@ namespace TestApp
                 },
                 VideoEncoderOptions = new VideoEncoderOptions
                 {
-                    BitrateMode = this.CurrentVideoBitrateMode,
+                    Encoder = videoEncoder,
                     Bitrate = VideoBitrate * 1000,
                     Framerate = this.VideoFramerate,
                     Quality = this.VideoQuality,
                     IsFixedFramerate = this.IsFixedFramerate,
-                    EncoderProfile = this.CurrentH264Profile,
                     IsThrottlingDisabled = this.IsThrottlingDisabled,
                     IsHardwareEncodingEnabled = this.IsHardwareEncodingEnabled,
                     IsLowLatencyEnabled = this.IsLowLatencyEnabled,
                     IsMp4FastStartEnabled = this.IsMp4FastStartEnabled,
                     IsFragmentedMp4Enabled = this.IsFragmentedMp4Enabled,
+                },
+                SnapshotOptions = new SnapshotOptions
+                {
                     SnapshotFormat = CurrentImageFormat,
                     SnapshotsWithVideo = this.SnapshotsWithVideo,
                     SnapshotsInterval = this.SnapshotsIntervalInSec
@@ -619,15 +673,31 @@ namespace TestApp
             }
             Process.Start(directory);
         }
-        private void RecordingBitrateModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+
+        private void VideoEncoderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (VideoQualityPanel != null)
+            if (this.IsLoaded)
             {
-                VideoQualityPanel.Visibility = CurrentVideoBitrateMode == BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
-                VideoBitratePanel.Visibility = CurrentVideoBitrateMode == BitrateControlMode.Quality ? Visibility.Collapsed : Visibility.Visible;
+                H264OptionsPanel.Visibility = CurrentVideoEncoderFormat == VideoEncoderFormat.H264 ? Visibility.Visible : Visibility.Collapsed;
+                H265OptionsPanel.Visibility = CurrentVideoEncoderFormat == VideoEncoderFormat.H265 ? Visibility.Visible : Visibility.Collapsed;
             }
         }
-
+        private void H264VideoBitrateModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (this.IsLoaded)
+            {
+                VideoQualityPanel.Visibility = CurrentH264VideoBitrateMode == H264BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
+                VideoBitratePanel.Visibility = CurrentH264VideoBitrateMode == H264BitrateControlMode.Quality ? Visibility.Collapsed : Visibility.Visible;
+            }
+        }
+        private void H265VideoBitrateModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (this.IsLoaded)
+            {
+                VideoQualityPanel.Visibility = CurrentH265VideoBitrateMode == H265BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
+                VideoBitratePanel.Visibility = CurrentH265VideoBitrateMode == H265BitrateControlMode.Quality ? Visibility.Collapsed : Visibility.Visible;
+            }
+        }
         private void ColorTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             try
@@ -642,22 +712,24 @@ namespace TestApp
 
         private void RecordingModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (this.AudioInPanel != null)
+            if (this.IsLoaded)
             {
                 switch (CurrentRecordingMode)
                 {
                     case RecorderMode.Video:
-                        this.VideoBitrateModePanel.Visibility = Visibility.Visible;
-                        this.VideoProfilePanel.Visibility = Visibility.Visible;
+                        this.EncoderOptionsPanel.Visibility = Visibility.Visible;
                         this.SnapshotImageFormatPanel.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
                         this.SnapshotsIntervalPanel.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
+                        this.EncoderOptionsPanel.Visibility = Visibility.Visible;
+                        this.SnapshotOptionsPanel.Visibility = Visibility.Visible;
                         break;
                     case RecorderMode.Slideshow:
                     case RecorderMode.Snapshot:
-                        this.VideoBitrateModePanel.Visibility = Visibility.Collapsed;
-                        this.VideoProfilePanel.Visibility = Visibility.Collapsed;
+                        this.EncoderOptionsPanel.Visibility = Visibility.Collapsed;
                         this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
                         this.SnapshotsIntervalPanel.Visibility = Visibility.Collapsed;
+                        this.EncoderOptionsPanel.Visibility = Visibility.Collapsed;
+                        this.SnapshotOptionsPanel.Visibility = Visibility.Collapsed;
                         break;
                     default:
                         break;

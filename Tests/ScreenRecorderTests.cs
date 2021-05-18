@@ -196,7 +196,14 @@ namespace ScreenRecorderLib
             long lowestQualitySize;
             using (var outStream = new MemoryStream())
             {
-                using (var rec = Recorder.CreateRecorder(new RecorderOptions { VideoEncoderOptions = new VideoEncoderOptions { BitrateMode = BitrateControlMode.Quality, Quality = 100 } }))
+                using (var rec = Recorder.CreateRecorder(new RecorderOptions
+                {
+                    VideoEncoderOptions = new VideoEncoderOptions
+                    {
+                        Encoder = new H264VideoEncoder { BitrateMode = H264BitrateControlMode.Quality },
+                        Quality = 100
+                    }
+                }))
                 {
                     string error = "";
                     bool isError = false;
@@ -229,7 +236,14 @@ namespace ScreenRecorderLib
             }
             using (var outStream = new MemoryStream())
             {
-                using (var rec = Recorder.CreateRecorder(new RecorderOptions { VideoEncoderOptions = new VideoEncoderOptions { BitrateMode = BitrateControlMode.Quality, Quality = 0 } }))
+                using (var rec = Recorder.CreateRecorder(new RecorderOptions
+                {
+                    VideoEncoderOptions = new VideoEncoderOptions
+                    {
+                        Encoder = new H264VideoEncoder { BitrateMode = H264BitrateControlMode.Quality },
+                        Quality = 0
+                    }
+                }))
                 {
                     string error = "";
                     bool isError = false;
@@ -511,7 +525,7 @@ namespace ScreenRecorderLib
                 RecorderOptions options = new RecorderOptions();
                 options.VideoEncoderOptions = new VideoEncoderOptions
                 {
-                    BitrateMode = BitrateControlMode.CBR,
+                    Encoder = new H264VideoEncoder { BitrateMode = H264BitrateControlMode.CBR },
                     Bitrate = 4000
                 };
                 using (var rec = Recorder.CreateRecorder(options))
@@ -793,6 +807,50 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
+        public void RecordingWithH265EncoderTest()
+        {
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
+            {
+                using (var rec = Recorder.CreateRecorder(new RecorderOptions { VideoEncoderOptions = new VideoEncoderOptions { Encoder = new H265VideoEncoder() } }))
+                {
+                    string error = "";
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        finalizeResetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        error = args.Error;
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
+                    };
+
+                    rec.Record(filePath);
+                    recordingResetEvent.WaitOne(3000);
+                    rec.Stop();
+                    finalizeResetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError, error);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+            }
+        }
+        [TestMethod]
         public void RecordingToFileWithSnapshotsTest()
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
@@ -801,7 +859,7 @@ namespace ScreenRecorderLib
             {
                 RecorderOptions options = new RecorderOptions();
                 options.SourceOptions = SourceOptions.MainMonitor;
-                options.VideoEncoderOptions = new VideoEncoderOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
+                options.SnapshotOptions = new SnapshotOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
                     List<string> snapshotCallbackList = new List<string>();
@@ -864,7 +922,7 @@ namespace ScreenRecorderLib
                 using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                 {
                     RecorderOptions options = new RecorderOptions();
-                    options.VideoEncoderOptions = new VideoEncoderOptions
+                    options.SnapshotOptions = new SnapshotOptions
                     {
                         SnapshotsWithVideo = true,
                         SnapshotsInterval = 2,
@@ -933,7 +991,7 @@ namespace ScreenRecorderLib
             try
             {
                 RecorderOptions options = new RecorderOptions();
-                options.VideoEncoderOptions = new VideoEncoderOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
+                options.SnapshotOptions = new SnapshotOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
                 options.SourceOptions = new SourceOptions
                 {
                     RecordingSources = { DisplayRecordingSource.MainMonitor },

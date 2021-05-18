@@ -37,18 +37,39 @@
                 <x:Type TypeName="rec:RecorderMode" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
-        <ObjectDataProvider x:Key="VideoProfileData"
+        <ObjectDataProvider x:Key="H264VideoProfileData"
                             MethodName="GetValues"
                             ObjectType="{x:Type System:Enum}">
             <ObjectDataProvider.MethodParameters>
                 <x:Type TypeName="rec:H264Profile" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
-        <ObjectDataProvider x:Key="VideoBitrateModeData"
+        <ObjectDataProvider x:Key="H265VideoProfileData"
                             MethodName="GetValues"
                             ObjectType="{x:Type System:Enum}">
             <ObjectDataProvider.MethodParameters>
-                <x:Type TypeName="rec:BitrateControlMode" />
+                <x:Type TypeName="rec:H265Profile" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+        <ObjectDataProvider x:Key="VideoEncoderData"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type System:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="rec:VideoEncoderFormat" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+        <ObjectDataProvider x:Key="H264VideoBitrateModeData"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type System:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="rec:H264BitrateControlMode" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+        <ObjectDataProvider x:Key="H265VideoBitrateModeData"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type System:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="rec:H265BitrateControlMode" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
         <ObjectDataProvider x:Key="ImageFormatData"
@@ -247,14 +268,13 @@
                                     </Grid.ColumnDefinitions>
                                     <CheckBox IsChecked="{Binding IsEnabled}"
                                               VerticalAlignment="Center"
-                                              Margin="0,0,5,0"/>
+                                              Margin="0,0,5,0" />
                                     <ComboBox ItemsSource="{Binding ElementName=MainWin,Path=VideoCaptureDevices}"
                                               DisplayMemberPath="Name"
                                               SelectedValuePath="ID"
                                               SelectedItem="{Binding Overlay.CaptureDeviceName,Mode=TwoWay,Converter={StaticResource MediaDeviceToDeviceIdConverter}}"
-              
                                               MinWidth="150"
-                                             Grid.Column="1" />
+                                              Grid.Column="1" />
                                     <ContentPresenter Content="{StaticResource BaseContent}"
                                                       Grid.Column="2" />
                                 </Grid>
@@ -268,9 +288,8 @@
                                     </Grid.ColumnDefinitions>
                                     <CheckBox IsChecked="{Binding IsEnabled}"
                                               VerticalAlignment="Center"
-                                              Margin="0,0,5,0"/>
+                                              Margin="0,0,5,0" />
                                     <TextBox Text="{Binding Overlay.FilePath, Mode=TwoWay}"
-                                             
                                              Width="150"
                                              Grid.Column="1" />
                                     <ContentPresenter Content="{StaticResource BaseContent}"
@@ -286,7 +305,7 @@
                                     </Grid.ColumnDefinitions>
                                     <CheckBox IsChecked="{Binding IsEnabled}"
                                               VerticalAlignment="Center"
-                                              Margin="0,0,5,0"/>
+                                              Margin="0,0,5,0" />
                                     <TextBox Text="{Binding Overlay.FilePath, Mode=TwoWay}"
                                              Width="150"
                                              Grid.Column="1" />
@@ -348,10 +367,6 @@
                                       SelectionChanged="RecordingApiComboBox_SelectionChanged"
                                       VerticalAlignment="Top" />
                         </StackPanel>
-                        <CheckBox Content="Take snapshots with Video"
-                                  x:Name="CheckBoxSnapshotsWithVideo"
-                                  IsChecked="{Binding ElementName=MainWin,Path=SnapshotsWithVideo}"
-                                  Margin="0" />
                         <StackPanel Orientation="Horizontal">
                             <Label Content="Mode"
                                    Width="85"
@@ -364,60 +379,109 @@
                                       VerticalAlignment="Top"
                                       SelectionChanged="RecordingModeComboBox_SelectionChanged" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal"
-                                    x:Name="SnapshotImageFormatPanel"
-                                    Visibility="Collapsed">
-                            <Label Content="Image format"
-                                   Width="85"
-                                   VerticalAlignment="Center" />
-                            <ComboBox x:Name="ImageFormatComboBox"
-                                      MinWidth="100"
-                                      Margin="0,5,5,5"
-                                      ItemsSource="{Binding Source={StaticResource ImageFormatData}}"
-                                      SelectedItem="{Binding ElementName=MainWin,Path=CurrentImageFormat}"
-                                      VerticalAlignment="Top" />
-                        </StackPanel>
+                        <StackPanel x:Name="SnapshotOptionsPanel">
+                            <CheckBox Content="Take snapshots with Video"
+                                      x:Name="CheckBoxSnapshotsWithVideo"
+                                      IsChecked="{Binding ElementName=MainWin,Path=SnapshotsWithVideo}"
+                                      Margin="0" />
+                            <StackPanel Orientation="Horizontal"
+                                        x:Name="SnapshotImageFormatPanel"
+                                        Visibility="Collapsed">
+                                <Label Content="Image format"
+                                       Width="85"
+                                       VerticalAlignment="Center" />
+                                <ComboBox x:Name="ImageFormatComboBox"
+                                          MinWidth="100"
+                                          Margin="0,5,5,5"
+                                          ItemsSource="{Binding Source={StaticResource ImageFormatData}}"
+                                          SelectedItem="{Binding ElementName=MainWin,Path=CurrentImageFormat}"
+                                          VerticalAlignment="Top" />
+                            </StackPanel>
 
-                        <StackPanel Orientation="Horizontal"
-                                    x:Name="SnapshotsIntervalPanel"
-                                    Visibility="Collapsed">
-                            <Label Content="Snapshots interval"
-                                   Width="120"
-                                   VerticalAlignment="Center" />
-                            <TextBox x:Name="SnapshotsIntervalTextBox"
-                                     Width="30"
-                                     Text="{Binding ElementName=MainWin,Path=SnapshotsIntervalInSec}"
-                                     HorizontalAlignment="Left"
-                                     VerticalAlignment="Center" />
-                            <Label Content="second" />
+                            <StackPanel Orientation="Horizontal"
+                                        x:Name="SnapshotsIntervalPanel"
+                                        Visibility="Collapsed">
+                                <Label Content="Snapshots interval"
+                                       Width="120"
+                                       VerticalAlignment="Center" />
+                                <TextBox x:Name="SnapshotsIntervalTextBox"
+                                         Width="30"
+                                         Text="{Binding ElementName=MainWin,Path=SnapshotsIntervalInSec}"
+                                         HorizontalAlignment="Left"
+                                         VerticalAlignment="Center" />
+                                <Label Content="second" />
+                            </StackPanel>
                         </StackPanel>
-
-                        <StackPanel Orientation="Horizontal"
-                                    x:Name="VideoBitrateModePanel">
-                            <Label Content="Bitrate Mode"
-                                   Width="85"
-                                   VerticalAlignment="Center" />
-                            <ComboBox x:Name="RecordingBitrateModeComboBox"
-                                      MinWidth="100"
-                                      Margin="0,5,5,5"
-                                      ItemsSource="{Binding Source={StaticResource VideoBitrateModeData}}"
-                                      SelectedItem="{Binding ElementName=MainWin,Path=CurrentVideoBitrateMode}"
-                                      SelectionChanged="RecordingBitrateModeComboBox_SelectionChanged"
-                                      VerticalAlignment="Top" />
+                        <StackPanel x:Name="EncoderOptionsPanel">
+                            <StackPanel Orientation="Horizontal"
+                                        x:Name="VideoEncoderPanel">
+                                <Label Content="Encoder"
+                                       Width="85"
+                                       VerticalAlignment="Center" />
+                                <ComboBox x:Name="VideoEncoderComboBox"
+                                          MinWidth="100"
+                                          Margin="0,5,5,5"
+                                          ItemsSource="{Binding Source={StaticResource VideoEncoderData}}"
+                                          SelectedItem="{Binding ElementName=MainWin,Path=CurrentVideoEncoderFormat}"
+                                          SelectionChanged="VideoEncoderComboBox_SelectionChanged"
+                                          VerticalAlignment="Top" />
+                            </StackPanel>
+                            <StackPanel x:Name="H264OptionsPanel">
+                                <StackPanel Orientation="Horizontal"
+                                            x:Name="H264VideoBitrateModePanel">
+                                    <Label Content="Bitrate Mode"
+                                           Width="85"
+                                           VerticalAlignment="Center" />
+                                    <ComboBox x:Name="H264VideoBitrateModeComboBox"
+                                              MinWidth="100"
+                                              Margin="0,5,5,5"
+                                              ItemsSource="{Binding Source={StaticResource H264VideoBitrateModeData}}"
+                                              SelectedItem="{Binding ElementName=MainWin,Path=CurrentH264VideoBitrateMode}"
+                                              SelectionChanged="H264VideoBitrateModeComboBox_SelectionChanged"
+                                              VerticalAlignment="Top" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            x:Name="H264VideoProfilePanel">
+                                    <Label Content="H264 profile"
+                                           Width="85"
+                                           VerticalAlignment="Center" />
+                                    <ComboBox x:Name="H264VideoProfileComboBox"
+                                              MinWidth="100"
+                                              Margin="0,5,5,5"
+                                              ItemsSource="{Binding Source={StaticResource H264VideoProfileData}}"
+                                              SelectedItem="{Binding ElementName=MainWin,Path=CurrentH264Profile}"
+                                              VerticalAlignment="Top" />
+                                </StackPanel>
+                            </StackPanel>
+                            <StackPanel x:Name="H265OptionsPanel"
+                                        Visibility="Collapsed">
+                                <StackPanel Orientation="Horizontal"
+                                            x:Name="H265VideoBitrateModePanel">
+                                    <Label Content="Bitrate Mode"
+                                           Width="85"
+                                           VerticalAlignment="Center" />
+                                    <ComboBox x:Name="H265VideoBitrateModeComboBox"
+                                              MinWidth="100"
+                                              Margin="0,5,5,5"
+                                              ItemsSource="{Binding Source={StaticResource H265VideoBitrateModeData}}"
+                                              SelectedItem="{Binding ElementName=MainWin,Path=CurrentH265VideoBitrateMode}"
+                                              SelectionChanged="H265VideoBitrateModeComboBox_SelectionChanged"
+                                              VerticalAlignment="Top" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            x:Name="H265VideoProfilePanel">
+                                    <Label Content="H265 profile"
+                                           Width="85"
+                                           VerticalAlignment="Center" />
+                                    <ComboBox x:Name="H265VideoProfileComboBox"
+                                              MinWidth="100"
+                                              Margin="0,5,5,5"
+                                              ItemsSource="{Binding Source={StaticResource H265VideoProfileData}}"
+                                              SelectedItem="{Binding ElementName=MainWin,Path=CurrentH265Profile}"
+                                              VerticalAlignment="Top" />
+                                </StackPanel>
+                            </StackPanel>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal"
-                                    x:Name="VideoProfilePanel">
-                            <Label Content="H264 profile"
-                                   Width="85"
-                                   VerticalAlignment="Center" />
-                            <ComboBox x:Name="VideoProfileComboBox"
-                                      MinWidth="100"
-                                      Margin="0,5,5,5"
-                                      ItemsSource="{Binding Source={StaticResource VideoProfileData}}"
-                                      SelectedItem="{Binding ElementName=MainWin,Path=CurrentH264Profile}"
-                                      VerticalAlignment="Top" />
-                        </StackPanel>
-
                     </StackPanel>
 
                     <Grid Margin="5,0,0,0"
@@ -658,12 +722,12 @@
                           x:Name="CheckBoxExclude"
                           IsChecked="{Binding ElementName=MainWin,Path=IsExcludeWindowEnabled}"
                           Margin="0" />
-                <TextBlock FontSize="72"
+                <TextBlock FontSize="42"
                            Text="00:00:00"
                            HorizontalAlignment="Center"
                            x:Name="TimeStampTextBlock"
                            Margin="10,0" />
-                <TextBlock FontSize="42"
+                <TextBlock FontSize="32"
                            Text="Idle"
                            HorizontalAlignment="Center"
                            x:Name="StatusTextBlock" />

@@ -8,6 +8,9 @@
 #include <strsafe.h>
 #include "PixelShader.h"
 #include "VertexShader.h"
+#include <codecapi.h>
+#include <mfapi.h>
+
 //
 // Holds info about the pointer/cursor
 //
@@ -227,4 +230,64 @@ struct CAPTURE_THREAD_DATA :THREAD_DATA_BASE
 struct OVERLAY_THREAD_DATA :THREAD_DATA_BASE
 {
 	RECORDING_OVERLAY_DATA *RecordingOverlay{};
+};
+
+
+struct ENCODER_OPTIONS abstract {
+protected:
+	UINT32 m_VideoFps = 30;
+	UINT32 m_VideoBitrate = 4000 * 1000;//Bitrate in bits per second
+	UINT32 m_VideoQuality = 70;//Video quality from 1 to 100. Is only used with eAVEncCommonRateControlMode_Quality.
+	UINT32 m_AudioBitrate = (96 / 8) * 1000; //Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
+	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
+	bool m_IsFixedFramerate = false;
+	bool m_IsThrottlingDisabled = false;
+	bool m_IsLowLatencyModeEnabled = false;
+	bool m_IsMp4FastStartEnabled = true;
+	bool m_IsFragmentedMp4Enabled = false;
+	bool m_IsHardwareEncodingEnabled = true;
+	UINT32 m_VideoBitrateControlMode = eAVEncCommonRateControlMode_Quality;
+	UINT32 m_EncoderProfile = eAVEncH264VProfile_High;
+public:
+	void SetVideoFps(UINT32 fps) { m_VideoFps = fps; }
+	void SetVideoBitrate(UINT32 bitrate) { m_VideoBitrate = bitrate; }
+	void SetVideoQuality(UINT32 quality) { m_VideoQuality = quality; }
+	void SetIsFixedFramerate(bool value) { m_IsFixedFramerate = value; }
+	void SetIsThrottlingDisabled(bool value) { m_IsThrottlingDisabled = value; }
+	void SetIsFastStartEnabled(bool value) { m_IsMp4FastStartEnabled = value; }
+	void SetIsFragmentedMp4Enabled(bool value) { m_IsFragmentedMp4Enabled = value; }
+	void SetIsHardwareEncodingEnabled(bool value) { m_IsHardwareEncodingEnabled = value; }
+	void SetIsLowLatencyModeEnabled(bool value) { m_IsLowLatencyModeEnabled = value; }
+	void SetVideoBitrateMode(UINT32 bitrateMode) { m_VideoBitrateControlMode = bitrateMode; }
+	void SetEncoderProfile(UINT32 profile) { m_EncoderProfile = profile; }
+
+	UINT32 GetVideoFps() { return m_VideoFps; }
+	UINT32 GetVideoBitrate() { return m_VideoBitrate; }
+	UINT32 GetVideoQuality() { return m_VideoQuality; }
+	bool GetIsFixedFramerate() { return  m_IsFixedFramerate; }
+	bool GetIsThrottlingDisabled() { return  m_IsThrottlingDisabled; }
+	bool GetIsFastStartEnabled() { return m_IsMp4FastStartEnabled; }
+	bool GetIsFragmentedMp4Enabled() { return m_IsFragmentedMp4Enabled; }
+	bool GetIsHardwareEncodingEnabled() { return m_IsHardwareEncodingEnabled; }
+	bool GetIsLowLatencyModeEnabled() { return m_IsLowLatencyModeEnabled; }
+	UINT32 GetVideoBitrateMode() { return m_VideoBitrateControlMode; }
+	UINT32 GetEncoderProfile() { return m_EncoderProfile; }
+
+	virtual GUID GetVideoEncoderFormat() abstract;
+};
+
+struct H264_ENCODER_OPTIONS :ENCODER_OPTIONS {
+	H264_ENCODER_OPTIONS() {
+		SetEncoderProfile(eAVEncH264VProfile_High);
+	}
+
+	virtual GUID GetVideoEncoderFormat() override { return MFVideoFormat_H264; }
+};
+
+struct H265_ENCODER_OPTIONS :ENCODER_OPTIONS {
+public:
+	H265_ENCODER_OPTIONS() {
+		SetEncoderProfile(eAVEncH265VProfile_Main_420_8);
+	}
+	virtual GUID GetVideoEncoderFormat() override { return MFVideoFormat_HEVC; }
 };

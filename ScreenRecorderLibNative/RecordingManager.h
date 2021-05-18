@@ -136,10 +136,6 @@ public:
 	void PauseRecording();
 	void ResumeRecording();
 
-	void SetVideoFps(UINT32 fps) { m_VideoFps = fps; }
-	void SetVideoBitrate(UINT32 bitrate) { m_VideoBitrate = bitrate; }
-	void SetVideoQuality(UINT32 quality) { m_VideoQuality = quality; }
-	void SetVideoBitrateMode(UINT32 mode) { m_VideoBitrateControlMode = mode; }
 	void SetAudioBitrate(UINT32 bitrate) { m_AudioBitrate = bitrate; }
 	void SetAudioChannels(UINT32 channels) { m_AudioChannels = channels; }
 	void SetOutputDevice(std::wstring string) { m_AudioOutputDevice = string; }
@@ -160,13 +156,7 @@ public:
 	void SetRecordingSources(std::vector<RECORDING_SOURCE> sources) { m_RecordingSources = sources; }
 	void SetRecorderMode(UINT32 mode) { m_RecorderMode = mode; }
 	void SetRecorderApi(UINT32 api) { m_RecorderApi = api; }
-	void SetFixedFramerate(bool value) { m_IsFixedFramerate = value; }
-	void SetIsThrottlingDisabled(bool value) { m_IsThrottlingDisabled = value; }
-	void SetH264EncoderProfile(UINT32 value) { m_H264Profile = value; }
-	void SetIsFastStartEnabled(bool value) { m_IsMp4FastStartEnabled = value; }
-	void SetIsFragmentedMp4Enabled(bool value) { m_IsFragmentedMp4Enabled = value; }
-	void SetIsHardwareEncodingEnabled(bool value) { m_IsHardwareEncodingEnabled = value; }
-	void SetIsLowLatencyModeEnabled(bool value) { m_IsLowLatencyModeEnabled = value; }
+
 	void SetDetectMouseClicks(bool value) { m_IsMouseClicksDetected = value; }
 	void SetMouseClickDetectionLMBColor(std::string value) { m_MouseClickDetectionLMBColor = value; }
 	void SetMouseClickDetectionRMBColor(std::string value) { m_MouseClickDetectionRMBColor = value; }
@@ -178,9 +168,10 @@ public:
 	void SetLogFilePath(std::wstring value);
 	void SetLogSeverityLevel(int value);
 	void SetOverlays(std::vector<RECORDING_OVERLAY> overlays) { m_Overlays = overlays; };
+
+	void SetEncoderOptions(ENCODER_OPTIONS *options) { m_EncoderOptions.reset(options); }
 private:
 	// Format constants
-	const GUID   VIDEO_ENCODING_FORMAT = MFVideoFormat_H264;
 	const GUID	 AUDIO_ENCODING_FORMAT = MFAudioFormat_AAC;
 	const UINT32 AUDIO_BITS_PER_SAMPLE = 16; //Audio bits per sample must be 16.
 	const UINT32 AUDIO_SAMPLES_PER_SECOND = 48000;//Audio samples per seconds must be 44100 or 48000.
@@ -215,24 +206,16 @@ private:
 	RECT m_DestRect = { 0,0,0,0 };
 	std::wstring m_AudioOutputDevice = L"";
 	std::wstring m_AudioInputDevice = L"";
-	UINT32 m_VideoFps = 30;
-	UINT32 m_VideoBitrate = 4000 * 1000;//Bitrate in bits per second
-	UINT32 m_VideoQuality = 70;//Video quality from 1 to 100. Is only used with eAVEncCommonRateControlMode_Quality.
-	UINT32 m_H264Profile = eAVEncH264VProfile_Main; //Supported H264 profiles for the encoder are Baseline, Main and High.
+
+	std::unique_ptr<ENCODER_OPTIONS> m_EncoderOptions;
+
 	UINT32 m_AudioBitrate = (96 / 8) * 1000; //Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
 	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
-	UINT32 m_VideoBitrateControlMode = eAVEncCommonRateControlMode_Quality;
 	std::chrono::seconds m_SnapshotsWithVideoInterval = std::chrono::seconds(10);
 	bool m_IsMousePointerEnabled = true;
 	bool m_IsAudioEnabled = false;
 	bool m_IsOutputDeviceEnabled = true;
 	bool m_IsInputDeviceEnabled = true;
-	bool m_IsFixedFramerate = false;
-	bool m_IsThrottlingDisabled = false;
-	bool m_IsLowLatencyModeEnabled = false;
-	bool m_IsMp4FastStartEnabled = true;
-	bool m_IsFragmentedMp4Enabled = false;
-	bool m_IsHardwareEncodingEnabled = true;
 	bool m_IsPaused = false;
 	bool m_IsRecording = false;
 	bool m_IsMouseClicksDetected = false;

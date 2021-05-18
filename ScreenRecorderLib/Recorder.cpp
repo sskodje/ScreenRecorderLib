@@ -18,23 +18,44 @@ Recorder::Recorder(RecorderOptions^ options)
 void Recorder::SetOptions(RecorderOptions^ options) {
 	if (options && m_Rec) {
 		if (options->VideoEncoderOptions) {
-			m_Rec->SetVideoBitrate(options->VideoEncoderOptions->Bitrate);
-			m_Rec->SetVideoQuality(options->VideoEncoderOptions->Quality);
-			m_Rec->SetVideoFps(options->VideoEncoderOptions->Framerate);
-			m_Rec->SetFixedFramerate(options->VideoEncoderOptions->IsFixedFramerate);
-			m_Rec->SetH264EncoderProfile((UINT32)options->VideoEncoderOptions->EncoderProfile);
-			m_Rec->SetVideoBitrateMode((UINT32)options->VideoEncoderOptions->BitrateMode);
-			m_Rec->SetTakeSnapshotsWithVideo(options->VideoEncoderOptions->SnapshotsWithVideo);
-			m_Rec->SetSnapshotsWithVideoInterval(options->VideoEncoderOptions->SnapshotsInterval);
-			m_Rec->SetIsThrottlingDisabled(options->VideoEncoderOptions->IsThrottlingDisabled);
-			m_Rec->SetIsLowLatencyModeEnabled(options->VideoEncoderOptions->IsLowLatencyEnabled);
-			m_Rec->SetIsFastStartEnabled(options->VideoEncoderOptions->IsMp4FastStartEnabled);
-			m_Rec->SetIsHardwareEncodingEnabled(options->VideoEncoderOptions->IsHardwareEncodingEnabled);
-			m_Rec->SetIsFragmentedMp4Enabled(options->VideoEncoderOptions->IsFragmentedMp4Enabled);
-			if (options->VideoEncoderOptions->SnapshotsDirectory != nullptr) {
-				m_Rec->SetSnapshotDirectory(msclr::interop::marshal_as<std::wstring>(options->VideoEncoderOptions->SnapshotsDirectory));
+			if (!options->VideoEncoderOptions->Encoder) {
+				options->VideoEncoderOptions->Encoder = gcnew H264VideoEncoder();
 			}
-			switch (options->VideoEncoderOptions->SnapshotFormat)
+			ENCODER_OPTIONS* encoderOptions = nullptr;
+
+			switch (options->VideoEncoderOptions->Encoder->EncodingFormat)
+			{
+				default:
+				case VideoEncoderFormat::H264: {
+					encoderOptions = new H264_ENCODER_OPTIONS();
+					break;
+				}
+				case VideoEncoderFormat::H265: {
+					encoderOptions = new H265_ENCODER_OPTIONS();
+					break;
+				}
+			}
+			encoderOptions->SetVideoBitrateMode((UINT32)options->VideoEncoderOptions->Encoder->GetBitrateMode());
+			encoderOptions->SetEncoderProfile((UINT32)options->VideoEncoderOptions->Encoder->GetEncoderProfile());
+
+			encoderOptions->SetVideoBitrate(options->VideoEncoderOptions->Bitrate);
+			encoderOptions->SetVideoQuality(options->VideoEncoderOptions->Quality);
+			encoderOptions->SetVideoFps(options->VideoEncoderOptions->Framerate);
+			encoderOptions->SetIsFixedFramerate(options->VideoEncoderOptions->IsFixedFramerate);
+			encoderOptions->SetIsThrottlingDisabled(options->VideoEncoderOptions->IsThrottlingDisabled);
+			encoderOptions->SetIsLowLatencyModeEnabled(options->VideoEncoderOptions->IsLowLatencyEnabled);
+			encoderOptions->SetIsFastStartEnabled(options->VideoEncoderOptions->IsMp4FastStartEnabled);
+			encoderOptions->SetIsHardwareEncodingEnabled(options->VideoEncoderOptions->IsHardwareEncodingEnabled);
+			encoderOptions->SetIsFragmentedMp4Enabled(options->VideoEncoderOptions->IsFragmentedMp4Enabled);
+			m_Rec->SetEncoderOptions(encoderOptions);
+		}
+		if (options->SnapshotOptions) {
+			m_Rec->SetTakeSnapshotsWithVideo(options->SnapshotOptions->SnapshotsWithVideo);
+			m_Rec->SetSnapshotsWithVideoInterval(options->SnapshotOptions->SnapshotsInterval);
+			if (options->SnapshotOptions->SnapshotsDirectory != nullptr) {
+				m_Rec->SetSnapshotDirectory(msclr::interop::marshal_as<std::wstring>(options->SnapshotOptions->SnapshotsDirectory));
+			}
+			switch (options->SnapshotOptions->SnapshotFormat)
 			{
 			case ImageFormat::BMP:
 				m_Rec->SetSnapshotSaveFormat(GUID_ContainerFormatBmp);
@@ -211,7 +232,7 @@ ScreenSize^ ScreenRecorderLib::Recorder::GetCombinedOutputSizeForRecordingSource
 {
 	std::vector<RECORDING_SOURCE> sources{};
 	sources.reserve(recordingSources->Count);
-	for each (RecordingSource^ recordingSource in recordingSources)
+	for each (RecordingSource ^ recordingSource in recordingSources)
 	{
 		switch (recordingSource->SourceType)
 		{
@@ -330,7 +351,7 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOption
 		options->SourceOptions = SourceOptions::MainMonitor;
 	}
 	if (options->SourceOptions && options->SourceOptions->RecordingSources) {
-		for each (RecordingSource^ source in options->SourceOptions->RecordingSources)
+		for each (RecordingSource ^ source in options->SourceOptions->RecordingSources)
 		{
 			switch (source->SourceType)
 			{
@@ -340,17 +361,17 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOption
 				if (displaySource->DeviceName == DisplayRecordingSource::AllMonitors->DeviceName) {
 					std::vector<IDXGIOutput*> outputs;
 					EnumOutputs(&outputs);
-					for each (IDXGIOutput* output in outputs)
+					for each (IDXGIOutput * output in outputs)
 					{
 						DXGI_OUTPUT_DESC desc;
 						output->GetDesc(&desc);
-							RECORDING_SOURCE source{};
-							source.Type = displaySource->SourceType;
-							source.CaptureDevice = desc.DeviceName;
-							if (options->MouseOptions && options->MouseOptions->IsMousePointerEnabled) {
-								source.IsCursorCaptureEnabled = true;
-							}
-							sources.insert(sources.end(),source);
+						RECORDING_SOURCE source{};
+						source.Type = displaySource->SourceType;
+						source.CaptureDevice = desc.DeviceName;
+						if (options->MouseOptions && options->MouseOptions->IsMousePointerEnabled) {
+							source.IsCursorCaptureEnabled = true;
+						}
+						sources.insert(sources.end(), source);
 						output->Release();
 					}
 				}
@@ -363,13 +384,13 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOption
 							DXGI_OUTPUT_DESC desc;
 							hr = output->GetDesc(&desc);
 							if (SUCCEEDED(hr)) {
-									RECORDING_SOURCE source{};
-									source.Type = displaySource->SourceType;
-									source.CaptureDevice = desc.DeviceName;
-									if (options->MouseOptions && options->MouseOptions->IsMousePointerEnabled) {
-										source.IsCursorCaptureEnabled = true;
-									}
-									sources.insert(sources.end(), source);
+								RECORDING_SOURCE source{};
+								source.Type = displaySource->SourceType;
+								source.CaptureDevice = desc.DeviceName;
+								if (options->MouseOptions && options->MouseOptions->IsMousePointerEnabled) {
+									source.IsCursorCaptureEnabled = true;
+								}
+								sources.insert(sources.end(), source);
 							}
 						}
 					}
@@ -407,7 +428,7 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOption
 std::vector<RECORDING_OVERLAY> Recorder::CreateOverlayList(List<RecordingOverlay^>^ managedOverlays) {
 	std::vector<RECORDING_OVERLAY> overlays{};
 	if (managedOverlays != nullptr) {
-		for each (RecordingOverlay^ managedOverlay in managedOverlays)
+		for each (RecordingOverlay ^ managedOverlay in managedOverlays)
 		{
 			RECORDING_OVERLAY overlay{};
 			overlay.Offset = POINT{ managedOverlay->OffsetX, managedOverlay->OffsetY };

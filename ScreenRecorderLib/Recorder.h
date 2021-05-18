@@ -106,7 +106,7 @@ namespace ScreenRecorderLib {
 	};
 
 	public enum class RecorderMode {
-		///<summary>Record as mp4 video in h264 format. </summary>
+		///<summary>Record to mp4 container in H.264/AVC or H.265/HEVC format. </summary>
 		Video = MODE_VIDEO,
 		///<summary>Record one PNG picture for each frame. </summary>
 		Slideshow = MODE_SLIDESHOW,
@@ -114,19 +114,37 @@ namespace ScreenRecorderLib {
 		Snapshot = MODE_SNAPSHOT
 	};
 
-	public enum class H264Profile {
-		Baseline = 66,
-		Main = 77,
-		High = 100
-	};
-	public enum class BitrateControlMode {
+	public enum class H264BitrateControlMode {
 		///<summary>Constant bitrate. Faster encoding than VBR, but produces larger files with consistent size. This setting might not work on software encoding. </summary>
 		CBR = 0,
 		///<summary>Default is unconstrained variable bitrate. Overall bitrate will average towards the Bitrate property, but can fluctuate greatly over and under it.</summary>
 		UnconstrainedVBR = 2,
 		///<summary>Quality-based VBR encoding. The encoder selects the bit rate to match a specified quality level. Set Quality level in VideoEncoderOptions from 1-100. Default is 70. </summary>
-		Quality
+		Quality = 3
 	};
+	public enum class H265BitrateControlMode {
+		///<summary>Constant bitrate. Faster encoding than VBR, but produces larger files with consistent size. This setting might not work on software encoding. </summary>
+		CBR = 0,
+		///<summary>Quality-based VBR encoding. The encoder selects the bit rate to match a specified quality level. Set Quality level in VideoEncoderOptions from 1-100. Default is 70. </summary>
+		Quality = 3
+	};
+
+	public enum class H264Profile {
+		Baseline = 66,
+		Main = 77,
+		High = 100
+	};
+	public enum class H265Profile {
+		Main = 1,
+	};
+
+	public enum class VideoEncoderFormat {
+		///<summary>H.264/AVC encoder. </summary>
+		H264,
+		///<summary>H.265/HEVC encoder. </summary>
+		H265
+	};
+
 	public enum class RecorderApi {
 		///<summary>Desktop Duplication is supported on all Windows 8 and 10 versions. This API supports recording of screens.</summary>
 		DesktopDuplication = 0,
@@ -258,6 +276,70 @@ namespace ScreenRecorderLib {
 		}
 	};
 
+	public interface class VideoEncoder {
+	public:
+		property VideoEncoderFormat EncodingFormat {
+			VideoEncoderFormat get();
+		}
+		UINT32 GetEncoderProfile();
+		UINT32 GetBitrateMode();
+	};
+
+	/// <summary>
+/// Encode video with H264 encoder.
+/// </summary>
+	public ref class H264VideoEncoder : public VideoEncoder {
+	public:
+		H264VideoEncoder() {
+			EncoderProfile = H264Profile::High;
+			BitrateMode = H264BitrateControlMode::Quality;
+		}
+		virtual property VideoEncoderFormat EncodingFormat {
+			VideoEncoderFormat get() {
+				return VideoEncoderFormat::H264;
+			}
+		}
+		/// <summary>
+		///The capabilities the h264 video encoder. 
+		///Lesser profiles may increase playback compatibility and use less resources with older decoders and hardware at the cost of quality.
+		/// </summary>
+		property H264Profile EncoderProfile;
+		/// <summary>
+		///The bitrate control mode of the video encoder. Default is Quality.
+		/// </summary>
+		property H264BitrateControlMode BitrateMode;
+
+		virtual UINT32 GetEncoderProfile() { return (UINT32)EncoderProfile; } 
+		virtual UINT32 GetBitrateMode() { return (UINT32)BitrateMode; }
+	};
+
+	/// <summary>
+	/// Encode video with H265/HEVC encoder.
+	/// </summary>
+	public ref class H265VideoEncoder : public VideoEncoder {
+	public:
+		H265VideoEncoder() {
+			EncoderProfile = H265Profile::Main;
+			BitrateMode = H265BitrateControlMode::Quality;
+		}
+		virtual property VideoEncoderFormat EncodingFormat {
+			VideoEncoderFormat get() {
+				return VideoEncoderFormat::H265;
+			}
+		}
+		/// <summary>
+		///The capabilities the h265 video encoder. At the moment only Main is supported
+		/// </summary>
+		property H265Profile EncoderProfile;
+		/// <summary>
+		///The bitrate control mode of the video encoder. Default is Quality.
+		/// </summary>
+		property H265BitrateControlMode BitrateMode;
+
+		virtual UINT32 GetEncoderProfile() { return (UINT32)EncoderProfile; }
+		virtual UINT32 GetBitrateMode() { return (UINT32)BitrateMode; }
+	};
+
 	public ref class VideoEncoderOptions {
 	public:
 		VideoEncoderOptions() {
@@ -265,21 +347,12 @@ namespace ScreenRecorderLib {
 			Quality = 70;
 			Bitrate = 4000 * 1000;
 			IsFixedFramerate = false;
-			EncoderProfile = H264Profile::Baseline;
-			BitrateMode = BitrateControlMode::Quality;
-			SnapshotFormat = ImageFormat::PNG;
-			SnapshotsWithVideo = false;
-			SnapshotsInterval = 10;
 			IsThrottlingDisabled = false;
 			IsLowLatencyEnabled = false;
 			IsHardwareEncodingEnabled = true;
 			IsMp4FastStartEnabled = true;
+			Encoder = gcnew H264VideoEncoder();
 		}
-		property H264Profile EncoderProfile;
-		/// <summary>
-		///The bitrate control mode of the video encoder. Default is Quality.
-		/// </summary>
-		property BitrateControlMode BitrateMode;
 		/// <summary>
 		///Framerate in frames per second.
 		/// </summary>
@@ -317,6 +390,19 @@ namespace ScreenRecorderLib {
 		/// </summary>
 		property bool IsFragmentedMp4Enabled;
 		/// <summary>
+		/// Set the video encoder to use. Current supported encoders are H264VideoEncoder and H265VideoEncoder.
+		/// </summary>
+		property VideoEncoder^ Encoder;
+	};
+	
+	public ref class SnapshotOptions {
+	public:
+		SnapshotOptions() {
+			SnapshotFormat = ImageFormat::PNG;
+			SnapshotsWithVideo = false;
+			SnapshotsInterval = 10;
+		}
+		/// <summary>
 		///Image format for snapshots. This is only used with Snapshot and Slideshow modes.
 		/// </summary>
 		property ImageFormat SnapshotFormat;
@@ -333,6 +419,7 @@ namespace ScreenRecorderLib {
 		/// </summary>
 		property String^ SnapshotsDirectory;
 	};
+
 	public ref class AudioOptions {
 	public:
 		AudioOptions() {
@@ -474,6 +561,7 @@ namespace ScreenRecorderLib {
 		property AudioOptions^ AudioOptions;
 		property MouseOptions^ MouseOptions;
 		property OverLayOptions^ OverlayOptions;
+		property SnapshotOptions^ SnapshotOptions;
 	};
 
 	public ref class RecordingStatusEventArgs :System::EventArgs {

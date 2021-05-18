@@ -78,7 +78,8 @@ RecordingManager::RecordingManager() :
 	RecordingFailedCallback(nullptr),
 	RecordingSnapshotCreatedCallback(nullptr),
 	RecordingStatusChangedCallback(nullptr),
-	m_Mousehook(nullptr)
+	m_Mousehook(nullptr),
+	m_EncoderOptions(nullptr)
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 }
@@ -455,7 +456,7 @@ void RecordingManager::SetRecordingCompleteStatus(_In_ HRESULT hr)
 			if (FAILED(m_EncoderResult)) {
 				_com_error encoderFailure(m_EncoderResult);
 				errMsg = string_format(L"Write error (0x%lx) in video encoder: %s", m_EncoderResult, encoderFailure.ErrorMessage());
-				if (m_IsHardwareEncodingEnabled) {
+				if (m_EncoderOptions->GetIsHardwareEncodingEnabled()) {
 					errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
 				}
 			}
@@ -548,7 +549,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 
 	std::chrono::steady_clock::time_point lastFrame = std::chrono::steady_clock::now();
 	m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
-	INT64 videoFrameDurationMillis = 1000 / m_VideoFps;
+	INT64 videoFrameDurationMillis = 1000 / m_EncoderOptions->GetVideoFps();
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 
 	INT frameNr = 0;
@@ -593,7 +594,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		CAPTURED_FRAME capturedFrame{};
 		// Get new frame
 		hr = pCapture->AcquireNextFrame(
-			haveCachedPrematureFrame || m_IsFixedFramerate ? 0 : 100,
+			haveCachedPrematureFrame || m_EncoderOptions->GetIsFixedFramerate() ? 0 : 100,
 			&capturedFrame);
 
 		if (SUCCEEDED(hr)) {
@@ -676,7 +677,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 				delay100Nanos = videoFrameDuration100Nanos - durationSinceLastFrame100Nanos;
 			}
 			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-				if (m_IsFixedFramerate) {
+				if (m_EncoderOptions->GetIsFixedFramerate()) {
 					if (videoFrameDuration100Nanos > durationSinceLastFrame100Nanos) {
 						delayRender = true;
 						delay100Nanos = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
@@ -996,7 +997,7 @@ HRESULT RecordingManager::InitializeVideoSinkWriter(
 
 	//Creates a streaming writer
 	CComPtr<IMFMediaSink> pMp4StreamSink = nullptr;
-	if (m_IsFragmentedMp4Enabled) {
+	if (m_EncoderOptions->GetIsFragmentedMp4Enabled()) {
 		RETURN_ON_BAD_HR(MFCreateFMPEG4MediaSink(pOutStream, pVideoMediaTypeOut, pAudioMediaTypeOut, &pMp4StreamSink));
 	}
 	else {
@@ -1007,10 +1008,10 @@ HRESULT RecordingManager::InitializeVideoSinkWriter(
 	// Passing 6 as the argument to save re-allocations
 	RETURN_ON_BAD_HR(MFCreateAttributes(&pAttributes, 7));
 	RETURN_ON_BAD_HR(pAttributes->SetGUID(MF_TRANSCODE_CONTAINERTYPE, MFTranscodeContainerType_MPEG4));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, m_IsHardwareEncodingEnabled));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_MPEG4SINK_MOOV_BEFORE_MDAT, m_IsMp4FastStartEnabled));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, m_IsLowLatencyModeEnabled));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, m_IsThrottlingDisabled));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, m_EncoderOptions->GetIsHardwareEncodingEnabled()));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_MPEG4SINK_MOOV_BEFORE_MDAT, m_EncoderOptions->GetIsFastStartEnabled()));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, m_EncoderOptions->GetIsLowLatencyModeEnabled()));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, m_EncoderOptions->GetIsThrottlingDisabled()));
 	// Add device manager to attributes. This enables hardware encoding.
 	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_D3D_MANAGER, pDeviceManager));
 	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_ASYNC_CALLBACK, pCallback));
@@ -1031,10 +1032,10 @@ HRESULT RecordingManager::InitializeVideoSinkWriter(
 	CComPtr<ICodecAPI> encoder = nullptr;
 	pSinkWriter->GetServiceForStream(videoStreamIndex, GUID_NULL, IID_PPV_ARGS(&encoder));
 	if (encoder) {
-		RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, m_VideoBitrateControlMode));
-		switch (m_VideoBitrateControlMode) {
+		RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, m_EncoderOptions->GetVideoBitrateMode()));
+		switch (m_EncoderOptions->GetVideoBitrateMode()) {
 		case eAVEncCommonRateControlMode_Quality:
-			RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonQuality, m_VideoQuality));
+			RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonQuality, m_EncoderOptions->GetVideoQuality()));
 			break;
 		default:
 			break;
@@ -1042,7 +1043,6 @@ HRESULT RecordingManager::InitializeVideoSinkWriter(
 	}
 
 	if (destWidth != sourceWidth || destHeight != sourceHeight) {
-
 		CComPtr<IMFVideoProcessorControl> videoProcessor = nullptr;
 		HRESULT hr = GetVideoProcessor(pSinkWriter, videoStreamIndex, &videoProcessor);
 		if (SUCCEEDED(hr)) {
@@ -1076,13 +1076,13 @@ HRESULT RecordingManager::ConfigureOutputMediaTypes(
 	// Set the output video type.
 	RETURN_ON_BAD_HR(MFCreateMediaType(&pVideoMediaType));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
-	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_SUBTYPE, VIDEO_ENCODING_FORMAT));
-	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_AVG_BITRATE, m_VideoBitrate));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_SUBTYPE, m_EncoderOptions->GetVideoEncoderFormat()));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_AVG_BITRATE, m_EncoderOptions->GetVideoBitrate()));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
-	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_MPEG2_PROFILE, m_H264Profile));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_MPEG2_PROFILE, m_EncoderOptions->GetEncoderProfile()));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT601));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, destWidth, destHeight));
-	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, m_VideoFps, 1));
+	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, m_EncoderOptions->GetVideoFps(), 1));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
 
 	bool isAudioEnabled = m_IsAudioEnabled
