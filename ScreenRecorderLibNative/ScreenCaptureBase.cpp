@@ -592,6 +592,7 @@ HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> s
 	GetCombinedRects(outputRects, pDeskBounds, &outputOffsets);
 
 	pDeskBounds = &MakeRectEven(*pDeskBounds);
+	int accumulatedWindowXOffset = 0;
 	for (int i = 0; i < validOutputs.size(); i++)
 	{
 		RECORDING_SOURCE source = validOutputs.at(i).first;
@@ -601,12 +602,11 @@ HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> s
 		if (source.Type == RecordingSourceType::Display) {
 			data->OffsetX -= pDeskBounds->left;
 			data->OffsetY -= pDeskBounds->top;
-			if (i > 0 && validOutputs.at(i - 1).first.Type == RecordingSourceType::Window) {
-				data->OffsetX += sourceRect.left;
-			}
+			data->OffsetX += accumulatedWindowXOffset;
 		}
 		else if (source.Type == RecordingSourceType::Window) {
 			data->OffsetX += sourceRect.left;
+			accumulatedWindowXOffset += RectWidth(sourceRect);
 		}
 		data->OffsetX -= outputOffsets.at(i).cx;
 		data->OffsetY -= outputOffsets.at(i).cy;
