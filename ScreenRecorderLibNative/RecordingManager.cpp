@@ -606,8 +606,8 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 
 			videoInputFrameRect.left = videoOutputFrameRect.left;
 			videoInputFrameRect.top = videoOutputFrameRect.top;
-			videoInputFrameRect.right = capturedFrame.ContentSize.cx;
-			videoInputFrameRect.bottom = capturedFrame.ContentSize.cy;
+			videoInputFrameRect.right = min(capturedFrame.ContentSize.cx, videoOutputFrameRect.right);
+			videoInputFrameRect.bottom = min(capturedFrame.ContentSize.cy, videoOutputFrameRect.bottom);
 			videoInputFrameRect = MakeRectEven(videoInputFrameRect);
 
 			if (!EqualRect(&videoInputFrameRect, &previousInputFrameRect)) {

@@ -428,7 +428,7 @@ namespace TestApp
                 SourceOptions = new SourceOptions
                 {
                     RecordingSources = recordingSources,
-                    SourceRect = new ScreenRect(left, top, left + right, top + bottom)
+                    SourceRect = new ScreenRect(left, top, right - left, bottom-top)
                 },
                 MouseOptions = new MouseOptions
                 {
