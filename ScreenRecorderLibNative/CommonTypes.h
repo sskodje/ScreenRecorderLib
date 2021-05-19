@@ -148,6 +148,20 @@ struct RECORDING_SOURCE
 			break;
 		}
 	}
+	friend bool operator== (const RECORDING_SOURCE &a, const RECORDING_SOURCE &b) {
+		switch (a.Type)
+		{
+		case RecordingSourceType::Display: {
+			return a.Type == b.Type && a.CaptureDevice == b.CaptureDevice;
+		}
+		case RecordingSourceType::Window: {
+			return a.Type == b.Type && a.WindowHandle == b.WindowHandle;
+		}
+		default:
+			return 0;
+			break;
+		}
+	}
 };
 
 struct RECORDING_SOURCE_DATA :RECORDING_SOURCE {

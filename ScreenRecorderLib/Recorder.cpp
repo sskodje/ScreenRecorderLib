@@ -348,7 +348,7 @@ void Recorder::ClearCallbacks() {
 }
 
 std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOptions^ options) {
-	std::set<RECORDING_SOURCE> sources{};
+	std::vector<RECORDING_SOURCE> sources{};
 	if (!options->SourceOptions) {
 		options->SourceOptions = SourceOptions::MainMonitor;
 	}
@@ -373,7 +373,9 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOption
 						if (options->MouseOptions && options->MouseOptions->IsMousePointerEnabled) {
 							source.IsCursorCaptureEnabled = true;
 						}
-						sources.insert(sources.end(), source);
+						if (std::find(sources.begin(), sources.end(), source) == sources.end()) {
+							sources.insert(sources.end(), source);
+						}
 						output->Release();
 					}
 				}
@@ -392,7 +394,9 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOption
 								if (options->MouseOptions && options->MouseOptions->IsMousePointerEnabled) {
 									source.IsCursorCaptureEnabled = true;
 								}
-								sources.insert(sources.end(), source);
+								if (std::find(sources.begin(), sources.end(), source) == sources.end()) {
+									sources.insert(sources.end(), source);
+								}
 							}
 						}
 					}
@@ -410,7 +414,9 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOption
 					if (options->MouseOptions && options->MouseOptions->IsMousePointerEnabled) {
 						source.IsCursorCaptureEnabled = true;
 					}
-					sources.insert(sources.end(), source);
+					if (std::find(sources.begin(), sources.end(), source) == sources.end()) {
+						sources.insert(sources.end(), source);
+					}
 				}
 				break;
 			}
