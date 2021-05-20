@@ -321,7 +321,7 @@ std::vector<IDXGIAdapter *> EnumDisplayAdapters()
 {
 	std::vector<IDXGIAdapter *> vAdapters;
 	IDXGIFactory1 *pFactory;
-	HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory), (void **)(&pFactory));
+	HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void **)(&pFactory));
 	if (SUCCEEDED(hr)) {
 		UINT i = 0;
 		IDXGIAdapter *pAdapter;
