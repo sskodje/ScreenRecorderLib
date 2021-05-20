@@ -873,25 +873,13 @@ HRESULT RecordingManager::InitializeDx(_Outptr_ ID3D11DeviceContext **ppContext,
 #endif
 	D3D_FEATURE_LEVEL featureLevel;
 
-	CComPtr<IDXGIAdapter> pDxgiAdapter = nullptr;
-	std::vector<D3D_DRIVER_TYPE> driverTypes;
-	if (pDxgiAdapter) {
-		driverTypes.push_back(D3D_DRIVER_TYPE_UNKNOWN);
-	}
-	else
-	{
-		for (D3D_DRIVER_TYPE type : gDriverTypes)
-		{
-			driverTypes.push_back(type);
-		}
-	}
-	size_t numDriverTypes = driverTypes.size();
+	size_t numDriverTypes = ARRAYSIZE(gDriverTypes);
 	// Create devices
 	for (UINT DriverTypeIndex = 0; DriverTypeIndex < numDriverTypes; ++DriverTypeIndex)
 	{
 		hr = D3D11CreateDevice(
-			pDxgiAdapter,
-			driverTypes[DriverTypeIndex],
+			nullptr,
+			gDriverTypes[DriverTypeIndex],
 			nullptr,
 #if _DEBUG 
 			D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_DEBUG,

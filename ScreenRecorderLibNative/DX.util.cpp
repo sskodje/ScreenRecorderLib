@@ -5,18 +5,21 @@
 //
 // Get DX_RESOURCES
 //
-HRESULT InitializeDx(_Out_ DX_RESOURCES *Data)
+HRESULT InitializeDx(_In_opt_ IDXGIAdapter *pDxgiAdapter, _Out_ DX_RESOURCES *Data)
 {
 	HRESULT hr = S_OK;
 
-	// Driver types supported
-	D3D_DRIVER_TYPE DriverTypes[] =
+	std::vector<D3D_DRIVER_TYPE> driverTypes;
+	if (pDxgiAdapter) {
+		driverTypes.push_back(D3D_DRIVER_TYPE_UNKNOWN);
+	}
+	else
 	{
-		D3D_DRIVER_TYPE_HARDWARE,
-		D3D_DRIVER_TYPE_WARP,
-		D3D_DRIVER_TYPE_REFERENCE,
-	};
-	UINT NumDriverTypes = ARRAYSIZE(DriverTypes);
+		driverTypes.push_back(D3D_DRIVER_TYPE_HARDWARE);
+		driverTypes.push_back(D3D_DRIVER_TYPE_WARP);
+		driverTypes.push_back(D3D_DRIVER_TYPE_REFERENCE);
+	}
+	UINT NumDriverTypes = driverTypes.size();
 
 	// Feature levels supported
 	D3D_FEATURE_LEVEL FeatureLevels[] =
@@ -34,8 +37,8 @@ HRESULT InitializeDx(_Out_ DX_RESOURCES *Data)
 	for (UINT DriverTypeIndex = 0; DriverTypeIndex < NumDriverTypes; ++DriverTypeIndex)
 	{
 		hr = D3D11CreateDevice(
-			nullptr,
-			DriverTypes[DriverTypeIndex],
+			pDxgiAdapter,
+			driverTypes[DriverTypeIndex],
 			nullptr,
 			D3D11_CREATE_DEVICE_BGRA_SUPPORT,
 			FeatureLevels,
@@ -89,7 +92,7 @@ HRESULT GetOutputRectsForRecordingSources(_In_ std::vector<RECORDING_SOURCE> sou
 			if (source.CaptureDevice == ALL_MONITORS_ID) {
 				std::vector<IDXGIOutput *> outputs;
 				EnumOutputs(&outputs);
-				for each (IDXGIOutput *output in outputs)
+				for each (IDXGIOutput * output in outputs)
 				{
 					DXGI_OUTPUT_DESC outputDesc;
 					output->GetDesc(&outputDesc);

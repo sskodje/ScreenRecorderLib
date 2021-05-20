@@ -147,8 +147,17 @@ HRESULT ScreenCaptureBase::StartCapture(_In_ std::vector<RECORDING_SOURCE> sourc
 
 		m_CaptureThreadData[i].RecordingSource = data;
 
+		CComPtr<IDXGIOutput> pSelectedOutput = nullptr;
+		CComPtr<IDXGIAdapter> pDxgiAdapter = nullptr;
+		hr = GetOutputForDeviceName(data->CaptureDevice, &pSelectedOutput);
+		if (SUCCEEDED(hr)) {
+			// Get DXGI adapter
+			hr = pSelectedOutput->GetParent(
+				__uuidof(IDXGIAdapter),
+				reinterpret_cast<void **>(&pDxgiAdapter));
+		}
 		RtlZeroMemory(&m_CaptureThreadData[i].RecordingSource->DxRes, sizeof(DX_RESOURCES));
-		RETURN_ON_BAD_HR(hr = InitializeDx(&m_CaptureThreadData[i].RecordingSource->DxRes));
+		RETURN_ON_BAD_HR(hr = InitializeDx(pDxgiAdapter,&m_CaptureThreadData[i].RecordingSource->DxRes));
 
 		DWORD ThreadId;
 		m_CaptureThreadHandles[i] = CreateThread(nullptr, 0, GetCaptureThreadProc(), &m_CaptureThreadData[i], 0, &ThreadId);
@@ -175,7 +184,7 @@ HRESULT ScreenCaptureBase::StartCapture(_In_ std::vector<RECORDING_SOURCE> sourc
 		m_OverlayThreadData[i].RecordingOverlay = new RECORDING_OVERLAY_DATA(overlay);
 		m_OverlayThreadData[i].RecordingOverlay->FrameInfo = new FRAME_INFO();
 		RtlZeroMemory(&m_OverlayThreadData[i].RecordingOverlay->DxRes, sizeof(DX_RESOURCES));
-		HRESULT hr = InitializeDx(&m_OverlayThreadData[i].RecordingOverlay->DxRes);
+		HRESULT hr = InitializeDx(nullptr, &m_OverlayThreadData[i].RecordingOverlay->DxRes);
 		if (FAILED(hr))
 		{
 			return hr;
