@@ -61,6 +61,14 @@ HRESULT InitializeDx(_In_opt_ IDXGIAdapter *pDxgiAdapter, _Out_ DX_RESOURCES *Da
 	{
 		return  hr;
 	}
+	CComPtr<ID3D10Multithread> pMulti = nullptr;
+	RETURN_ON_BAD_HR(hr = Data->Context->QueryInterface(IID_PPV_ARGS(&pMulti)));
+	pMulti->SetMultithreadProtected(TRUE);
+	pMulti.Release();
+
+#if _DEBUG 
+	RETURN_ON_BAD_HR(hr = Data->Device->QueryInterface(IID_PPV_ARGS(&Data->Debug)));
+#endif
 	return hr;
 }
 
@@ -378,6 +386,7 @@ void CleanDx(_Inout_ DX_RESOURCES *Data)
 {
 	SafeRelease(&Data->Device);
 	SafeRelease(&Data->Context);
+	SafeRelease(&Data->Debug);
 }
 //
 // Set new viewport

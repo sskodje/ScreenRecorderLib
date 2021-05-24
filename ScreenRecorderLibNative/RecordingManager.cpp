@@ -282,10 +282,12 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		RETURN_ON_BAD_HR(hr);
 		RETURN_ON_BAD_HR(hr = MFStartup(MF_VERSION, MFSTARTUP_LITE));
 		InitializeMouseClickDetection();
-		ID3D11Debug *pDebug = nullptr;
-		RETURN_ON_BAD_HR(hr = InitializeDx(&m_ImmediateContext, &m_Device, &pDebug));
+		DX_RESOURCES dxResources;
+		RETURN_ON_BAD_HR(hr = InitializeDx(nullptr, &dxResources));
+		m_Device = dxResources.Device;
+		m_ImmediateContext = dxResources.Context;
 #if _DEBUG
-		m_Debug = pDebug;
+		m_Debug = dxResources.Debug;
 #endif
 		if (RecordingStatusChangedCallback != nullptr) {
 			RecordingStatusChangedCallback(STATUS_RECORDING);
@@ -854,71 +856,6 @@ HRESULT RecordingManager::InitializeRects(_In_ RECT outputRect, _Out_ RECT *pSou
 	*pSourceRect = sourceRect;
 	*pDestRect = destRect;
 	return S_OK;
-}
-
-HRESULT RecordingManager::InitializeDx(_Outptr_ ID3D11DeviceContext **ppContext, _Outptr_ ID3D11Device **ppDevice, _Outptr_opt_result_maybenull_ ID3D11Debug **ppDebug) {
-	*ppContext = nullptr;
-	*ppDevice = nullptr;
-	if (ppDebug) {
-		*ppDebug = nullptr;
-	}
-	HRESULT hr(S_OK);
-	CComPtr<ID3D11DeviceContext> pContext = nullptr;
-	CComPtr<ID3D11Device> pDevice = nullptr;
-#if _DEBUG 
-	CComPtr<ID3D11Debug> pDebug = nullptr;
-#endif
-	D3D_FEATURE_LEVEL featureLevel;
-
-	size_t numDriverTypes = ARRAYSIZE(gDriverTypes);
-	// Create devices
-	for (UINT DriverTypeIndex = 0; DriverTypeIndex < numDriverTypes; ++DriverTypeIndex)
-	{
-		hr = D3D11CreateDevice(
-			nullptr,
-			gDriverTypes[DriverTypeIndex],
-			nullptr,
-#if _DEBUG 
-			D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_DEBUG,
-#else
-			D3D11_CREATE_DEVICE_BGRA_SUPPORT,
-#endif
-			m_FeatureLevels,
-			ARRAYSIZE(m_FeatureLevels),
-			D3D11_SDK_VERSION,
-			&pDevice,
-			&featureLevel,
-			&pContext);
-
-		if (SUCCEEDED(hr))
-		{
-			// Device creation success, no need to loop anymore
-			break;
-		}
-	}
-	RETURN_ON_BAD_HR(hr);
-
-	CComPtr<ID3D10Multithread> pMulti = nullptr;
-	RETURN_ON_BAD_HR(hr = pContext->QueryInterface(IID_PPV_ARGS(&pMulti)));
-	pMulti->SetMultithreadProtected(TRUE);
-	pMulti.Release();
-
-#if _DEBUG 
-	RETURN_ON_BAD_HR(hr = pDevice->QueryInterface(IID_PPV_ARGS(&pDebug)));
-#endif
-
-	// Return the pointer to the caller.
-	*ppContext = pContext;
-	(*ppContext)->AddRef();
-	*ppDevice = pDevice;
-	(*ppDevice)->AddRef();
-#if _DEBUG
-	if (ppDebug) {
-		*ppDebug = pDebug;
-		(*ppDebug)->AddRef();
-	}
-#endif
-	return hr;
 }
 
 HRESULT RecordingManager::InitializeVideoSinkWriter(
