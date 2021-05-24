@@ -24,6 +24,7 @@ private:
 	void CleanRefs();
 
 	// vars
+	bool m_OutputIsOnSeparateGraphicsAdapter;
 	IDXGIOutputDuplication *m_DeskDupl;
 	ID3D11Texture2D *m_AcquiredDesktopImage;
 	_Field_size_bytes_(m_MetaDataSize) BYTE *m_MetaDataBuffer;

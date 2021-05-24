@@ -133,7 +133,7 @@ HRESULT ScreenCaptureBase::StartCapture(_In_ std::vector<RECORDING_SOURCE> sourc
 		return E_OUTOFMEMORY;
 	}
 
-	HANDLE sharedHandle = GetSharedHandle();
+	HANDLE sharedHandle = GetSharedHandle(m_SharedSurf);
 	// Create appropriate # of threads for duplication
 
 	for (UINT i = 0; i < m_CaptureThreadCount; i++)
@@ -147,17 +147,8 @@ HRESULT ScreenCaptureBase::StartCapture(_In_ std::vector<RECORDING_SOURCE> sourc
 
 		m_CaptureThreadData[i].RecordingSource = data;
 
-		CComPtr<IDXGIOutput> pSelectedOutput = nullptr;
-		CComPtr<IDXGIAdapter> pDxgiAdapter = nullptr;
-		hr = GetOutputForDeviceName(data->CaptureDevice, &pSelectedOutput);
-		if (SUCCEEDED(hr)) {
-			// Get DXGI adapter
-			hr = pSelectedOutput->GetParent(
-				__uuidof(IDXGIAdapter),
-				reinterpret_cast<void **>(&pDxgiAdapter));
-		}
 		RtlZeroMemory(&m_CaptureThreadData[i].RecordingSource->DxRes, sizeof(DX_RESOURCES));
-		RETURN_ON_BAD_HR(hr = InitializeDx(pDxgiAdapter,&m_CaptureThreadData[i].RecordingSource->DxRes));
+		RETURN_ON_BAD_HR(hr = InitializeDx(nullptr, &m_CaptureThreadData[i].RecordingSource->DxRes));
 
 		DWORD ThreadId;
 		m_CaptureThreadHandles[i] = CreateThread(nullptr, 0, GetCaptureThreadProc(), &m_CaptureThreadData[i], 0, &ThreadId);
@@ -514,16 +505,16 @@ RECT ScreenCaptureBase::GetOverlayRect(_In_ RECT background, _In_ RECORDING_OVER
 //
 // Returns shared handle
 //
-_Ret_maybenull_ HANDLE ScreenCaptureBase::GetSharedHandle()
+_Ret_maybenull_ HANDLE ScreenCaptureBase::GetSharedHandle(_In_ ID3D11Texture2D *pSurface)
 {
-	if (!m_SharedSurf) {
+	if (!pSurface) {
 		return nullptr;
 	}
 	HANDLE Hnd = nullptr;
 
 	// QI IDXGIResource interface to synchronized shared surface.
 	IDXGIResource *DXGIResource = nullptr;
-	HRESULT hr = m_SharedSurf->QueryInterface(__uuidof(IDXGIResource), reinterpret_cast<void **>(&DXGIResource));
+	HRESULT hr = pSurface->QueryInterface(__uuidof(IDXGIResource), reinterpret_cast<void **>(&DXGIResource));
 	if (SUCCEEDED(hr))
 	{
 		// Obtain handle to IDXGIResource object.
@@ -623,11 +614,14 @@ HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> s
 	}
 
 	// Set created outputs
-	return ScreenCaptureBase::CreateSharedSurf(*pDeskBounds);
+	hr = ScreenCaptureBase::CreateSharedSurf(*pDeskBounds,&m_SharedSurf,&m_KeyMutex);
+	return hr;
 }
 
-HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ RECT desktopRect)
+HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ RECT desktopRect, _Outptr_ ID3D11Texture2D **ppSharedTexture, _Outptr_ IDXGIKeyedMutex **ppKeyedMutex)
 {
+	CComPtr<ID3D11Texture2D> pSharedTexture = nullptr;
+	CComPtr<IDXGIKeyedMutex> pKeyedMutex = nullptr;
 	// Create shared texture for all capture threads to draw into
 	D3D11_TEXTURE2D_DESC DeskTexD;
 	RtlZeroMemory(&DeskTexD, sizeof(D3D11_TEXTURE2D_DESC));
@@ -642,20 +636,27 @@ HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ RECT desktopRect)
 	DeskTexD.CPUAccessFlags = 0;
 	DeskTexD.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
 
-	HRESULT hr = m_Device->CreateTexture2D(&DeskTexD, nullptr, &m_SharedSurf);
+	HRESULT hr = m_Device->CreateTexture2D(&DeskTexD, nullptr, &pSharedTexture);
 	if (FAILED(hr))
 	{
 		LOG_ERROR(L"Failed to create shared texture");
 		return hr;
 	}
 	// Get keyed mutex
-	hr = m_SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&m_KeyMutex));
+	hr = pSharedTexture->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&pKeyedMutex));
 	if (FAILED(hr))
 	{
 		LOG_ERROR(L"Failed to query for keyed mutex in OUTPUTMANAGER");
 		return hr;
 	}
-
+	if (ppSharedTexture) {
+		*ppSharedTexture = pSharedTexture;
+		(*ppSharedTexture)->AddRef();
+	}
+	if (ppKeyedMutex) {
+		*ppKeyedMutex = pKeyedMutex;
+		(*ppKeyedMutex)->AddRef();
+	}
 	return hr;
 }
 

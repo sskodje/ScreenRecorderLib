@@ -38,12 +38,12 @@ protected:
 	RECT m_OutputRect;
 	PTR_INFO m_PtrInfo;
 
-	virtual HRESULT CreateSharedSurf(_In_ RECT desktopRect);
+	virtual HRESULT CreateSharedSurf(_In_ RECT desktopRect, _Outptr_ ID3D11Texture2D **ppSharedTexture, _Outptr_ IDXGIKeyedMutex **ppKeyedMutex);
 	virtual HRESULT CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds);
 	virtual SIZE GetContentSize();
 	virtual RECT GetContentRect();
 	virtual LPTHREAD_START_ROUTINE GetCaptureThreadProc() = 0;
-	_Ret_maybenull_  HANDLE GetSharedHandle();
+	_Ret_maybenull_  HANDLE GetSharedHandle(_In_ ID3D11Texture2D *pSurface);
 	HRESULT ProcessOverlays(_Inout_ ID3D11Texture2D *pBackgroundFrame, _Out_ int *updateCount);
 private:
 	static const int NUMVERTICES = 6;

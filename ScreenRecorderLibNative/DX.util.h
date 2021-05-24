@@ -5,6 +5,8 @@
 constexpr auto ALL_MONITORS_ID = L"ALL_MONITORS";
 
 HRESULT InitializeDx(_In_opt_ IDXGIAdapter *adapter, _Out_ DX_RESOURCES *Data);
+HRESULT GetAdapterForDevice(_In_ ID3D11Device *pDevice, _Outptr_ IDXGIAdapter **ppAdapter);
+HRESULT GetAdapterForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIAdapter **ppAdapter);
 HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **ppOutput);
 HRESULT GetMainOutput(_Outptr_result_maybenull_ IDXGIOutput **ppOutput);
 HRESULT GetOutputDescsForDeviceNames(_In_ std::vector<std::wstring> deviceNames, _Out_ std::vector<DXGI_OUTPUT_DESC> *pOutputDescs);

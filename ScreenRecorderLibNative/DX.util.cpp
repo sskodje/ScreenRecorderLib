@@ -40,7 +40,11 @@ HRESULT InitializeDx(_In_opt_ IDXGIAdapter *pDxgiAdapter, _Out_ DX_RESOURCES *Da
 			pDxgiAdapter,
 			driverTypes[DriverTypeIndex],
 			nullptr,
+#if _DEBUG 
+			D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_DEBUG,
+#else
 			D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+#endif
 			FeatureLevels,
 			ARRAYSIZE(FeatureLevels),
 			D3D11_SDK_VERSION,
@@ -56,6 +60,21 @@ HRESULT InitializeDx(_In_opt_ IDXGIAdapter *pDxgiAdapter, _Out_ DX_RESOURCES *Da
 	if (FAILED(hr))
 	{
 		return  hr;
+	}
+	return hr;
+}
+
+HRESULT GetAdapterForDevice(_In_ ID3D11Device *pDevice, _Outptr_ IDXGIAdapter **ppAdapter)
+{
+	CComPtr<IDXGIDevice1> dxgiDevice = nullptr;
+	HRESULT hr = pDevice->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void **>(&dxgiDevice));
+	CComPtr<IDXGIAdapter> pDxgiAdapter;
+	hr = dxgiDevice->GetParent(
+	__uuidof(IDXGIAdapter),
+	reinterpret_cast<void **>(&pDxgiAdapter));
+	if (ppAdapter) {
+		*ppAdapter = pDxgiAdapter;
+		(*ppAdapter)->AddRef();
 	}
 	return hr;
 }
@@ -189,6 +208,23 @@ HRESULT GetMainOutput(_Outptr_result_maybenull_ IDXGIOutput **ppOutput) {
 		SafeRelease(&adapter);
 	}
 
+	return hr;
+}
+
+HRESULT GetAdapterForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIAdapter **ppAdapter) {
+	CComPtr<IDXGIOutput> pSelectedOutput = nullptr;
+	CComPtr<IDXGIAdapter> pDxgiAdapter = nullptr;
+	HRESULT hr = GetOutputForDeviceName(deviceName, &pSelectedOutput);
+	if (SUCCEEDED(hr)) {
+		// Get DXGI adapter
+		hr = pSelectedOutput->GetParent(
+			__uuidof(IDXGIAdapter),
+			reinterpret_cast<void **>(&pDxgiAdapter));
+	}
+	if (ppAdapter) {
+		*ppAdapter = pDxgiAdapter;
+		(*ppAdapter)->AddRef();
+	}
 	return hr;
 }
 

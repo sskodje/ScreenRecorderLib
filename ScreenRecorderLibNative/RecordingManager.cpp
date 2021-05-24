@@ -310,7 +310,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 				return recordingResult;
 			}).then([this](concurrency::task<HRESULT> t)
 				{
-					m_IsRecording = false;
+					m_IsRecording = false;		
 					CleanupResourcesAndShutDownMF();
 					HRESULT hr = E_FAIL;
 					try {
@@ -863,11 +863,8 @@ HRESULT RecordingManager::InitializeDx(_Outptr_ ID3D11DeviceContext **ppContext,
 		*ppDebug = nullptr;
 	}
 	HRESULT hr(S_OK);
-	DXGI_OUTDUPL_DESC OutputDuplDesc;
-	RtlZeroMemory(&OutputDuplDesc, sizeof(OutputDuplDesc));
 	CComPtr<ID3D11DeviceContext> pContext = nullptr;
 	CComPtr<ID3D11Device> pDevice = nullptr;
-	CComPtr<IDXGIOutputDuplication> pDeskDupl = nullptr;
 #if _DEBUG 
 	CComPtr<ID3D11Debug> pDebug = nullptr;
 #endif

@@ -23,7 +23,8 @@ DesktopDuplicationManager::DesktopDuplicationManager() :
 	m_RTV(nullptr),
 	m_SamplerLinear(nullptr),
 	m_DirtyVertexBufferAlloc(nullptr),
-	m_DirtyVertexBufferAllocSize(0)
+	m_DirtyVertexBufferAllocSize(0),
+	m_OutputIsOnSeparateGraphicsAdapter(false)
 {
 	RtlZeroMemory(&m_OutputDesc, sizeof(m_OutputDesc));
 }
@@ -115,7 +116,7 @@ HRESULT DesktopDuplicationManager::Initialize(_In_ DX_RESOURCES *Data, std::wstr
 	}
 
 	// Get output
-	IDXGIOutput *DxgiOutput = nullptr;
+	CComPtr<IDXGIOutput> DxgiOutput = nullptr;
 	hr = GetOutputForDeviceName(m_OutputName, &DxgiOutput);
 	if (FAILED(hr))
 	{
@@ -128,8 +129,6 @@ HRESULT DesktopDuplicationManager::Initialize(_In_ DX_RESOURCES *Data, std::wstr
 	// QI for Output 1
 	IDXGIOutput1 *DxgiOutput1 = nullptr;
 	hr = DxgiOutput->QueryInterface(__uuidof(DxgiOutput1), reinterpret_cast<void **>(&DxgiOutput1));
-	DxgiOutput->Release();
-	DxgiOutput = nullptr;
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
@@ -138,9 +137,27 @@ HRESULT DesktopDuplicationManager::Initialize(_In_ DX_RESOURCES *Data, std::wstr
 	}
 
 	// Create desktop duplication
-	hr = DxgiOutput1->DuplicateOutput(m_Device, &m_DeskDupl);
-	DxgiOutput1->Release();
-	DxgiOutput1 = nullptr;
+	CComPtr<ID3D11Device> duplicationDevice = m_Device;
+
+	CComPtr<IDXGIAdapter> pSharedAdapter;
+	GetAdapterForDevice(m_Device, &pSharedAdapter);
+	DXGI_ADAPTER_DESC sharedDesc;
+	pSharedAdapter->GetDesc(&sharedDesc);
+
+	CComPtr<IDXGIAdapter> outputAdapter = nullptr;
+	hr = GetAdapterForDeviceName(Output, &outputAdapter);
+	DXGI_ADAPTER_DESC outputDeviceDesc;
+	outputAdapter->GetDesc(&outputDeviceDesc);
+
+	if (outputDeviceDesc.AdapterLuid.LowPart != sharedDesc.AdapterLuid.LowPart) {
+		DX_RESOURCES outputAdapterResources{};
+		hr = InitializeDx(outputAdapter, &outputAdapterResources);
+		duplicationDevice = outputAdapterResources.Device;
+		m_OutputIsOnSeparateGraphicsAdapter = true;
+		CleanDx(&outputAdapterResources);
+	}
+
+	hr = DxgiOutput1->DuplicateOutput(duplicationDevice, &m_DeskDupl);
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
@@ -268,7 +285,6 @@ void DesktopDuplicationManager::GetOutputDesc(_Out_ DXGI_OUTPUT_DESC *DescPtr)
 HRESULT DesktopDuplicationManager::ProcessFrame(_In_ DUPL_FRAME_DATA *Data, _Inout_ ID3D11Texture2D *SharedSurf, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc)
 {
 	HRESULT hr = S_OK;
-
 	// Process dirties and moves
 	if (Data->FrameInfo.TotalMetadataBufferSize)
 	{
@@ -536,10 +552,49 @@ HRESULT DesktopDuplicationManager::CopyDirty(_In_ ID3D11Texture2D *SrcSurface, _
 	ShaderDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	ShaderDesc.Texture2D.MostDetailedMip = ThisDesc.MipLevels - 1;
 	ShaderDesc.Texture2D.MipLevels = ThisDesc.MipLevels;
-
 	// Create new shader resource view
 	ID3D11ShaderResourceView *ShaderResource = nullptr;
-	hr = m_Device->CreateShaderResourceView(SrcSurface, &ShaderDesc, &ShaderResource);
+
+	if (m_OutputIsOnSeparateGraphicsAdapter) {
+		CComPtr<ID3D11Device> pDuplicationDevice = nullptr;
+		SrcSurface->GetDevice(&pDuplicationDevice);
+		CComPtr<ID3D11DeviceContext> pDuplicationDeviceContext = nullptr;
+		pDuplicationDevice->GetImmediateContext(&pDuplicationDeviceContext);
+
+		//Create a new staging texture on the duplication device that supports CPU access.
+		CComPtr<ID3D11Texture2D> pStagingTexture;
+		D3D11_TEXTURE2D_DESC stagingDesc;
+		SrcSurface->GetDesc(&stagingDesc);
+		stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+		stagingDesc.Usage = D3D11_USAGE_STAGING;
+		stagingDesc.MiscFlags = 0;
+		stagingDesc.BindFlags = 0;
+		RETURN_ON_BAD_HR(hr = pDuplicationDevice->CreateTexture2D(&stagingDesc, nullptr, &pStagingTexture));
+		//Copy the source surface to the new staging texture.
+		pDuplicationDeviceContext->CopyResource(pStagingTexture, SrcSurface);
+		D3D11_MAPPED_SUBRESOURCE mapped{};
+		//Map the staging texture to get access to the texture data.
+		RETURN_ON_BAD_HR(hr = pDuplicationDeviceContext->Map(pStagingTexture, 0, D3D11_MAP_READ, 0, &mapped));
+		BYTE *data = (BYTE *)mapped.pData;
+		LONG stride = mapped.RowPitch;
+		pDuplicationDeviceContext->Unmap(pStagingTexture,0);
+		// Set up init data and create new texture from the mapped data.
+		D3D11_SUBRESOURCE_DATA initData = { 0 };
+		initData.pSysMem = data;
+		initData.SysMemPitch = abs(stride);
+		initData.SysMemSlicePitch = 0;
+		D3D11_TEXTURE2D_DESC mappedTextureDesc;
+		SrcSurface->GetDesc(&mappedTextureDesc);
+		mappedTextureDesc.MiscFlags = 0;
+		mappedTextureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		CComPtr<ID3D11Texture2D> pTextureCopy;
+		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&mappedTextureDesc, &initData, &pTextureCopy));
+		RETURN_ON_BAD_HR(hr = m_Device->CreateShaderResourceView(pTextureCopy, &ShaderDesc, &ShaderResource));
+	}
+	else {
+		RETURN_ON_BAD_HR(hr = m_Device->CreateShaderResourceView(SrcSurface, &ShaderDesc, &ShaderResource));
+	}
+
 	if (FAILED(hr))
 	{
 		LOG_ERROR(L"Failed to create shader resource view for dirty rects");
