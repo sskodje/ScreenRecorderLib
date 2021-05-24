@@ -55,7 +55,7 @@ HRESULT WindowsGraphicsManager::Initialize(_In_ DX_RESOURCES *pData, _In_ winrt:
 	m_DeviceContext->AddRef();
 
 	// Get DXGI device
-	IDXGIDevice *DxgiDevice = nullptr;
+	CComPtr<IDXGIDevice> DxgiDevice = nullptr;
 	HRESULT hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void **>(&DxgiDevice));
 	if (FAILED(hr))
 	{

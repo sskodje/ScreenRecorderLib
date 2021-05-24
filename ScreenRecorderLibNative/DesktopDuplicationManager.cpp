@@ -106,7 +106,7 @@ HRESULT DesktopDuplicationManager::Initialize(_In_ DX_RESOURCES *Data, std::wstr
 		return hr;
 	}
 	// Get DXGI device
-	IDXGIDevice *DxgiDevice = nullptr;
+	CComPtr<IDXGIDevice> DxgiDevice = nullptr;
 	hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void **>(&DxgiDevice));
 	if (FAILED(hr))
 	{
@@ -127,7 +127,7 @@ HRESULT DesktopDuplicationManager::Initialize(_In_ DX_RESOURCES *Data, std::wstr
 	DxgiOutput->GetDesc(&m_OutputDesc);
 
 	// QI for Output 1
-	IDXGIOutput1 *DxgiOutput1 = nullptr;
+	CComPtr<IDXGIOutput1> DxgiOutput1 = nullptr;
 	hr = DxgiOutput->QueryInterface(__uuidof(DxgiOutput1), reinterpret_cast<void **>(&DxgiOutput1));
 	if (FAILED(hr))
 	{
