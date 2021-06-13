@@ -79,7 +79,8 @@ RecordingManager::RecordingManager() :
 	RecordingSnapshotCreatedCallback(nullptr),
 	RecordingStatusChangedCallback(nullptr),
 	m_Mousehook(nullptr),
-	m_EncoderOptions(new H264_ENCODER_OPTIONS())
+	m_EncoderOptions(new H264_ENCODER_OPTIONS()),
+	m_AudioOptions(new AUDIO_OPTIONS)
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 }
@@ -312,7 +313,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 				return recordingResult;
 			}).then([this](concurrency::task<HRESULT> t)
 				{
-					m_IsRecording = false;		
+					m_IsRecording = false;
 					CleanupResourcesAndShutDownMF();
 					HRESULT hr = E_FAIL;
 					try {
@@ -458,7 +459,7 @@ void RecordingManager::SetRecordingCompleteStatus(_In_ HRESULT hr)
 			if (FAILED(m_EncoderResult)) {
 				_com_error encoderFailure(m_EncoderResult);
 				errMsg = string_format(L"Write error (0x%lx) in video encoder: %s", m_EncoderResult, encoderFailure.ErrorMessage());
-				if (m_EncoderOptions->GetIsHardwareEncodingEnabled()) {
+				if (GetEncoderOptions()->GetIsHardwareEncodingEnabled()) {
 					errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
 				}
 			}
@@ -551,7 +552,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 
 	std::chrono::steady_clock::time_point lastFrame = std::chrono::steady_clock::now();
 	m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
-	INT64 videoFrameDurationMillis = 1000 / m_EncoderOptions->GetVideoFps();
+	INT64 videoFrameDurationMillis = 1000 / GetEncoderOptions()->GetVideoFps();
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 
 	INT frameNr = 0;
@@ -596,7 +597,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		CAPTURED_FRAME capturedFrame{};
 		// Get new frame
 		hr = pCapture->AcquireNextFrame(
-			haveCachedPrematureFrame || m_EncoderOptions->GetIsFixedFramerate() ? 0 : 100,
+			haveCachedPrematureFrame || GetEncoderOptions()->GetIsFixedFramerate() ? 0 : 100,
 			&capturedFrame);
 
 		if (SUCCEEDED(hr)) {
@@ -679,7 +680,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 				delay100Nanos = videoFrameDuration100Nanos - durationSinceLastFrame100Nanos;
 			}
 			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-				if (m_EncoderOptions->GetIsFixedFramerate()) {
+				if (GetEncoderOptions()->GetIsFixedFramerate()) {
 					if (videoFrameDuration100Nanos > durationSinceLastFrame100Nanos) {
 						delayRender = true;
 						delay100Nanos = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
@@ -800,7 +801,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 std::vector<BYTE> RecordingManager::GrabAudioFrame(_In_opt_ std::unique_ptr<LoopbackCapture> &pLoopbackCaptureOutputDevice, _In_opt_
 	std::unique_ptr<LoopbackCapture> &pLoopbackCaptureInputDevice)
 {
-	if (m_IsOutputDeviceEnabled && m_IsInputDeviceEnabled && pLoopbackCaptureOutputDevice && pLoopbackCaptureInputDevice) {
+	if (pLoopbackCaptureOutputDevice && pLoopbackCaptureInputDevice) {
 
 		auto returnAudioOverflowToBuffer = [&](auto &outputDeviceData, auto &inputDeviceData) {
 			if (outputDeviceData.size() > 0 && inputDeviceData.size() > 0) {
@@ -826,12 +827,12 @@ std::vector<BYTE> RecordingManager::GrabAudioFrame(_In_opt_ std::unique_ptr<Loop
 			LOG_ERROR(L"Mixing audio byte arrays with differing sizes");
 		}
 
-		return std::move(MixAudio(outputDeviceData, inputDeviceData, m_OutputVolumeModifier, m_InputVolumeModifier));
+		return std::move(MixAudio(outputDeviceData, inputDeviceData, GetAudioOptions()->GetOutputVolume(), GetAudioOptions()->GetInputVolume()));
 	}
-	else if (m_IsOutputDeviceEnabled && pLoopbackCaptureOutputDevice)
-		return std::move(MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), std::vector<BYTE>(), m_OutputVolumeModifier, 1.0));
-	else if (m_IsInputDeviceEnabled && pLoopbackCaptureInputDevice)
-		return std::move(MixAudio(std::vector<BYTE>(), pLoopbackCaptureInputDevice->GetRecordedBytes(), 1.0, m_InputVolumeModifier));
+	else if (pLoopbackCaptureOutputDevice)
+		return std::move(MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), std::vector<BYTE>(), GetAudioOptions()->GetOutputVolume(), 1.0));
+	else if (pLoopbackCaptureInputDevice)
+		return std::move(MixAudio(std::vector<BYTE>(), pLoopbackCaptureInputDevice->GetRecordedBytes(), 1.0, GetAudioOptions()->GetInputVolume()));
 	else
 		return std::vector<BYTE>();
 }
@@ -919,7 +920,7 @@ HRESULT RecordingManager::InitializeVideoSinkWriter(
 
 	//Creates a streaming writer
 	CComPtr<IMFMediaSink> pMp4StreamSink = nullptr;
-	if (m_EncoderOptions->GetIsFragmentedMp4Enabled()) {
+	if (GetEncoderOptions()->GetIsFragmentedMp4Enabled()) {
 		RETURN_ON_BAD_HR(MFCreateFMPEG4MediaSink(pOutStream, pVideoMediaTypeOut, pAudioMediaTypeOut, &pMp4StreamSink));
 	}
 	else {
@@ -930,10 +931,10 @@ HRESULT RecordingManager::InitializeVideoSinkWriter(
 	// Passing 6 as the argument to save re-allocations
 	RETURN_ON_BAD_HR(MFCreateAttributes(&pAttributes, 7));
 	RETURN_ON_BAD_HR(pAttributes->SetGUID(MF_TRANSCODE_CONTAINERTYPE, MFTranscodeContainerType_MPEG4));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, m_EncoderOptions->GetIsHardwareEncodingEnabled()));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_MPEG4SINK_MOOV_BEFORE_MDAT, m_EncoderOptions->GetIsFastStartEnabled()));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, m_EncoderOptions->GetIsLowLatencyModeEnabled()));
-	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, m_EncoderOptions->GetIsThrottlingDisabled()));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, GetEncoderOptions()->GetIsHardwareEncodingEnabled()));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_MPEG4SINK_MOOV_BEFORE_MDAT, GetEncoderOptions()->GetIsFastStartEnabled()));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, GetEncoderOptions()->GetIsLowLatencyModeEnabled()));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, GetEncoderOptions()->GetIsThrottlingDisabled()));
 	// Add device manager to attributes. This enables hardware encoding.
 	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_D3D_MANAGER, pDeviceManager));
 	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_ASYNC_CALLBACK, pCallback));
@@ -943,21 +944,17 @@ HRESULT RecordingManager::InitializeVideoSinkWriter(
 	videoStreamIndex = 0;
 	audioStreamIndex = 1;
 	RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(videoStreamIndex, pVideoMediaTypeIn, nullptr));
-	bool isAudioEnabled = m_IsAudioEnabled
-		&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
-
-	if (isAudioEnabled) {
+	if (pAudioMediaTypeIn) {
 		RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, nullptr));
-		pAudioMediaTypeIn.Release();
 	}
 
 	CComPtr<ICodecAPI> encoder = nullptr;
 	pSinkWriter->GetServiceForStream(videoStreamIndex, GUID_NULL, IID_PPV_ARGS(&encoder));
 	if (encoder) {
-		RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, m_EncoderOptions->GetVideoBitrateMode()));
-		switch (m_EncoderOptions->GetVideoBitrateMode()) {
+		RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, GetEncoderOptions()->GetVideoBitrateMode()));
+		switch (GetEncoderOptions()->GetVideoBitrateMode()) {
 		case eAVEncCommonRateControlMode_Quality:
-			RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonQuality, m_EncoderOptions->GetVideoQuality()));
+			RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonQuality, GetEncoderOptions()->GetVideoQuality()));
 			break;
 		default:
 			break;
@@ -998,27 +995,24 @@ HRESULT RecordingManager::ConfigureOutputMediaTypes(
 	// Set the output video type.
 	RETURN_ON_BAD_HR(MFCreateMediaType(&pVideoMediaType));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
-	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_SUBTYPE, m_EncoderOptions->GetVideoEncoderFormat()));
-	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_AVG_BITRATE, m_EncoderOptions->GetVideoBitrate()));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_SUBTYPE, GetEncoderOptions()->GetVideoEncoderFormat()));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_AVG_BITRATE, GetEncoderOptions()->GetVideoBitrate()));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
-	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_MPEG2_PROFILE, m_EncoderOptions->GetEncoderProfile()));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_MPEG2_PROFILE, GetEncoderOptions()->GetEncoderProfile()));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT601));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, destWidth, destHeight));
-	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, m_EncoderOptions->GetVideoFps(), 1));
+	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, GetEncoderOptions()->GetVideoFps(), 1));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
 
-	bool isAudioEnabled = m_IsAudioEnabled
-		&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
-
-	if (isAudioEnabled) {
+	if (GetAudioOptions()->IsAnyAudioDeviceEnabled()) {
 		// Set the output audio type.
 		RETURN_ON_BAD_HR(MFCreateMediaType(&pAudioMediaType));
 		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
-		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_SUBTYPE, AUDIO_ENCODING_FORMAT));
-		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, m_AudioChannels));
-		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, AUDIO_BITS_PER_SAMPLE));
-		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, AUDIO_SAMPLES_PER_SECOND));
-		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, m_AudioBitrate));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_SUBTYPE, GetAudioOptions()->GetAudioEncoderFormat()));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, GetAudioOptions()->GetAudioChannels()));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, GetAudioOptions()->GetAudioBitsPerSample()));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, GetAudioOptions()->GetAudioSamplesPerSecond()));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, GetAudioOptions()->GetAudioBitrate()));
 
 		*pAudioMediaTypeOut = pAudioMediaType;
 		(*pAudioMediaTypeOut)->AddRef();
@@ -1042,21 +1036,18 @@ HRESULT RecordingManager::ConfigureInputMediaTypes(
 	CComPtr<IMFMediaType> pVideoMediaType = nullptr;
 	CComPtr<IMFMediaType> pAudioMediaType = nullptr;
 	// Set the input video type.
-	CreateInputMediaTypeFromOutput(pVideoMediaTypeOut, VIDEO_INPUT_FORMAT, &pVideoMediaType);
+	CreateInputMediaTypeFromOutput(pVideoMediaTypeOut, GetEncoderOptions()->GetVideoInputFormat(), &pVideoMediaType);
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
 	pVideoMediaType->SetUINT32(MF_MT_VIDEO_ROTATION, rotationFormat);
 
-	bool isAudioEnabled = m_IsAudioEnabled
-		&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
-
-	if (isAudioEnabled) {
+	if (GetAudioOptions()->IsAnyAudioDeviceEnabled()) {
 		// Set the input audio type.
 		RETURN_ON_BAD_HR(MFCreateMediaType(&pAudioMediaType));
 		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
 		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_PCM));
-		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, AUDIO_BITS_PER_SAMPLE));
-		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, AUDIO_SAMPLES_PER_SECOND));
-		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, m_AudioChannels));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, GetAudioOptions()->GetAudioBitsPerSample()));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, GetAudioOptions()->GetAudioSamplesPerSecond()));
+		RETURN_ON_BAD_HR(pAudioMediaType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, GetAudioOptions()->GetAudioChannels()));
 
 		*pAudioMediaTypeIn = pAudioMediaType;
 		(*pAudioMediaTypeIn)->AddRef();
@@ -1072,18 +1063,18 @@ HRESULT RecordingManager::InitializeAudioCapture(_Outptr_result_maybenull_ Loopb
 	LoopbackCapture *pLoopbackCaptureOutputDevice = nullptr;
 	LoopbackCapture *pLoopbackCaptureInputDevice = nullptr;
 	HRESULT hr;
-	bool recordAudio = m_RecorderMode == MODE_VIDEO && m_IsAudioEnabled;
-	if (recordAudio && (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled)) {
-		if (m_IsOutputDeviceEnabled)
+	bool recordAudio = m_RecorderMode == MODE_VIDEO && GetAudioOptions()->IsAnyAudioDeviceEnabled();
+	if (recordAudio) {
+		if (GetAudioOptions()->IsOutputDeviceEnabled())
 		{
 			pLoopbackCaptureOutputDevice = new LoopbackCapture(L"AudioOutputDevice");
-			hr = pLoopbackCaptureOutputDevice->StartCapture(AUDIO_SAMPLES_PER_SECOND, m_AudioChannels, m_AudioOutputDevice, eRender);
+			hr = pLoopbackCaptureOutputDevice->StartCapture(GetAudioOptions()->GetAudioSamplesPerSecond(), GetAudioOptions()->GetAudioChannels(), GetAudioOptions()->GetAudioOutputDevice(), eRender);
 		}
 
-		if (m_IsInputDeviceEnabled)
+		if (GetAudioOptions()->IsInputDeviceEnabled())
 		{
 			pLoopbackCaptureInputDevice = new LoopbackCapture(L"AudioInputDevice");
-			hr = pLoopbackCaptureInputDevice->StartCapture(AUDIO_SAMPLES_PER_SECOND, m_AudioChannels, m_AudioInputDevice, eCapture);
+			hr = pLoopbackCaptureInputDevice->StartCapture(GetAudioOptions()->GetAudioSamplesPerSecond(), GetAudioOptions()->GetAudioChannels(), GetAudioOptions()->GetAudioInputDevice(), eCapture);
 		}
 	}
 	else {
@@ -1279,16 +1270,15 @@ HRESULT RecordingManager::RenderFrame(_In_ FrameWriteModel &model) {
 			return hr;//Stop recording if we fail
 		}
 		bool paddedAudio = false;
-		bool isAudioEnabled = m_IsAudioEnabled
-			&& (m_IsOutputDeviceEnabled || m_IsInputDeviceEnabled);
+
 		/* If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
 		 * If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
 		 * We ignore every instance where the last frame had audio, due to sometimes very short frame durations due to mouse cursor changes have zero audio length,
 		 * and inserting silence between two frames that has audio leads to glitching. */
-		if (isAudioEnabled && model.Audio.size() == 0 && model.Duration > 0) {
+		if (GetAudioOptions()->IsAnyAudioDeviceEnabled() && model.Audio.size() == 0 && model.Duration > 0) {
 			if (!m_LastFrameHadAudio) {
-				int frameCount = int(ceil(AUDIO_SAMPLES_PER_SECOND * HundredNanosToMillis(model.Duration) / 1000));
-				int byteCount = frameCount * (AUDIO_BITS_PER_SAMPLE / 8) * m_AudioChannels;
+				int frameCount = int(ceil(GetAudioOptions()->GetAudioSamplesPerSecond() * HundredNanosToMillis(model.Duration) / 1000));
+				int byteCount = frameCount * (GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels();
 				model.Audio.insert(model.Audio.end(), byteCount, 0);
 				paddedAudio = true;
 			}

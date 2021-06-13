@@ -136,19 +136,12 @@ public:
 	void PauseRecording();
 	void ResumeRecording();
 
-	void SetAudioBitrate(UINT32 bitrate) { m_AudioBitrate = bitrate; }
-	void SetAudioChannels(UINT32 channels) { m_AudioChannels = channels; }
-	void SetOutputDevice(std::wstring string) { m_AudioOutputDevice = string; }
-	void SetInputDevice(std::wstring string) { m_AudioInputDevice = string; }
-	void SetAudioEnabled(bool value) { m_IsAudioEnabled = value; }
-	void SetOutputDeviceEnabled(bool value) { m_IsOutputDeviceEnabled = value; }
-	void SetInputDeviceEnabled(bool value) { m_IsInputDeviceEnabled = value; }
+
 	void SetMousePointerEnabled(bool value) { m_IsMousePointerEnabled = value; }
 	void SetDestRectangle(RECT rect) {
 		m_DestRect = MakeRectEven(rect);
 	}
-	void SetInputVolume(float volume) { m_InputVolumeModifier = volume; }
-	void SetOutputVolume(float volume) { m_OutputVolumeModifier = volume; }
+
 	void SetTakeSnapshotsWithVideo(bool isEnabled) { m_TakesSnapshotsWithVideo = isEnabled; }
 	void SetSnapshotsWithVideoInterval(UINT32 value) { m_SnapshotsWithVideoInterval = std::chrono::seconds(value); }
 	void SetSnapshotDirectory(std::wstring string) { m_OutputSnapshotsFolderPath = string; }
@@ -168,15 +161,14 @@ public:
 	void SetLogFilePath(std::wstring value);
 	void SetLogSeverityLevel(int value);
 	void SetOverlays(std::vector<RECORDING_OVERLAY> overlays) { m_Overlays = overlays; };
-
+#pragma region Config
 	void SetEncoderOptions(ENCODER_OPTIONS *options) { m_EncoderOptions.reset(options); }
-private:
-	// Format constants
-	const GUID	 AUDIO_ENCODING_FORMAT = MFAudioFormat_AAC;
-	const UINT32 AUDIO_BITS_PER_SAMPLE = 16; //Audio bits per sample must be 16.
-	const UINT32 AUDIO_SAMPLES_PER_SECOND = 48000;//Audio samples per seconds must be 44100 or 48000.
-	const GUID   VIDEO_INPUT_FORMAT = MFVideoFormat_ARGB32;
+	ENCODER_OPTIONS *GetEncoderOptions() { return m_EncoderOptions.get(); }
+	void SetAudioOptions(AUDIO_OPTIONS *options) { m_AudioOptions.reset(options); }
+	AUDIO_OPTIONS *GetAudioOptions() { return m_AudioOptions.get(); }
+#pragma endregion
 
+private:
 	struct TaskWrapper;
 	std::unique_ptr<TaskWrapper> m_TaskWrapperImpl;
 
@@ -198,39 +190,33 @@ private:
 	DWORD m_VideoStreamIndex = 0;
 	DWORD m_AudioStreamIndex = 0;
 	HANDLE m_FinalizeEvent = nullptr;
-	//Config
+	std::chrono::steady_clock::time_point m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
+
+#pragma region Config
 	UINT32 m_MaxFrameLength100Nanos = MillisToHundredNanos(500); //500 milliseconds in 100 nanoseconds measure.
 	UINT32 m_RecorderMode = MODE_VIDEO;
 	UINT32 m_RecorderApi = API_DESKTOP_DUPLICATION;
 	std::vector<RECORDING_SOURCE> m_RecordingSources{};
+	std::vector<RECORDING_OVERLAY> m_Overlays;
 	RECT m_DestRect = { 0,0,0,0 };
-	std::wstring m_AudioOutputDevice = L"";
-	std::wstring m_AudioInputDevice = L"";
 
 	std::unique_ptr<ENCODER_OPTIONS> m_EncoderOptions;
+	std::unique_ptr<AUDIO_OPTIONS> m_AudioOptions;
 
-	UINT32 m_AudioBitrate = (96 / 8) * 1000; //Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
-	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
 	std::chrono::seconds m_SnapshotsWithVideoInterval = std::chrono::seconds(10);
-	bool m_IsMousePointerEnabled = true;
-	bool m_IsAudioEnabled = false;
-	bool m_IsOutputDeviceEnabled = true;
-	bool m_IsInputDeviceEnabled = true;
+
 	bool m_IsPaused = false;
 	bool m_IsRecording = false;
 	bool m_IsMouseClicksDetected = false;
+	bool m_IsMousePointerEnabled = true;
 	bool m_TakesSnapshotsWithVideo = false;
 	std::string m_MouseClickDetectionLMBColor = "#FFFF00";
 	std::string m_MouseClickDetectionRMBColor = "#FFFF00";
 	UINT32 m_MouseClickDetectionRadius = 20;
 	UINT32 m_MouseClickDetectionMode = MOUSE_DETECTION_MODE_POLLING;
 	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;
-	float m_InputVolumeModifier = 1;
-	float m_OutputVolumeModifier = 1;
-	std::chrono::steady_clock::time_point m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
-	std::vector<RECORDING_OVERLAY> m_Overlays;
-
-	//functions
+#pragma endregion
+#pragma region Methods
 	std::string CurrentTimeToFormattedString();
 	bool CheckDependencies(_Out_ std::wstring *error);
 	ScreenCaptureBase *CreateCaptureSession();
@@ -267,4 +253,5 @@ private:
 	HRESULT DrawMousePointer(_In_ ID3D11Texture2D *frame, _In_ MousePointer *pointer, _In_ PTR_INFO *ptrInfo, _In_ INT64 durationSinceLastFrame100Nanos);
 	HRESULT CropFrame(_In_ ID3D11Texture2D *frame, _In_ RECT destRect, _Outptr_ ID3D11Texture2D **pCroppedFrame);
 	HRESULT GetVideoProcessor(_In_ IMFSinkWriter *pSinkWriter, _In_ DWORD streamIndex, _Outptr_ IMFVideoProcessorControl **pVideoProcessor);
+#pragma endregion
 };

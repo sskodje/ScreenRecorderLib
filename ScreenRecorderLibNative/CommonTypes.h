@@ -247,9 +247,54 @@ struct OVERLAY_THREAD_DATA :THREAD_DATA_BASE
 	RECORDING_OVERLAY_DATA *RecordingOverlay{};
 };
 
+struct AUDIO_OPTIONS {
+protected:
+#pragma region Format constants
+	const GUID	 AUDIO_ENCODING_FORMAT = MFAudioFormat_AAC;
+	const UINT32 AUDIO_BITS_PER_SAMPLE = 16; //Audio bits per sample must be 16.
+	const UINT32 AUDIO_SAMPLES_PER_SECOND = 48000;//Audio samples per seconds must be 44100 or 48000.
+#pragma endregion
+
+	std::wstring m_AudioOutputDevice = L"";
+	std::wstring m_AudioInputDevice = L"";
+	bool m_IsAudioEnabled = false;
+	bool m_IsOutputDeviceEnabled = true;
+	bool m_IsInputDeviceEnabled = true;
+	UINT32 m_AudioBitrate = (96 / 8) * 1000; //Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
+	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
+	float m_OutputVolumeModifier = 1;
+	float m_InputVolumeModifier = 1;
+public:
+	void SetInputVolume(float volume) { m_InputVolumeModifier = volume; }
+	void SetOutputVolume(float volume) { m_OutputVolumeModifier = volume; }
+	void SetAudioBitrate(UINT32 bitrate) { m_AudioBitrate = bitrate; }
+	void SetAudioChannels(UINT32 channels) { m_AudioChannels = channels; }
+	void SetOutputDevice(std::wstring string) { m_AudioOutputDevice = string; }
+	void SetInputDevice(std::wstring string) { m_AudioInputDevice = string; }
+	void SetAudioEnabled(bool value) { m_IsAudioEnabled = value; }
+	void SetOutputDeviceEnabled(bool value) { m_IsOutputDeviceEnabled = value; }
+	void SetInputDeviceEnabled(bool value) { m_IsInputDeviceEnabled = value; }
+
+	std::wstring GetAudioOutputDevice() { return m_AudioOutputDevice; }
+	std::wstring GetAudioInputDevice() { return m_AudioInputDevice; }
+	bool IsAudioEnabled() { return m_IsAudioEnabled; }
+	UINT32 GetAudioBitrate() { return m_AudioBitrate; }
+	UINT32 GetAudioChannels() { return m_AudioChannels; }
+	float GetOutputVolume() { return m_OutputVolumeModifier; }
+	float GetInputVolume() { return m_InputVolumeModifier; }
+	bool IsOutputDeviceEnabled() { return m_IsOutputDeviceEnabled; }
+	bool IsInputDeviceEnabled() { return m_IsInputDeviceEnabled; }
+	bool IsAnyAudioDeviceEnabled() { return IsAudioEnabled() && (IsOutputDeviceEnabled() || IsInputDeviceEnabled()); }
+	GUID GetAudioEncoderFormat() { return AUDIO_ENCODING_FORMAT; }
+	UINT32 GetAudioBitsPerSample() { return AUDIO_BITS_PER_SAMPLE; }
+	UINT32 GetAudioSamplesPerSecond() { return AUDIO_SAMPLES_PER_SECOND; }
+};
 
 struct ENCODER_OPTIONS abstract {
 protected:
+#pragma region Format constants
+	const GUID VIDEO_INPUT_FORMAT = MFVideoFormat_ARGB32;
+#pragma endregion
 	UINT32 m_VideoFps = 30;
 	UINT32 m_VideoBitrate = 4000 * 1000;//Bitrate in bits per second
 	UINT32 m_VideoQuality = 70;//Video quality from 1 to 100. Is only used with eAVEncCommonRateControlMode_Quality.
@@ -285,6 +330,7 @@ public:
 	bool GetIsLowLatencyModeEnabled() { return m_IsLowLatencyModeEnabled; }
 	UINT32 GetVideoBitrateMode() { return m_VideoBitrateControlMode; }
 	UINT32 GetEncoderProfile() { return m_EncoderProfile; }
+	GUID GetVideoInputFormat() { return VIDEO_INPUT_FORMAT; }
 
 	virtual GUID GetVideoEncoderFormat() abstract;
 };

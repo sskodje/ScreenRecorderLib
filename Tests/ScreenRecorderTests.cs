@@ -316,119 +316,198 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
+        public void RecordingWithNoAudioTest()
+        {
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
+            {
+                using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
+                {
+                    RecorderOptions options = new RecorderOptions();
+                    options.AudioOptions = new AudioOptions { IsAudioEnabled = false };
+                    using (var rec = Recorder.CreateRecorder(options))
+                    {
+                        string error = "";
+                        bool isError = false;
+                        bool isComplete = false;
+                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                        rec.OnRecordingComplete += (s, args) =>
+                        {
+                            isComplete = true;
+                            finalizeResetEvent.Set();
+                        };
+                        rec.OnRecordingFailed += (s, args) =>
+                        {
+                            isError = true;
+                            error = args.Error;
+                            finalizeResetEvent.Set();
+                            recordingResetEvent.Set();
+                        };
+
+                        rec.Record(outStream);
+                        recordingResetEvent.WaitOne(3000);
+                        rec.Stop();
+                        finalizeResetEvent.WaitOne(5000);
+                        outStream.Flush();
+                        var mediaInfo = new MediaInfoWrapper(filePath);
+                        Assert.IsTrue(mediaInfo.AudioStreams.Count == 0);
+                        Assert.IsFalse(isError, error);
+                        Assert.IsTrue(isComplete);
+                        Assert.AreNotEqual(outStream.Length, 0);
+                    }
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+            }
+        }
+
+        [TestMethod]
         public void RecordingWithAudioOutputTest()
         {
-            using (var outStream = new MemoryStream())
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
             {
-                RecorderOptions options = new RecorderOptions();
-                options.AudioOptions = new AudioOptions { IsAudioEnabled = true };
-                using (var rec = Recorder.CreateRecorder(options))
+                using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                 {
-                    string error = "";
-                    bool isError = false;
-                    bool isComplete = false;
-                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
-                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
-                    rec.OnRecordingComplete += (s, args) =>
+                    RecorderOptions options = new RecorderOptions();
+                    options.AudioOptions = new AudioOptions { IsAudioEnabled = true };
+                    using (var rec = Recorder.CreateRecorder(options))
                     {
-                        isComplete = true;
-                        finalizeResetEvent.Set();
-                    };
-                    rec.OnRecordingFailed += (s, args) =>
-                    {
-                        isError = true;
-                        error = args.Error;
-                        finalizeResetEvent.Set();
-                        recordingResetEvent.Set();
-                    };
+                        string error = "";
+                        bool isError = false;
+                        bool isComplete = false;
+                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                        rec.OnRecordingComplete += (s, args) =>
+                        {
+                            isComplete = true;
+                            finalizeResetEvent.Set();
+                        };
+                        rec.OnRecordingFailed += (s, args) =>
+                        {
+                            isError = true;
+                            error = args.Error;
+                            finalizeResetEvent.Set();
+                            recordingResetEvent.Set();
+                        };
 
-                    rec.Record(outStream);
-                    recordingResetEvent.WaitOne(3000);
-                    rec.Stop();
-                    finalizeResetEvent.WaitOne(5000);
-                    outStream.Flush();
-                    Assert.IsFalse(isError, error);
-                    Assert.IsTrue(isComplete);
-                    Assert.AreNotEqual(outStream.Length, 0);
+                        rec.Record(outStream);
+                        recordingResetEvent.WaitOne(3000);
+                        rec.Stop();
+                        finalizeResetEvent.WaitOne(5000);
+                        outStream.Flush();
+                        var mediaInfo = new MediaInfoWrapper(filePath);
+                        Assert.IsTrue(mediaInfo.AudioStreams.Count > 0);
+                        Assert.IsFalse(isError, error);
+                        Assert.IsTrue(isComplete);
+                        Assert.AreNotEqual(outStream.Length, 0);
+                    }
                 }
+            }
+            finally
+            {
+                File.Delete(filePath);
             }
         }
 
         [TestMethod]
         public void RecordingWithAudioInputTest()
         {
-            using (var outStream = new MemoryStream())
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
             {
-                RecorderOptions options = new RecorderOptions();
-                options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled = true };
-                using (var rec = Recorder.CreateRecorder(options))
+                using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                 {
-                    string error = "";
-                    bool isError = false;
-                    bool isComplete = false;
-                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
-                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
-                    rec.OnRecordingComplete += (s, args) =>
+                    RecorderOptions options = new RecorderOptions();
+                    options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled = true };
+                    using (var rec = Recorder.CreateRecorder(options))
                     {
-                        isComplete = true;
-                        finalizeResetEvent.Set();
-                    };
-                    rec.OnRecordingFailed += (s, args) =>
-                    {
-                        isError = true;
-                        error = args.Error;
-                        finalizeResetEvent.Set();
-                        recordingResetEvent.Set();
-                    };
+                        string error = "";
+                        bool isError = false;
+                        bool isComplete = false;
+                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                        rec.OnRecordingComplete += (s, args) =>
+                        {
+                            isComplete = true;
+                            finalizeResetEvent.Set();
+                        };
+                        rec.OnRecordingFailed += (s, args) =>
+                        {
+                            isError = true;
+                            error = args.Error;
+                            finalizeResetEvent.Set();
+                            recordingResetEvent.Set();
+                        };
 
-                    rec.Record(outStream);
-                    recordingResetEvent.WaitOne(3000);
-                    rec.Stop();
-                    finalizeResetEvent.WaitOne(5000);
-                    outStream.Flush();
-                    Assert.IsFalse(isError, error);
-                    Assert.IsTrue(isComplete);
-                    Assert.AreNotEqual(outStream.Length, 0);
+                        rec.Record(outStream);
+                        recordingResetEvent.WaitOne(3000);
+                        rec.Stop();
+                        finalizeResetEvent.WaitOne(5000);
+                        outStream.Flush();
+                        var mediaInfo = new MediaInfoWrapper(filePath);
+                        Assert.IsTrue(mediaInfo.AudioStreams.Count > 0);
+                        Assert.IsFalse(isError, error);
+                        Assert.IsTrue(isComplete);
+                        Assert.AreNotEqual(outStream.Length, 0);
+                    }
                 }
+            }
+            finally
+            {
+                File.Delete(filePath);
             }
         }
 
         [TestMethod]
         public void RecordingWithAudioMixingTest()
         {
-            using (var outStream = new MemoryStream())
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
             {
-                RecorderOptions options = new RecorderOptions();
-                options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled = true, IsOutputDeviceEnabled = true };
-                using (var rec = Recorder.CreateRecorder(options))
+                using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                 {
-                    string error = "";
-                    bool isError = false;
-                    bool isComplete = false;
-                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
-                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
-                    rec.OnRecordingComplete += (s, args) =>
+                    RecorderOptions options = new RecorderOptions();
+                    options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled = true, IsOutputDeviceEnabled = true };
+                    using (var rec = Recorder.CreateRecorder(options))
                     {
-                        isComplete = true;
-                        finalizeResetEvent.Set();
-                    };
-                    rec.OnRecordingFailed += (s, args) =>
-                    {
-                        isError = true;
-                        error = args.Error;
-                        finalizeResetEvent.Set();
-                        recordingResetEvent.Set();
-                    };
+                        string error = "";
+                        bool isError = false;
+                        bool isComplete = false;
+                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                        rec.OnRecordingComplete += (s, args) =>
+                        {
+                            isComplete = true;
+                            finalizeResetEvent.Set();
+                        };
+                        rec.OnRecordingFailed += (s, args) =>
+                        {
+                            isError = true;
+                            error = args.Error;
+                            finalizeResetEvent.Set();
+                            recordingResetEvent.Set();
+                        };
 
-                    rec.Record(outStream);
-                    recordingResetEvent.WaitOne(3000);
-                    rec.Stop();
-                    finalizeResetEvent.WaitOne(5000);
-                    outStream.Flush();
-                    Assert.IsFalse(isError, error);
-                    Assert.IsTrue(isComplete);
-                    Assert.AreNotEqual(outStream.Length, 0);
+                        rec.Record(outStream);
+                        recordingResetEvent.WaitOne(3000);
+                        rec.Stop();
+                        finalizeResetEvent.WaitOne(5000);
+                        outStream.Flush();
+                        var mediaInfo = new MediaInfoWrapper(filePath);
+                        Assert.IsTrue(mediaInfo.AudioStreams.Count > 0);
+                        Assert.IsFalse(isError, error);
+                        Assert.IsTrue(isComplete);
+                        Assert.AreNotEqual(outStream.Length, 0);
+                    }
                 }
+            }
+            finally
+            {
+                File.Delete(filePath);
             }
         }
 

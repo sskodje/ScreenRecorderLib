@@ -84,19 +84,22 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		}
 		m_Rec->SetRecordingSources(CreateRecordingSourceList(options));
 		if (options->AudioOptions) {
-			m_Rec->SetAudioEnabled(options->AudioOptions->IsAudioEnabled);
-			m_Rec->SetOutputDeviceEnabled(options->AudioOptions->IsOutputDeviceEnabled);
-			m_Rec->SetInputDeviceEnabled(options->AudioOptions->IsInputDeviceEnabled);
-			m_Rec->SetAudioBitrate((UINT32)options->AudioOptions->Bitrate);
-			m_Rec->SetAudioChannels((UINT32)options->AudioOptions->Channels);
+			AUDIO_OPTIONS* audioOptions = new AUDIO_OPTIONS();
+
+			audioOptions->SetAudioEnabled(options->AudioOptions->IsAudioEnabled);
+			audioOptions->SetOutputDeviceEnabled(options->AudioOptions->IsOutputDeviceEnabled);
+			audioOptions->SetInputDeviceEnabled(options->AudioOptions->IsInputDeviceEnabled);
+			audioOptions->SetAudioBitrate((UINT32)options->AudioOptions->Bitrate);
+			audioOptions->SetAudioChannels((UINT32)options->AudioOptions->Channels);
 			if (options->AudioOptions->AudioOutputDevice != nullptr) {
-				m_Rec->SetOutputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioOutputDevice));
+				audioOptions->SetOutputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioOutputDevice));
 			}
 			if (options->AudioOptions->AudioInputDevice != nullptr) {
-				m_Rec->SetInputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioInputDevice));
+				audioOptions->SetInputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioInputDevice));
 			}
-			m_Rec->SetInputVolume(options->AudioOptions->InputVolume);
-			m_Rec->SetOutputVolume(options->AudioOptions->OutputVolume);
+			audioOptions->SetInputVolume(options->AudioOptions->InputVolume);
+			audioOptions->SetOutputVolume(options->AudioOptions->OutputVolume);
+			m_Rec->SetAudioOptions(audioOptions);
 		}
 		if (options->MouseOptions) {
 			m_Rec->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled);
@@ -126,7 +129,7 @@ void Recorder::SetInputVolume(float volume)
 {
 	if (m_Rec)
 	{
-		m_Rec->SetInputVolume(volume);
+		m_Rec->GetAudioOptions()->SetInputVolume(volume);
 	}
 }
 
@@ -134,7 +137,7 @@ void Recorder::SetOutputVolume(float volume)
 {
 	if (m_Rec)
 	{
-		m_Rec->SetOutputVolume(volume);
+		m_Rec->GetAudioOptions()->SetOutputVolume(volume);
 	}
 }
 
