@@ -111,6 +111,17 @@ enum class RecordingSourceType {
 	Window
 };
 
+enum class MouseDetectionMode {
+	///<summary>
+	///Use polling for detecting mouse clicks. Does not affect mouse performance, but may not work for all mouse clicks generated programmatically.
+	///</summary>
+	Polling = 0,
+	///<summary>
+	///Use a low level system hook for detecting mouse clicks. Works more reliably for programmatic events, but can negatively affect mouse performance while recording.
+	///</summary>
+	Hook = 1
+};
+
 struct RECORDING_SOURCE
 {
 	std::wstring CaptureDevice;
@@ -245,6 +256,36 @@ struct CAPTURE_THREAD_DATA :THREAD_DATA_BASE
 struct OVERLAY_THREAD_DATA :THREAD_DATA_BASE
 {
 	RECORDING_OVERLAY_DATA *RecordingOverlay{};
+};
+
+struct MOUSE_OPTIONS {
+protected:
+	bool m_IsMouseClicksDetected = false;
+	bool m_IsMousePointerEnabled = true;
+	std::string m_MouseClickDetectionLMBColor = "#FFFF00";
+	std::string m_MouseClickDetectionRMBColor = "#FFFF00";
+	UINT32 m_MouseClickDetectionRadius = 20;
+	UINT32 m_MouseClickDetectionMode = MOUSE_DETECTION_MODE_POLLING;
+	UINT32 m_MouseClickDetectionDurationMillis = 50;
+public:
+	static const UINT32 MOUSE_DETECTION_MODE_POLLING = 0;
+	static const UINT32 MOUSE_DETECTION_MODE_HOOK = 1;
+
+	void SetMousePointerEnabled(bool value) { m_IsMousePointerEnabled = value; }
+	void SetDetectMouseClicks(bool value) { m_IsMouseClicksDetected = value; }
+	void SetMouseClickDetectionLMBColor(std::string value) { m_MouseClickDetectionLMBColor = value; }
+	void SetMouseClickDetectionRMBColor(std::string value) { m_MouseClickDetectionRMBColor = value; }
+	void SetMouseClickDetectionRadius(int value) { m_MouseClickDetectionRadius = value; }
+	void SetMouseClickDetectionMode(UINT32 value) { m_MouseClickDetectionMode = value; }
+	void SetMouseClickDetectionDuration(int value) { m_MouseClickDetectionDurationMillis = value; }
+
+	bool IsMouseClicksDetected() { return m_IsMouseClicksDetected; }
+	bool IsMousePointerEnabled() { return m_IsMousePointerEnabled; }
+	std::string GetMouseClickDetectionLMBColor() { return m_MouseClickDetectionLMBColor; }
+	std::string GetMouseClickDetectionRMBColor() { return m_MouseClickDetectionRMBColor; }
+	UINT32 GetMouseClickDetectionRadius() { return  m_MouseClickDetectionRadius; }
+	UINT32 GetMouseClickDetectionMode() { return m_MouseClickDetectionMode; }
+	UINT32 GetMouseClickDetectionDurationMillis() { return m_MouseClickDetectionDurationMillis; }
 };
 
 struct AUDIO_OPTIONS {

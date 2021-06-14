@@ -2,7 +2,7 @@
 #include "DesktopDuplicationManager.h"
 #include <chrono>
 #include "Cleanup.h"
-#include "MousePointer.h"
+#include "MouseManager.h"
 using namespace std::chrono;
 DWORD WINAPI CaptureThreadProc(_In_ void *Param);
 
@@ -31,7 +31,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 
 	// Classes
 	DesktopDuplicationManager pDuplicationManager{};
-	MousePointer pMousePointer{};
+	MouseManager pMouseManager{};
 
 	// D3D objects
 	ID3D11Texture2D *SharedSurf = nullptr;
@@ -66,9 +66,9 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 		goto Exit;
 	}
 	RECORDING_SOURCE_DATA *pSource = pData->RecordingSource;
-	pMousePointer.Initialize(pSource->DxRes.Context, pSource->DxRes.Device);
 	//This scope must be here for ReleaseOnExit to work.
 	{
+		pMouseManager.Initialize(pSource->DxRes.Context, pSource->DxRes.Device, &MOUSE_OPTIONS());
 		// Obtain handle to sync shared Surface
 		hr = pSource->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
 		if (FAILED(hr))
@@ -148,7 +148,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			WaitToProcessCurrentFrame = false;
 
 			// Get mouse info
-			hr = pMousePointer.GetMouse(pData->PtrInfo, &(CurrentData.FrameInfo), DesktopDesc.DesktopCoordinates, pDuplicationManager.GetOutputDuplication(), pSource->OffsetX, pSource->OffsetY);
+			hr = pMouseManager.GetMouse(pData->PtrInfo, &(CurrentData.FrameInfo), DesktopDesc.DesktopCoordinates, pDuplicationManager.GetOutputDuplication(), pSource->OffsetX, pSource->OffsetY);
 			if (FAILED(hr))
 			{
 				break;

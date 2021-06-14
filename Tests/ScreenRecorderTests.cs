@@ -1161,11 +1161,13 @@ namespace ScreenRecorderLib
                         finalizingResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-
+                    int recordingTimeMillis = 60 * 1000;
+                    Stopwatch sw = Stopwatch.StartNew();
                     rec.Record(filePath);
-                    recordingResetEvent.WaitOne(60 * 1000);
+                    recordingResetEvent.WaitOne(recordingTimeMillis);
                     rec.Stop();
                     finalizingResetEvent.WaitOne(5000);
+                    Assert.IsTrue(sw.ElapsedMilliseconds >= recordingTimeMillis);
                     Assert.IsFalse(isError, error);
                     Assert.IsTrue(isComplete);
                     Assert.IsTrue(new FileInfo(filePath).Length > 0);

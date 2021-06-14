@@ -9,7 +9,7 @@
 
 #include "CommonTypes.h"
 #include "DX.util.h"
-#include "MousePointer.h"
+#include "MouseManager.h"
 #include "ScreenCaptureBase.h"
 
 class WindowsGraphicsCapture : public ScreenCaptureBase

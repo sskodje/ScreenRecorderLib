@@ -41,7 +41,7 @@
     <ClInclude Include="RecordingManager.h" />
     <ClInclude Include="Log.h" />
     <ClInclude Include="LoopbackCapture.h" />
-    <ClInclude Include="MousePointer.h" />
+    <ClInclude Include="MouseManager.h" />
     <ClInclude Include="Native.h" />
     <ClInclude Include="Util.h" />
     <ClInclude Include="VideoReader.h" />
@@ -77,7 +77,7 @@
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>
     </ClCompile>
-    <ClCompile Include="MousePointer.cpp">
+    <ClCompile Include="MouseManager.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>

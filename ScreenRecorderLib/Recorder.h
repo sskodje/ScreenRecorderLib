@@ -68,12 +68,13 @@ namespace ScreenRecorderLib {
 		///<summary>
 		///Use polling for detecting mouse clicks. Does not affect mouse performance, but may not work for all mouse clicks generated programmatically.
 		///</summary>
-		Polling = MOUSE_DETECTION_MODE_POLLING,
+		Polling = MOUSE_OPTIONS::MOUSE_DETECTION_MODE_POLLING,
 		///<summary>
 		///Use a low level system hook for detecting mouse clicks. Works more reliably for programmatic events, but can negatively affect mouse performance while recording.
 		///</summary>
-		Hook = MOUSE_DETECTION_MODE_HOOK
+		Hook = MOUSE_OPTIONS::MOUSE_DETECTION_MODE_HOOK
 	};
+
 	public enum class ImageFormat {
 		PNG,
 		JPEG,

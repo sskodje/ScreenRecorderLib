@@ -46,9 +46,6 @@ int logSeverityLevel = LOG_LVL_INFO;
 
 std::wstring logFilePath;
 
-INT64 g_LastMouseClickDurationRemaining;
-INT g_MouseClickDetectionDurationMillis = 50;
-UINT g_LastMouseClickButton;
 // Driver types supported
 D3D_DRIVER_TYPE gDriverTypes[] =
 {
@@ -71,23 +68,22 @@ struct RecordingManager::TaskWrapper {
 	Concurrency::cancellation_token_source m_RecordTaskCts;
 };
 
-
 RecordingManager::RecordingManager() :
 	m_TaskWrapperImpl(make_unique<TaskWrapper>()),
 	RecordingCompleteCallback(nullptr),
 	RecordingFailedCallback(nullptr),
 	RecordingSnapshotCreatedCallback(nullptr),
 	RecordingStatusChangedCallback(nullptr),
-	m_Mousehook(nullptr),
+
 	m_EncoderOptions(new H264_ENCODER_OPTIONS()),
-	m_AudioOptions(new AUDIO_OPTIONS)
+	m_AudioOptions(new AUDIO_OPTIONS),
+	m_MouseOptions(new MOUSE_OPTIONS)
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 }
 
 RecordingManager::~RecordingManager()
 {
-	UnhookWindowsHookEx(m_Mousehook);
 	if (!m_TaskWrapperImpl->m_RecordTask.is_done()) {
 		LOG_WARN("Recording is in progress while destructing, cancelling recording task and waiting for completion.");
 		m_TaskWrapperImpl->m_RecordTaskCts.cancel();
@@ -96,24 +92,6 @@ RecordingManager::~RecordingManager()
 	}
 }
 
-LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
-{
-	// MB1 click
-	if (wParam == WM_LBUTTONDOWN)
-	{
-		g_LastMouseClickButton = VK_LBUTTON;
-		g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-	}
-	else if (wParam == WM_RBUTTONDOWN)
-	{
-		g_LastMouseClickButton = VK_RBUTTON;
-		g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-	}
-	return CallNextHookEx(0, nCode, wParam, lParam);
-}
-void RecordingManager::SetMouseClickDetectionDuration(int value) {
-	g_MouseClickDetectionDurationMillis = value;
-}
 void RecordingManager::SetIsLogEnabled(bool value) {
 	isLoggingEnabled = value;
 }
@@ -260,7 +238,6 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 			RecordingFailedCallback(errorText);
 		return S_FALSE;
 	}
-	g_LastMouseClickDurationRemaining = 0;
 	m_EncoderResult = S_FALSE;
 	m_LastFrameHadAudio = false;
 	m_FrameDelays.clear();
@@ -282,7 +259,6 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 		RETURN_ON_BAD_HR(hr);
 		RETURN_ON_BAD_HR(hr = MFStartup(MF_VERSION, MFSTARTUP_LITE));
-		InitializeMouseClickDetection();
 		DX_RESOURCES dxResources;
 		RETURN_ON_BAD_HR(hr = InitializeDx(nullptr, &dxResources));
 		m_Device = dxResources.Device;
@@ -432,7 +408,6 @@ void RecordingManager::CleanupResourcesAndShutDownMF()
 #endif
 	MFShutdown();
 	CoUninitialize();
-	UnhookWindowsHookEx(m_Mousehook);
 	LOG_INFO(L"Media Foundation shut down");
 }
 
@@ -523,8 +498,8 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 	CloseHandleOnExit closeMarkEvent(hMarkEvent);
 	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 
-	std::unique_ptr<MousePointer> pMousePointer = make_unique<MousePointer>();
-	RETURN_ON_BAD_HR(hr = pMousePointer->Initialize(m_ImmediateContext, m_Device));
+	std::unique_ptr<MouseManager> pMouseManager = make_unique<MouseManager>();
+	RETURN_ON_BAD_HR(hr = pMouseManager->Initialize(m_ImmediateContext, m_Device, m_MouseOptions.get()));
 	SetViewPort(m_ImmediateContext, RectWidth(videoInputFrameRect), RectHeight(videoInputFrameRect));
 
 	if (m_RecorderMode == MODE_VIDEO) {
@@ -655,7 +630,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 			bool delayRender = false;
 			long delay100Nanos = 0;
 			if (frameNr == 0 //never delayMs the first frame 
-				|| (m_IsMousePointerEnabled && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delayMs when pointer changes if we draw pointer
+				|| (GetMouseOptions()->IsMousePointerEnabled() && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delayMs when pointer changes if we draw pointer
 				|| (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot())) // Or if we need to write a snapshot 
 			{
 				if (capturedFrame.PtrInfo) {
@@ -735,7 +710,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 			}
 
 			if (pPtrInfo) {
-				hr = DrawMousePointer(pCurrentFrameCopy, pMousePointer.get(), pPtrInfo, durationSinceLastFrame100Nanos);
+				hr = pMouseManager->DrawMousePointer(pCurrentFrameCopy, pPtrInfo);
 				if (FAILED(hr)) {
 					_com_error err(hr);
 					LOG_ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
@@ -779,7 +754,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 	if (pPreviousFrameCopy != nullptr) {
 		INT64 duration = duration_cast<nanoseconds>(chrono::steady_clock::now() - lastFrame).count() / 100;
 		if (pPtrInfo) {
-			DrawMousePointer(pPreviousFrameCopy, pMousePointer.get(), pPtrInfo, duration);
+			pMouseManager->DrawMousePointer(pPreviousFrameCopy, pPtrInfo);
 		}
 		if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
 			ID3D11Texture2D *pCroppedFrameCopy;
@@ -1085,46 +1060,7 @@ HRESULT RecordingManager::InitializeAudioCapture(_Outptr_result_maybenull_ Loopb
 	return hr;
 }
 
-void RecordingManager::InitializeMouseClickDetection()
-{
-	if (m_IsMouseClicksDetected) {
-		switch (m_MouseClickDetectionMode)
-		{
-		default:
-		case MOUSE_DETECTION_MODE_POLLING: {
-			cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
-			concurrency::create_task([this, token]() {
-				LOG_INFO("Starting mouse click polling task");
-				while (true) {
-					if (GetKeyState(VK_LBUTTON) < 0)
-					{
-						//If left mouse button is held, reset the duration of click duration
-						g_LastMouseClickButton = VK_LBUTTON;
-						g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-					}
-					else if (GetKeyState(VK_RBUTTON) < 0)
-					{
-						//If right mouse button is held, reset the duration of click duration
-						g_LastMouseClickButton = VK_RBUTTON;
-						g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-					}
 
-					if (token.is_canceled()) {
-						break;
-					}
-					wait(1);
-				}
-				LOG_INFO("Exiting mouse click polling task");
-				});
-			break;
-		}
-		case MOUSE_DETECTION_MODE_HOOK: {
-			m_Mousehook = SetWindowsHookEx(WH_MOUSE_LL, MouseHookProc, nullptr, 0);
-			break;
-		}
-		}
-	}
-}
 
 HRESULT RecordingManager::CreateInputMediaTypeFromOutput(
 	_In_ IMFMediaType *pType,    // Pointer to an encoded video type.
@@ -1178,31 +1114,6 @@ HRESULT RecordingManager::CreateInputMediaTypeFromOutput(
 		(*ppType)->AddRef();
 	}
 
-	return hr;
-}
-
-HRESULT RecordingManager::DrawMousePointer(_In_ ID3D11Texture2D *frame, _In_ MousePointer *pMousePointer, _In_ PTR_INFO *ptrInfo, _In_ INT64 durationSinceLastFrame100Nanos)
-{
-	HRESULT hr = S_FALSE;
-	if (g_LastMouseClickDurationRemaining > 0
-		&& m_IsMouseClicksDetected)
-	{
-		if (g_LastMouseClickButton == VK_LBUTTON)
-		{
-			hr = pMousePointer->DrawMouseClick(ptrInfo, frame, m_MouseClickDetectionLMBColor, (float)m_MouseClickDetectionRadius, DXGI_MODE_ROTATION_UNSPECIFIED);
-		}
-		if (g_LastMouseClickButton == VK_RBUTTON)
-		{
-			hr = pMousePointer->DrawMouseClick(ptrInfo, frame, m_MouseClickDetectionRMBColor, (float)m_MouseClickDetectionRadius, DXGI_MODE_ROTATION_UNSPECIFIED);
-		}
-		INT64 millis = max(HundredNanosToMillis(durationSinceLastFrame100Nanos), 0);
-		g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millis, 0);
-		LOG_DEBUG("Drawing mouse click, duration remaining on click is %u ms", g_LastMouseClickDurationRemaining);
-	}
-
-	if (m_IsMousePointerEnabled) {
-		hr = pMousePointer->DrawMousePointer(ptrInfo, frame, DXGI_MODE_ROTATION_UNSPECIFIED);
-	}
 	return hr;
 }
 

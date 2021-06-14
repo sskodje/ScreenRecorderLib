@@ -108,7 +108,7 @@
     <ClInclude Include="CommonTypes.h">
       <Filter>Header Files\Video Capture</Filter>
     </ClInclude>
-    <ClInclude Include="MousePointer.h">
+    <ClInclude Include="MouseManager.h">
       <Filter>Header Files\Video Capture</Filter>
     </ClInclude>
     <ClInclude Include="CameraCapture.h">
@@ -170,7 +170,7 @@
     <ClCompile Include="ScreenCaptureBase.cpp">
       <Filter>Source Files\Video Capture</Filter>
     </ClCompile>
-    <ClCompile Include="MousePointer.cpp">
+    <ClCompile Include="MouseManager.cpp">
       <Filter>Source Files\Video Capture</Filter>
     </ClCompile>
     <ClCompile Include="CameraCapture.cpp">

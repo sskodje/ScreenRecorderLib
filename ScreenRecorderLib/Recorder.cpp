@@ -102,13 +102,16 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			m_Rec->SetAudioOptions(audioOptions);
 		}
 		if (options->MouseOptions) {
-			m_Rec->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled);
-			m_Rec->SetDetectMouseClicks(options->MouseOptions->IsMouseClicksDetected);
-			m_Rec->SetMouseClickDetectionLMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionColor));
-			m_Rec->SetMouseClickDetectionRMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseRightClickDetectionColor));
-			m_Rec->SetMouseClickDetectionRadius(options->MouseOptions->MouseClickDetectionRadius);
-			m_Rec->SetMouseClickDetectionDuration(options->MouseOptions->MouseClickDetectionDuration);
-			m_Rec->SetMouseClickDetectionMode((UINT32)options->MouseOptions->MouseClickDetectionMode);
+			MOUSE_OPTIONS* mouseOptions = new MOUSE_OPTIONS();
+
+			mouseOptions->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled);
+			mouseOptions->SetDetectMouseClicks(options->MouseOptions->IsMouseClicksDetected);
+			mouseOptions->SetMouseClickDetectionLMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionColor));
+			mouseOptions->SetMouseClickDetectionRMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseRightClickDetectionColor));
+			mouseOptions->SetMouseClickDetectionRadius(options->MouseOptions->MouseClickDetectionRadius);
+			mouseOptions->SetMouseClickDetectionDuration(options->MouseOptions->MouseClickDetectionDuration);
+			mouseOptions->SetMouseClickDetectionMode((UINT32)options->MouseOptions->MouseClickDetectionMode);
+			m_Rec->SetMouseOptions(mouseOptions);
 		}
 		if (options->OverlayOptions) {
 			m_Rec->SetOverlays(CreateOverlayList(options->OverlayOptions->Overlays));

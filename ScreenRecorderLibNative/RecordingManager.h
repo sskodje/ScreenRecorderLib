@@ -26,7 +26,7 @@
 #include "DesktopDuplicationCapture.h"
 #include "fifo_map.h"
 #include "AudioPrefs.h"
-#include "MousePointer.h"
+#include "MouseManager.h"
 #include "Log.h"
 #include "Util.h"
 #include "HighresTimer.h"
@@ -44,9 +44,6 @@ typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
 #define STATUS_RECORDING 1
 #define STATUS_PAUSED 2
 #define STATUS_FINALIZING 3
-
-#define MOUSE_DETECTION_MODE_POLLING 0
-#define MOUSE_DETECTION_MODE_HOOK 1
 
 #define API_DESKTOP_DUPLICATION 0
 #define API_GRAPHICS_CAPTURE 1
@@ -137,7 +134,7 @@ public:
 	void ResumeRecording();
 
 
-	void SetMousePointerEnabled(bool value) { m_IsMousePointerEnabled = value; }
+
 	void SetDestRectangle(RECT rect) {
 		m_DestRect = MakeRectEven(rect);
 	}
@@ -150,12 +147,7 @@ public:
 	void SetRecorderMode(UINT32 mode) { m_RecorderMode = mode; }
 	void SetRecorderApi(UINT32 api) { m_RecorderApi = api; }
 
-	void SetDetectMouseClicks(bool value) { m_IsMouseClicksDetected = value; }
-	void SetMouseClickDetectionLMBColor(std::string value) { m_MouseClickDetectionLMBColor = value; }
-	void SetMouseClickDetectionRMBColor(std::string value) { m_MouseClickDetectionRMBColor = value; }
-	void SetMouseClickDetectionRadius(int value) { m_MouseClickDetectionRadius = value; }
-	void SetMouseClickDetectionDuration(int value);
-	void SetMouseClickDetectionMode(UINT32 value) { m_MouseClickDetectionMode = value; }
+
 	void SetSnapshotSaveFormat(GUID value) { m_ImageEncoderFormat = value; }
 	void SetIsLogEnabled(bool value);
 	void SetLogFilePath(std::wstring value);
@@ -166,6 +158,8 @@ public:
 	ENCODER_OPTIONS *GetEncoderOptions() { return m_EncoderOptions.get(); }
 	void SetAudioOptions(AUDIO_OPTIONS *options) { m_AudioOptions.reset(options); }
 	AUDIO_OPTIONS *GetAudioOptions() { return m_AudioOptions.get(); }
+	void SetMouseOptions(MOUSE_OPTIONS *options) { m_MouseOptions.reset(options); }
+	MOUSE_OPTIONS *GetMouseOptions() { return m_MouseOptions.get(); }
 #pragma endregion
 
 private:
@@ -181,7 +175,7 @@ private:
 
 	bool m_LastFrameHadAudio = false;
 	HRESULT m_EncoderResult = S_FALSE;
-	HHOOK m_Mousehook;
+	
 
 	std::wstring m_OutputFolder = L"";
 	std::wstring m_OutputFullPath = L"";
@@ -202,18 +196,15 @@ private:
 
 	std::unique_ptr<ENCODER_OPTIONS> m_EncoderOptions;
 	std::unique_ptr<AUDIO_OPTIONS> m_AudioOptions;
+	std::unique_ptr<MOUSE_OPTIONS> m_MouseOptions;
 
 	std::chrono::seconds m_SnapshotsWithVideoInterval = std::chrono::seconds(10);
 
 	bool m_IsPaused = false;
 	bool m_IsRecording = false;
-	bool m_IsMouseClicksDetected = false;
-	bool m_IsMousePointerEnabled = true;
+
 	bool m_TakesSnapshotsWithVideo = false;
-	std::string m_MouseClickDetectionLMBColor = "#FFFF00";
-	std::string m_MouseClickDetectionRMBColor = "#FFFF00";
-	UINT32 m_MouseClickDetectionRadius = 20;
-	UINT32 m_MouseClickDetectionMode = MOUSE_DETECTION_MODE_POLLING;
+
 	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;
 #pragma endregion
 #pragma region Methods
@@ -242,7 +233,6 @@ private:
 	HRESULT ConfigureOutputMediaTypes(_In_ UINT destWidth, _In_ UINT destHeight, _Outptr_ IMFMediaType **pVideoMediaTypeOut, _Outptr_result_maybenull_ IMFMediaType **pAudioMediaTypeOut);
 	HRESULT ConfigureInputMediaTypes(_In_ UINT sourceWidth, _In_ UINT sourceHeight, _In_ MFVideoRotationFormat rotationFormat, _In_ IMFMediaType *pVideoMediaTypeOut, _Outptr_ IMFMediaType **pVideoMediaTypeIn, _Outptr_result_maybenull_ IMFMediaType **pAudioMediaTypeIn);
 	HRESULT InitializeAudioCapture(_Outptr_result_maybenull_ LoopbackCapture **outputAudioCapture, _Outptr_result_maybenull_ LoopbackCapture **inputAudioCapture);
-	void InitializeMouseClickDetection();
 	HRESULT WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ ID3D11Texture2D *pAcquiredDesktopImage);
 	HRESULT WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath);
 	void WriteFrameToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath);
@@ -250,7 +240,6 @@ private:
 	HRESULT WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE *pSrc, _In_ DWORD cbData);
 	HRESULT SetAttributeU32(_Inout_ ATL::CComPtr<ICodecAPI> &codec, _In_ const GUID &guid, _In_ UINT32 value);
 	HRESULT CreateInputMediaTypeFromOutput(_In_ IMFMediaType *pType, _In_ const GUID &subtype, _Outptr_ IMFMediaType **ppType);
-	HRESULT DrawMousePointer(_In_ ID3D11Texture2D *frame, _In_ MousePointer *pointer, _In_ PTR_INFO *ptrInfo, _In_ INT64 durationSinceLastFrame100Nanos);
 	HRESULT CropFrame(_In_ ID3D11Texture2D *frame, _In_ RECT destRect, _Outptr_ ID3D11Texture2D **pCroppedFrame);
 	HRESULT GetVideoProcessor(_In_ IMFSinkWriter *pSinkWriter, _In_ DWORD streamIndex, _Outptr_ IMFVideoProcessorControl **pVideoProcessor);
 #pragma endregion

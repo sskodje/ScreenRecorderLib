@@ -48,7 +48,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	HRESULT hr = S_OK;
 
 	// Classes
-	MousePointer pMousePointer{};
+	MouseManager pMouseManager{};
 	WindowsGraphicsManager graphicsManager{};
 	GraphicsCaptureItem captureItem{ nullptr };
 	// D3D objects
@@ -84,9 +84,9 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 		captureItem = CreateCaptureItemForMonitor(outputDesc.Monitor);
 		pData->ContentFrameRect = outputDesc.DesktopCoordinates;
 	}
-	pMousePointer.Initialize(pSource->DxRes.Context, pSource->DxRes.Device);
 	//This scope must be here for ReleaseOnExit to work.
 	{
+		pMouseManager.Initialize(pSource->DxRes.Context, pSource->DxRes.Device, &MOUSE_OPTIONS());
 		// Obtain handle to sync shared Surface
 		hr = pSource->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
 		if (FAILED(hr))
@@ -177,7 +177,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			WaitToProcessCurrentFrame = false;
 
 			// Get mouse info. Windows Graphics Capture includes the mouse cursor on the texture, so we only get the positioning info for mouse click draws.
-			hr = pMousePointer.GetMouse(pData->PtrInfo, false, pSource->OffsetX, pSource->OffsetY);
+			hr = pMouseManager.GetMouse(pData->PtrInfo, false, pSource->OffsetX, pSource->OffsetY);
 
 			// Process new frame
 			hr = graphicsManager.ProcessFrame(&CurrentData, SharedSurf, pSource->OffsetX, pSource->OffsetY, pData->ContentFrameRect);
