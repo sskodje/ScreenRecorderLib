@@ -324,7 +324,7 @@ namespace TestApp
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
                 videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp) + "\\";
             }
-            else if (CurrentRecordingMode == RecorderMode.Snapshot)
+            else if (CurrentRecordingMode == RecorderMode.Screenshot)
             {
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss-ff");
                 videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + GetImageExtension());
@@ -720,7 +720,7 @@ namespace TestApp
                         this.SnapshotOptionsPanel.Visibility = Visibility.Visible;
                         break;
                     case RecorderMode.Slideshow:
-                    case RecorderMode.Snapshot:
+                    case RecorderMode.Screenshot:
                         this.EncoderOptionsPanel.Visibility = Visibility.Collapsed;
                         this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
                         this.SnapshotsIntervalPanel.Visibility = Visibility.Collapsed;

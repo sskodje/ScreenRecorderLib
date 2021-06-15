@@ -175,7 +175,7 @@ HRESULT RecordingManager::ConfigureOutputDir(_In_ std::wstring path) {
 			return E_FAIL;
 		}
 
-		if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SNAPSHOT) {
+		if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SCREENSHOT) {
 			wstring ext = m_RecorderMode == MODE_VIDEO ? GetVideoExtension() : GetImageExtension();
 			LPWSTR pStrExtension = PathFindExtension(path.c_str());
 			if (pStrExtension == nullptr || pStrExtension[0] == 0)
@@ -611,7 +611,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 			}
 		}
 		else if (m_RecorderMode == MODE_SLIDESHOW
-			|| m_RecorderMode == MODE_SNAPSHOT
+			|| m_RecorderMode == MODE_SCREENSHOT
 			&& (frameNr == 0 && (pCurrentFrameCopy == nullptr || capturedFrame.FrameUpdateCount == 0))) {
 			continue;
 		}
@@ -723,7 +723,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 				break;
 			}
 
-			if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
+			if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SCREENSHOT) && !isDestRectEqualToSourceRect) {
 				ID3D11Texture2D *pCroppedFrameCopy;
 				RETURN_ON_BAD_HR(hr = CropFrame(pCurrentFrameCopy, videoOutputFrameRect, &pCroppedFrameCopy));
 				pCurrentFrameCopy.Release();
@@ -742,7 +742,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 			model.FrameNumber = frameNr;
 			RETURN_ON_BAD_HR(hr = m_EncoderResult = RenderFrame(model));
 			haveCachedPrematureFrame = false;
-			if (m_RecorderMode == MODE_SNAPSHOT) {
+			if (m_RecorderMode == MODE_SCREENSHOT) {
 				break;
 			}
 			frameNr++;
@@ -756,7 +756,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		if (pPtrInfo) {
 			pMouseManager->DrawMousePointer(pPreviousFrameCopy, pPtrInfo);
 		}
-		if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SNAPSHOT) && !isDestRectEqualToSourceRect) {
+		if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SCREENSHOT) && !isDestRectEqualToSourceRect) {
 			ID3D11Texture2D *pCroppedFrameCopy;
 			RETURN_ON_BAD_HR(hr = CropFrame(pPreviousFrameCopy, videoOutputFrameRect, &pCroppedFrameCopy));
 			pPreviousFrameCopy.Release();
@@ -1220,7 +1220,7 @@ HRESULT RecordingManager::RenderFrame(_In_ FrameWriteModel &model) {
 		INT64 durationMs = HundredNanosToMillis(model.Duration);
 		if (FAILED(hr)) {
 			_com_error err(hr);
-			LOG_ERROR(L"Writing of video slideshow frame with start pos %lld ms failed: %s", startposMs, err.ErrorMessage());
+			LOG_ERROR(L"Writing of slideshow frame with start pos %lld ms failed: %s", startposMs, err.ErrorMessage());
 			return hr; //Stop recording if we fail
 		}
 		else {
@@ -1229,7 +1229,7 @@ HRESULT RecordingManager::RenderFrame(_In_ FrameWriteModel &model) {
 			LOG_TRACE(L"Wrote video slideshow frame with start pos %lld ms and with duration %lld ms", startposMs, durationMs);
 		}
 	}
-	else if (m_RecorderMode == MODE_SNAPSHOT) {
+	else if (m_RecorderMode == MODE_SCREENSHOT) {
 		hr = WriteFrameToImage(model.Frame, m_OutputFullPath);
 		LOG_TRACE(L"Wrote snapshot to %s", m_OutputFullPath.c_str());
 	}

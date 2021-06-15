@@ -109,10 +109,10 @@ namespace ScreenRecorderLib {
 	public enum class RecorderMode {
 		///<summary>Record to mp4 container in H.264/AVC or H.265/HEVC format. </summary>
 		Video = MODE_VIDEO,
-		///<summary>Record one PNG picture for each frame. </summary>
+		///<summary>Record a slideshow of pictures. </summary>
 		Slideshow = MODE_SLIDESHOW,
-		///<summary>Create a screenshot. This can not be used on a video recording in progress. Set a snapshot interval in VideoEncoderOptions to get snapshots from a runnning Recorder instance.</summary>
-		Snapshot = MODE_SNAPSHOT
+		///<summary>Create a single screenshot.</summary>
+		Screenshot = MODE_SCREENSHOT
 	};
 
 	public enum class H264BitrateControlMode {
@@ -149,7 +149,7 @@ namespace ScreenRecorderLib {
 	public enum class RecorderApi {
 		///<summary>Desktop Duplication is supported on all Windows 8 and 10 versions. This API supports recording of screens.</summary>
 		DesktopDuplication = 0,
-		///<summary>WindowsGraphicsCapture requires Windows 10 version 1803 or newer. This API supports recording windows in addition to screens.</summary>
+		///<summary>WindowsGraphicsCapture requires Windows 10 version 1803 or higher. This API supports recording windows in addition to screens.</summary>
 		WindowsGraphicsCapture = 1,
 	};
 	public ref class FrameData {
@@ -269,7 +269,7 @@ namespace ScreenRecorderLib {
 		}
 		property List<RecordingSource^>^ RecordingSources;
 		/// <summary>
-		/// The portion of the source area to record. Null or empty rect records the entire source area.
+		/// The portion of the combined source area to record. Null or empty rect records the entire source area.
 		/// </summary>
 		property ScreenRect^ SourceRect;
 
@@ -405,7 +405,7 @@ namespace ScreenRecorderLib {
 			SnapshotsInterval = 10;
 		}
 		/// <summary>
-		///Image format for snapshots. This is only used with Snapshot and Slideshow modes.
+		///Image format for snapshots. This is used with Screenshot, Slideshow, and video with SnapshotsWithVideo enabled.
 		/// </summary>
 		property ImageFormat SnapshotFormat;
 		/// <summary>
@@ -413,7 +413,7 @@ namespace ScreenRecorderLib {
 		/// </summary>
 		property bool SnapshotsWithVideo;
 		/// <summary>
-		///Interval in second for taking snapshots in a video recording. This is only used with Video mode AND SnapshotsWithVideo enabled.
+		///Interval in seconds for taking snapshots in a video recording. This is only used when Video mode and SnapshotsWithVideo is enabled.
 		/// </summary>
 		property int SnapshotsInterval;
 		/// <summary>

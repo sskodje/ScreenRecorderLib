@@ -653,7 +653,7 @@ namespace ScreenRecorderLib
         public void ScreenshotTest()
         {
             RecorderOptions options = new RecorderOptions();
-            options.RecorderMode = RecorderMode.Snapshot;
+            options.RecorderMode = RecorderMode.Screenshot;
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".png"));
             try
             {
@@ -700,7 +700,7 @@ namespace ScreenRecorderLib
         public void ScreenshotTestWithCropping()
         {
             RecorderOptions options = new RecorderOptions();
-            options.RecorderMode = RecorderMode.Snapshot;
+            options.RecorderMode = RecorderMode.Screenshot;
             options.SourceOptions = new SourceOptions
             {
                 RecordingSources = { DisplayRecordingSource.MainMonitor },

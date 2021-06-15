@@ -38,7 +38,7 @@ typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
 
 #define MODE_VIDEO 0
 #define MODE_SLIDESHOW 1
-#define MODE_SNAPSHOT 2
+#define MODE_SCREENSHOT 2
 
 #define STATUS_IDLE 0
 #define STATUS_RECORDING 1
