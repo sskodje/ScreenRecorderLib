@@ -115,8 +115,6 @@ struct FrameWriteModel
 	CComPtr<ID3D11Texture2D> Frame;
 };
 
-LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
-
 class RecordingManager
 {
 public:

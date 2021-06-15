@@ -11,6 +11,8 @@
 #include "CommonTypes.h"
 #pragma comment(lib, "D2d1.lib")
 
+LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
+
 class MouseManager
 {
 public:
