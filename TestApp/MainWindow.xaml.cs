@@ -718,6 +718,7 @@ namespace TestApp
                         this.SnapshotsIntervalPanel.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
                         this.EncoderOptionsPanel.Visibility = Visibility.Visible;
                         this.SnapshotOptionsPanel.Visibility = Visibility.Visible;
+                        this.CheckBoxSnapshotsWithVideo.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
                         break;
                     case RecorderMode.Slideshow:
                     case RecorderMode.Screenshot:
@@ -725,7 +726,8 @@ namespace TestApp
                         this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
                         this.SnapshotsIntervalPanel.Visibility = Visibility.Collapsed;
                         this.EncoderOptionsPanel.Visibility = Visibility.Collapsed;
-                        this.SnapshotOptionsPanel.Visibility = Visibility.Collapsed;
+                        this.SnapshotOptionsPanel.Visibility = Visibility.Visible;
+                        this.CheckBoxSnapshotsWithVideo.Visibility = Visibility.Collapsed;
                         break;
                     default:
                         break;
