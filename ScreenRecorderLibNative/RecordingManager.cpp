@@ -102,31 +102,6 @@ void RecordingManager::SetLogSeverityLevel(int value) {
 	logSeverityLevel = value;
 }
 
-std::vector<BYTE> RecordingManager::MixAudio(_In_ std::vector<BYTE> const &first, _In_ std::vector<BYTE> const &second, _In_ float firstVolume, _In_ float secondVolume)
-{
-	std::vector<BYTE> newvector(max(first.size(), second.size()));
-	bool clipped = false;
-	for (size_t i = 0; i < newvector.size(); i += 2) {
-		short firstSample = first.size() > i + 1 ? static_cast<short>(first[i] | first[i + 1] << 8) : 0;
-		short secondSample = second.size() > i + 1 ? static_cast<short>(second[i] | second[i + 1] << 8) : 0;
-		auto out = reinterpret_cast<short *>(&newvector[i]);
-		int mixedSample = int(round((firstSample)*firstVolume + (secondSample)*secondVolume));
-		if (mixedSample > MAXSHORT) {
-			clipped = true;
-			mixedSample = MAXSHORT;
-		}
-		else if (mixedSample < -MAXSHORT) {
-			clipped = true;
-			mixedSample = -MAXSHORT;
-		}
-		*out = (short)mixedSample;
-	}
-	if (clipped) {
-		LOG_WARN("Audio clipped during mixing");
-	}
-	return newvector;
-}
-
 std::wstring RecordingManager::GetImageExtension() {
 	if (m_ImageEncoderFormat == GUID_ContainerFormatPng) {
 		return L".png";
@@ -451,8 +426,6 @@ void RecordingManager::SetRecordingCompleteStatus(_In_ HRESULT hr)
 
 HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_opt_ IStream *pStream)
 {
-	std::unique_ptr<LoopbackCapture> pLoopbackCaptureOutputDevice = nullptr;
-	std::unique_ptr<LoopbackCapture> pLoopbackCaptureInputDevice = nullptr;
 	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 	CComPtr<ID3D11Texture2D> pCurrentFrameCopy = nullptr;
 	CComPtr<IMFSinkWriterCallback> pCallBack = nullptr;
@@ -497,33 +470,21 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 	HANDLE hMarkEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	CloseHandleOnExit closeMarkEvent(hMarkEvent);
 	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-
+	std::unique_ptr<AudioManager> pAudioManager = make_unique<AudioManager>();
 	std::unique_ptr<MouseManager> pMouseManager = make_unique<MouseManager>();
 	RETURN_ON_BAD_HR(hr = pMouseManager->Initialize(m_ImmediateContext, m_Device, m_MouseOptions.get()));
 	SetViewPort(m_ImmediateContext, RectWidth(videoInputFrameRect), RectHeight(videoInputFrameRect));
 
 	if (m_RecorderMode == MODE_VIDEO) {
-		LoopbackCapture *outputCapture = nullptr;
-		LoopbackCapture *inputCapture = nullptr;
-		hr = InitializeAudioCapture(&outputCapture, &inputCapture);
-		if (SUCCEEDED(hr)) {
-			pLoopbackCaptureOutputDevice = std::unique_ptr<LoopbackCapture>(outputCapture);
-			pLoopbackCaptureInputDevice = std::unique_ptr<LoopbackCapture>(inputCapture);
-		}
-		else {
-			LOG_ERROR(L"Audio capture failed to start: hr = 0x%08x", hr);
-		}
 		CComPtr<IMFByteStream> outputStream = nullptr;
 		if (pStream != nullptr) {
 			RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &outputStream));
 		}
 		pCallBack = new (std::nothrow)CMFSinkWriterCallback(m_FinalizeEvent, hMarkEvent);
 		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, videoInputFrameRect, videoOutputFrameRect, DXGI_MODE_ROTATION_UNSPECIFIED, pCallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+
+		pAudioManager->Initialize(GetAudioOptions());
 	}
-	if (pLoopbackCaptureInputDevice)
-		pLoopbackCaptureInputDevice->ClearRecordedBytes();
-	if (pLoopbackCaptureOutputDevice)
-		pLoopbackCaptureOutputDevice->ClearRecordedBytes();
 
 	std::chrono::steady_clock::time_point lastFrame = std::chrono::steady_clock::now();
 	m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
@@ -563,10 +524,10 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 			wait(10);
 			m_previousSnapshotTaken = steady_clock::now();
 			lastFrame = steady_clock::now();
-			if (pLoopbackCaptureOutputDevice)
-				pLoopbackCaptureOutputDevice->ClearRecordedBytes();
-			if (pLoopbackCaptureInputDevice)
-				pLoopbackCaptureInputDevice->ClearRecordedBytes();
+			if (pAudioManager)
+				pAudioManager->ClearRecordedBytes();
+			if (pAudioManager)
+				pAudioManager->ClearRecordedBytes();
 			continue;
 		}
 		CAPTURED_FRAME capturedFrame{};
@@ -738,7 +699,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 			model.Frame = pCurrentFrameCopy;
 			model.Duration = durationSinceLastFrame100Nanos;
 			model.StartPos = lastFrameStartPos;
-			model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
+			model.Audio = pAudioManager->GrabAudioFrame();
 			model.FrameNumber = frameNr;
 			RETURN_ON_BAD_HR(hr = m_EncoderResult = RenderFrame(model));
 			haveCachedPrematureFrame = false;
@@ -766,50 +727,11 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		model.Frame = pPreviousFrameCopy;
 		model.Duration = duration;
 		model.StartPos = lastFrameStartPos;
-		model.Audio = GrabAudioFrame(pLoopbackCaptureOutputDevice, pLoopbackCaptureInputDevice);
+		model.Audio = pAudioManager->GrabAudioFrame();
 		model.FrameNumber = frameNr;
 		hr = m_EncoderResult = RenderFrame(model);
 	}
 	return hr;
-}
-
-std::vector<BYTE> RecordingManager::GrabAudioFrame(_In_opt_ std::unique_ptr<LoopbackCapture> &pLoopbackCaptureOutputDevice, _In_opt_
-	std::unique_ptr<LoopbackCapture> &pLoopbackCaptureInputDevice)
-{
-	if (pLoopbackCaptureOutputDevice && pLoopbackCaptureInputDevice) {
-
-		auto returnAudioOverflowToBuffer = [&](auto &outputDeviceData, auto &inputDeviceData) {
-			if (outputDeviceData.size() > 0 && inputDeviceData.size() > 0) {
-				if (outputDeviceData.size() > inputDeviceData.size()) {
-					auto diff = outputDeviceData.size() - inputDeviceData.size();
-					std::vector<BYTE> overflow(outputDeviceData.end() - diff, outputDeviceData.end());
-					outputDeviceData.resize(outputDeviceData.size() - diff);
-					pLoopbackCaptureOutputDevice->ReturnAudioBytesToBuffer(overflow);
-				}
-				else if (inputDeviceData.size() > outputDeviceData.size()) {
-					auto diff = inputDeviceData.size() - outputDeviceData.size();
-					std::vector<BYTE> overflow(inputDeviceData.end() - diff, inputDeviceData.end());
-					inputDeviceData.resize(inputDeviceData.size() - diff);
-					pLoopbackCaptureInputDevice->ReturnAudioBytesToBuffer(overflow);
-				}
-			}
-		};
-
-		std::vector<BYTE> outputDeviceData = pLoopbackCaptureOutputDevice->GetRecordedBytes();
-		std::vector<BYTE> inputDeviceData = pLoopbackCaptureInputDevice->GetRecordedBytes();
-		returnAudioOverflowToBuffer(outputDeviceData, inputDeviceData);
-		if (inputDeviceData.size() > 0 && outputDeviceData.size() && inputDeviceData.size() != outputDeviceData.size()) {
-			LOG_ERROR(L"Mixing audio byte arrays with differing sizes");
-		}
-
-		return std::move(MixAudio(outputDeviceData, inputDeviceData, GetAudioOptions()->GetOutputVolume(), GetAudioOptions()->GetInputVolume()));
-	}
-	else if (pLoopbackCaptureOutputDevice)
-		return std::move(MixAudio(pLoopbackCaptureOutputDevice->GetRecordedBytes(), std::vector<BYTE>(), GetAudioOptions()->GetOutputVolume(), 1.0));
-	else if (pLoopbackCaptureInputDevice)
-		return std::move(MixAudio(std::vector<BYTE>(), pLoopbackCaptureInputDevice->GetRecordedBytes(), 1.0, GetAudioOptions()->GetInputVolume()));
-	else
-		return std::vector<BYTE>();
 }
 
 HRESULT RecordingManager::InitializeRects(_In_ RECT outputRect, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect) {
@@ -1033,32 +955,7 @@ HRESULT RecordingManager::ConfigureInputMediaTypes(
 	return S_OK;
 }
 
-HRESULT RecordingManager::InitializeAudioCapture(_Outptr_result_maybenull_ LoopbackCapture **outputAudioCapture, _Outptr_result_maybenull_ LoopbackCapture **inputAudioCapture)
-{
-	LoopbackCapture *pLoopbackCaptureOutputDevice = nullptr;
-	LoopbackCapture *pLoopbackCaptureInputDevice = nullptr;
-	HRESULT hr;
-	bool recordAudio = m_RecorderMode == MODE_VIDEO && GetAudioOptions()->IsAnyAudioDeviceEnabled();
-	if (recordAudio) {
-		if (GetAudioOptions()->IsOutputDeviceEnabled())
-		{
-			pLoopbackCaptureOutputDevice = new LoopbackCapture(L"AudioOutputDevice");
-			hr = pLoopbackCaptureOutputDevice->StartCapture(GetAudioOptions()->GetAudioSamplesPerSecond(), GetAudioOptions()->GetAudioChannels(), GetAudioOptions()->GetAudioOutputDevice(), eRender);
-		}
 
-		if (GetAudioOptions()->IsInputDeviceEnabled())
-		{
-			pLoopbackCaptureInputDevice = new LoopbackCapture(L"AudioInputDevice");
-			hr = pLoopbackCaptureInputDevice->StartCapture(GetAudioOptions()->GetAudioSamplesPerSecond(), GetAudioOptions()->GetAudioChannels(), GetAudioOptions()->GetAudioInputDevice(), eCapture);
-		}
-	}
-	else {
-		hr = S_FALSE;
-	}
-	*outputAudioCapture = pLoopbackCaptureOutputDevice;
-	*inputAudioCapture = pLoopbackCaptureInputDevice;
-	return hr;
-}
 
 
 

@@ -2,13 +2,10 @@
 #pragma once
 #include <windows.h>
 #include <avrt.h>
-#include <mutex>
-#include <ppltasks.h> 
 #include <mmdeviceapi.h>
 #include "WWMFResampler.h"
 #include "AudioPrefs.h"
 #include "Log.h"
-
 #include <thread>
 #include <stdio.h>
 #include <audioclient.h>
@@ -20,8 +17,7 @@
 class LoopbackCapture
 {
 public:
-	LoopbackCapture(std::wstring tag);
-	LoopbackCapture();
+	LoopbackCapture(_In_opt_ std::wstring tag = L"");
 	~LoopbackCapture();
 	void ClearRecordedBytes();
 	bool IsCapturing();
@@ -43,12 +39,13 @@ public:
 	void ReturnAudioBytesToBuffer(std::vector<BYTE> bytes);
 
 private:
-	Concurrency::task<void> m_CaptureTask = concurrency::task_from_result();
+	struct TaskWrapper;
+	std::unique_ptr<TaskWrapper> m_TaskWrapperImpl;
+
 	bool m_IsCapturing = false;
 	std::vector<BYTE> m_OverflowBytes = {};
 	std::vector<BYTE> m_RecordedBytes = {};
 	std::wstring m_Tag;
-	std::mutex m_Mutex;           // mutex for critical section
 	HANDLE m_CaptureStartedEvent = nullptr;
 	HANDLE m_CaptureStopEvent = nullptr;
 

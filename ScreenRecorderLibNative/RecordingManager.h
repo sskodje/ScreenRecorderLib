@@ -27,6 +27,7 @@
 #include "fifo_map.h"
 #include "AudioPrefs.h"
 #include "MouseManager.h"
+#include "AudioManager.h"
 #include "Log.h"
 #include "Util.h"
 #include "HighresTimer.h"
@@ -47,8 +48,6 @@ typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
 
 #define API_DESKTOP_DUPLICATION 0
 #define API_GRAPHICS_CAPTURE 1
-
-class LoopbackCapture;
 
 class CMFSinkWriterCallback : public IMFSinkWriterCallback {
 
@@ -151,14 +150,12 @@ public:
 	void SetLogFilePath(std::wstring value);
 	void SetLogSeverityLevel(int value);
 	void SetOverlays(std::vector<RECORDING_OVERLAY> overlays) { m_Overlays = overlays; };
-#pragma region Config
 	void SetEncoderOptions(ENCODER_OPTIONS *options) { m_EncoderOptions.reset(options); }
 	ENCODER_OPTIONS *GetEncoderOptions() { return m_EncoderOptions.get(); }
 	void SetAudioOptions(AUDIO_OPTIONS *options) { m_AudioOptions.reset(options); }
 	AUDIO_OPTIONS *GetAudioOptions() { return m_AudioOptions.get(); }
 	void SetMouseOptions(MOUSE_OPTIONS *options) { m_MouseOptions.reset(options); }
 	MOUSE_OPTIONS *GetMouseOptions() { return m_MouseOptions.get(); }
-#pragma endregion
 
 private:
 	struct TaskWrapper;
@@ -183,34 +180,27 @@ private:
 	DWORD m_AudioStreamIndex = 0;
 	HANDLE m_FinalizeEvent = nullptr;
 	std::chrono::steady_clock::time_point m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
-
-#pragma region Config
 	UINT32 m_MaxFrameLength100Nanos = MillisToHundredNanos(500); //500 milliseconds in 100 nanoseconds measure.
+
 	UINT32 m_RecorderMode = MODE_VIDEO;
 	UINT32 m_RecorderApi = API_DESKTOP_DUPLICATION;
 	std::vector<RECORDING_SOURCE> m_RecordingSources{};
 	std::vector<RECORDING_OVERLAY> m_Overlays;
 	RECT m_DestRect = { 0,0,0,0 };
+	bool m_IsPaused = false;
+	bool m_IsRecording = false;
 
 	std::unique_ptr<ENCODER_OPTIONS> m_EncoderOptions;
 	std::unique_ptr<AUDIO_OPTIONS> m_AudioOptions;
 	std::unique_ptr<MOUSE_OPTIONS> m_MouseOptions;
-
 	std::chrono::seconds m_SnapshotsWithVideoInterval = std::chrono::seconds(10);
-
-	bool m_IsPaused = false;
-	bool m_IsRecording = false;
-
 	bool m_TakesSnapshotsWithVideo = false;
-
 	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;
-#pragma endregion
-#pragma region Methods
+
 	std::string CurrentTimeToFormattedString();
 	bool CheckDependencies(_Out_ std::wstring *error);
 	ScreenCaptureBase *CreateCaptureSession();
-	std::vector<BYTE> GrabAudioFrame(_In_opt_ std::unique_ptr<LoopbackCapture> &pLoopbackCaptureOutputDevice, _In_opt_ std::unique_ptr<LoopbackCapture> &pLoopbackCaptureInputDevice);
-	std::vector<BYTE> MixAudio(_In_ std::vector<BYTE> const &first, _In_ std::vector<BYTE> const &second, _In_ float firstVolume, _In_ float secondVolume);
+
 	std::wstring GetImageExtension();
 	std::wstring GetVideoExtension();
 	inline bool IsSnapshotsWithVideoEnabled() { return (m_RecorderMode == MODE_VIDEO) && m_TakesSnapshotsWithVideo; }
@@ -230,7 +220,7 @@ private:
 	HRESULT InitializeVideoSinkWriter(_In_ std::wstring path, _In_opt_ IMFByteStream *pOutStream, _In_ ID3D11Device *pDevice, _In_ RECT sourceRect, _In_ RECT destRect, _In_ DXGI_MODE_ROTATION rotation, _In_ IMFSinkWriterCallback *pCallback, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex);
 	HRESULT ConfigureOutputMediaTypes(_In_ UINT destWidth, _In_ UINT destHeight, _Outptr_ IMFMediaType **pVideoMediaTypeOut, _Outptr_result_maybenull_ IMFMediaType **pAudioMediaTypeOut);
 	HRESULT ConfigureInputMediaTypes(_In_ UINT sourceWidth, _In_ UINT sourceHeight, _In_ MFVideoRotationFormat rotationFormat, _In_ IMFMediaType *pVideoMediaTypeOut, _Outptr_ IMFMediaType **pVideoMediaTypeIn, _Outptr_result_maybenull_ IMFMediaType **pAudioMediaTypeIn);
-	HRESULT InitializeAudioCapture(_Outptr_result_maybenull_ LoopbackCapture **outputAudioCapture, _Outptr_result_maybenull_ LoopbackCapture **inputAudioCapture);
+
 	HRESULT WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ ID3D11Texture2D *pAcquiredDesktopImage);
 	HRESULT WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath);
 	void WriteFrameToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath);
@@ -240,5 +230,4 @@ private:
 	HRESULT CreateInputMediaTypeFromOutput(_In_ IMFMediaType *pType, _In_ const GUID &subtype, _Outptr_ IMFMediaType **ppType);
 	HRESULT CropFrame(_In_ ID3D11Texture2D *frame, _In_ RECT destRect, _Outptr_ ID3D11Texture2D **pCroppedFrame);
 	HRESULT GetVideoProcessor(_In_ IMFSinkWriter *pSinkWriter, _In_ DWORD streamIndex, _Outptr_ IMFVideoProcessorControl **pVideoProcessor);
-#pragma endregion
 };

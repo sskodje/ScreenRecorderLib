@@ -1,18 +1,15 @@
 //https://github.com/mvaneerde/blog/tree/master/loopback-capture
 #include "Cleanup.h"
 #include "LoopbackCapture.h"
-
+#include <mutex>
+#include <ppltasks.h> 
 using namespace std;
-LoopbackCapture::LoopbackCapture(std::wstring tag)
+LoopbackCapture::LoopbackCapture(_In_opt_ std::wstring tag) :
+	m_TaskWrapperImpl(make_unique<TaskWrapper>())
 {
-	std::mutex(mtx);
 	m_Tag = tag;
 }
-LoopbackCapture::LoopbackCapture()
-{
-	std::mutex(mtx);
-	m_Tag = L"";
-}
+
 LoopbackCapture::~LoopbackCapture()
 {
 	StopCapture();
@@ -20,6 +17,11 @@ LoopbackCapture::~LoopbackCapture()
 	CloseHandle(m_CaptureStartedEvent);
 	m_Resampler.Finalize();
 }
+
+struct LoopbackCapture::TaskWrapper {
+	std::mutex m_Mutex;
+	Concurrency::task<void> m_CaptureTask = concurrency::task_from_result();
+};
 
 HRESULT LoopbackCapture::StartLoopbackCapture(
 	IMMDevice *pMMDevice,
@@ -290,7 +292,7 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 			LONG lBytesToWrite = nNumFramesToRead * nBlockAlign;
 #pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
 
-			m_Mutex.lock();
+			m_TaskWrapperImpl->m_Mutex.lock();
 			int size = lBytesToWrite;
 			if (m_RecordedBytes.size() == 0)
 				m_RecordedBytes.reserve(size);
@@ -303,7 +305,7 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 					LOG_DEBUG(L"Discontinuity detected, padded audio bytes with %d bytes of silence on %ls", frameDiff, m_Tag.c_str());
 				}
 			}
-			m_Mutex.unlock();
+			m_TaskWrapperImpl->m_Mutex.unlock();
 
 			nFrames += nNumFramesToRead;
 
@@ -351,7 +353,7 @@ std::vector<BYTE> LoopbackCapture::PeakRecordedBytes()
 std::vector<BYTE> LoopbackCapture::GetRecordedBytes()
 {
 	auto byteCount = m_RecordedBytes.size();
-	m_Mutex.lock();
+	m_TaskWrapperImpl->m_Mutex.lock();
 
 	std::vector<BYTE> newvector(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
 	// convert audio
@@ -374,7 +376,7 @@ std::vector<BYTE> LoopbackCapture::GetRecordedBytes()
 	}
 	m_RecordedBytes.erase(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
 	LOG_TRACE(L"Got %d bytes from LoopbackCapture %ls. %d bytes remaining", newvector.size(), m_Tag.c_str(), m_RecordedBytes.size());
-	m_Mutex.unlock();
+	m_TaskWrapperImpl->m_Mutex.unlock();
 	return newvector;
 }
 
@@ -400,7 +402,7 @@ HRESULT LoopbackCapture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, s
 
 		IMMDevice *device = prefs.m_pMMDevice;
 		auto file = prefs.m_hFile;
-		m_CaptureTask = concurrency::create_task([this, flow, sampleRate, audioChannels, device, file]() {
+		m_TaskWrapperImpl->m_CaptureTask = concurrency::create_task([this, flow, sampleRate, audioChannels, device, file]() {
 			if (FAILED(StartLoopbackCapture(device,
 				file,
 				true,
@@ -421,7 +423,7 @@ HRESULT LoopbackCapture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, s
 HRESULT LoopbackCapture::StopCapture()
 {
 	SetEvent(m_CaptureStopEvent);
-	m_CaptureTask.wait();
+	m_TaskWrapperImpl->m_CaptureTask.wait();
 	return S_OK;
 }
 
@@ -443,7 +445,7 @@ bool LoopbackCapture::IsCapturing() {
 
 void LoopbackCapture::ClearRecordedBytes()
 {
-	m_Mutex.lock();
+	m_TaskWrapperImpl->m_Mutex.lock();
 	m_RecordedBytes.clear();
-	m_Mutex.unlock();
+	m_TaskWrapperImpl->m_Mutex.unlock();
 }

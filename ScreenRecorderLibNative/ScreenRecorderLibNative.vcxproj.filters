@@ -132,6 +132,9 @@
     <ClInclude Include="CaptureBase.h">
       <Filter>Header Files\Video Capture\Overlay Capture</Filter>
     </ClInclude>
+    <ClInclude Include="AudioManager.h">
+      <Filter>Header Files\Audio Capture</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RecordingManager.cpp">
@@ -193,6 +196,9 @@
     </ClCompile>
     <ClCompile Include="Log.cpp">
       <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="AudioManager.cpp">
+      <Filter>Source Files\Audio Capture</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
