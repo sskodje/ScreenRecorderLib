@@ -137,7 +137,7 @@ public:
 	}
 
 	void SetTakeSnapshotsWithVideo(bool isEnabled) { m_TakesSnapshotsWithVideo = isEnabled; }
-	void SetSnapshotsWithVideoInterval(UINT32 value) { m_SnapshotsWithVideoInterval = std::chrono::seconds(value); }
+	void SetSnapshotsWithVideoInterval(UINT32 value) { m_SnapshotsWithVideoInterval = std::chrono::milliseconds(value); }
 	void SetSnapshotDirectory(std::wstring string) { m_OutputSnapshotsFolderPath = string; }
 	static bool SetExcludeFromCapture(HWND hwnd, bool isExcluded);
 	void SetRecordingSources(std::vector<RECORDING_SOURCE> sources) { m_RecordingSources = sources; }
@@ -193,7 +193,7 @@ private:
 	std::unique_ptr<ENCODER_OPTIONS> m_EncoderOptions;
 	std::unique_ptr<AUDIO_OPTIONS> m_AudioOptions;
 	std::unique_ptr<MOUSE_OPTIONS> m_MouseOptions;
-	std::chrono::seconds m_SnapshotsWithVideoInterval = std::chrono::seconds(10);
+	std::chrono::milliseconds m_SnapshotsWithVideoInterval = std::chrono::milliseconds(10000);
 	bool m_TakesSnapshotsWithVideo = false;
 	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;
 

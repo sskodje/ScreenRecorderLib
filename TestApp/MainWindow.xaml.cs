@@ -423,7 +423,7 @@ namespace TestApp
                 {
                     SnapshotFormat = CurrentImageFormat,
                     SnapshotsWithVideo = this.SnapshotsWithVideo,
-                    SnapshotsInterval = this.SnapshotsIntervalInSec
+                    SnapshotsIntervalMillis = this.SnapshotsIntervalInSec * 1000
                 },
                 SourceOptions = new SourceOptions
                 {

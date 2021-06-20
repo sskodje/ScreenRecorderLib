@@ -945,7 +945,7 @@ namespace ScreenRecorderLib
             {
                 RecorderOptions options = new RecorderOptions();
                 options.SourceOptions = SourceOptions.MainMonitor;
-                options.SnapshotOptions = new SnapshotOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
+                options.SnapshotOptions = new SnapshotOptions { SnapshotsWithVideo = true, SnapshotsIntervalMillis = 2000, SnapshotFormat = ImageFormat.JPEG };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
                     List<string> snapshotCallbackList = new List<string>();
@@ -1011,7 +1011,7 @@ namespace ScreenRecorderLib
                     options.SnapshotOptions = new SnapshotOptions
                     {
                         SnapshotsWithVideo = true,
-                        SnapshotsInterval = 2,
+                        SnapshotsIntervalMillis = 2000,
                         SnapshotFormat = ImageFormat.JPEG,
                         SnapshotsDirectory = snapshotsDir
                     };
@@ -1077,7 +1077,7 @@ namespace ScreenRecorderLib
             try
             {
                 RecorderOptions options = new RecorderOptions();
-                options.SnapshotOptions = new SnapshotOptions { SnapshotsWithVideo = true, SnapshotsInterval = 2, SnapshotFormat = ImageFormat.JPEG };
+                options.SnapshotOptions = new SnapshotOptions { SnapshotsWithVideo = true, SnapshotsIntervalMillis = 2000, SnapshotFormat = ImageFormat.JPEG };
                 options.SourceOptions = new SourceOptions
                 {
                     RecordingSources = { DisplayRecordingSource.MainMonitor },

@@ -51,7 +51,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		}
 		if (options->SnapshotOptions) {
 			m_Rec->SetTakeSnapshotsWithVideo(options->SnapshotOptions->SnapshotsWithVideo);
-			m_Rec->SetSnapshotsWithVideoInterval(options->SnapshotOptions->SnapshotsInterval);
+			m_Rec->SetSnapshotsWithVideoInterval(options->SnapshotOptions->SnapshotsIntervalMillis);
 			if (options->SnapshotOptions->SnapshotsDirectory != nullptr) {
 				m_Rec->SetSnapshotDirectory(msclr::interop::marshal_as<std::wstring>(options->SnapshotOptions->SnapshotsDirectory));
 			}

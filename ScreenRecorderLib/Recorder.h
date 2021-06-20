@@ -402,7 +402,7 @@ namespace ScreenRecorderLib {
 		SnapshotOptions() {
 			SnapshotFormat = ImageFormat::PNG;
 			SnapshotsWithVideo = false;
-			SnapshotsInterval = 10;
+			SnapshotsIntervalMillis = 10000;
 		}
 		/// <summary>
 		///Image format for snapshots. This is used with Screenshot, Slideshow, and video with SnapshotsWithVideo enabled.
@@ -413,9 +413,9 @@ namespace ScreenRecorderLib {
 		/// </summary>
 		property bool SnapshotsWithVideo;
 		/// <summary>
-		///Interval in seconds for taking snapshots in a video recording. This is only used when Video mode and SnapshotsWithVideo is enabled.
+		///Interval in milliseconds for taking snapshots in a video recording. This is only used when Video mode and SnapshotsWithVideo is enabled.
 		/// </summary>
-		property int SnapshotsInterval;
+		property int SnapshotsIntervalMillis;
 		/// <summary>
 		///Directory to store snapshots. If not set, the directory of the output file is used.
 		/// </summary>
