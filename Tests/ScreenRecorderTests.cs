@@ -756,7 +756,7 @@ namespace ScreenRecorderLib
             {
                 RecorderOptions options = new RecorderOptions();
                 options.RecorderMode = RecorderMode.Slideshow;
-                options.VideoEncoderOptions = new VideoEncoderOptions { Framerate = 5 };
+                options.SnapshotOptions = new SnapshotOptions { SnapshotsIntervalMillis = 200 };
                 Directory.CreateDirectory(directoryPath);
                 Assert.IsTrue(Directory.Exists(directoryPath));
                 using (var rec = Recorder.CreateRecorder(options))

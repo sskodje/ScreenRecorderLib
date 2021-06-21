@@ -413,7 +413,7 @@ namespace ScreenRecorderLib {
 		/// </summary>
 		property bool SnapshotsWithVideo;
 		/// <summary>
-		///Interval in milliseconds for taking snapshots in a video recording. This is only used when Video mode and SnapshotsWithVideo is enabled.
+		///Interval in milliseconds between images in slideshows, or snapshots in a video recording.
 		/// </summary>
 		property int SnapshotsIntervalMillis;
 		/// <summary>

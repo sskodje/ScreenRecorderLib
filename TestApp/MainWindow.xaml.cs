@@ -40,7 +40,7 @@ namespace TestApp
         public int VideoBitrate { get; set; } = 7000;
         public int VideoFramerate { get; set; } = 60;
         public int VideoQuality { get; set; } = 70;
-        public int SnapshotsIntervalInSec { get; set; } = 10;
+        public int SnapshotsIntervalMillis { get; set; } = 1000;
         public bool IsAudioEnabled { get; set; } = true;
         public bool IsMousePointerEnabled { get; set; } = true;
         public bool IsFixedFramerate { get; set; } = false;
@@ -114,16 +114,7 @@ namespace TestApp
                 {
                     _snapshotsWithVideo = value;
                     RaisePropertyChanged("SnapshotsWithVideo");
-                    if (value)
-                    {
-                        this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
-                        this.SnapshotsIntervalPanel.Visibility = Visibility.Visible;
-                    }
-                    else
-                    {
-                        this.SnapshotImageFormatPanel.Visibility = Visibility.Collapsed;
-                        this.SnapshotsIntervalPanel.Visibility = Visibility.Collapsed;
-                    }
+                    UpdateUiState();
                 }
             }
         }
@@ -423,12 +414,12 @@ namespace TestApp
                 {
                     SnapshotFormat = CurrentImageFormat,
                     SnapshotsWithVideo = this.SnapshotsWithVideo,
-                    SnapshotsIntervalMillis = this.SnapshotsIntervalInSec * 1000
+                    SnapshotsIntervalMillis = this.SnapshotsIntervalMillis
                 },
                 SourceOptions = new SourceOptions
                 {
                     RecordingSources = recordingSources,
-                    SourceRect = new ScreenRect(left, top, right - left, bottom-top)
+                    SourceRect = new ScreenRect(left, top, right - left, bottom - top)
                 },
                 MouseOptions = new MouseOptions
                 {
@@ -599,11 +590,7 @@ namespace TestApp
             if (e.AddedItems.Count == 0)
                 return;
             SetScreenComboBoxTitle();
-            //if (this.WindowComboBox.SelectedIndex == 0
-            //    && this.WindowComboBox.Items.Cast<CheckableRecordableWindow>().Count(x => x.IsSelected) == 0)
-            //{
             SetScreenRect();
-            //}
         }
 
         private void SetScreenRect()
@@ -672,27 +659,15 @@ namespace TestApp
 
         private void VideoEncoderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (this.IsLoaded)
-            {
-                H264OptionsPanel.Visibility = CurrentVideoEncoderFormat == VideoEncoderFormat.H264 ? Visibility.Visible : Visibility.Collapsed;
-                H265OptionsPanel.Visibility = CurrentVideoEncoderFormat == VideoEncoderFormat.H265 ? Visibility.Visible : Visibility.Collapsed;
-            }
+            UpdateUiState();
         }
         private void H264VideoBitrateModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (this.IsLoaded)
-            {
-                VideoQualityPanel.Visibility = CurrentH264VideoBitrateMode == H264BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
-                VideoBitratePanel.Visibility = CurrentH264VideoBitrateMode == H264BitrateControlMode.Quality ? Visibility.Collapsed : Visibility.Visible;
-            }
+            UpdateUiState();
         }
         private void H265VideoBitrateModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (this.IsLoaded)
-            {
-                VideoQualityPanel.Visibility = CurrentH265VideoBitrateMode == H265BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
-                VideoBitratePanel.Visibility = CurrentH265VideoBitrateMode == H265BitrateControlMode.Quality ? Visibility.Collapsed : Visibility.Visible;
-            }
+            UpdateUiState();
         }
         private void ColorTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
@@ -708,31 +683,7 @@ namespace TestApp
 
         private void RecordingModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (this.IsLoaded)
-            {
-                switch (CurrentRecordingMode)
-                {
-                    case RecorderMode.Video:
-                        this.EncoderOptionsPanel.Visibility = Visibility.Visible;
-                        this.SnapshotImageFormatPanel.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
-                        this.SnapshotsIntervalPanel.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
-                        this.EncoderOptionsPanel.Visibility = Visibility.Visible;
-                        this.SnapshotOptionsPanel.Visibility = Visibility.Visible;
-                        this.CheckBoxSnapshotsWithVideo.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
-                        break;
-                    case RecorderMode.Slideshow:
-                    case RecorderMode.Screenshot:
-                        this.EncoderOptionsPanel.Visibility = Visibility.Collapsed;
-                        this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
-                        this.SnapshotsIntervalPanel.Visibility = Visibility.Collapsed;
-                        this.EncoderOptionsPanel.Visibility = Visibility.Collapsed;
-                        this.SnapshotOptionsPanel.Visibility = Visibility.Visible;
-                        this.CheckBoxSnapshotsWithVideo.Visibility = Visibility.Collapsed;
-                        break;
-                    default:
-                        break;
-                }
-            }
+            UpdateUiState();
         }
 
         private void OnInputVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -754,14 +705,10 @@ namespace TestApp
 
         private void RecordingApiComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            UpdateUiState();
             if (CurrentRecordingApi == RecorderApi.DesktopDuplication)
             {
-                this.WindowComboBox.Visibility = Visibility.Collapsed;
                 SetScreenRect();
-            }
-            else if (CurrentRecordingApi == RecorderApi.WindowsGraphicsCapture)
-            {
-                this.WindowComboBox.Visibility = Visibility.Visible;
             }
             if (this.IsLoaded)
             {
@@ -780,6 +727,71 @@ namespace TestApp
         {
             RefreshCaptureTargetItems();
         }
+
+        private void UpdateUiState()
+        {
+            if (this.IsLoaded)
+            {
+                switch (CurrentRecordingMode)
+                {
+                    case RecorderMode.Video:
+                        this.EncoderOptionsPanel.Visibility = Visibility.Visible;
+                        this.SnapshotImageFormatPanel.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
+                        this.SnapshotsIntervalPanel.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
+                        this.EncoderOptionsPanel.Visibility = Visibility.Visible;
+                        this.CheckBoxSnapshotsWithVideo.Visibility = Visibility.Visible;
+                        this.VideoEncoderOptionsPanel.Visibility = Visibility.Visible;
+                        this.VideoBitratePanel.Visibility = Visibility.Visible;
+                        this.VideoQualityPanel.Visibility = Visibility.Visible;
+                        this.AudioPanel.Visibility = Visibility.Visible;
+
+                        switch (CurrentVideoEncoderFormat)
+                        {
+                            case VideoEncoderFormat.H264:
+                                H264OptionsPanel.Visibility = Visibility.Visible;
+                                H265OptionsPanel.Visibility = Visibility.Collapsed;
+                                VideoQualityPanel.Visibility = CurrentH264VideoBitrateMode == H264BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
+                                VideoQualityPanel.Visibility = CurrentH264VideoBitrateMode == H264BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
+                                break;
+                            case VideoEncoderFormat.H265:
+                                H264OptionsPanel.Visibility = Visibility.Collapsed;
+                                H265OptionsPanel.Visibility = Visibility.Visible;
+                                VideoQualityPanel.Visibility = CurrentH265VideoBitrateMode == H265BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
+                                VideoBitratePanel.Visibility = CurrentH265VideoBitrateMode == H265BitrateControlMode.Quality ? Visibility.Collapsed : Visibility.Visible;
+                                break;
+                            default:
+                                break;
+                        }
+                        break;
+                    case RecorderMode.Slideshow:
+                    case RecorderMode.Screenshot:
+                        this.EncoderOptionsPanel.Visibility = Visibility.Collapsed;
+                        this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
+                        this.SnapshotsIntervalPanel.Visibility = CurrentRecordingMode == RecorderMode.Slideshow ? Visibility.Visible : Visibility.Collapsed;
+                        this.EncoderOptionsPanel.Visibility = Visibility.Collapsed;
+                        this.CheckBoxSnapshotsWithVideo.Visibility = Visibility.Collapsed;
+                        this.VideoEncoderOptionsPanel.Visibility = Visibility.Collapsed;
+                        this.VideoBitratePanel.Visibility = Visibility.Collapsed;
+                        this.VideoQualityPanel.Visibility = Visibility.Collapsed;
+                        this.AudioPanel.Visibility = Visibility.Collapsed;
+                        break;
+                    default:
+                        break;
+                }
+                switch (CurrentRecordingApi)
+                {
+                    case RecorderApi.DesktopDuplication:
+                        this.WindowComboBox.Visibility = Visibility.Collapsed;
+                        break;
+                    case RecorderApi.WindowsGraphicsCapture:
+                        this.WindowComboBox.Visibility = Visibility.Visible;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
         private void RefreshCaptureTargetItems()
         {
             RefreshVideoCaptureItems();
