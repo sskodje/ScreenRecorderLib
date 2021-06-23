@@ -68,7 +68,8 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	RECORDING_SOURCE_DATA *pSource = pData->RecordingSource;
 	//This scope must be here for ReleaseOnExit to work.
 	{
-		pMouseManager.Initialize(pSource->DxRes.Context, pSource->DxRes.Device, &MOUSE_OPTIONS());
+
+		pMouseManager.Initialize(pSource->DxRes.Context, pSource->DxRes.Device, std::make_shared<MOUSE_OPTIONS>());
 		// Obtain handle to sync shared Surface
 		hr = pSource->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
 		if (FAILED(hr))

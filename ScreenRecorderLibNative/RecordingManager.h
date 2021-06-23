@@ -151,11 +151,11 @@ public:
 	void SetLogSeverityLevel(int value);
 	void SetOverlays(std::vector<RECORDING_OVERLAY> overlays) { m_Overlays = overlays; };
 	void SetEncoderOptions(ENCODER_OPTIONS *options) { m_EncoderOptions.reset(options); }
-	ENCODER_OPTIONS *GetEncoderOptions() { return m_EncoderOptions.get(); }
+	std::shared_ptr<ENCODER_OPTIONS> GetEncoderOptions() { return m_EncoderOptions; }
 	void SetAudioOptions(AUDIO_OPTIONS *options) { m_AudioOptions.reset(options); }
-	AUDIO_OPTIONS *GetAudioOptions() { return m_AudioOptions.get(); }
+	std::shared_ptr<AUDIO_OPTIONS> GetAudioOptions() { return m_AudioOptions; }
 	void SetMouseOptions(MOUSE_OPTIONS *options) { m_MouseOptions.reset(options); }
-	MOUSE_OPTIONS *GetMouseOptions() { return m_MouseOptions.get(); }
+	std::shared_ptr<MOUSE_OPTIONS> GetMouseOptions() { return m_MouseOptions; }
 
 private:
 	struct TaskWrapper;
@@ -180,7 +180,7 @@ private:
 	DWORD m_AudioStreamIndex = 0;
 	HANDLE m_FinalizeEvent = nullptr;
 	std::chrono::steady_clock::time_point m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
-	UINT32 m_MaxFrameLength100Nanos = MillisToHundredNanos(500); //500 milliseconds in 100 nanoseconds measure.
+	INT64 m_MaxFrameLength100Nanos = MillisToHundredNanos(500); //500 milliseconds in 100 nanoseconds measure.
 
 	UINT32 m_RecorderMode = MODE_VIDEO;
 	UINT32 m_RecorderApi = API_DESKTOP_DUPLICATION;
@@ -190,9 +190,9 @@ private:
 	bool m_IsPaused = false;
 	bool m_IsRecording = false;
 
-	std::unique_ptr<ENCODER_OPTIONS> m_EncoderOptions;
-	std::unique_ptr<AUDIO_OPTIONS> m_AudioOptions;
-	std::unique_ptr<MOUSE_OPTIONS> m_MouseOptions;
+	std::shared_ptr<ENCODER_OPTIONS> m_EncoderOptions;
+	std::shared_ptr<AUDIO_OPTIONS> m_AudioOptions;
+	std::shared_ptr<MOUSE_OPTIONS> m_MouseOptions;
 	std::chrono::milliseconds m_SnapshotsWithVideoInterval = std::chrono::milliseconds(10000);
 	bool m_TakesSnapshotsWithVideo = false;
 	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;

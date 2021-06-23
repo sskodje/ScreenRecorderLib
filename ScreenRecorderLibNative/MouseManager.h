@@ -8,6 +8,7 @@
 #include <d2d1.h>
 #include <atlbase.h>
 #include <chrono>
+#include <memory>
 #include "CommonTypes.h"
 #pragma comment(lib, "D2d1.lib")
 
@@ -19,7 +20,7 @@ public:
 	MouseManager();
 	~MouseManager();
 
-	HRESULT Initialize(_In_ ID3D11DeviceContext *pImmediateContext, _In_ ID3D11Device *pDevice, _In_ MOUSE_OPTIONS *pOptions);
+	HRESULT Initialize(_In_ ID3D11DeviceContext *pImmediateContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<MOUSE_OPTIONS> &pOptions);
 	void InitializeMouseClickDetection();
 	HRESULT DrawMousePointer(_In_ ID3D11Texture2D *pFrame, _In_ PTR_INFO *pPtrInfo);
 	HRESULT GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO *pFrameInfo, _In_ RECT screenRect, _In_ IDXGIOutputDuplication *pDeskDupl, _In_ int offsetX, _In_ int offsetY);
@@ -40,7 +41,7 @@ private:
 	ATL::CComPtr<ID3D11InputLayout> m_InputLayout;
 	ATL::CComPtr<ID2D1Factory> m_D2DFactory;
 
-	MOUSE_OPTIONS *m_MouseOptions;
+	std::shared_ptr<MOUSE_OPTIONS> m_MouseOptions;
 	ID3D11DeviceContext *m_DeviceContext;
 	ID3D11Device *m_Device;
 

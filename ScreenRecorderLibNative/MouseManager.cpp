@@ -55,7 +55,7 @@ MouseManager::~MouseManager()
 	CloseHandle(m_StopPollingTaskEvent);
 }
 
-HRESULT MouseManager::Initialize(_In_ ID3D11DeviceContext *pImmediateContext, _In_ ID3D11Device *pDevice, _In_ MOUSE_OPTIONS *pOptions)
+HRESULT MouseManager::Initialize(_In_ ID3D11DeviceContext *pImmediateContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<MOUSE_OPTIONS> &pOptions)
 {
 	CleanDX();
 	// Create the sample state

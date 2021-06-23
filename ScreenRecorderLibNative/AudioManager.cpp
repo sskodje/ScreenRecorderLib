@@ -11,7 +11,7 @@ AudioManager::~AudioManager()
 {
 }
 
-HRESULT AudioManager::Initialize(AUDIO_OPTIONS *audioOptions)
+HRESULT AudioManager::Initialize(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptions)
 {
 	m_AudioOptions = audioOptions;
 	LoopbackCapture *outputCapture = nullptr;

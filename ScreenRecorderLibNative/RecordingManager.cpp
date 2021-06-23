@@ -472,7 +472,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	std::unique_ptr<AudioManager> pAudioManager = make_unique<AudioManager>();
 	std::unique_ptr<MouseManager> pMouseManager = make_unique<MouseManager>();
-	RETURN_ON_BAD_HR(hr = pMouseManager->Initialize(m_ImmediateContext, m_Device, m_MouseOptions.get()));
+	RETURN_ON_BAD_HR(hr = pMouseManager->Initialize(m_ImmediateContext, m_Device, GetMouseOptions()));
 	SetViewPort(m_ImmediateContext, RectWidth(videoInputFrameRect), RectHeight(videoInputFrameRect));
 
 	if (m_RecorderMode == MODE_VIDEO) {
@@ -595,11 +595,11 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		if (hr == DXGI_ERROR_WAIT_TIMEOUT || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) //attempt to wait if frame timeouted or duration is under our chosen framerate
 		{
 			bool delayRender = false;
-			long delay100Nanos = 0;
+			INT64 delay100Nanos = 0;
 			if (m_RecorderMode == MODE_VIDEO
 				&& (frameNr == 0 //never delay the first frame 
-				|| (GetMouseOptions()->IsMousePointerEnabled() && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
-				|| (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot()))) // Or if we need to write a snapshot 
+					|| (GetMouseOptions()->IsMousePointerEnabled() && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
+					|| (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot()))) // Or if we need to write a snapshot 
 			{
 				if (capturedFrame.PtrInfo) {
 					capturedFrame.PtrInfo->IsPointerShapeUpdated = false;
@@ -623,8 +623,8 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 				delay100Nanos = videoFrameDuration100Nanos - durationSinceLastFrame100Nanos;
 			}
 			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-				if (m_RecorderMode == MODE_SLIDESHOW 
-					||  GetEncoderOptions()->GetIsFixedFramerate()) {
+				if (m_RecorderMode == MODE_SLIDESHOW
+					|| GetEncoderOptions()->GetIsFixedFramerate()) {
 					if (videoFrameDuration100Nanos > durationSinceLastFrame100Nanos) {
 						delayRender = true;
 						delay100Nanos = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
