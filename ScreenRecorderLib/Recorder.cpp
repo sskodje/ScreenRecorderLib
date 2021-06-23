@@ -10,7 +10,10 @@ Recorder::Recorder(RecorderOptions^ options)
 {
 	m_Rec = new RecordingManager();
 	if (!options) {
-		options = gcnew RecorderOptions();
+		options = RecorderOptions::DefaultMainMonitor;
+	}
+	else if (!options->SourceOptions) {
+		options->SourceOptions = SourceOptions::MainMonitor;
 	}
 	SetOptions(options);
 }
@@ -25,15 +28,15 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 
 			switch (options->VideoEncoderOptions->Encoder->EncodingFormat)
 			{
-				default:
-				case VideoEncoderFormat::H264: {
-					encoderOptions = new H264_ENCODER_OPTIONS();
-					break;
-				}
-				case VideoEncoderFormat::H265: {
-					encoderOptions = new H265_ENCODER_OPTIONS();
-					break;
-				}
+			default:
+			case VideoEncoderFormat::H264: {
+				encoderOptions = new H264_ENCODER_OPTIONS();
+				break;
+			}
+			case VideoEncoderFormat::H265: {
+				encoderOptions = new H265_ENCODER_OPTIONS();
+				break;
+			}
 			}
 			encoderOptions->SetVideoBitrateMode((UINT32)options->VideoEncoderOptions->Encoder->GetBitrateMode());
 			encoderOptions->SetEncoderProfile((UINT32)options->VideoEncoderOptions->Encoder->GetEncoderProfile());
@@ -81,8 +84,8 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 				rect.bottom = options->SourceOptions->SourceRect->Bottom;
 				m_Rec->SetDestRectangle(rect);
 			}
+			m_Rec->SetRecordingSources(CreateRecordingSourceList(options));
 		}
-		m_Rec->SetRecordingSources(CreateRecordingSourceList(options));
 		if (options->AudioOptions) {
 			AUDIO_OPTIONS* audioOptions = new AUDIO_OPTIONS();
 
@@ -355,9 +358,6 @@ void Recorder::ClearCallbacks() {
 
 std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(RecorderOptions^ options) {
 	std::vector<RECORDING_SOURCE> sources{};
-	if (!options->SourceOptions) {
-		options->SourceOptions = SourceOptions::MainMonitor;
-	}
 	if (options->SourceOptions && options->SourceOptions->RecordingSources) {
 		for each (RecordingSource ^ source in options->SourceOptions->RecordingSources)
 		{
