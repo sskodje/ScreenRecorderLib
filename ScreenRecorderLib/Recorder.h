@@ -515,6 +515,30 @@ namespace ScreenRecorderLib {
 		}
 		property List<RecordingOverlay^>^ Overlays;
 	};
+	public ref class LogOptions {
+	public:
+		LogOptions() {
+#if _DEBUG
+			IsLogEnabled = true;
+			LogSeverityLevel = LogLevel::Debug;
+#else
+			IsLogEnabled = false;
+			LogSeverityLevel = LogLevel::Info;
+#endif
+		}
+		/// <summary>
+		/// Toggles logging. Default is on when debugging, off in release mode, this setting overrides it.
+		/// </summary>
+		property bool IsLogEnabled;
+		/// <summary>
+		/// A path to a file to write logs to. If this is not empty, all logs will be redirected to it.
+		/// </summary>
+		property String^ LogFilePath;
+		/// <summary>
+		/// The maximum level of the logs to write.
+		/// </summary>
+		property LogLevel LogSeverityLevel;
+	};
 	public ref class RecorderOptions {
 	public:
 		static property RecorderOptions^ DefaultAllMonitors {
@@ -534,29 +558,11 @@ namespace ScreenRecorderLib {
 		RecorderOptions() {
 			RecorderMode = ScreenRecorderLib::RecorderMode::Video;
 			RecorderApi = ScreenRecorderLib::RecorderApi::DesktopDuplication;
-#if _DEBUG
-			IsLogEnabled = true;
-			LogSeverityLevel = LogLevel::Debug;
-#else
-			IsLogEnabled = false;
-			LogSeverityLevel = LogLevel::Info;
-#endif
 		}
 		property RecorderMode RecorderMode;
 		property RecorderApi RecorderApi;
 
-		/// <summary>
-		/// Toggles logging. Default is on when debugging, off in release mode, this setting overrides it.
-		/// </summary>
-		property bool IsLogEnabled;
-		/// <summary>
-		/// A path to a file to write logs to. If this is not empty, all logs will be redirected to it.
-		/// </summary>
-		property String^ LogFilePath;
-		/// <summary>
-		/// The maximum level of the logs to write.
-		/// </summary>
-		property LogLevel LogSeverityLevel;
+
 
 		property VideoEncoderOptions^ VideoEncoderOptions;
 		property SourceOptions^ SourceOptions;
@@ -564,6 +570,7 @@ namespace ScreenRecorderLib {
 		property MouseOptions^ MouseOptions;
 		property OverLayOptions^ OverlayOptions;
 		property SnapshotOptions^ SnapshotOptions;
+		property LogOptions^ LogOptions;
 	};
 
 	public ref class RecordingStatusEventArgs :System::EventArgs {

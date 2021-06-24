@@ -119,15 +119,16 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		if (options->OverlayOptions) {
 			m_Rec->SetOverlays(CreateOverlayList(options->OverlayOptions->Overlays));
 		}
+		if (options->LogOptions) {
+			m_Rec->SetIsLogEnabled(options->LogOptions->IsLogEnabled);
+			if (options->LogOptions->LogFilePath != nullptr) {
+				m_Rec->SetLogFilePath(msclr::interop::marshal_as<std::wstring>(options->LogOptions->LogFilePath));
+			}
+			m_Rec->SetLogSeverityLevel((UINT32)options->LogOptions->LogSeverityLevel);
+		}
 
 		m_Rec->SetRecorderMode((UINT32)options->RecorderMode);
 		m_Rec->SetRecorderApi((UINT32)options->RecorderApi);
-
-		m_Rec->SetIsLogEnabled(options->IsLogEnabled);
-		if (options->LogFilePath != nullptr) {
-			m_Rec->SetLogFilePath(msclr::interop::marshal_as<std::wstring>(options->LogFilePath));
-		}
-		m_Rec->SetLogSeverityLevel((UINT32)options->LogSeverityLevel);
 	}
 }
 

@@ -381,10 +381,13 @@ namespace TestApp
             {
                 RecorderMode = CurrentRecordingMode,
                 RecorderApi = CurrentRecordingApi,
-                IsLogEnabled = this.IsLogEnabled,
-                LogSeverityLevel = this.LogSeverityLevel,
-                LogFilePath = IsLogToFileEnabled ? this.LogFilePath : "",
 
+                LogOptions = new LogOptions
+                {
+                    IsLogEnabled = this.IsLogEnabled,
+                    LogSeverityLevel = this.LogSeverityLevel,
+                    LogFilePath = IsLogToFileEnabled ? this.LogFilePath : ""
+                },
                 AudioOptions = new AudioOptions
                 {
                     Bitrate = AudioBitrate.bitrate_96kbps,
