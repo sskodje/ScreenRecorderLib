@@ -19,7 +19,7 @@ Recorder::Recorder(RecorderOptions^ options)
 }
 
 void Recorder::SetOptions(RecorderOptions^ options) {
-	if (options && m_Rec) {
+	if (options && m_Rec && !m_Rec->IsRecording()) {
 		if (options->VideoEncoderOptions) {
 			if (!options->VideoEncoderOptions->Encoder) {
 				options->VideoEncoderOptions->Encoder = gcnew H264VideoEncoder();
