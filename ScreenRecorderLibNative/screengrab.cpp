@@ -190,6 +190,7 @@ HRESULT __cdecl SaveWICTextureToFile(
 	_In_ ID3D11Resource *pSource,
 	_In_ REFGUID guidContainerFormat,
 	_In_z_ const wchar_t *filePath,
+	_In_opt_ const std::optional<SIZE> destSize,
 	_In_opt_ const GUID *targetFormat,
 	_In_opt_ std::function<void(IPropertyBag2 *)> setCustomProps)
 {
@@ -301,7 +302,14 @@ HRESULT __cdecl SaveWICTextureToFile(
 	if (FAILED(hr))
 		return hr;
 
-	hr = frame->SetSize(desc.Width, desc.Height);
+	int outputWidth = desc.Width;
+	int outputHeight = desc.Height;
+	if (destSize.has_value()) {
+		outputWidth = destSize.value().cx;
+		outputHeight = destSize.value().cy;
+	}
+
+	hr = frame->SetSize(outputWidth, outputHeight);
 	if (FAILED(hr))
 		return hr;
 
@@ -405,19 +413,31 @@ HRESULT __cdecl SaveWICTextureToFile(
 	if (FAILED(hr))
 		return hr;
 
+
+	CComPtr<IWICBitmap> source;
+	hr = pWIC->CreateBitmapFromMemory(desc.Width, desc.Height, pfGuid,
+		mapped.RowPitch, mapped.RowPitch * desc.Height,
+		reinterpret_cast<BYTE *>(mapped.pData), &source);
+	if (FAILED(hr))
+	{
+		pContext->Unmap(pStaging, 0);
+		return hr;
+	}
+	CComPtr<IWICBitmapScaler> bitmapScaler;
+	hr = pWIC->CreateBitmapScaler(&bitmapScaler);
+	if (FAILED(hr))
+		return hr;
+	CComPtr<IWICBitmapSource> imageSource;
+	if (outputWidth != desc.Width || outputHeight != desc.Height) {
+		bitmapScaler->Initialize(source, outputWidth, outputHeight, WICBitmapInterpolationMode::WICBitmapInterpolationModeNearestNeighbor);
+		imageSource = bitmapScaler;
+	}
+	else {
+		imageSource = source;
+	}
 	if (memcmp(&targetGuid, &pfGuid, sizeof(WICPixelFormatGUID)) != 0)
 	{
 		// Conversion required to write
-		CComPtr<IWICBitmap> source;
-		hr = pWIC->CreateBitmapFromMemory(desc.Width, desc.Height, pfGuid,
-			mapped.RowPitch, mapped.RowPitch * desc.Height,
-			reinterpret_cast<BYTE *>(mapped.pData), &source);
-		if (FAILED(hr))
-		{
-			pContext->Unmap(pStaging, 0);
-			return hr;
-		}
-
 		CComPtr<IWICFormatConverter> FC;
 		hr = pWIC->CreateFormatConverter(&FC);
 		if (FAILED(hr))
@@ -433,30 +453,20 @@ HRESULT __cdecl SaveWICTextureToFile(
 			return E_UNEXPECTED;
 		}
 
-		hr = FC->Initialize(source, targetGuid, WICBitmapDitherTypeNone, 0, 0, WICBitmapPaletteTypeMedianCut);
+		hr = FC->Initialize(imageSource, targetGuid, WICBitmapDitherTypeNone, 0, 0, WICBitmapPaletteTypeMedianCut);
 		if (FAILED(hr))
 		{
 			pContext->Unmap(pStaging, 0);
 			return hr;
 		}
-
-		WICRect rect = { 0, 0, static_cast<INT>(desc.Width), static_cast<INT>(desc.Height) };
-		hr = frame->WriteSource(FC, &rect);
-		if (FAILED(hr))
-		{
-			pContext->Unmap(pStaging, 0);
-			return hr;
-		}
-	}
-	else
-	{
-		// No conversion required
-		hr = frame->WritePixels(desc.Height, mapped.RowPitch, mapped.RowPitch * desc.Height, reinterpret_cast<BYTE *>(mapped.pData));
-		if (FAILED(hr))
-			return hr;
+		imageSource.Release();
+		imageSource = FC;
 	}
 
+	hr = frame->WriteSource(imageSource, NULL);
 	pContext->Unmap(pStaging, 0);
+	if (FAILED(hr))
+		return hr;
 
 	hr = frame->Commit();
 	if (FAILED(hr))

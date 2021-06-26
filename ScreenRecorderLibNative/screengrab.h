@@ -2,12 +2,14 @@
 #include <d3d11_1.h>
 #include <functional>
 #include <wincodec.h>
+#include <optional>
 
 HRESULT __cdecl SaveWICTextureToFile(
 	_In_ ID3D11DeviceContext *pContext,
 	_In_ ID3D11Resource *pSource,
 	_In_ REFGUID guidContainerFormat,
 	_In_z_ const wchar_t *filePath,
+	_In_opt_ const std::optional<SIZE> destSize = std::nullopt,
 	_In_opt_ const GUID *targetFormat = nullptr,
 	_In_opt_ std::function<void __cdecl(IPropertyBag2 *)> setCustomProps = nullptr);
 
