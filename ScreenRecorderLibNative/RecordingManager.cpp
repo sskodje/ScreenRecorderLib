@@ -91,7 +91,6 @@ RecordingManager::~RecordingManager()
 		LOG_DEBUG("Wait for recording task completed.");
 	}
 }
-
 void RecordingManager::SetIsLogEnabled(bool value) {
 	isLoggingEnabled = value;
 }
@@ -191,6 +190,9 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path) {
 	return BeginRecording(path, nullptr);
 }
 
+bool RecordingManager::IsRecording() {
+	return m_IsRecording;
+}
 HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IStream *stream) {
 	if (m_IsRecording) {
 		if (m_IsPaused) {
