@@ -156,6 +156,7 @@ public:
 	std::shared_ptr<AUDIO_OPTIONS> GetAudioOptions() { return m_AudioOptions; }
 	void SetMouseOptions(MOUSE_OPTIONS *options) { m_MouseOptions.reset(options); }
 	std::shared_ptr<MOUSE_OPTIONS> GetMouseOptions() { return m_MouseOptions; }
+	bool IsRecording();
 
 private:
 	struct TaskWrapper;
@@ -170,7 +171,7 @@ private:
 
 	bool m_LastFrameHadAudio = false;
 	HRESULT m_EncoderResult = S_FALSE;
-	
+
 
 	std::wstring m_OutputFolder = L"";
 	std::wstring m_OutputFullPath = L"";
