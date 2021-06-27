@@ -130,6 +130,7 @@ public:
 	void PauseRecording();
 	void ResumeRecording();
 
+	bool IsRecording() { return m_IsRecording; }
 
 
 	void SetDestRectangle(RECT rect) {
