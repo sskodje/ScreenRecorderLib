@@ -1,4 +1,5 @@
-﻿using System;
+﻿using ScreenRecorderLib;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
@@ -23,8 +24,8 @@ namespace TestApp
             }
         }
 
-        private ScreenRecorderLib.RecordingOverlay _overlay;
-        public ScreenRecorderLib.RecordingOverlay Overlay
+        private RecordingOverlayBase _overlay;
+        public RecordingOverlayBase Overlay
         {
             get { return _overlay; }
             set

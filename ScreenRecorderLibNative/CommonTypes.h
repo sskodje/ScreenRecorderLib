@@ -10,7 +10,9 @@
 #include "VertexShader.h"
 #include <codecapi.h>
 #include <mfapi.h>
-
+#include <optional>
+#include <wincodec.h>
+#include <chrono>
 //
 // Holds info about the pointer/cursor
 //
@@ -67,6 +69,7 @@ struct GRAPHICS_FRAME_DATA
 {
 	ID3D11Texture2D *Frame;
 	SIZE ContentSize;
+	bool IsWindow;
 	bool IsIconic;
 };
 
@@ -92,7 +95,6 @@ struct CAPTURED_FRAME
 	//The number of updates written to the frame overlays since last fetch.
 	int OverlayUpdateCount;
 	LARGE_INTEGER Timestamp;
-	SIZE ContentSize;
 };
 
 enum class OverlayAnchor {
@@ -101,7 +103,7 @@ enum class OverlayAnchor {
 	BottomLeft,
 	BottomRight
 };
-enum class OverlayType {
+enum class RecordingOverlayType {
 	Picture,
 	Video,
 	CameraCapture
@@ -128,17 +130,45 @@ struct RECORDING_SOURCE
 	HWND WindowHandle;
 	RecordingSourceType Type;
 	bool IsCursorCaptureEnabled{};
+	/// <summary>
+	/// An optional custom area of the source to record. Must be equal or smaller than the source area. A smaller area will crop the source.
+	/// </summary>
+	std::optional<RECT> SourceRect;
+	/// <summary>
+	/// Optional custom output size of the source frame. May be both smaller or larger than the source.
+	/// </summary>
+	std::optional<SIZE> OutputSize;
+	/// <summary>
+	/// Optional custom position for the source frame.
+	/// </summary>
+	std::optional<POINT> Position;
+	/// <summary>
+	/// Optional custom offset for the source frame.
+	/// </summary>
+	std::optional<SIZE> Offset;
 	RECORDING_SOURCE() :
 		CaptureDevice(L""),
 		WindowHandle(NULL),
 		Type(RecordingSourceType::Display),
-		IsCursorCaptureEnabled(false) {}
+		IsCursorCaptureEnabled(false),
+		SourceRect{ std::nullopt },
+		OutputSize{ std::nullopt },
+		Position{ std::nullopt },
+		Offset{ std::nullopt }
+	{
+	}
 
 	RECORDING_SOURCE(const RECORDING_SOURCE &source) :
 		CaptureDevice(source.CaptureDevice),
 		WindowHandle(source.WindowHandle),
 		Type(source.Type),
-		IsCursorCaptureEnabled(source.IsCursorCaptureEnabled) {}
+		IsCursorCaptureEnabled(source.IsCursorCaptureEnabled),
+		SourceRect(source.SourceRect),
+		OutputSize(source.OutputSize),
+		Position(source.Position),
+		Offset(source.Offset)
+	{
+	}
 
 	friend bool operator< (const RECORDING_SOURCE &a, const RECORDING_SOURCE &b) {
 		switch (a.Type)
@@ -179,6 +209,10 @@ struct RECORDING_SOURCE
 struct RECORDING_SOURCE_DATA :RECORDING_SOURCE {
 	INT OffsetX{};
 	INT OffsetY{};
+	/// <summary>
+	/// Describes the position and size of this recording source within the combined recording surface.
+	/// </summary>
+	RECT FrameCoordinates{};
 	DX_RESOURCES DxRes{};
 
 	RECORDING_SOURCE_DATA() :
@@ -192,14 +226,14 @@ struct RECORDING_SOURCE_DATA :RECORDING_SOURCE {
 struct RECORDING_OVERLAY
 {
 	std::wstring Source;
-	OverlayType Type;
+	RecordingOverlayType Type;
 	POINT Offset;
 	SIZE Size;
 	OverlayAnchor Anchor;
 
 	RECORDING_OVERLAY() :
 		Source(L""),
-		Type(OverlayType::Picture),
+		Type(RecordingOverlayType::Picture),
 		Offset(POINT()),
 		Size(SIZE()),
 		Anchor(OverlayAnchor::BottomLeft) {}
@@ -246,7 +280,6 @@ struct CAPTURE_THREAD_DATA :THREAD_DATA_BASE
 	RECORDING_SOURCE_DATA *RecordingSource{};
 	INT UpdatedFrameCountSinceLastWrite{};
 	INT64 TotalUpdatedFrameCount{};
-	RECT ContentFrameRect{};
 	PTR_INFO *PtrInfo{};
 };
 
@@ -347,6 +380,7 @@ protected:
 	bool m_IsHardwareEncodingEnabled = true;
 	UINT32 m_VideoBitrateControlMode = eAVEncCommonRateControlMode_Quality;
 	UINT32 m_EncoderProfile = eAVEncH264VProfile_High;
+	SIZE m_FrameSize = SIZE{ 0,0 };
 public:
 	void SetVideoFps(UINT32 fps) { m_VideoFps = fps; }
 	void SetVideoBitrate(UINT32 bitrate) { m_VideoBitrate = bitrate; }
@@ -359,6 +393,7 @@ public:
 	void SetIsLowLatencyModeEnabled(bool value) { m_IsLowLatencyModeEnabled = value; }
 	void SetVideoBitrateMode(UINT32 bitrateMode) { m_VideoBitrateControlMode = bitrateMode; }
 	void SetEncoderProfile(UINT32 profile) { m_EncoderProfile = profile; }
+	void SetFrameSize(SIZE size) { m_FrameSize = size; }
 
 	UINT32 GetVideoFps() { return m_VideoFps; }
 	UINT32 GetVideoBitrate() { return m_VideoBitrate; }
@@ -372,8 +407,12 @@ public:
 	UINT32 GetVideoBitrateMode() { return m_VideoBitrateControlMode; }
 	UINT32 GetEncoderProfile() { return m_EncoderProfile; }
 	GUID GetVideoInputFormat() { return VIDEO_INPUT_FORMAT; }
+	SIZE GetFrameSize() { return m_FrameSize; }
 
 	virtual GUID GetVideoEncoderFormat() abstract;
+	virtual std::wstring GetVideoExtension() {
+		return L".mp4";
+	}
 };
 
 struct H264_ENCODER_OPTIONS :ENCODER_OPTIONS {
@@ -390,4 +429,49 @@ public:
 		SetEncoderProfile(eAVEncH265VProfile_Main_420_8);
 	}
 	virtual GUID GetVideoEncoderFormat() override { return MFVideoFormat_HEVC; }
+};
+
+struct SNAPSHOT_OPTIONS {
+protected:
+	std::wstring m_OutputSnapshotsFolderPath = L"";
+	std::chrono::milliseconds m_SnapshotsInterval = std::chrono::milliseconds(10000);
+	bool m_TakesSnapshotsWithVideo = false;
+	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;
+public:
+	void SetTakeSnapshotsWithVideo(bool isEnabled) { m_TakesSnapshotsWithVideo = isEnabled; }
+	void SetSnapshotsWithVideoInterval(UINT32 value) { m_SnapshotsInterval = std::chrono::milliseconds(value); }
+	void SetSnapshotDirectory(std::wstring string) { m_OutputSnapshotsFolderPath = string; }
+	void SetSnapshotSaveFormat(GUID value) { m_ImageEncoderFormat = value; }
+
+	bool IsSnapshotWithVideoEnabled() {
+		return m_TakesSnapshotsWithVideo;
+	}
+	std::chrono::milliseconds GetSnapshotsInterval() {
+		return m_SnapshotsInterval;
+	}
+	std::wstring GetSnapshotsDirectory() {
+		return m_OutputSnapshotsFolderPath;
+	}
+	GUID GetSnapshotEncoderFormat() {
+		return m_ImageEncoderFormat;
+	}
+
+
+	std::wstring GetImageExtension() {
+		if (m_ImageEncoderFormat == GUID_ContainerFormatPng) {
+			return L".png";
+		}
+		else if (m_ImageEncoderFormat == GUID_ContainerFormatJpeg) {
+			return L".jpg";
+		}
+		else if (m_ImageEncoderFormat == GUID_ContainerFormatBmp) {
+			return L".bmp";
+		}
+		else if (m_ImageEncoderFormat == GUID_ContainerFormatTiff) {
+			return L".tiff";
+		}
+		else {
+			return L".jpg";
+		}
+	}
 };

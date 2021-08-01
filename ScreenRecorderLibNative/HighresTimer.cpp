@@ -36,7 +36,7 @@ HighresTimer::~HighresTimer()
 	CloseHandle(m_StopEvent);
 }
 
-HRESULT HighresTimer::StartRecurringTimer(UINT msInterval)
+HRESULT HighresTimer::StartRecurringTimer(INT64 msInterval)
 {
 	if (NULL == m_TickEvent) {
 		DWORD dwErr = GetLastError();
@@ -55,7 +55,7 @@ HRESULT HighresTimer::StartRecurringTimer(UINT msInterval)
 	BOOL bOK = SetWaitableTimer(
 		m_TickEvent,
 		&liFirstFire,
-		msInterval,
+		static_cast<LONG>(msInterval),
 		NULL, NULL, FALSE
 	);
 	if (!bOK) {
@@ -94,7 +94,7 @@ HRESULT HighresTimer::WaitForNextTick()
 	return S_OK;
 }
 
-HRESULT HighresTimer::WaitFor(UINT64 interval100Nanos)
+HRESULT HighresTimer::WaitFor(INT64 interval100Nanos)
 {
 	LARGE_INTEGER liFirstFire;
 	liFirstFire.QuadPart = -interval100Nanos; // negative means relative time

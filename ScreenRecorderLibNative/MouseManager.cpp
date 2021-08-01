@@ -55,7 +55,7 @@ MouseManager::~MouseManager()
 	CloseHandle(m_StopPollingTaskEvent);
 }
 
-HRESULT MouseManager::Initialize(_In_ ID3D11DeviceContext *pImmediateContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<MOUSE_OPTIONS> &pOptions)
+HRESULT MouseManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<MOUSE_OPTIONS> &pOptions)
 {
 	CleanDX();
 	// Create the sample state
@@ -88,10 +88,10 @@ HRESULT MouseManager::Initialize(_In_ ID3D11DeviceContext *pImmediateContext, _I
 	RETURN_ON_BAD_HR(hr);
 
 	// Initialize shaders
-	hr = InitShaders(pImmediateContext, pDevice);
-	hr = InitMouseClickTexture(pImmediateContext, pDevice);
+	hr = InitShaders(pDevice, &m_PixelShader, &m_VertexShader, &m_InputLayout);
+	hr = InitMouseClickTexture(pDeviceContext, pDevice);
 	m_Device = pDevice;
-	m_DeviceContext = pImmediateContext;
+	m_DeviceContext = pDeviceContext;
 	m_MouseOptions = pOptions;
 	m_StopPollingTaskEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 	InitializeMouseClickDetection();
@@ -138,7 +138,7 @@ void MouseManager::InitializeMouseClickDetection()
 	}
 }
 
-HRESULT MouseManager::InitMouseClickTexture(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device) {
+HRESULT MouseManager::InitMouseClickTexture(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice) {
 	HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), (void **)&m_D2DFactory);
 	return hr;
 }
@@ -179,7 +179,7 @@ void MouseManager::GetPointerPosition(_In_ PTR_INFO *pPtrInfo, DXGI_MODE_ROTATIO
 	}
 }
 
-HRESULT MouseManager::DrawMousePointer(_In_ ID3D11Texture2D *pFrame, _In_ PTR_INFO *pPtrInfo)
+HRESULT MouseManager::ProcessMousePointer(_In_ ID3D11Texture2D *pFrame, _In_ PTR_INFO *pPtrInfo)
 {
 	HRESULT hr = S_FALSE;
 	if (g_LastMouseClickDurationRemaining > 0
@@ -193,7 +193,7 @@ HRESULT MouseManager::DrawMousePointer(_In_ ID3D11Texture2D *pFrame, _In_ PTR_IN
 		{
 			hr = DrawMouseClick(pPtrInfo, pFrame, m_MouseOptions->GetMouseClickDetectionRMBColor(), (float)m_MouseOptions->GetMouseClickDetectionRadius(), DXGI_MODE_ROTATION_UNSPECIFIED);
 		}
-		INT64 millisSinceLastMouseDraw = max(0, (std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - m_LastMouseDrawTimeStamp).count()));
+		INT64 millisSinceLastMouseDraw = (INT64)max(0, (std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - m_LastMouseDrawTimeStamp).count()));
 		g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millisSinceLastMouseDraw, 0);
 		LOG_TRACE("Drawing mouse click, duration remaining on click is %u ms", g_LastMouseClickDurationRemaining);
 	}
@@ -217,8 +217,8 @@ HRESULT MouseManager::DrawMouseClick(_In_ PTR_INFO *pPtrInfo, _In_ ID3D11Texture
 		D2D1::RenderTargetProperties(
 			D2D1_RENDER_TARGET_TYPE_DEFAULT,
 			D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, D2D1_ALPHA_MODE_PREMULTIPLIED),
-			dpi,
-			dpi
+			(float)dpi,
+			(float)dpi
 		);
 
 	ATL::CComPtr<ID2D1RenderTarget> pRenderTarget;
@@ -352,7 +352,6 @@ HRESULT MouseManager::DrawMousePointer(_In_ PTR_INFO *pPtrInfo, _Inout_ ID3D11Te
 		LOG_ERROR("Unrecognized mouse pointer type");
 		return E_FAIL;
 	}
-
 	// VERTEX creation
 	if (rotation == DXGI_MODE_ROTATION_UNSPECIFIED
 		|| rotation == DXGI_MODE_ROTATION_IDENTITY) {
@@ -475,6 +474,9 @@ HRESULT MouseManager::DrawMousePointer(_In_ PTR_INFO *pPtrInfo, _Inout_ ID3D11Te
 		RTV->Release();
 		RTV = nullptr;
 	}
+	// Clear shader resource
+	ID3D11ShaderResourceView *null[] = { nullptr, nullptr };
+	m_DeviceContext->PSSetShaderResources(0, 1, null);
 
 	if (VertexBufferMouse)
 	{
@@ -735,47 +737,11 @@ HRESULT MouseManager::ProcessMonoMask(
 	return hr;
 }
 
-//
-// Initialize shaders for drawing to screen
-//
-HRESULT MouseManager::InitShaders(ID3D11DeviceContext *pDeviceContext, ID3D11Device *pDevice)
-{
-	HRESULT hr;
-	UINT Size = ARRAYSIZE(g_VS);
-	hr = pDevice->CreateVertexShader(g_VS, Size, nullptr, &m_VertexShader);
-	if (FAILED(hr))
-	{
-		_com_error err(hr);
-		LOG_ERROR(L"Failed to create vertex shader: %lls", err.ErrorMessage());
-		return hr;
-	}
 
-	D3D11_INPUT_ELEMENT_DESC Layout[] =
-	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
-	};
-	UINT NumElements = ARRAYSIZE(Layout);
-	hr = pDevice->CreateInputLayout(Layout, NumElements, g_VS, Size, &m_InputLayout);
-	if (FAILED(hr))
-	{
-		_com_error err(hr);
-		LOG_ERROR(L"Failed to create input layout: %lls", err.ErrorMessage());
-		return hr;
-	}
-	pDeviceContext->IASetInputLayout(m_InputLayout);
 
-	Size = ARRAYSIZE(g_PS);
-	hr = pDevice->CreatePixelShader(g_PS, Size, nullptr, &m_PixelShader);
-	if (FAILED(hr))
-	{
-		_com_error err(hr);
-		LOG_ERROR(L"Failed to create pixel shader: %lls", err.ErrorMessage());
-	}
-	return hr;
-}
 
-HRESULT MouseManager::ResizeShapeBuffer(PTR_INFO *pPtrInfo, int bufferSize) {
+
+HRESULT MouseManager::ResizeShapeBuffer(_Inout_ PTR_INFO *pPtrInfo, _In_ int bufferSize) {
 	// Old buffer too small
 	if (bufferSize > (int)pPtrInfo->BufferSize)
 	{
@@ -801,7 +767,7 @@ HRESULT MouseManager::ResizeShapeBuffer(PTR_INFO *pPtrInfo, int bufferSize) {
 //
 // Retrieves mouse info and write it into pPtrInfo
 //
-HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO *pFrameInfo, RECT screenRect, IDXGIOutputDuplication *pDeskDupl, int offsetX, int offsetY)
+HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuffer, _In_ DXGI_OUTDUPL_FRAME_INFO *pFrameInfo, _In_ RECT screenRect, _In_ IDXGIOutputDuplication *pDeskDupl, _In_ int offsetX, _In_ int offsetY)
 {
 	pPtrInfo->IsPointerShapeUpdated = false;
 	// A non-zero mouse update timestamp indicates that there is a mouse position update and optionally a shape change
@@ -837,7 +803,7 @@ HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ DXGI_OUTDUPL_FRA
 	}
 
 	// No new shape
-	if (pFrameInfo->PointerShapeBufferSize == 0)
+	if (pFrameInfo->PointerShapeBufferSize == 0 || !getShapeBuffer)
 	{
 		return S_FALSE;
 	}
@@ -860,7 +826,7 @@ HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ DXGI_OUTDUPL_FRA
 	return S_OK;
 }
 
-HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, bool getShapeBuffer, int offsetX, int offsetY)
+HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuffer, _In_ int offsetX, _In_ int offsetY)
 {
 	pPtrInfo->IsPointerShapeUpdated = false;
 	CURSORINFO cursorInfo = { 0 };

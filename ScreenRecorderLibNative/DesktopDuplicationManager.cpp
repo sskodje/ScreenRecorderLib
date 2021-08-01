@@ -4,7 +4,7 @@
 #include <suppress.h>
 #include "DX.util.h"
 using namespace DirectX;
-
+using namespace std;
 //
 // Constructor sets up references / variables
 //
@@ -52,13 +52,16 @@ DesktopDuplicationManager::~DesktopDuplicationManager()
 //
 // Initialize duplication interfaces
 //
-HRESULT DesktopDuplicationManager::Initialize(_In_ DX_RESOURCES *Data, std::wstring Output)
+HRESULT DesktopDuplicationManager::Initialize(_In_ DX_RESOURCES *pData, std::wstring Output)
 {
 	m_OutputName = Output;
-	m_Device = Data->Device;
-	m_DeviceContext = Data->Context;
+	m_Device = pData->Device;
+	m_DeviceContext = pData->Context;
 	m_Device->AddRef();
 	m_DeviceContext->AddRef();
+
+	m_TextureManager = make_unique<TextureManager>();
+	m_TextureManager->Initialize(m_DeviceContext, m_Device);
 
 	// VERTEX shader
 	UINT Size = ARRAYSIZE(g_VS);
@@ -171,7 +174,7 @@ HRESULT DesktopDuplicationManager::Initialize(_In_ DX_RESOURCES *Data, std::wstr
 //
 // Get next frame and write it into Data
 //
-HRESULT DesktopDuplicationManager::GetFrame(_Out_ DUPL_FRAME_DATA *Data)
+HRESULT DesktopDuplicationManager::GetFrame(_Out_ DUPL_FRAME_DATA *pData)
 {
 	IDXGIResource *DesktopResource = nullptr;
 	DXGI_OUTDUPL_FRAME_INFO FrameInfo;
@@ -214,8 +217,8 @@ HRESULT DesktopDuplicationManager::GetFrame(_Out_ DUPL_FRAME_DATA *Data)
 			if (!m_MetaDataBuffer)
 			{
 				m_MetaDataSize = 0;
-				Data->MoveCount = 0;
-				Data->DirtyCount = 0;
+				pData->MoveCount = 0;
+				pData->DirtyCount = 0;
 				LOG_ERROR(L"Failed to allocate memory for metadata in DUPLICATIONMANAGER");
 				return E_OUTOFMEMORY;
 			}
@@ -228,12 +231,12 @@ HRESULT DesktopDuplicationManager::GetFrame(_Out_ DUPL_FRAME_DATA *Data)
 		hr = m_DeskDupl->GetFrameMoveRects(BufSize, reinterpret_cast<DXGI_OUTDUPL_MOVE_RECT *>(m_MetaDataBuffer), &BufSize);
 		if (FAILED(hr))
 		{
-			Data->MoveCount = 0;
-			Data->DirtyCount = 0;
+			pData->MoveCount = 0;
+			pData->DirtyCount = 0;
 			LOG_ERROR(L"Failed to get frame move rects in DUPLICATIONMANAGER");
 			return hr;
 		}
-		Data->MoveCount = BufSize / sizeof(DXGI_OUTDUPL_MOVE_RECT);
+		pData->MoveCount = BufSize / sizeof(DXGI_OUTDUPL_MOVE_RECT);
 
 		BYTE *DirtyRects = m_MetaDataBuffer + BufSize;
 		BufSize = FrameInfo.TotalMetadataBufferSize - BufSize;
@@ -242,17 +245,17 @@ HRESULT DesktopDuplicationManager::GetFrame(_Out_ DUPL_FRAME_DATA *Data)
 		hr = m_DeskDupl->GetFrameDirtyRects(BufSize, reinterpret_cast<RECT *>(DirtyRects), &BufSize);
 		if (FAILED(hr))
 		{
-			Data->MoveCount = 0;
-			Data->DirtyCount = 0;
+			pData->MoveCount = 0;
+			pData->DirtyCount = 0;
 			LOG_ERROR(L"Failed to get frame dirty rects in DUPLICATIONMANAGER");
 			return hr;
 		}
-		Data->DirtyCount = BufSize / sizeof(RECT);
-		Data->MetaData = m_MetaDataBuffer;
+		pData->DirtyCount = BufSize / sizeof(RECT);
+		pData->MetaData = m_MetaDataBuffer;
 	}
 
-	Data->Frame = m_AcquiredDesktopImage;
-	Data->FrameInfo = FrameInfo;
+	pData->Frame = m_AcquiredDesktopImage;
+	pData->FrameInfo = FrameInfo;
 	return S_OK;
 }
 
@@ -274,35 +277,76 @@ HRESULT DesktopDuplicationManager::ReleaseFrame()
 //
 // Gets output desc into DescPtr
 //
-void DesktopDuplicationManager::GetOutputDesc(_Out_ DXGI_OUTPUT_DESC *DescPtr)
+void DesktopDuplicationManager::GetOutputDesc(_Out_ DXGI_OUTPUT_DESC *pOutputDesc)
 {
-	*DescPtr = m_OutputDesc;
+	*pOutputDesc = m_OutputDesc;
 }
 
 //
 // Process a given frame and its metadata
 //
-HRESULT DesktopDuplicationManager::ProcessFrame(_In_ DUPL_FRAME_DATA *Data, _Inout_ ID3D11Texture2D *SharedSurf, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc)
+HRESULT DesktopDuplicationManager::ProcessFrame(_In_ DUPL_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_ DXGI_MODE_ROTATION rotation, _In_opt_ const std::optional<RECT> &sourceRect)
 {
-	HRESULT hr = S_OK;
+	HRESULT hr = S_FALSE;
 	// Process dirties and moves
-	if (Data->FrameInfo.TotalMetadataBufferSize)
+	if (pData->FrameInfo.TotalMetadataBufferSize)
 	{
-		D3D11_TEXTURE2D_DESC Desc;
-		Data->Frame->GetDesc(&Desc);
+		if (sourceRect.has_value() && !EqualRect(&sourceRect.value(), &destinationRect)) {
+			CComPtr<ID3D11Texture2D> processedTexture = pData->Frame;
 
-		if (Data->MoveCount)
-		{
-			hr = CopyMove(SharedSurf, reinterpret_cast<DXGI_OUTDUPL_MOVE_RECT *>(Data->MetaData), Data->MoveCount, OffsetX, OffsetY, DeskDesc, Desc.Width, Desc.Height);
-			if (FAILED(hr))
-			{
-				return hr;
+			if (rotation != DXGI_MODE_ROTATION_IDENTITY && rotation != DXGI_MODE_ROTATION_UNSPECIFIED) {
+				ID3D11Texture2D *rotatedTexture = nullptr;
+				RETURN_ON_BAD_HR(hr = m_TextureManager->RotateTexture(processedTexture, &rotatedTexture, rotation));
+				processedTexture.Attach(rotatedTexture);
 			}
-		}
+			else {
 
-		if (Data->DirtyCount)
-		{
-			hr = CopyDirty(Data->Frame, SharedSurf, reinterpret_cast<RECT *>(Data->MetaData + (Data->MoveCount * sizeof(DXGI_OUTDUPL_MOVE_RECT))), Data->DirtyCount, OffsetX, OffsetY, DeskDesc);
+			}
+
+			CComPtr<ID3D11Texture2D> pCroppedTexture = nullptr;
+			RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(processedTexture, sourceRect.value(), &pCroppedTexture));
+			D3D11_TEXTURE2D_DESC croppedFrameDesc;
+			pCroppedTexture->GetDesc(&croppedFrameDesc);
+
+			int leftMargin = 0;
+			int topMargin = 0;
+
+			double widthRatio = (double)RectWidth(destinationRect) / croppedFrameDesc.Width;
+			double heightRatio = (double)RectHeight(destinationRect) / croppedFrameDesc.Height;
+			double resizeRatio = min(widthRatio, heightRatio);
+			if (resizeRatio != 1) {
+				UINT resizedWidth = (UINT)MakeEven((LONG)round(croppedFrameDesc.Width * resizeRatio));
+				UINT resizedHeight = (UINT)MakeEven((LONG)round(croppedFrameDesc.Height * resizeRatio));
+				ID3D11Texture2D *resizedTexture = nullptr;
+				RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pCroppedTexture, &resizedTexture, SIZE{ static_cast<LONG>(resizedWidth), static_cast<LONG>(resizedHeight) }));
+				processedTexture.Attach(resizedTexture);
+				leftMargin = (int)max(0, round(((double)RectWidth(destinationRect) - (double)resizedWidth)) / 2);
+				topMargin = (int)max(0, round(((double)RectHeight(destinationRect) - (double)resizedHeight)) / 2);
+			}
+			else {
+				processedTexture = pCroppedTexture;
+			}
+			D3D11_TEXTURE2D_DESC processedFrameDesc;
+			processedTexture->GetDesc(&processedFrameDesc);
+
+			D3D11_BOX Box;
+			Box.front = 0;
+			Box.back = 1;
+			Box.left = 0;
+			Box.top = 0;
+			Box.right = MakeEven(processedFrameDesc.Width);
+			Box.bottom = MakeEven(processedFrameDesc.Height);
+			m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, destinationRect.left + offsetX + leftMargin, destinationRect.top + offsetY + topMargin, 0, processedTexture, 0, &Box);
+		}
+		else {
+			if (pData->MoveCount)
+			{
+				RETURN_ON_BAD_HR(hr = CopyMove(pSharedSurf, reinterpret_cast<DXGI_OUTDUPL_MOVE_RECT *>(pData->MetaData), pData->MoveCount, offsetX, offsetY, destinationRect, rotation));
+			}
+			if (pData->DirtyCount)
+			{
+				RETURN_ON_BAD_HR(hr = CopyDirty(pData->Frame, pSharedSurf, reinterpret_cast<RECT *>(pData->MetaData + (pData->MoveCount * sizeof(DXGI_OUTDUPL_MOVE_RECT))), pData->DirtyCount, offsetX, offsetY, destinationRect, rotation));
+			}
 		}
 	}
 
@@ -312,64 +356,64 @@ HRESULT DesktopDuplicationManager::ProcessFrame(_In_ DUPL_FRAME_DATA *Data, _Ino
 //
 // Set appropriate source and destination rects for move rects
 //
-void DesktopDuplicationManager::SetMoveRect(_Out_ RECT *SrcRect, _Out_ RECT *DestRect, _In_ DXGI_OUTPUT_DESC *DeskDesc, _In_ DXGI_OUTDUPL_MOVE_RECT *MoveRect, INT TexWidth, INT TexHeight)
+void DesktopDuplicationManager::SetMoveRect(_Out_ RECT *pSrcRect, _Out_ RECT *pDestRect, _In_ DXGI_MODE_ROTATION rotation, _In_ DXGI_OUTDUPL_MOVE_RECT *pMoveRect, INT texWidth, INT texHeight)
 {
-	switch (DeskDesc->Rotation)
+	switch (rotation)
 	{
 	case DXGI_MODE_ROTATION_UNSPECIFIED:
 	case DXGI_MODE_ROTATION_IDENTITY:
 	{
-		SrcRect->left = MoveRect->SourcePoint.x;
-		SrcRect->top = MoveRect->SourcePoint.y;
-		SrcRect->right = MoveRect->SourcePoint.x + RectWidth(MoveRect->DestinationRect);
-		SrcRect->bottom = MoveRect->SourcePoint.y + RectHeight(MoveRect->DestinationRect);
+		pSrcRect->left = pMoveRect->SourcePoint.x;
+		pSrcRect->top = pMoveRect->SourcePoint.y;
+		pSrcRect->right = pMoveRect->SourcePoint.x + RectWidth(pMoveRect->DestinationRect);
+		pSrcRect->bottom = pMoveRect->SourcePoint.y + RectHeight(pMoveRect->DestinationRect);
 
-		*DestRect = MoveRect->DestinationRect;
+		*pDestRect = pMoveRect->DestinationRect;
 		break;
 	}
 	case DXGI_MODE_ROTATION_ROTATE90:
 	{
-		SrcRect->left = TexHeight - (MoveRect->SourcePoint.y + RectHeight(MoveRect->DestinationRect));
-		SrcRect->top = MoveRect->SourcePoint.x;
-		SrcRect->right = TexHeight - MoveRect->SourcePoint.y;
-		SrcRect->bottom = MoveRect->SourcePoint.x + RectWidth(MoveRect->DestinationRect);
+		pSrcRect->left = texHeight - (pMoveRect->SourcePoint.y + RectHeight(pMoveRect->DestinationRect));
+		pSrcRect->top = pMoveRect->SourcePoint.x;
+		pSrcRect->right = texHeight - pMoveRect->SourcePoint.y;
+		pSrcRect->bottom = pMoveRect->SourcePoint.x + RectWidth(pMoveRect->DestinationRect);
 
-		DestRect->left = TexHeight - MoveRect->DestinationRect.bottom;
-		DestRect->top = MoveRect->DestinationRect.left;
-		DestRect->right = TexHeight - MoveRect->DestinationRect.top;
-		DestRect->bottom = MoveRect->DestinationRect.right;
+		pDestRect->left = texHeight - pMoveRect->DestinationRect.bottom;
+		pDestRect->top = pMoveRect->DestinationRect.left;
+		pDestRect->right = texHeight - pMoveRect->DestinationRect.top;
+		pDestRect->bottom = pMoveRect->DestinationRect.right;
 		break;
 	}
 	case DXGI_MODE_ROTATION_ROTATE180:
 	{
-		SrcRect->left = TexWidth - (MoveRect->SourcePoint.x + RectWidth(MoveRect->DestinationRect));
-		SrcRect->top = TexHeight - (MoveRect->SourcePoint.y + RectHeight(MoveRect->DestinationRect));
-		SrcRect->right = TexWidth - MoveRect->SourcePoint.x;
-		SrcRect->bottom = TexHeight - MoveRect->SourcePoint.y;
+		pSrcRect->left = texWidth - (pMoveRect->SourcePoint.x + RectWidth(pMoveRect->DestinationRect));
+		pSrcRect->top = texHeight - (pMoveRect->SourcePoint.y + RectHeight(pMoveRect->DestinationRect));
+		pSrcRect->right = texWidth - pMoveRect->SourcePoint.x;
+		pSrcRect->bottom = texHeight - pMoveRect->SourcePoint.y;
 
-		DestRect->left = TexWidth - MoveRect->DestinationRect.right;
-		DestRect->top = TexHeight - MoveRect->DestinationRect.bottom;
-		DestRect->right = TexWidth - MoveRect->DestinationRect.left;
-		DestRect->bottom = TexHeight - MoveRect->DestinationRect.top;
+		pDestRect->left = texWidth - pMoveRect->DestinationRect.right;
+		pDestRect->top = texHeight - pMoveRect->DestinationRect.bottom;
+		pDestRect->right = texWidth - pMoveRect->DestinationRect.left;
+		pDestRect->bottom = texHeight - pMoveRect->DestinationRect.top;
 		break;
 	}
 	case DXGI_MODE_ROTATION_ROTATE270:
 	{
-		SrcRect->left = MoveRect->SourcePoint.x;
-		SrcRect->top = TexWidth - (MoveRect->SourcePoint.x + RectWidth(MoveRect->DestinationRect));
-		SrcRect->right = MoveRect->SourcePoint.y + RectHeight(MoveRect->DestinationRect);
-		SrcRect->bottom = TexWidth - MoveRect->SourcePoint.x;
+		pSrcRect->left = pMoveRect->SourcePoint.x;
+		pSrcRect->top = texWidth - (pMoveRect->SourcePoint.x + RectWidth(pMoveRect->DestinationRect));
+		pSrcRect->right = pMoveRect->SourcePoint.y + RectHeight(pMoveRect->DestinationRect);
+		pSrcRect->bottom = texWidth - pMoveRect->SourcePoint.x;
 
-		DestRect->left = MoveRect->DestinationRect.top;
-		DestRect->top = TexWidth - MoveRect->DestinationRect.right;
-		DestRect->right = MoveRect->DestinationRect.bottom;
-		DestRect->bottom = TexWidth - MoveRect->DestinationRect.left;
+		pDestRect->left = pMoveRect->DestinationRect.top;
+		pDestRect->top = texWidth - pMoveRect->DestinationRect.right;
+		pDestRect->right = pMoveRect->DestinationRect.bottom;
+		pDestRect->bottom = texWidth - pMoveRect->DestinationRect.left;
 		break;
 	}
 	default:
 	{
-		RtlZeroMemory(DestRect, sizeof(RECT));
-		RtlZeroMemory(SrcRect, sizeof(RECT));
+		RtlZeroMemory(pDestRect, sizeof(RECT));
+		RtlZeroMemory(pSrcRect, sizeof(RECT));
 		break;
 	}
 	}
@@ -378,18 +422,19 @@ void DesktopDuplicationManager::SetMoveRect(_Out_ RECT *SrcRect, _Out_ RECT *Des
 //
 // Copy move rectangles
 //
-HRESULT DesktopDuplicationManager::CopyMove(_Inout_ ID3D11Texture2D *SharedSurf, _In_reads_(MoveCount) DXGI_OUTDUPL_MOVE_RECT *MoveBuffer, UINT MoveCount, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc, INT TexWidth, INT TexHeight)
+HRESULT DesktopDuplicationManager::CopyMove(_Inout_ ID3D11Texture2D *pSharedSurf, _In_reads_(moveCount) DXGI_OUTDUPL_MOVE_RECT *pMoveBuffer, UINT moveCount, INT offsetX, INT offsetY, _In_ RECT desktopCoordinates, _In_ DXGI_MODE_ROTATION rotation)
 {
 	D3D11_TEXTURE2D_DESC FullDesc;
-	SharedSurf->GetDesc(&FullDesc);
-
+	pSharedSurf->GetDesc(&FullDesc);
+	int TexWidth = RectWidth(desktopCoordinates);
+	int TexHeight = RectHeight(desktopCoordinates);
 	// Make new intermediate surface to copy into for moving
 	if (!m_MoveSurf)
 	{
 		D3D11_TEXTURE2D_DESC MoveDesc;
 		MoveDesc = FullDesc;
-		MoveDesc.Width = RectWidth(DeskDesc->DesktopCoordinates);
-		MoveDesc.Height = RectHeight(DeskDesc->DesktopCoordinates);
+		MoveDesc.Width = RectWidth(desktopCoordinates);
+		MoveDesc.Height = RectHeight(desktopCoordinates);
 		MoveDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
 		MoveDesc.MiscFlags = 0;
 		HRESULT hr = m_Device->CreateTexture2D(&MoveDesc, nullptr, &m_MoveSurf);
@@ -400,22 +445,22 @@ HRESULT DesktopDuplicationManager::CopyMove(_Inout_ ID3D11Texture2D *SharedSurf,
 		}
 	}
 
-	for (UINT i = 0; i < MoveCount; ++i)
+	for (UINT i = 0; i < moveCount; ++i)
 	{
 		RECT SrcRect;
 		RECT DestRect;
 
-		SetMoveRect(&SrcRect, &DestRect, DeskDesc, &(MoveBuffer[i]), TexWidth, TexHeight);
+		SetMoveRect(&SrcRect, &DestRect, rotation, &(pMoveBuffer[i]), TexWidth, TexHeight);
 
 		// Copy rect out of shared surface
 		D3D11_BOX Box;
-		Box.left = SrcRect.left + DeskDesc->DesktopCoordinates.left + OffsetX;
-		Box.top = SrcRect.top + DeskDesc->DesktopCoordinates.top + OffsetY;
+		Box.left = SrcRect.left + desktopCoordinates.left + offsetX;
+		Box.top = SrcRect.top + desktopCoordinates.top + offsetY;
 		Box.front = 0;
-		Box.right = SrcRect.right + DeskDesc->DesktopCoordinates.left + OffsetX;
-		Box.bottom = SrcRect.bottom + DeskDesc->DesktopCoordinates.top + OffsetY;
+		Box.right = SrcRect.right + desktopCoordinates.left + offsetX;
+		Box.bottom = SrcRect.bottom + desktopCoordinates.top + offsetY;
 		Box.back = 1;
-		m_DeviceContext->CopySubresourceRegion(m_MoveSurf, 0, SrcRect.left, SrcRect.top, 0, SharedSurf, 0, &Box);
+		m_DeviceContext->CopySubresourceRegion(m_MoveSurf, 0, SrcRect.left, SrcRect.top, 0, pSharedSurf, 0, &Box);
 
 		// Copy back to shared surface
 		Box.left = SrcRect.left;
@@ -424,7 +469,7 @@ HRESULT DesktopDuplicationManager::CopyMove(_Inout_ ID3D11Texture2D *SharedSurf,
 		Box.right = SrcRect.right;
 		Box.bottom = SrcRect.bottom;
 		Box.back = 1;
-		m_DeviceContext->CopySubresourceRegion(SharedSurf, 0, DestRect.left + DeskDesc->DesktopCoordinates.left + OffsetX, DestRect.top + DeskDesc->DesktopCoordinates.top + OffsetY, 0, m_MoveSurf, 0, &Box);
+		m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, DestRect.left + desktopCoordinates.left + offsetX, DestRect.top + desktopCoordinates.top + offsetY, 0, m_MoveSurf, 0, &Box);
 	}
 
 	return S_OK;
@@ -436,66 +481,66 @@ HRESULT DesktopDuplicationManager::CopyMove(_Inout_ ID3D11Texture2D *SharedSurf,
 #pragma warning(push)
 #pragma warning(disable:__WARNING_USING_UNINIT_VAR) // false positives in SetDirtyVert due to tool bug
 
-void DesktopDuplicationManager::SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX *Vertices, _In_ RECT *Dirty, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc, _In_ D3D11_TEXTURE2D_DESC *FullDesc, _In_ D3D11_TEXTURE2D_DESC *ThisDesc)
+void DesktopDuplicationManager::SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX *pVertices, _In_ RECT *pDirty, INT offsetX, INT offsetY, _In_ RECT desktopCoordinates, _In_ DXGI_MODE_ROTATION rotation, _In_ D3D11_TEXTURE2D_DESC *pFullDesc, _In_ D3D11_TEXTURE2D_DESC *pThisDesc)
 {
-	INT CenterX = FullDesc->Width / 2;
-	INT CenterY = FullDesc->Height / 2;
+	INT CenterX = pFullDesc->Width / 2;
+	INT CenterY = pFullDesc->Height / 2;
 
-	INT Width = RectWidth(DeskDesc->DesktopCoordinates);
-	INT Height = RectHeight(DeskDesc->DesktopCoordinates);
+	INT Width = RectWidth(desktopCoordinates);
+	INT Height = RectHeight(desktopCoordinates);
 
 	// Rotation compensated destination rect
-	RECT DestDirty = *Dirty;
+	RECT DestDirty = *pDirty;
 
 	// Set appropriate coordinates compensated for rotation
-	switch (DeskDesc->Rotation)
+	switch (rotation)
 	{
 	case DXGI_MODE_ROTATION_ROTATE90:
 	{
-		DestDirty.left = Width - Dirty->bottom;
-		DestDirty.top = Dirty->left;
-		DestDirty.right = Width - Dirty->top;
-		DestDirty.bottom = Dirty->right;
+		DestDirty.left = Width - pDirty->bottom;
+		DestDirty.top = pDirty->left;
+		DestDirty.right = Width - pDirty->top;
+		DestDirty.bottom = pDirty->right;
 
-		Vertices[0].TexCoord = XMFLOAT2(Dirty->right / static_cast<FLOAT>(ThisDesc->Width), Dirty->bottom / static_cast<FLOAT>(ThisDesc->Height));
-		Vertices[1].TexCoord = XMFLOAT2(Dirty->left / static_cast<FLOAT>(ThisDesc->Width), Dirty->bottom / static_cast<FLOAT>(ThisDesc->Height));
-		Vertices[2].TexCoord = XMFLOAT2(Dirty->right / static_cast<FLOAT>(ThisDesc->Width), Dirty->top / static_cast<FLOAT>(ThisDesc->Height));
-		Vertices[5].TexCoord = XMFLOAT2(Dirty->left / static_cast<FLOAT>(ThisDesc->Width), Dirty->top / static_cast<FLOAT>(ThisDesc->Height));
+		pVertices[0].TexCoord = XMFLOAT2(pDirty->right / static_cast<FLOAT>(pThisDesc->Width), pDirty->bottom / static_cast<FLOAT>(pThisDesc->Height));
+		pVertices[1].TexCoord = XMFLOAT2(pDirty->left / static_cast<FLOAT>(pThisDesc->Width), pDirty->bottom / static_cast<FLOAT>(pThisDesc->Height));
+		pVertices[2].TexCoord = XMFLOAT2(pDirty->right / static_cast<FLOAT>(pThisDesc->Width), pDirty->top / static_cast<FLOAT>(pThisDesc->Height));
+		pVertices[5].TexCoord = XMFLOAT2(pDirty->left / static_cast<FLOAT>(pThisDesc->Width), pDirty->top / static_cast<FLOAT>(pThisDesc->Height));
 		break;
 	}
 	case DXGI_MODE_ROTATION_ROTATE180:
 	{
-		DestDirty.left = Width - Dirty->right;
-		DestDirty.top = Height - Dirty->bottom;
-		DestDirty.right = Width - Dirty->left;
-		DestDirty.bottom = Height - Dirty->top;
+		DestDirty.left = Width - pDirty->right;
+		DestDirty.top = Height - pDirty->bottom;
+		DestDirty.right = Width - pDirty->left;
+		DestDirty.bottom = Height - pDirty->top;
 
-		Vertices[0].TexCoord = XMFLOAT2(Dirty->right / static_cast<FLOAT>(ThisDesc->Width), Dirty->top / static_cast<FLOAT>(ThisDesc->Height));
-		Vertices[1].TexCoord = XMFLOAT2(Dirty->right / static_cast<FLOAT>(ThisDesc->Width), Dirty->bottom / static_cast<FLOAT>(ThisDesc->Height));
-		Vertices[2].TexCoord = XMFLOAT2(Dirty->left / static_cast<FLOAT>(ThisDesc->Width), Dirty->top / static_cast<FLOAT>(ThisDesc->Height));
-		Vertices[5].TexCoord = XMFLOAT2(Dirty->left / static_cast<FLOAT>(ThisDesc->Width), Dirty->bottom / static_cast<FLOAT>(ThisDesc->Height));
+		pVertices[0].TexCoord = XMFLOAT2(pDirty->right / static_cast<FLOAT>(pThisDesc->Width), pDirty->top / static_cast<FLOAT>(pThisDesc->Height));
+		pVertices[1].TexCoord = XMFLOAT2(pDirty->right / static_cast<FLOAT>(pThisDesc->Width), pDirty->bottom / static_cast<FLOAT>(pThisDesc->Height));
+		pVertices[2].TexCoord = XMFLOAT2(pDirty->left / static_cast<FLOAT>(pThisDesc->Width), pDirty->top / static_cast<FLOAT>(pThisDesc->Height));
+		pVertices[5].TexCoord = XMFLOAT2(pDirty->left / static_cast<FLOAT>(pThisDesc->Width), pDirty->bottom / static_cast<FLOAT>(pThisDesc->Height));
 		break;
 	}
 	case DXGI_MODE_ROTATION_ROTATE270:
 	{
-		DestDirty.left = Dirty->top;
-		DestDirty.top = Height - Dirty->right;
-		DestDirty.right = Dirty->bottom;
-		DestDirty.bottom = Height - Dirty->left;
+		DestDirty.left = pDirty->top;
+		DestDirty.top = Height - pDirty->right;
+		DestDirty.right = pDirty->bottom;
+		DestDirty.bottom = Height - pDirty->left;
 
-		Vertices[0].TexCoord = XMFLOAT2(Dirty->left / static_cast<FLOAT>(ThisDesc->Width), Dirty->top / static_cast<FLOAT>(ThisDesc->Height));
-		Vertices[1].TexCoord = XMFLOAT2(Dirty->right / static_cast<FLOAT>(ThisDesc->Width), Dirty->top / static_cast<FLOAT>(ThisDesc->Height));
-		Vertices[2].TexCoord = XMFLOAT2(Dirty->left / static_cast<FLOAT>(ThisDesc->Width), Dirty->bottom / static_cast<FLOAT>(ThisDesc->Height));
-		Vertices[5].TexCoord = XMFLOAT2(Dirty->right / static_cast<FLOAT>(ThisDesc->Width), Dirty->bottom / static_cast<FLOAT>(ThisDesc->Height));
+		pVertices[0].TexCoord = XMFLOAT2(pDirty->left / static_cast<FLOAT>(pThisDesc->Width), pDirty->top / static_cast<FLOAT>(pThisDesc->Height));
+		pVertices[1].TexCoord = XMFLOAT2(pDirty->right / static_cast<FLOAT>(pThisDesc->Width), pDirty->top / static_cast<FLOAT>(pThisDesc->Height));
+		pVertices[2].TexCoord = XMFLOAT2(pDirty->left / static_cast<FLOAT>(pThisDesc->Width), pDirty->bottom / static_cast<FLOAT>(pThisDesc->Height));
+		pVertices[5].TexCoord = XMFLOAT2(pDirty->right / static_cast<FLOAT>(pThisDesc->Width), pDirty->bottom / static_cast<FLOAT>(pThisDesc->Height));
 		break;
 	}
 	case DXGI_MODE_ROTATION_UNSPECIFIED:
 	case DXGI_MODE_ROTATION_IDENTITY:
 	{
-		Vertices[0].TexCoord = XMFLOAT2(Dirty->left / static_cast<FLOAT>(ThisDesc->Width), Dirty->bottom / static_cast<FLOAT>(ThisDesc->Height));
-		Vertices[1].TexCoord = XMFLOAT2(Dirty->left / static_cast<FLOAT>(ThisDesc->Width), Dirty->top / static_cast<FLOAT>(ThisDesc->Height));
-		Vertices[2].TexCoord = XMFLOAT2(Dirty->right / static_cast<FLOAT>(ThisDesc->Width), Dirty->bottom / static_cast<FLOAT>(ThisDesc->Height));
-		Vertices[5].TexCoord = XMFLOAT2(Dirty->right / static_cast<FLOAT>(ThisDesc->Width), Dirty->top / static_cast<FLOAT>(ThisDesc->Height));
+		pVertices[0].TexCoord = XMFLOAT2(pDirty->left / static_cast<FLOAT>(pThisDesc->Width), pDirty->bottom / static_cast<FLOAT>(pThisDesc->Height));
+		pVertices[1].TexCoord = XMFLOAT2(pDirty->left / static_cast<FLOAT>(pThisDesc->Width), pDirty->top / static_cast<FLOAT>(pThisDesc->Height));
+		pVertices[2].TexCoord = XMFLOAT2(pDirty->right / static_cast<FLOAT>(pThisDesc->Width), pDirty->bottom / static_cast<FLOAT>(pThisDesc->Height));
+		pVertices[5].TexCoord = XMFLOAT2(pDirty->right / static_cast<FLOAT>(pThisDesc->Width), pDirty->top / static_cast<FLOAT>(pThisDesc->Height));
 		break;
 	}
 	default:
@@ -503,23 +548,23 @@ void DesktopDuplicationManager::SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX *V
 	}
 
 	// Set positions
-	Vertices[0].Pos = XMFLOAT3((DestDirty.left + DeskDesc->DesktopCoordinates.left + OffsetX - CenterX) / static_cast<FLOAT>(CenterX),
-		-1 * (DestDirty.bottom + DeskDesc->DesktopCoordinates.top - OffsetY - CenterY) / static_cast<FLOAT>(CenterY),
+	pVertices[0].Pos = XMFLOAT3((DestDirty.left + desktopCoordinates.left + offsetX - CenterX) / static_cast<FLOAT>(CenterX),
+		-1 * (DestDirty.bottom + desktopCoordinates.top + offsetY - CenterY) / static_cast<FLOAT>(CenterY),
 		0.0f);
-	Vertices[1].Pos = XMFLOAT3((DestDirty.left + DeskDesc->DesktopCoordinates.left + OffsetX - CenterX) / static_cast<FLOAT>(CenterX),
-		-1 * (DestDirty.top + DeskDesc->DesktopCoordinates.top - OffsetY - CenterY) / static_cast<FLOAT>(CenterY),
+	pVertices[1].Pos = XMFLOAT3((DestDirty.left + desktopCoordinates.left + offsetX - CenterX) / static_cast<FLOAT>(CenterX),
+		-1 * (DestDirty.top + desktopCoordinates.top + offsetY - CenterY) / static_cast<FLOAT>(CenterY),
 		0.0f);
-	Vertices[2].Pos = XMFLOAT3((DestDirty.right + DeskDesc->DesktopCoordinates.left + OffsetX - CenterX) / static_cast<FLOAT>(CenterX),
-		-1 * (DestDirty.bottom + DeskDesc->DesktopCoordinates.top - OffsetY - CenterY) / static_cast<FLOAT>(CenterY),
+	pVertices[2].Pos = XMFLOAT3((DestDirty.right + desktopCoordinates.left + offsetX - CenterX) / static_cast<FLOAT>(CenterX),
+		-1 * (DestDirty.bottom + desktopCoordinates.top + offsetY - CenterY) / static_cast<FLOAT>(CenterY),
 		0.0f);
-	Vertices[3].Pos = Vertices[2].Pos;
-	Vertices[4].Pos = Vertices[1].Pos;
-	Vertices[5].Pos = XMFLOAT3((DestDirty.right + DeskDesc->DesktopCoordinates.left + OffsetX - CenterX) / static_cast<FLOAT>(CenterX),
-		-1 * (DestDirty.top + DeskDesc->DesktopCoordinates.top - OffsetY - CenterY) / static_cast<FLOAT>(CenterY),
+	pVertices[3].Pos = pVertices[2].Pos;
+	pVertices[4].Pos = pVertices[1].Pos;
+	pVertices[5].Pos = XMFLOAT3((DestDirty.right + desktopCoordinates.left + offsetX - CenterX) / static_cast<FLOAT>(CenterX),
+		-1 * (DestDirty.top + desktopCoordinates.top + offsetY - CenterY) / static_cast<FLOAT>(CenterY),
 		0.0f);
 
-	Vertices[3].TexCoord = Vertices[2].TexCoord;
-	Vertices[4].TexCoord = Vertices[1].TexCoord;
+	pVertices[3].TexCoord = pVertices[2].TexCoord;
+	pVertices[4].TexCoord = pVertices[1].TexCoord;
 }
 
 #pragma warning(pop) // re-enable __WARNING_USING_UNINIT_VAR
@@ -527,19 +572,19 @@ void DesktopDuplicationManager::SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX *V
 //
 // Copies dirty rectangles
 //
-HRESULT DesktopDuplicationManager::CopyDirty(_In_ ID3D11Texture2D *SrcSurface, _Inout_ ID3D11Texture2D *SharedSurf, _In_reads_(DirtyCount) RECT *DirtyBuffer, UINT DirtyCount, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc)
+HRESULT DesktopDuplicationManager::CopyDirty(_In_ ID3D11Texture2D *pSrcSurface, _Inout_ ID3D11Texture2D *pSharedSurf, _In_reads_(dirtyCount) RECT *pDirtyBuffer, UINT dirtyCount, INT offsetX, INT OffsetY, _In_ RECT desktopCoordinates, _In_ DXGI_MODE_ROTATION rotation)
 {
 	HRESULT hr;
 
 	D3D11_TEXTURE2D_DESC FullDesc;
-	SharedSurf->GetDesc(&FullDesc);
+	pSharedSurf->GetDesc(&FullDesc);
 
 	D3D11_TEXTURE2D_DESC ThisDesc;
-	SrcSurface->GetDesc(&ThisDesc);
+	pSrcSurface->GetDesc(&ThisDesc);
 
 	if (!m_RTV)
 	{
-		hr = m_Device->CreateRenderTargetView(SharedSurf, nullptr, &m_RTV);
+		hr = m_Device->CreateRenderTargetView(pSharedSurf, nullptr, &m_RTV);
 		if (FAILED(hr))
 		{
 			LOG_ERROR(L"Failed to create render target view for dirty rects");
@@ -556,43 +601,12 @@ HRESULT DesktopDuplicationManager::CopyDirty(_In_ ID3D11Texture2D *SrcSurface, _
 	ID3D11ShaderResourceView *ShaderResource = nullptr;
 
 	if (m_OutputIsOnSeparateGraphicsAdapter) {
-		CComPtr<ID3D11Device> pDuplicationDevice = nullptr;
-		SrcSurface->GetDevice(&pDuplicationDevice);
-		CComPtr<ID3D11DeviceContext> pDuplicationDeviceContext = nullptr;
-		pDuplicationDevice->GetImmediateContext(&pDuplicationDeviceContext);
-
-		//Create a new staging texture on the duplication device that supports CPU access.
-		CComPtr<ID3D11Texture2D> pStagingTexture;
-		D3D11_TEXTURE2D_DESC stagingDesc;
-		SrcSurface->GetDesc(&stagingDesc);
-		stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-		stagingDesc.Usage = D3D11_USAGE_STAGING;
-		stagingDesc.MiscFlags = 0;
-		stagingDesc.BindFlags = 0;
-		RETURN_ON_BAD_HR(hr = pDuplicationDevice->CreateTexture2D(&stagingDesc, nullptr, &pStagingTexture));
-		//Copy the source surface to the new staging texture.
-		pDuplicationDeviceContext->CopyResource(pStagingTexture, SrcSurface);
-		D3D11_MAPPED_SUBRESOURCE mapped{};
-		//Map the staging texture to get access to the texture data.
-		RETURN_ON_BAD_HR(hr = pDuplicationDeviceContext->Map(pStagingTexture, 0, D3D11_MAP_READ, 0, &mapped));
-		BYTE *data = (BYTE *)mapped.pData;
-		LONG stride = mapped.RowPitch;
-		pDuplicationDeviceContext->Unmap(pStagingTexture,0);
-		// Set up init data and create new texture from the mapped data.
-		D3D11_SUBRESOURCE_DATA initData = { 0 };
-		initData.pSysMem = data;
-		initData.SysMemPitch = abs(stride);
-		initData.SysMemSlicePitch = 0;
-		D3D11_TEXTURE2D_DESC mappedTextureDesc;
-		SrcSurface->GetDesc(&mappedTextureDesc);
-		mappedTextureDesc.MiscFlags = 0;
-		mappedTextureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 		CComPtr<ID3D11Texture2D> pTextureCopy;
-		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&mappedTextureDesc, &initData, &pTextureCopy));
+		m_TextureManager->CopyTextureWithCPU(m_Device, pSrcSurface, &pTextureCopy);
 		RETURN_ON_BAD_HR(hr = m_Device->CreateShaderResourceView(pTextureCopy, &ShaderDesc, &ShaderResource));
 	}
 	else {
-		RETURN_ON_BAD_HR(hr = m_Device->CreateShaderResourceView(SrcSurface, &ShaderDesc, &ShaderResource));
+		RETURN_ON_BAD_HR(hr = m_Device->CreateShaderResourceView(pSrcSurface, &ShaderDesc, &ShaderResource));
 	}
 
 	if (FAILED(hr))
@@ -611,7 +625,7 @@ HRESULT DesktopDuplicationManager::CopyDirty(_In_ ID3D11Texture2D *SrcSurface, _
 	m_DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// Create space for vertices for the dirty rects if the current space isn't large enough
-	UINT BytesNeeded = sizeof(VERTEX) * NUMVERTICES * DirtyCount;
+	UINT BytesNeeded = sizeof(VERTEX) * NUMVERTICES * dirtyCount;
 	if (BytesNeeded > m_DirtyVertexBufferAllocSize)
 	{
 		if (m_DirtyVertexBufferAlloc)
@@ -632,9 +646,9 @@ HRESULT DesktopDuplicationManager::CopyDirty(_In_ ID3D11Texture2D *SrcSurface, _
 
 	// Fill them in
 	VERTEX *DirtyVertex = reinterpret_cast<VERTEX *>(m_DirtyVertexBufferAlloc);
-	for (UINT i = 0; i < DirtyCount; ++i, DirtyVertex += NUMVERTICES)
+	for (UINT i = 0; i < dirtyCount; ++i, DirtyVertex += NUMVERTICES)
 	{
-		SetDirtyVert(DirtyVertex, &(DirtyBuffer[i]), OffsetX, OffsetY, DeskDesc, &FullDesc, &ThisDesc);
+		SetDirtyVert(DirtyVertex, &(pDirtyBuffer[i]), offsetX, OffsetY, desktopCoordinates, rotation, &FullDesc, &ThisDesc);
 	}
 
 	// Create vertex buffer
@@ -659,16 +673,13 @@ HRESULT DesktopDuplicationManager::CopyDirty(_In_ ID3D11Texture2D *SrcSurface, _
 	UINT Offset = 0;
 	m_DeviceContext->IASetVertexBuffers(0, 1, &VertBuf, &Stride, &Offset);
 
-	D3D11_VIEWPORT VP;
-	VP.Width = static_cast<FLOAT>(FullDesc.Width);
-	VP.Height = static_cast<FLOAT>(FullDesc.Height);
-	VP.MinDepth = 0.0f;
-	VP.MaxDepth = 1.0f;
-	VP.TopLeftX = 0.0f;
-	VP.TopLeftY = 0.0f;
-	m_DeviceContext->RSSetViewports(1, &VP);
+	SetViewPort(m_DeviceContext, FullDesc.Width, FullDesc.Height);
 
-	m_DeviceContext->Draw(NUMVERTICES * DirtyCount, 0);
+	m_DeviceContext->Draw(NUMVERTICES * dirtyCount, 0);
+
+	// Clear shader resource
+	ID3D11ShaderResourceView *null[] = { nullptr, nullptr };
+	m_DeviceContext->PSSetShaderResources(0, 1, null);
 
 	VertBuf->Release();
 	VertBuf = nullptr;

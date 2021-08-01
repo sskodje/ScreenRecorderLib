@@ -97,7 +97,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 		DXGI_OUTPUT_DESC DesktopDesc;
 		RtlZeroMemory(&DesktopDesc, sizeof(DXGI_OUTPUT_DESC));
 		pDuplicationManager.GetOutputDesc(&DesktopDesc);
-		pData->ContentFrameRect = DesktopDesc.DesktopCoordinates;
+
 		// Main duplication loop
 		bool WaitToProcessCurrentFrame = false;
 		DUPL_FRAME_DATA CurrentData{};
@@ -149,14 +149,13 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			WaitToProcessCurrentFrame = false;
 
 			// Get mouse info
-			hr = pMouseManager.GetMouse(pData->PtrInfo, &(CurrentData.FrameInfo), DesktopDesc.DesktopCoordinates, pDuplicationManager.GetOutputDuplication(), pSource->OffsetX, pSource->OffsetY);
+			hr = pMouseManager.GetMouse(pData->PtrInfo, pSource->IsCursorCaptureEnabled, &(CurrentData.FrameInfo), pSource->FrameCoordinates, pDuplicationManager.GetOutputDuplication(), pSource->OffsetX, pSource->OffsetY);
 			if (FAILED(hr))
 			{
 				break;
 			}
-
 			// Process new frame
-			hr = pDuplicationManager.ProcessFrame(&CurrentData, SharedSurf, pSource->OffsetX, pSource->OffsetY, &DesktopDesc);
+			hr = pDuplicationManager.ProcessFrame(&CurrentData, SharedSurf, pSource->OffsetX, pSource->OffsetY, pSource->FrameCoordinates, DesktopDesc.Rotation, pSource->SourceRect);
 			if (FAILED(hr))
 			{
 				break;

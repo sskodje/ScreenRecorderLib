@@ -94,7 +94,7 @@ HRESULT GifReader::StopCapture()
 	return S_OK;
 }
 
-HRESULT GifReader::GetFrame(FRAME_INFO *pFrameInfo, int timeoutMs)
+HRESULT GifReader::GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int timeoutMs)
 {
 	DWORD result = WaitForSingleObject(m_NewFrameEvent, timeoutMs);
 	HRESULT hr;
@@ -221,11 +221,9 @@ HRESULT GifReader::CreateDeviceResources()
 			D2D1::RenderTargetProperties(
 				D2D1_RENDER_TARGET_TYPE_DEFAULT,
 				D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, D2D1_ALPHA_MODE_PREMULTIPLIED),
-				dpi,
-				dpi
+				static_cast<float>(dpi),
+				static_cast<float>(dpi)
 			);
-
-		//RETURN_ON_BAD_HR(hr = m_pIWICFactory->CreateBitmap(m_cxGifImagePixel, m_cyGifImagePixel, GUID_WICPixelFormat32bppPBGRA, WICBitmapCacheOnLoad, &m_RenderBitmap));
 
 
 		D3D11_TEXTURE2D_DESC desc = { 0 };
@@ -243,9 +241,6 @@ HRESULT GifReader::CreateDeviceResources()
 		ATL::CComPtr<IDXGISurface> pSharedSurface;
 		RETURN_ON_BAD_HR(hr = m_RenderTexture->QueryInterface(__uuidof(IDXGISurface), (void **)&pSharedSurface));
 		RETURN_ON_BAD_HR(hr = m_pD2DFactory->CreateDxgiSurfaceRenderTarget(pSharedSurface, RenderTargetProperties, &m_RenderTarget));
-
-
-		//RETURN_ON_BAD_HR(hr = m_pD2DFactory->CreateWicBitmapRenderTarget(m_RenderBitmap, RenderTargetProperties, &m_RenderTarget));
 
 		if (SUCCEEDED(hr))
 		{

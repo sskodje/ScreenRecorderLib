@@ -20,10 +20,10 @@ public:
 	MouseManager();
 	~MouseManager();
 
-	HRESULT Initialize(_In_ ID3D11DeviceContext *pImmediateContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<MOUSE_OPTIONS> &pOptions);
+	HRESULT Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<MOUSE_OPTIONS> &pOptions);
 	void InitializeMouseClickDetection();
-	HRESULT DrawMousePointer(_In_ ID3D11Texture2D *pFrame, _In_ PTR_INFO *pPtrInfo);
-	HRESULT GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ DXGI_OUTDUPL_FRAME_INFO *pFrameInfo, _In_ RECT screenRect, _In_ IDXGIOutputDuplication *pDeskDupl, _In_ int offsetX, _In_ int offsetY);
+	HRESULT ProcessMousePointer(_In_ ID3D11Texture2D *pFrame, _In_ PTR_INFO *pPtrInfo);
+	HRESULT GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuffer, _In_ DXGI_OUTDUPL_FRAME_INFO *pFrameInfo, _In_ RECT screenRect, _In_ IDXGIOutputDuplication *pDeskDupl, _In_ int offsetX, _In_ int offsetY);
 	HRESULT GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuffer, _In_ int offsetX, _In_ int offsetY);
 	void CleanDX();
 protected:
@@ -54,8 +54,8 @@ private:
 	long ParseColorString(std::string color);
 	void GetPointerPosition(_In_ PTR_INFO *pPtrInfo, DXGI_MODE_ROTATION rotation, int desktopWidth, int desktopHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop);
 	HRESULT ProcessMonoMask(_In_ ID3D11Texture2D *pBgTexture, _In_ DXGI_MODE_ROTATION rotation, _In_ bool IsMono, _Inout_ PTR_INFO *PtrInfo, _Out_ INT *PtrWidth, _Out_ INT *PtrHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop, _Outptr_result_bytebuffer_(*PtrHeight **PtrWidth *BPP) BYTE **pInitBuffer);
-	HRESULT InitShaders(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice);
-	HRESULT InitMouseClickTexture(_In_ ID3D11DeviceContext *pImmediateContext, _In_ ID3D11Device *pDevice);
-	HRESULT ResizeShapeBuffer(_In_ PTR_INFO *pPtrInfo, _In_ int bufferSize);
+
+	HRESULT InitMouseClickTexture(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice);
+	HRESULT ResizeShapeBuffer(_Inout_ PTR_INFO *pPtrInfo, _In_ int bufferSize);
 };
 

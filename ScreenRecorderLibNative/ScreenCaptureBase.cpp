@@ -6,6 +6,7 @@
 
 using namespace DirectX;
 using namespace std::chrono;
+using namespace std;
 
 DWORD WINAPI OverlayProc(_In_ void *Param);
 HRESULT ReadMedia(CaptureBase &reader, OVERLAY_THREAD_DATA *pData);
@@ -25,11 +26,7 @@ ScreenCaptureBase::ScreenCaptureBase() :
 	m_CaptureThreadCount(0),
 	m_CaptureThreadHandles(nullptr),
 	m_CaptureThreadData(nullptr),
-	m_SamplerLinear(nullptr),
-	m_BlendState(nullptr),
-	m_VertexShader(nullptr),
-	m_PixelShader(nullptr),
-	m_InputLayout(nullptr)
+	m_TextureManager(nullptr)
 {
 	RtlZeroMemory(&m_PtrInfo, sizeof(m_PtrInfo));
 	// Event to tell spawned threads to quit
@@ -46,72 +43,12 @@ ScreenCaptureBase::~ScreenCaptureBase()
 //
 HRESULT ScreenCaptureBase::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice)
 {
-	CleanDX();
 	m_Device = pDevice;
 	m_DeviceContext = pDeviceContext;
 
-	HRESULT hr;
+	m_TextureManager = make_unique<TextureManager>();
+	HRESULT hr = m_TextureManager->Initialize(m_DeviceContext, m_Device);
 
-	// Create the sample state
-	D3D11_SAMPLER_DESC SampDesc;
-	RtlZeroMemory(&SampDesc, sizeof(SampDesc));
-	SampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
-	SampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-	SampDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-	SampDesc.MinLOD = 0;
-	SampDesc.MaxLOD = D3D11_FLOAT32_MAX;
-	hr = pDevice->CreateSamplerState(&SampDesc, &m_SamplerLinear);
-	RETURN_ON_BAD_HR(hr);
-
-	// Create the blend state
-	D3D11_BLEND_DESC BlendStateDesc;
-	RtlZeroMemory(&BlendStateDesc, sizeof(BlendStateDesc));
-	BlendStateDesc.AlphaToCoverageEnable = FALSE;
-	BlendStateDesc.IndependentBlendEnable = FALSE;
-	BlendStateDesc.RenderTarget[0].BlendEnable = TRUE;
-	BlendStateDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-	BlendStateDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
-	BlendStateDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
-	BlendStateDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
-	BlendStateDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
-	BlendStateDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
-	BlendStateDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-	hr = pDevice->CreateBlendState(&BlendStateDesc, &m_BlendState);
-	RETURN_ON_BAD_HR(hr);
-
-	UINT Size = ARRAYSIZE(g_VS);
-	hr = pDevice->CreateVertexShader(g_VS, Size, nullptr, &m_VertexShader);
-	if (FAILED(hr))
-	{
-		_com_error err(hr);
-		LOG_ERROR(L"Failed to create vertex shader: %lls", err.ErrorMessage());
-		return hr;
-	}
-
-	D3D11_INPUT_ELEMENT_DESC Layout[] =
-	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
-	};
-	UINT NumElements = ARRAYSIZE(Layout);
-	hr = pDevice->CreateInputLayout(Layout, NumElements, g_VS, Size, &m_InputLayout);
-	if (FAILED(hr))
-	{
-		_com_error err(hr);
-		LOG_ERROR(L"Failed to create input layout: %lls", err.ErrorMessage());
-		return hr;
-	}
-	pDeviceContext->IASetInputLayout(m_InputLayout);
-
-	Size = ARRAYSIZE(g_PS);
-	hr = pDevice->CreatePixelShader(g_PS, Size, nullptr, &m_PixelShader);
-	if (FAILED(hr))
-	{
-		_com_error err(hr);
-		LOG_ERROR(L"Failed to create pixel shader: %lls", err.ErrorMessage());
-	}
 	return hr;
 }
 
@@ -146,7 +83,6 @@ HRESULT ScreenCaptureBase::StartCapture(_In_ std::vector<RECORDING_SOURCE> sourc
 		m_CaptureThreadData[i].PtrInfo = &m_PtrInfo;
 
 		m_CaptureThreadData[i].RecordingSource = data;
-
 		RtlZeroMemory(&m_CaptureThreadData[i].RecordingSource->DxRes, sizeof(DX_RESOURCES));
 		RETURN_ON_BAD_HR(hr = InitializeDx(nullptr, &m_CaptureThreadData[i].RecordingSource->DxRes));
 
@@ -243,13 +179,6 @@ HRESULT ScreenCaptureBase::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ C
 		RETURN_ON_BAD_HR(hr = ProcessOverlays(pDesktopFrame, &updatedOverlaysCount));
 		measure.SetName(string_format(L"Updated %d capture sources and %d overlays", updatedFrameCount, updatedOverlaysCount));
 	}
-	SIZE contentSize;
-	if (IsSingleWindowCapture()) {
-		contentSize = GetContentSize();
-	}
-	else {
-		contentSize = SIZE{ RectWidth(m_OutputRect),RectHeight(m_OutputRect) };
-	}
 
 
 	if (updatedFrameCount > 0 || updatedOverlaysCount > 0) {
@@ -260,7 +189,7 @@ HRESULT ScreenCaptureBase::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ C
 	pFrame->FrameUpdateCount = updatedFrameCount;
 	pFrame->Timestamp = m_LastAcquiredFrameTimeStamp;
 	pFrame->OverlayUpdateCount = updatedOverlaysCount;
-	pFrame->ContentSize = contentSize;
+
 	return hr;
 }
 
@@ -346,18 +275,7 @@ void ScreenCaptureBase::Clean()
 
 	m_CaptureThreadCount = 0;
 
-	CleanDX();
-
 	CloseHandle(m_TerminateThreadsEvent);
-}
-
-void ScreenCaptureBase::CleanDX()
-{
-	SafeRelease(&m_SamplerLinear);
-	SafeRelease(&m_BlendState);
-	SafeRelease(&m_InputLayout);
-	SafeRelease(&m_VertexShader);
-	SafeRelease(&m_PixelShader);
 }
 
 //
@@ -374,78 +292,13 @@ void ScreenCaptureBase::WaitForThreadTermination()
 	}
 }
 
-void ScreenCaptureBase::ConfigureVertices(_Inout_ VERTEX(&vertices)[NUMVERTICES], _In_ RECORDING_OVERLAY_DATA *pOverlay, _In_ FRAME_INFO *pFrameInfo, _In_opt_ DXGI_MODE_ROTATION rotation)
-{
-	RECT backgroundRect = GetOutputRect();
-	LONG backgroundWidth = RectWidth(backgroundRect);
-	LONG backgroundHeight = RectHeight(backgroundRect);
-
-	RECT overlayRect = GetOverlayRect(backgroundRect, pOverlay);
-	LONG overlayLeft = overlayRect.left;
-	LONG overlayTop = overlayRect.top;
-	LONG overlayWidth = RectWidth(overlayRect);
-	LONG overlayHeight = RectHeight(overlayRect);
-	// Center of desktop dimensions
-	FLOAT centerX = ((FLOAT)backgroundWidth / 2);
-	FLOAT centerY = ((FLOAT)backgroundHeight / 2);
-
-
-	// VERTEX creation
-	if (rotation == DXGI_MODE_ROTATION_UNSPECIFIED
-		|| rotation == DXGI_MODE_ROTATION_IDENTITY) {
-		vertices[0].Pos.x = (overlayLeft - centerX) / centerX;
-		vertices[0].Pos.y = -1 * ((overlayTop + overlayHeight) - centerY) / centerY;
-		vertices[1].Pos.x = (overlayLeft - centerX) / centerX;
-		vertices[1].Pos.y = -1 * (overlayTop - centerY) / centerY;
-		vertices[2].Pos.x = ((overlayLeft + overlayWidth) - centerX) / centerX;
-		vertices[2].Pos.y = -1 * ((overlayTop + overlayHeight) - centerY) / centerY;
-		vertices[5].Pos.x = ((overlayLeft + overlayWidth) - centerX) / centerX;
-		vertices[5].Pos.y = -1 * (overlayTop - centerY) / centerY;
-	}	//Flip pointer 90 degrees counterclockwise
-	else if (rotation == DXGI_MODE_ROTATION_ROTATE90) {
-		vertices[0].Pos.x = ((overlayLeft + overlayWidth) - centerX) / centerX;
-		vertices[0].Pos.y = -1 * ((overlayTop + overlayHeight) - centerY) / centerY;
-		vertices[1].Pos.x = (overlayLeft - centerX) / centerX;
-		vertices[1].Pos.y = -1 * ((overlayTop + overlayHeight) - centerY) / centerY;
-		vertices[2].Pos.x = ((overlayLeft + overlayWidth) - centerX) / centerX;
-		vertices[2].Pos.y = -1 * (overlayTop - centerY) / centerY;
-		vertices[5].Pos.x = (overlayLeft - centerX) / centerX;
-		vertices[5].Pos.y = -1 * (overlayTop - centerY) / centerY;
-	}	//Turn pointer upside down
-	else if (rotation == DXGI_MODE_ROTATION_ROTATE180) {
-		vertices[0].Pos.x = ((overlayLeft + overlayWidth) - centerX) / centerX;
-		vertices[0].Pos.y = -1 * (overlayTop - centerY) / centerY;
-		vertices[1].Pos.x = ((overlayLeft + overlayWidth) - centerX) / centerX;
-		vertices[1].Pos.y = -1 * ((overlayTop + overlayHeight) - centerY) / centerY;
-		vertices[2].Pos.x = (overlayLeft - centerX) / centerX;
-		vertices[2].Pos.y = -1 * (overlayTop - centerY) / centerY;
-		vertices[5].Pos.x = (overlayLeft - centerX) / centerX;
-		vertices[5].Pos.y = -1 * ((overlayTop + overlayHeight) - centerY) / centerY;
-	}	//Flip pointer 90 degrees clockwise
-	else if (rotation == DXGI_MODE_ROTATION_ROTATE270) {
-		vertices[0].Pos.x = (overlayLeft - centerX) / centerX;
-		vertices[0].Pos.y = -1 * (overlayTop - centerY) / centerY;
-		vertices[1].Pos.x = ((overlayLeft + overlayWidth) - centerX) / centerX;
-		vertices[1].Pos.y = -1 * (overlayTop - centerY) / centerY;
-		vertices[2].Pos.x = (overlayLeft - centerX) / centerX;
-		vertices[2].Pos.y = -1 * ((overlayTop + overlayHeight) - centerY) / centerY;
-		vertices[5].Pos.x = ((overlayLeft + overlayWidth) - centerX) / centerX;
-		vertices[5].Pos.y = -1 * ((overlayTop + overlayHeight) - centerY) / centerY;
-	}
-
-	vertices[3].Pos.x = vertices[2].Pos.x;
-	vertices[3].Pos.y = vertices[2].Pos.y;
-	vertices[4].Pos.x = vertices[1].Pos.x;
-	vertices[4].Pos.y = vertices[1].Pos.y;
-}
-
 _Ret_maybenull_ CAPTURE_THREAD_DATA *ScreenCaptureBase::GetCaptureDataForRect(RECT rect)
 {
 	POINT pt{ rect.left,rect.top };
 	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
 	{
 		if (m_CaptureThreadData[i].RecordingSource) {
-			if (PtInRect(&m_CaptureThreadData[i].ContentFrameRect, pt)) {
+			if (PtInRect(&m_CaptureThreadData[i].RecordingSource->FrameCoordinates, pt)) {
 				return &m_CaptureThreadData[i];
 			}
 		}
@@ -453,10 +306,10 @@ _Ret_maybenull_ CAPTURE_THREAD_DATA *ScreenCaptureBase::GetCaptureDataForRect(RE
 	return nullptr;
 }
 
-RECT ScreenCaptureBase::GetOverlayRect(_In_ RECT background, _In_ RECORDING_OVERLAY_DATA *pOverlay)
+RECT ScreenCaptureBase::GetOverlayRect(_In_ SIZE backgroundSize, _In_ RECORDING_OVERLAY_DATA *pOverlay)
 {
-	LONG backgroundWidth = RectWidth(background);
-	LONG backgroundHeight = RectHeight(background);
+	LONG backgroundWidth = backgroundSize.cx;
+	LONG backgroundHeight = backgroundSize.cy;
 
 	// Clipping adjusted coordinates / dimensions
 	LONG overlayWidth = pOverlay->Size.cx;
@@ -602,19 +455,20 @@ HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> s
 		if (source.Type == RecordingSourceType::Display) {
 			data->OffsetX -= pDeskBounds->left;
 			data->OffsetY -= pDeskBounds->top;
-			data->OffsetX += accumulatedWindowXOffset;
+		
 		}
 		else if (source.Type == RecordingSourceType::Window) {
-			data->OffsetX += sourceRect.left;
+
 			accumulatedWindowXOffset += RectWidth(sourceRect);
 		}
 		data->OffsetX -= outputOffsets.at(i).cx;
 		data->OffsetY -= outputOffsets.at(i).cy;
+		data->FrameCoordinates = sourceRect;
 		pCreatedOutputs->push_back(data);
 	}
 
 	// Set created outputs
-	hr = ScreenCaptureBase::CreateSharedSurf(*pDeskBounds,&m_SharedSurf,&m_KeyMutex);
+	hr = ScreenCaptureBase::CreateSharedSurf(*pDeskBounds, &m_SharedSurf, &m_KeyMutex);
 	return hr;
 }
 
@@ -660,23 +514,7 @@ HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ RECT desktopRect, _Outptr_ ID3D
 	return hr;
 }
 
-SIZE ScreenCaptureBase::GetContentSize()
-{
-	RECT combinedRect = GetContentRect();
-	return SIZE{ RectWidth(combinedRect),RectHeight(combinedRect) };
-}
 
-RECT ScreenCaptureBase::GetContentRect()
-{
-	RECT combinedRect{};
-	std::vector<RECT> contentRects{};
-	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
-	{
-		contentRects.push_back(m_CaptureThreadData[i].ContentFrameRect);
-	}
-	GetCombinedRects(contentRects, &combinedRect, nullptr);
-	return combinedRect;
-}
 
 HRESULT ScreenCaptureBase::ProcessOverlays(_Inout_ ID3D11Texture2D *pBackgroundFrame, _Out_ int *updateCount)
 {
@@ -703,11 +541,6 @@ HRESULT ScreenCaptureBase::DrawOverlay(_Inout_ ID3D11Texture2D *pBackgroundFrame
 	if (!pFrameInfo || pFrameInfo->PtrFrameBuffer == nullptr || pFrameInfo->BufferSize == 0)
 		return S_FALSE;
 
-	// Used for copying pixels
-	D3D11_BOX Box = { 0 };
-	Box.front = 0;
-	Box.back = 1;
-
 	D3D11_TEXTURE2D_DESC desc = { 0 };
 	desc.MipLevels = 1;
 	desc.ArraySize = 1;
@@ -719,29 +552,18 @@ HRESULT ScreenCaptureBase::DrawOverlay(_Inout_ ID3D11Texture2D *pBackgroundFrame
 	desc.CPUAccessFlags = 0;
 	desc.MiscFlags = 0;
 
-	VERTEX vertices[NUMVERTICES] =
-	{
-		{ XMFLOAT3(-1.0f, -1.0f, 0), XMFLOAT2(0.0f, 1.0f) },
-		{ XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f) },
-		{ XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f) },
-		{ XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f) },
-		{ XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f) },
-		{ XMFLOAT3(1.0f, 1.0f, 0), XMFLOAT2(1.0f, 0.0f) },
-	};
-
-	ConfigureVertices(vertices, pOverlay, pFrameInfo);
-
 	// Set texture properties
 	desc.Width = pFrameInfo->Width;
 	desc.Height = pFrameInfo->Height;
 
 	// Set up init data
-	D3D11_SUBRESOURCE_DATA initData = { 0 };
+	D3D11_SUBRESOURCE_DATA initData;
+	ZeroMemory(&initData, sizeof(D3D11_SUBRESOURCE_DATA));
 	initData.pSysMem = pFrameInfo->PtrFrameBuffer;
 	initData.SysMemPitch = abs(pFrameInfo->Stride);
 	initData.SysMemSlicePitch = 0;
 
-	// Create mouseshape as texture
+	// Create overlay as texture
 	CComPtr<ID3D11Texture2D> overlayTex;
 	HRESULT hr = m_Device->CreateTexture2D(&desc, &initData, &overlayTex);
 	if (FAILED(hr))
@@ -750,59 +572,7 @@ HRESULT ScreenCaptureBase::DrawOverlay(_Inout_ ID3D11Texture2D *pBackgroundFrame
 		LOG_ERROR(L"Failed to create overlay texture: %ls", err.ErrorMessage());
 		return hr;
 	}
-	// Set shader resource properties
-	D3D11_SHADER_RESOURCE_VIEW_DESC shaderDesc;
-	shaderDesc.Format = desc.Format;
-	shaderDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	shaderDesc.Texture2D.MostDetailedMip = desc.MipLevels - 1;
-	shaderDesc.Texture2D.MipLevels = desc.MipLevels;
-
-	// Create shader resource from texture
-	CComPtr<ID3D11ShaderResourceView> shaderRes;
-	hr = m_Device->CreateShaderResourceView(overlayTex, &shaderDesc, &shaderRes);
-	if (FAILED(hr))
-	{
-		_com_error err(hr);
-		LOG_ERROR(L"Failed to create shader resource from overlay texture: %ls", err.ErrorMessage());
-		return hr;
-	}
-
-	D3D11_BUFFER_DESC bufferDesc;
-	ZeroMemory(&bufferDesc, sizeof(D3D11_BUFFER_DESC));
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.ByteWidth = sizeof(VERTEX) * NUMVERTICES;
-	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
-
-	ZeroMemory(&initData, sizeof(D3D11_SUBRESOURCE_DATA));
-	initData.pSysMem = vertices;
-
-	// Create vertex buffer
-	CComPtr<ID3D11Buffer> VertexBuffer;
-	hr = m_Device->CreateBuffer(&bufferDesc, &initData, &VertexBuffer);
-	if (FAILED(hr))
-	{
-		_com_error err(hr);
-		LOG_ERROR(L"Failed to create overlay vertex buffer: %ls", err.ErrorMessage());
-		return hr;
-	}
-	CComPtr<ID3D11RenderTargetView> RTV;
-	// Create a render target view
-	hr = m_Device->CreateRenderTargetView(pBackgroundFrame, nullptr, &RTV);
-	// Set resources
-	FLOAT BlendFactor[4] = { 0.f, 0.f, 0.f, 0.f };
-	UINT Stride = sizeof(VERTEX);
-	UINT Offset = 0;
-	m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBuffer.p, &Stride, &Offset);
-	m_DeviceContext->OMSetBlendState(m_BlendState, BlendFactor, 0xFFFFFFFF);
-	m_DeviceContext->OMSetRenderTargets(1, &RTV.p, nullptr);
-	m_DeviceContext->VSSetShader(m_VertexShader, nullptr, 0);
-	m_DeviceContext->PSSetShader(m_PixelShader, nullptr, 0);
-	m_DeviceContext->PSSetShaderResources(0, 1, &shaderRes.p);
-	m_DeviceContext->PSSetSamplers(0, 1, &m_SamplerLinear);
-	m_DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	// Draw
-	m_DeviceContext->Draw(NUMVERTICES, 0);
+	hr = m_TextureManager->DrawOverlay(pBackgroundFrame, overlayTex, GetOverlayRect(GetOutputSize(), pOverlay));
 	return hr;
 }
 
@@ -821,7 +591,7 @@ DWORD WINAPI OverlayProc(_In_ void *Param) {
 	RECORDING_OVERLAY_DATA *pOverlay = pData->RecordingOverlay;
 	switch (pOverlay->Type)
 	{
-	case OverlayType::Picture: {
+	case RecordingOverlayType::Picture: {
 		std::string signature = ReadFileSignature(pOverlay->Source.c_str());
 		ImageFileType imageType = getImageTypeByMagic(signature.c_str());
 		if (imageType == ImageFileType::IMAGE_FILE_GIF) {
@@ -833,12 +603,12 @@ DWORD WINAPI OverlayProc(_In_ void *Param) {
 		}
 		break;
 	}
-	case OverlayType::Video: {
+	case RecordingOverlayType::Video: {
 		VideoReader videoReader{};
 		hr = ReadMedia(videoReader, pData);
 		break;
 	}
-	case OverlayType::CameraCapture: {
+	case RecordingOverlayType::CameraCapture: {
 		CameraCapture videoCapture{};
 		hr = ReadMedia(videoCapture, pData);
 		break;

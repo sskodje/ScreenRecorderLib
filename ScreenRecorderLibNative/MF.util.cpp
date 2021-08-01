@@ -154,8 +154,10 @@ HRESULT CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMedi
 	return hr;
 }
 
-HRESULT EnumVideoCaptureDevices(std::map<std::wstring, std::wstring> *devices)
+HRESULT EnumVideoCaptureDevices(_Out_ std::map<std::wstring, std::wstring> *pDevices)
 {
+	std::map<std::wstring, std::wstring> devices;
+	pDevices = &devices;
 	HRESULT hr = S_OK;
 	CComPtr<IMFAttributes> pAttributes = nullptr;
 	UINT32 count = 0;
@@ -199,9 +201,57 @@ HRESULT EnumVideoCaptureDevices(std::map<std::wstring, std::wstring> *devices)
 			//allocate a byte buffer for the raw pixel data
 			std::wstring deviceName = std::wstring(nameString);
 			std::wstring deviceSymbolicLink = std::wstring(symbolicLink);
-			devices->insert(std::pair<std::wstring, std::wstring>(deviceSymbolicLink, deviceName));
+			devices.insert(std::pair<std::wstring, std::wstring>(deviceSymbolicLink, deviceName));
 		}
 		CoTaskMemFree(nameString);
 	}
+	return hr;
+}
+
+HRESULT CopyMediaType(_In_ IMFMediaType *pType, _Outptr_ IMFMediaType **ppType)
+{
+	CComPtr<IMFMediaType> pTypeUncomp = nullptr;
+
+	HRESULT hr = S_OK;
+	GUID majortype = { 0 };
+	MFRatio par = { 0 };
+
+	hr = pType->GetMajorType(&majortype);
+	if (majortype != MFMediaType_Video)
+	{
+		return MF_E_INVALIDMEDIATYPE;
+	}
+	// Create a new media type and copy over all of the items.
+	// This ensures that extended color information is retained.
+	RETURN_ON_BAD_HR(hr = MFCreateMediaType(&pTypeUncomp));
+	RETURN_ON_BAD_HR(hr = pType->CopyAllItems(pTypeUncomp));
+
+	// Fix up PAR if not set on the original type.
+	if (SUCCEEDED(hr))
+	{
+		hr = MFGetAttributeRatio(
+			pTypeUncomp,
+			MF_MT_PIXEL_ASPECT_RATIO,
+			(UINT32 *)&par.Numerator,
+			(UINT32 *)&par.Denominator
+		);
+
+		// Default to square pixels.
+		if (FAILED(hr))
+		{
+			hr = MFSetAttributeRatio(
+				pTypeUncomp,
+				MF_MT_PIXEL_ASPECT_RATIO,
+				1, 1
+			);
+		}
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		*ppType = pTypeUncomp;
+		(*ppType)->AddRef();
+	}
+
 	return hr;
 }

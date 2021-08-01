@@ -107,6 +107,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="RecordingSourceTemplateSelector.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -117,6 +118,7 @@
     </Compile>
     <Compile Include="CheckableRecordableWindow.cs" />
     <Compile Include="CheckableRecordableDisplay.cs" />
+    <Compile Include="ICheckableRecordingSource.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -163,13 +165,16 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Testmedia\alphatest.png">
+    <Content Include="..\Testmedia\alphatest.png">
+      <Link>Testmedia\alphatest.png</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Testmedia\cat.mp4">
+    <Content Include="..\Testmedia\cat.mp4">
+      <Link>Testmedia\cat.mp4</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Testmedia\giftest.gif">
+    <Content Include="..\Testmedia\giftest.gif">
+      <Link>Testmedia\giftest.gif</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

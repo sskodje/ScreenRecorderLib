@@ -135,6 +135,9 @@
     <ClInclude Include="AudioManager.h">
       <Filter>Header Files\Audio Capture</Filter>
     </ClInclude>
+    <ClInclude Include="TextureManager.h">
+      <Filter>Header Files\Video Capture</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RecordingManager.cpp">
@@ -199,6 +202,9 @@
     </ClCompile>
     <ClCompile Include="AudioManager.cpp">
       <Filter>Source Files\Audio Capture</Filter>
+    </ClCompile>
+    <ClCompile Include="TextureManager.cpp">
+      <Filter>Source Files\Video Capture</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

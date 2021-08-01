@@ -9,7 +9,7 @@ using System.Windows;
 
 namespace TestApp
 {
-    public class CheckableRecordableWindow : RecordableWindow, INotifyPropertyChanged
+    public class CheckableRecordableWindow : RecordableWindow, ICheckableRecordingSource
     {
         private bool _isSelected;
         public bool IsSelected
@@ -20,11 +20,10 @@ namespace TestApp
                 if (_isSelected != value)
                 {
                     _isSelected = value;
-                    RaisePropertyChanged("IsSelected");
+                    OnPropertyChanged(nameof(IsSelected));
                 }
             }
         }
-
 
         private bool _isCheckable;
         public bool IsCheckable
@@ -35,61 +34,74 @@ namespace TestApp
                 if (_isCheckable != value)
                 {
                     _isCheckable = value;
-                    RaisePropertyChanged("IsCheckable");
+                    OnPropertyChanged(nameof(IsCheckable));
                 }
             }
         }
 
-
-        private Rect _screenCoordinates;
-        public Rect ScreenCoordinates
+        private bool _isCustomPositionEnabled;
+        public bool IsCustomPositionEnabled
         {
-            get { return _screenCoordinates; }
+            get { return _isCustomPositionEnabled; }
             set
             {
-                if (_screenCoordinates != value)
+                if (_isCustomPositionEnabled != value)
                 {
-                    _screenCoordinates = value;
-                    RaisePropertyChanged("ScreenCoordinates");
+                    _isCustomPositionEnabled = value;
+                    OnPropertyChanged(nameof(IsCustomPositionEnabled));
                 }
             }
         }
 
-        public CheckableRecordableWindow() : base()
+        private bool _isCustomOutputSizeEnabled;
+        public bool IsCustomOutputSizeEnabled
         {
-
+            get { return _isCustomOutputSizeEnabled; }
+            set
+            {
+                if (_isCustomOutputSizeEnabled != value)
+                {
+                    _isCustomOutputSizeEnabled = value;
+                    OnPropertyChanged(nameof(IsCustomOutputSizeEnabled));
+                }
+            }
         }
+
+
         public CheckableRecordableWindow(string title, IntPtr handle) : base(title, handle)
         {
-            UpdateScreenCoordinates();
+            ScreenRect coord = GetScreenCoordinates();
+            UpdateScreenCoordinates(new ScreenPoint(0, 0), new ScreenSize(coord.Width, coord.Height));
         }
         public CheckableRecordableWindow(RecordableWindow window) : base(window.Title, window.Handle)
         {
-            UpdateScreenCoordinates();
+            ScreenRect coord = GetScreenCoordinates();
+            UpdateScreenCoordinates(new ScreenPoint(0, 0), new ScreenSize(coord.Width, coord.Height));
         }
         public override string ToString()
         {
             return $"{Title}";
         }
 
-        internal void UpdateScreenCoordinates()
+        public void UpdateScreenCoordinates(ScreenPoint position, ScreenSize size)
         {
-            if (!IsMinmimized())
+            if (!IsMinmimized() && IsValidWindow())
             {
-                var coord = GetScreenCoordinates();
-                ScreenCoordinates = new Rect(coord.Left, coord.Top, coord.Width, coord.Height);
+                if (!IsCustomOutputSizeEnabled)
+                {
+                    OutputSize = size;
+                }
+                if (!IsCustomPositionEnabled)
+                {
+                    Position = position;
+                }
             }
             else
             {
-                ScreenCoordinates = Rect.Empty;
+                OutputSize = ScreenSize.Empty;
+                Position = ScreenPoint.Empty;
+
             }
         }
-
-        protected void RaisePropertyChanged(string propertyName)
-        {
-            PropertyChangedEventHandler handler = PropertyChanged;
-            if (handler != null) handler(this, new PropertyChangedEventArgs(propertyName));
-        }
-        public event PropertyChangedEventHandler PropertyChanged;
     }
 }

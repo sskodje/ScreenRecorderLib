@@ -10,4 +10,5 @@
 HRESULT FindDecoderEx(const GUID &subtype, BOOL bAudio, IMFTransform **ppDecoder);
 HRESULT FindVideoDecoder(GUID *inputSubtype, GUID *outputSubtype, BOOL bAllowAsync, BOOL bAllowHardware, BOOL bAllowTranscode, IMFTransform **ppDecoder);
 HRESULT CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMediaType, _In_ IMFMediaType *pOutputMediaType, _Outptr_ IMFTransform **ppVideoConverter);
-HRESULT EnumVideoCaptureDevices(_Out_ std::map<std::wstring, std::wstring> *devices);
+HRESULT EnumVideoCaptureDevices(_Out_ std::map<std::wstring, std::wstring> *pDevices);
+HRESULT CopyMediaType(_In_ IMFMediaType *pType, _Outptr_ IMFMediaType **ppType);

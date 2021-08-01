@@ -17,6 +17,7 @@
 #include "Log.h"
 #include "Cleanup.h"
 #include "Screengrab.h"
+#include "TextureManager.h"
 
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "D3D11.lib")
@@ -74,10 +75,11 @@ RecordingManager::RecordingManager() :
 	RecordingFailedCallback(nullptr),
 	RecordingSnapshotCreatedCallback(nullptr),
 	RecordingStatusChangedCallback(nullptr),
-
+	m_TextureManager(nullptr),
 	m_EncoderOptions(new H264_ENCODER_OPTIONS()),
 	m_AudioOptions(new AUDIO_OPTIONS),
-	m_MouseOptions(new MOUSE_OPTIONS)
+	m_MouseOptions(new MOUSE_OPTIONS),
+	m_SnapshotOptions(new SNAPSHOT_OPTIONS)
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 }
@@ -102,28 +104,6 @@ void RecordingManager::SetLogSeverityLevel(int value) {
 	logSeverityLevel = value;
 }
 
-std::wstring RecordingManager::GetImageExtension() {
-	if (m_ImageEncoderFormat == GUID_ContainerFormatPng) {
-		return L".png";
-	}
-	else if (m_ImageEncoderFormat == GUID_ContainerFormatJpeg) {
-		return L".jpg";
-	}
-	else if (m_ImageEncoderFormat == GUID_ContainerFormatBmp) {
-		return L".bmp";
-	}
-	else if (m_ImageEncoderFormat == GUID_ContainerFormatTiff) {
-		return L".tiff";
-	}
-	else {
-		LOG_WARN("Image encoder format not recognized, defaulting to .jpg extension");
-		return L".jpg";
-	}
-}
-
-std::wstring RecordingManager::GetVideoExtension() {
-	return L".mp4";
-}
 
 HRESULT RecordingManager::ConfigureOutputDir(_In_ std::wstring path) {
 	m_OutputFullPath = path;
@@ -151,23 +131,21 @@ HRESULT RecordingManager::ConfigureOutputDir(_In_ std::wstring path) {
 		}
 
 		if (m_RecorderMode == MODE_VIDEO || m_RecorderMode == MODE_SCREENSHOT) {
-			wstring ext = m_RecorderMode == MODE_VIDEO ? GetVideoExtension() : GetImageExtension();
+			wstring ext = m_RecorderMode == MODE_VIDEO ? m_EncoderOptions->GetVideoExtension() : m_SnapshotOptions->GetImageExtension();
 			LPWSTR pStrExtension = PathFindExtension(path.c_str());
 			if (pStrExtension == nullptr || pStrExtension[0] == 0)
 			{
 				m_OutputFullPath = m_OutputFolder + L"\\" + s2ws(CurrentTimeToFormattedString()) + ext;
 			}
-			if (IsSnapshotsWithVideoEnabled()) {
-				if (m_OutputSnapshotsFolderPath.empty()) {
-					// Snapshots will be saved in a folder named as video file name without extension. 
-					m_OutputSnapshotsFolderPath = m_OutputFullPath.substr(0, m_OutputFullPath.find_last_of(L"."));
-				}
+			if (m_SnapshotOptions->IsSnapshotWithVideoEnabled() && m_SnapshotOptions->GetSnapshotsDirectory().empty()) {
+				// Snapshots will be saved in a folder named as video file name without extension. 
+				m_SnapshotOptions->SetSnapshotDirectory(m_OutputFullPath.substr(0, m_OutputFullPath.find_last_of(L".")));
 			}
 		}
 	}
-	if (!m_OutputSnapshotsFolderPath.empty()) {
+	if (!m_SnapshotOptions->GetSnapshotsDirectory().empty()) {
 		std::error_code ec;
-		if (std::filesystem::exists(m_OutputSnapshotsFolderPath) || std::filesystem::create_directories(m_OutputSnapshotsFolderPath, ec))
+		if (std::filesystem::exists(m_SnapshotOptions->GetSnapshotsDirectory()) || std::filesystem::create_directories(m_SnapshotOptions->GetSnapshotsDirectory(), ec))
 		{
 			LOG_DEBUG(L"Snapshot output folder is ready");
 		}
@@ -237,10 +215,13 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		DX_RESOURCES dxResources;
 		RETURN_ON_BAD_HR(hr = InitializeDx(nullptr, &dxResources));
 		m_Device = dxResources.Device;
-		m_ImmediateContext = dxResources.Context;
+		m_DeviceContext = dxResources.Context;
 #if _DEBUG
 		m_Debug = dxResources.Debug;
 #endif
+		m_TextureManager = make_unique<TextureManager>();
+		m_TextureManager->Initialize(m_DeviceContext, m_Device);
+
 		if (RecordingStatusChangedCallback != nullptr) {
 			RecordingStatusChangedCallback(STATUS_RECORDING);
 			LOG_DEBUG("Changed Recording Status to Recording");
@@ -370,7 +351,7 @@ void RecordingManager::CleanupResourcesAndShutDownMF()
 {
 	SafeRelease(&m_SinkWriter);
 	LOG_DEBUG("Released IMFSinkWriter");
-	SafeRelease(&m_ImmediateContext);
+	SafeRelease(&m_DeviceContext);
 	LOG_DEBUG("Released ID3D11DeviceContext");
 	SafeRelease(&m_Device);
 	LOG_DEBUG("Released ID3D11Device");
@@ -431,7 +412,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 	CComPtr<IMFSinkWriterCallback> pCallBack = nullptr;
 	PTR_INFO *pPtrInfo = nullptr;
 	unique_ptr<ScreenCaptureBase> pCapture(CreateCaptureSession());
-	RETURN_ON_BAD_HR(pCapture->Initialize(m_ImmediateContext, m_Device));
+	RETURN_ON_BAD_HR(pCapture->Initialize(m_DeviceContext, m_Device));
 	HANDLE UnexpectedErrorEvent = nullptr;
 	HANDLE ExpectedErrorEvent = nullptr;
 
@@ -455,25 +436,17 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 	CaptureStopOnExit stopCaptureOnExit(pCapture.get());
 
 	RECT videoInputFrameRect{};
-	RECT videoOutputFrameRect{};
-	RECT previousInputFrameRect{};
-	RETURN_ON_BAD_HR(hr = InitializeRects(pCapture->GetOutputRect(), &videoInputFrameRect, &videoOutputFrameRect));
-	bool isDestRectEqualToSourceRect;
 
-	if (pCapture->IsSingleWindowCapture()) {
-		//Differing input and output dimensions of the mediatype initializes the video processor with the sink writer so we can use it for resizing the input.
-		//These values will be overwritten on a frame by frame basis.
-		videoInputFrameRect.right -= 2;
-		videoInputFrameRect.bottom -= 2;
-	}
+	SIZE videoOutputFrameSize{};
+	RETURN_ON_BAD_HR(hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, &videoOutputFrameSize));
 
 	HANDLE hMarkEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	CloseHandleOnExit closeMarkEvent(hMarkEvent);
 	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	std::unique_ptr<AudioManager> pAudioManager = make_unique<AudioManager>();
 	std::unique_ptr<MouseManager> pMouseManager = make_unique<MouseManager>();
-	RETURN_ON_BAD_HR(hr = pMouseManager->Initialize(m_ImmediateContext, m_Device, GetMouseOptions()));
-	SetViewPort(m_ImmediateContext, RectWidth(videoInputFrameRect), RectHeight(videoInputFrameRect));
+	RETURN_ON_BAD_HR(hr = pMouseManager->Initialize(m_DeviceContext, m_Device, GetMouseOptions()));
+	SetViewPort(m_DeviceContext, videoOutputFrameSize.cx, videoOutputFrameSize.cy);
 
 	if (m_RecorderMode == MODE_VIDEO) {
 		CComPtr<IMFByteStream> outputStream = nullptr;
@@ -481,19 +454,20 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 			RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &outputStream));
 		}
 		pCallBack = new (std::nothrow)CMFSinkWriterCallback(m_FinalizeEvent, hMarkEvent);
-		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, videoInputFrameRect, videoOutputFrameRect, DXGI_MODE_ROTATION_UNSPECIFIED, pCallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+		RECT inputMediaFrameRect = RECT{ 0,0,videoOutputFrameSize.cx,videoOutputFrameSize.cy };
+		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, pCallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 
 		pAudioManager->Initialize(GetAudioOptions());
 	}
 
 	std::chrono::steady_clock::time_point lastFrame = std::chrono::steady_clock::now();
-	m_previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
+	std::chrono::steady_clock::time_point previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
 	INT64 videoFrameDurationMillis = 0;
 	if (m_RecorderMode == MODE_VIDEO) {
 		videoFrameDurationMillis = 1000 / GetEncoderOptions()->GetVideoFps();
 	}
 	else if (m_RecorderMode == MODE_SLIDESHOW) {
-		videoFrameDurationMillis = m_SnapshotsWithVideoInterval.count();
+		videoFrameDurationMillis = GetSnapshotOptions()->GetSnapshotsInterval().count();
 	}
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 
@@ -501,6 +475,86 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 	INT64 lastFrameStartPos = 0;
 	bool haveCachedPrematureFrame = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
+
+	auto IsTimeToTakeSnapshot([&]()
+	{
+		// The first condition is needed since (now - min) yields negative value because of overflow...
+		return previousSnapshotTaken == (std::chrono::steady_clock::time_point::min)() ||
+			(std::chrono::steady_clock::now() - previousSnapshotTaken) > GetSnapshotOptions()->GetSnapshotsInterval();
+	});
+
+	auto PrepareAndRenderFrame([&](CComPtr<ID3D11Texture2D> pTexture, INT64 duration100Nanos)->HRESULT {
+		HRESULT renderHr = E_FAIL;
+		if (pPtrInfo) {
+			renderHr = pMouseManager->ProcessMousePointer(pTexture, pPtrInfo);
+			if (FAILED(renderHr)) {
+				_com_error err(renderHr);
+				LOG_ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
+				//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
+			}
+		}
+		D3D11_TEXTURE2D_DESC desc;
+		pTexture->GetDesc(&desc);
+
+		if (RectWidth(videoInputFrameRect) != desc.Width
+			|| RectHeight(videoInputFrameRect) != desc.Height) {
+			ID3D11Texture2D *pCroppedFrameCopy;
+			RETURN_ON_BAD_HR(renderHr = m_TextureManager->CropTexture(pTexture, videoInputFrameRect, &pCroppedFrameCopy));
+			pTexture.Release();
+			pTexture.Attach(pCroppedFrameCopy);
+		}
+		if (RectWidth(videoInputFrameRect) < videoOutputFrameSize.cx
+			|| RectHeight(videoInputFrameRect) < videoOutputFrameSize.cy) {
+			CComPtr<ID3D11Texture2D> pResizedFrameCopy;
+			double widthRatio = (double)videoOutputFrameSize.cx / RectWidth(videoInputFrameRect);
+			double heightRatio = (double)videoOutputFrameSize.cy / RectHeight(videoInputFrameRect);
+			double resizeRatio = min(widthRatio, heightRatio);
+			UINT resizedWidth = (UINT)MakeEven((LONG)round(RectWidth(videoInputFrameRect) * resizeRatio));
+			UINT resizedHeight = (UINT)MakeEven((LONG)round(RectHeight(videoInputFrameRect) * resizeRatio));
+			RETURN_ON_BAD_HR(renderHr = m_TextureManager->ResizeTexture(pTexture, &pResizedFrameCopy, SIZE{ static_cast<LONG>(resizedWidth), static_cast<LONG>(resizedHeight) }));
+			D3D11_TEXTURE2D_DESC desc;
+			pResizedFrameCopy->GetDesc(&desc);
+			desc.Width = videoOutputFrameSize.cx;
+			desc.Height = videoOutputFrameSize.cy;
+			ID3D11Texture2D *pCanvas;
+			RETURN_ON_BAD_HR(renderHr = m_Device->CreateTexture2D(&desc, nullptr, &pCanvas));
+			int leftMargin = (int)max(0, round(((double)videoOutputFrameSize.cx - (double)resizedWidth)) / 2);
+			int topMargin = (int)max(0, round(((double)videoOutputFrameSize.cy - (double)resizedHeight)) / 2);
+
+			D3D11_BOX Box;
+			Box.front = 0;
+			Box.back = 1;
+			Box.left = 0;
+			Box.top = 0;
+			Box.right = resizedWidth;
+			Box.bottom = resizedHeight;
+			m_DeviceContext->CopySubresourceRegion(pCanvas, 0, leftMargin, topMargin, 0, pResizedFrameCopy, 0, &Box);
+			pTexture.Release();
+			pTexture.Attach(pCanvas);
+		}
+
+		if (m_RecorderMode == MODE_VIDEO && GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()) {
+			if (SUCCEEDED(renderHr = SaveTextureAsVideoSnapshot(pTexture, videoInputFrameRect))) {
+				previousSnapshotTaken = steady_clock::now();
+			}
+			else {
+				_com_error err(renderHr);
+				LOG_ERROR("Error saving video snapshot: %ls", err.ErrorMessage());
+			}
+		}
+
+		FrameWriteModel model{};
+		model.Frame = pTexture;
+		model.Duration = duration100Nanos;
+		model.StartPos = lastFrameStartPos;
+		model.Audio = pAudioManager->GrabAudioFrame();
+		model.FrameNumber = frameNr;
+		RETURN_ON_BAD_HR(renderHr = m_EncoderResult = RenderFrame(model));
+		haveCachedPrematureFrame = false;
+		frameNr++;
+		lastFrameStartPos += duration100Nanos;
+		return renderHr;
+	});
 
 	while (true)
 	{
@@ -528,7 +582,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		}
 		if (m_IsPaused) {
 			wait(10);
-			m_previousSnapshotTaken = steady_clock::now();
+			previousSnapshotTaken = steady_clock::now();
 			lastFrame = steady_clock::now();
 			if (pAudioManager)
 				pAudioManager->ClearRecordedBytes();
@@ -547,48 +601,20 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 			if (capturedFrame.PtrInfo) {
 				pPtrInfo = capturedFrame.PtrInfo;
 			}
-
-
-			videoInputFrameRect.left = videoOutputFrameRect.left;
-			videoInputFrameRect.top = videoOutputFrameRect.top;
-			videoInputFrameRect.right = min(capturedFrame.ContentSize.cx, videoOutputFrameRect.right);
-			videoInputFrameRect.bottom = min(capturedFrame.ContentSize.cy, videoOutputFrameRect.bottom);
-			videoInputFrameRect = MakeRectEven(videoInputFrameRect);
-
-			if (!EqualRect(&videoInputFrameRect, &previousInputFrameRect)) {
-				isDestRectEqualToSourceRect = false;
-				if (m_RecorderMode == MODE_VIDEO) {
-					//A marker is placed in the stream and then we wait for the sink writer to trigger it. This ensures all pending frames are encoded before the input is resized to the new size.
-					//The timeout is one frame @ 30fps, because it is preferable to avoid having the framerate drop too much if the encoder is busy.
-					RETURN_ON_BAD_HR(m_SinkWriter->PlaceMarker(m_VideoStreamIndex, nullptr));
-					if (WaitForSingleObject(hMarkEvent, 33) != WAIT_OBJECT_0) {
-						LOG_WARN("Wait for encoder marker failed");
-					}
-
-					CComPtr<IMFVideoProcessorControl> videoProcessor = nullptr;
-					GetVideoProcessor(m_SinkWriter, m_VideoStreamIndex, &videoProcessor);
-					if (videoProcessor) {
-						//The source rectangle is the portion of the input frame that is blitted to the destination surface.
-						videoProcessor->SetSourceRectangle(&videoInputFrameRect);
-						LOG_TRACE("Changing video processor surface rect: source=%dx%d, dest = %dx%d", RectWidth(videoInputFrameRect), RectHeight(videoInputFrameRect), RectWidth(videoOutputFrameRect), RectHeight(videoOutputFrameRect));
-					}
-					SetViewPort(m_ImmediateContext, RectWidth(videoInputFrameRect), RectHeight(videoInputFrameRect));
-					previousInputFrameRect = videoInputFrameRect;
-				}
+		}
+		else {
+			if (m_RecorderMode == MODE_SLIDESHOW
+			   || m_RecorderMode == MODE_SCREENSHOT
+			   && (frameNr == 0 && (pCurrentFrameCopy == nullptr || capturedFrame.FrameUpdateCount == 0))) {
+				continue;
+			}
+			else if ((!pCurrentFrameCopy && !pPreviousFrameCopy)
+				|| !pCapture->IsInitialFrameWriteComplete()) {
+				//There is no first frame yet, so retry.
+				wait(1);
+				continue;
 			}
 		}
-		else if (m_RecorderMode == MODE_SLIDESHOW
-			|| m_RecorderMode == MODE_SCREENSHOT
-			&& (frameNr == 0 && (pCurrentFrameCopy == nullptr || capturedFrame.FrameUpdateCount == 0))) {
-			continue;
-		}
-		else if ((!pCurrentFrameCopy && !pPreviousFrameCopy)
-			|| !pCapture->IsInitialFrameWriteComplete()) {
-			//There is no first frame yet, so retry.
-			wait(1);
-			continue;
-		}
-
 		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::steady_clock::now() - lastFrame).count() / 100, 0);
 		INT64 durationSinceLastFrameMillis = HundredNanosToMillis(durationSinceLastFrame100Nanos);
 		//Delay frames that comes quicker than selected framerate to see if we can skip them.
@@ -599,7 +625,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 			if (m_RecorderMode == MODE_VIDEO
 				&& (frameNr == 0 //never delay the first frame 
 					|| (GetMouseOptions()->IsMousePointerEnabled() && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
-					|| (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot()))) // Or if we need to write a snapshot 
+					|| (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()))) // Or if we need to write a snapshot 
 			{
 				if (capturedFrame.PtrInfo) {
 					capturedFrame.PtrInfo->IsPointerShapeUpdated = false;
@@ -615,7 +641,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 							pCurrentFrameCopy->GetDesc(&desc);
 							RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pPreviousFrameCopy));
 						}
-						m_ImmediateContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
+						m_DeviceContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
 					}
 				}
 				delayRender = true;
@@ -668,99 +694,55 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 					D3D11_TEXTURE2D_DESC desc;
 					pCurrentFrameCopy->GetDesc(&desc);
 					RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pPreviousFrameCopy));
-					m_ImmediateContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
+					m_DeviceContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
 				}
 			}
 			else if (pPreviousFrameCopy) {
 				D3D11_TEXTURE2D_DESC desc;
 				pPreviousFrameCopy->GetDesc(&desc);
 				RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pCurrentFrameCopy));
-				m_ImmediateContext->CopyResource(pCurrentFrameCopy, pPreviousFrameCopy);
+				m_DeviceContext->CopyResource(pCurrentFrameCopy, pPreviousFrameCopy);
 			}
 
-			if (pPtrInfo) {
-				hr = pMouseManager->DrawMousePointer(pCurrentFrameCopy, pPtrInfo);
-				if (FAILED(hr)) {
-					_com_error err(hr);
-					LOG_ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
-					//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
-				}
-			}
 			if (token.is_canceled()) {
 				LOG_DEBUG("Recording task was cancelled");
 				hr = S_OK;
 				break;
 			}
 
-			if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SCREENSHOT) && !isDestRectEqualToSourceRect) {
-				ID3D11Texture2D *pCroppedFrameCopy;
-				RETURN_ON_BAD_HR(hr = CropFrame(pCurrentFrameCopy, videoOutputFrameRect, &pCroppedFrameCopy));
-				pCurrentFrameCopy.Release();
-				pCurrentFrameCopy.Attach(pCroppedFrameCopy);
-			}
-
-			if (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot()) {
-				TakeSnapshotsWithVideo(pCurrentFrameCopy, videoOutputFrameRect);
-			}
-
-			FrameWriteModel model{};
-			model.Frame = pCurrentFrameCopy;
-			model.Duration = durationSinceLastFrame100Nanos;
-			model.StartPos = lastFrameStartPos;
-			model.Audio = pAudioManager->GrabAudioFrame();
-			model.FrameNumber = frameNr;
-			RETURN_ON_BAD_HR(hr = m_EncoderResult = RenderFrame(model));
-			haveCachedPrematureFrame = false;
+			RETURN_ON_BAD_HR(hr = PrepareAndRenderFrame(pCurrentFrameCopy, durationSinceLastFrame100Nanos));
 			if (m_RecorderMode == MODE_SCREENSHOT) {
 				break;
 			}
-			frameNr++;
-			lastFrameStartPos += durationSinceLastFrame100Nanos;
 		}
 	}
 
 	//Push any last frame waiting to be recorded to the sink writer.
 	if (pPreviousFrameCopy != nullptr) {
 		INT64 duration = duration_cast<nanoseconds>(chrono::steady_clock::now() - lastFrame).count() / 100;
-		if (pPtrInfo) {
-			pMouseManager->DrawMousePointer(pPreviousFrameCopy, pPtrInfo);
-		}
-		if ((m_RecorderMode == MODE_SLIDESHOW || m_RecorderMode == MODE_SCREENSHOT) && !isDestRectEqualToSourceRect) {
-			ID3D11Texture2D *pCroppedFrameCopy;
-			RETURN_ON_BAD_HR(hr = CropFrame(pPreviousFrameCopy, videoOutputFrameRect, &pCroppedFrameCopy));
-			pPreviousFrameCopy.Release();
-			pPreviousFrameCopy.Attach(pCroppedFrameCopy);
-		}
-		FrameWriteModel model{};
-		model.Frame = pPreviousFrameCopy;
-		model.Duration = duration;
-		model.StartPos = lastFrameStartPos;
-		model.Audio = pAudioManager->GrabAudioFrame();
-		model.FrameNumber = frameNr;
-		hr = m_EncoderResult = RenderFrame(model);
+		RETURN_ON_BAD_HR(hr = PrepareAndRenderFrame(pPreviousFrameCopy, duration));
 	}
 	return hr;
 }
 
-HRESULT RecordingManager::InitializeRects(_In_ RECT outputRect, _Out_ RECT *pSourceRect, _Out_ RECT *pDestRect) {
-	UINT monitorWidth = RectWidth(outputRect);
-	UINT monitorHeight = RectHeight(outputRect);
+HRESULT RecordingManager::InitializeRects(_In_ SIZE captureFrameSize, _Out_ RECT *pAdjustedSourceRect, _Out_ SIZE *pAdjustedOutputFrameSize) {
 
-	RECT sourceRect;
-	sourceRect.left = 0;
-	sourceRect.right = monitorWidth;
-	sourceRect.top = 0;
-	sourceRect.bottom = monitorHeight;
-
-	RECT destRect = sourceRect;
-	if (m_DestRect.right > m_DestRect.left
-		&& m_DestRect.bottom > m_DestRect.top)
+	RECT adjustedSourceRect = RECT{ 0,0, MakeEven(captureFrameSize.cx),  MakeEven(captureFrameSize.cy) };
+	SIZE adjustedOutputFrameSize = SIZE{ MakeEven(captureFrameSize.cx),MakeEven(captureFrameSize.cy) };
+	if (m_SourceRect.right > m_SourceRect.left
+	&& m_SourceRect.bottom > m_SourceRect.top)
 	{
-		destRect = m_DestRect;
+		adjustedSourceRect = m_SourceRect;
+		adjustedOutputFrameSize = SIZE{ MakeEven(RectWidth(m_SourceRect)),MakeEven(RectHeight(m_SourceRect)) };
 	}
-
-	*pSourceRect = sourceRect;
-	*pDestRect = destRect;
+	auto outputRect = GetEncoderOptions()->GetFrameSize();
+	if (outputRect.cx > 0
+	&& outputRect.cy > 0)
+	{
+		adjustedOutputFrameSize = SIZE{ MakeEven(outputRect.cx),MakeEven(outputRect.cy) };
+	}
+	*pAdjustedSourceRect = MakeRectEven(adjustedSourceRect);
+	*pAdjustedOutputFrameSize = adjustedOutputFrameSize;
 	return S_OK;
 }
 
@@ -769,7 +751,7 @@ HRESULT RecordingManager::InitializeVideoSinkWriter(
 	_In_opt_ IMFByteStream *pOutStream,
 	_In_ ID3D11Device *pDevice,
 	_In_ RECT sourceRect,
-	_In_ RECT destRect,
+	_In_ SIZE outputFrameSize,
 	_In_ DXGI_MODE_ROTATION rotation,
 	_In_ IMFSinkWriterCallback *pCallback,
 	_Outptr_ IMFSinkWriter **ppWriter,
@@ -814,11 +796,11 @@ HRESULT RecordingManager::InitializeVideoSinkWriter(
 		RETURN_ON_BAD_HR(MFCreateFile(MF_ACCESSMODE_READWRITE, MF_OPENMODE_FAIL_IF_EXIST, MF_FILEFLAGS_NONE, pathString, &pOutStream));
 	};
 
-	UINT sourceWidth = max(0, RectWidth(sourceRect));
-	UINT sourceHeight = max(0, RectHeight(sourceRect));
+	UINT sourceWidth = RectWidth(sourceRect);
+	UINT sourceHeight = RectHeight(sourceRect);
 
-	UINT destWidth = max(0, RectWidth(destRect));
-	UINT destHeight = max(0, RectHeight(destRect));
+	UINT destWidth = max(0, outputFrameSize.cx);
+	UINT destHeight = max(0, outputFrameSize.cy);
 
 	RETURN_ON_BAD_HR(ConfigureOutputMediaTypes(destWidth, destHeight, &pVideoMediaTypeOut, &pAudioMediaTypeOut));
 	RETURN_ON_BAD_HR(ConfigureInputMediaTypes(sourceWidth, sourceHeight, rotationFormat, pVideoMediaTypeOut, &pVideoMediaTypeIn, &pAudioMediaTypeIn));
@@ -853,6 +835,14 @@ HRESULT RecordingManager::InitializeVideoSinkWriter(
 		RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, nullptr));
 	}
 
+	auto SetAttributeU32([](_Inout_ CComPtr<ICodecAPI> &codec, _In_ const GUID &guid, _In_ UINT32 value)
+	{
+		VARIANT val;
+		val.vt = VT_UI4;
+		val.uintVal = value;
+		return codec->SetValue(&guid, &val);
+	});
+
 	CComPtr<ICodecAPI> encoder = nullptr;
 	pSinkWriter->GetServiceForStream(videoStreamIndex, GUID_NULL, IID_PPV_ARGS(&encoder));
 	if (encoder) {
@@ -863,16 +853,6 @@ HRESULT RecordingManager::InitializeVideoSinkWriter(
 			break;
 		default:
 			break;
-		}
-	}
-
-	if (destWidth != sourceWidth || destHeight != sourceHeight) {
-		CComPtr<IMFVideoProcessorControl> videoProcessor = nullptr;
-		HRESULT hr = GetVideoProcessor(pSinkWriter, videoStreamIndex, &videoProcessor);
-		if (SUCCEEDED(hr)) {
-			//The source rectangle is the portion of the input frame that is blitted to the destination surface.
-			videoProcessor->SetSourceRectangle(&destRect);
-			videoProcessor->SetRotation(ROTATION_NORMAL);
 		}
 	}
 
@@ -940,8 +920,13 @@ HRESULT RecordingManager::ConfigureInputMediaTypes(
 	*pAudioMediaTypeIn = nullptr;
 	CComPtr<IMFMediaType> pVideoMediaType = nullptr;
 	CComPtr<IMFMediaType> pAudioMediaType = nullptr;
-	// Set the input video type.
-	CreateInputMediaTypeFromOutput(pVideoMediaTypeOut, GetEncoderOptions()->GetVideoInputFormat(), &pVideoMediaType);
+	// Copy the output media type
+	CopyMediaType(pVideoMediaTypeOut, &pVideoMediaType);
+	// Set the subtype.
+	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_SUBTYPE, GetEncoderOptions()->GetVideoInputFormat()));
+	// Uncompressed means all samples are independent.
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE));
+	//CreateInputMediaTypeFromOutput(pVideoMediaTypeOut, GetEncoderOptions()->GetVideoInputFormat(), &pVideoMediaType);
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
 	pVideoMediaType->SetUINT32(MF_MT_VIDEO_ROTATION, rotationFormat);
 
@@ -961,117 +946,6 @@ HRESULT RecordingManager::ConfigureInputMediaTypes(
 	*pVideoMediaTypeIn = pVideoMediaType;
 	(*pVideoMediaTypeIn)->AddRef();
 	return S_OK;
-}
-
-
-
-
-
-HRESULT RecordingManager::CreateInputMediaTypeFromOutput(
-	_In_ IMFMediaType *pType,    // Pointer to an encoded video type.
-	_In_ const GUID &subtype,    // Uncompressed subtype (eg, RGB-32, AYUV)
-	_Outptr_ IMFMediaType **ppType   // Receives a matching uncompressed video type.
-)
-{
-	CComPtr<IMFMediaType> pTypeUncomp = nullptr;
-
-	HRESULT hr = S_OK;
-	GUID majortype = { 0 };
-	MFRatio par = { 0 };
-
-	hr = pType->GetMajorType(&majortype);
-	if (majortype != MFMediaType_Video)
-	{
-		return MF_E_INVALIDMEDIATYPE;
-	}
-	// Create a new media type and copy over all of the items.
-	// This ensures that extended color information is retained.
-	RETURN_ON_BAD_HR(hr = MFCreateMediaType(&pTypeUncomp));
-	RETURN_ON_BAD_HR(hr = pType->CopyAllItems(pTypeUncomp));
-	// Set the subtype.
-	RETURN_ON_BAD_HR(hr = pTypeUncomp->SetGUID(MF_MT_SUBTYPE, subtype));
-	// Uncompressed means all samples are independent.
-	RETURN_ON_BAD_HR(hr = pTypeUncomp->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE));
-	// Fix up PAR if not set on the original type.
-	if (SUCCEEDED(hr))
-	{
-		hr = MFGetAttributeRatio(
-			pTypeUncomp,
-			MF_MT_PIXEL_ASPECT_RATIO,
-			(UINT32 *)&par.Numerator,
-			(UINT32 *)&par.Denominator
-		);
-
-		// Default to square pixels.
-		if (FAILED(hr))
-		{
-			hr = MFSetAttributeRatio(
-				pTypeUncomp,
-				MF_MT_PIXEL_ASPECT_RATIO,
-				1, 1
-			);
-		}
-	}
-
-	if (SUCCEEDED(hr))
-	{
-		*ppType = pTypeUncomp;
-		(*ppType)->AddRef();
-	}
-
-	return hr;
-}
-
-HRESULT RecordingManager::CropFrame(_In_ ID3D11Texture2D *frame, _In_ RECT destRect, _Outptr_ ID3D11Texture2D **pCroppedFrame)
-{
-	D3D11_TEXTURE2D_DESC frameDesc;
-	frame->GetDesc(&frameDesc);
-	frameDesc.Width = RectWidth(destRect);
-	frameDesc.Height = RectHeight(destRect);
-	CComPtr<ID3D11Texture2D> pCroppedFrameCopy = nullptr;
-	RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&frameDesc, nullptr, &pCroppedFrameCopy));
-	D3D11_BOX sourceRegion;
-	RtlZeroMemory(&sourceRegion, sizeof(sourceRegion));
-	sourceRegion.left = destRect.left;
-	sourceRegion.right = destRect.right;
-	sourceRegion.top = destRect.top;
-	sourceRegion.bottom = destRect.bottom;
-	sourceRegion.front = 0;
-	sourceRegion.back = 1;
-	m_ImmediateContext->CopySubresourceRegion(pCroppedFrameCopy, 0, 0, 0, 0, frame, 0, &sourceRegion);
-	*pCroppedFrame = pCroppedFrameCopy;
-	(*pCroppedFrame)->AddRef();
-	return S_OK;
-}
-
-HRESULT RecordingManager::GetVideoProcessor(_In_ IMFSinkWriter *pSinkWriter, _In_ DWORD streamIndex, _Outptr_ IMFVideoProcessorControl **pVideoProcessor)
-{
-	HRESULT hr;
-	GUID transformType;
-	DWORD transformIndex = 0;
-	CComPtr<IMFVideoProcessorControl> videoProcessor = nullptr;
-	CComPtr<IMFSinkWriterEx>      pSinkWriterEx = nullptr;
-	RETURN_ON_BAD_HR(hr = pSinkWriter->QueryInterface(&pSinkWriterEx));
-	while (true) {
-		CComPtr<IMFTransform> transform = nullptr;
-		RETURN_ON_BAD_HR(hr = pSinkWriterEx->GetTransformForStream(streamIndex, transformIndex, &transformType, &transform));
-		if (transformType == MFT_CATEGORY_VIDEO_PROCESSOR) {
-			RETURN_ON_BAD_HR(hr = transform->QueryInterface(&videoProcessor));
-			break;
-		}
-		transformIndex++;
-	}
-	*pVideoProcessor = videoProcessor;
-	(*pVideoProcessor)->AddRef();
-	return hr;
-}
-
-HRESULT RecordingManager::SetAttributeU32(_Inout_ CComPtr<ICodecAPI> &codec, _In_ const GUID &guid, _In_ UINT32 value)
-{
-	VARIANT val;
-	val.vt = VT_UI4;
-	val.uintVal = value;
-	return codec->SetValue(&guid, &val);
 }
 
 HRESULT RecordingManager::RenderFrame(_In_ FrameWriteModel &model) {
@@ -1119,7 +993,7 @@ HRESULT RecordingManager::RenderFrame(_In_ FrameWriteModel &model) {
 		LOG_TRACE(L"Wrote %s with duration %.2f ms", frameInfoStr, HundredNanosToMillisDouble(model.Duration));
 	}
 	else if (m_RecorderMode == MODE_SLIDESHOW) {
-		wstring	path = m_OutputFolder + L"\\" + to_wstring(model.FrameNumber) + GetImageExtension();
+		wstring	path = m_OutputFolder + L"\\" + to_wstring(model.FrameNumber) + GetSnapshotOptions()->GetImageExtension();
 		hr = WriteFrameToImage(model.Frame, path);
 		INT64 startposMs = HundredNanosToMillis(model.StartPos);
 		INT64 durationMs = HundredNanosToMillis(model.Duration);
@@ -1165,28 +1039,13 @@ bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
 	return result;
 }
 
-std::string RecordingManager::CurrentTimeToFormattedString()
-{
-	chrono::system_clock::time_point p = chrono::system_clock::now();
-	time_t t = chrono::system_clock::to_time_t(p);
-	struct tm newTime;
-	auto err = localtime_s(&newTime, &t);
 
-	std::stringstream ss;
-	if (err)
-		ss << "NEW";
-	else
-		ss << std::put_time(&newTime, "%Y-%m-%d %X");
-	string time = ss.str();
-	std::replace(time.begin(), time.end(), ':', '-');
-	return time;
-}
 HRESULT RecordingManager::WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath)
 {
-	return SaveWICTextureToFile(m_ImmediateContext, pAcquiredDesktopImage, m_ImageEncoderFormat, filePath.c_str());
+	return SaveWICTextureToFile(m_DeviceContext, pAcquiredDesktopImage, GetSnapshotOptions()->GetSnapshotEncoderFormat(), filePath.c_str());
 }
 
-void RecordingManager::WriteFrameToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath)
+void RecordingManager::WriteTextureToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath)
 {
 	pAcquiredDesktopImage->AddRef();
 	concurrency::create_task([this, pAcquiredDesktopImage, filePath]() {
@@ -1195,16 +1054,18 @@ void RecordingManager::WriteFrameToImageAsync(_In_ ID3D11Texture2D *pAcquiredDes
 			{
 				try {
 					HRESULT hr = t.get();
-					bool success = SUCCEEDED(hr);
-					if (success) {
-						LOG_TRACE(L"Wrote snapshot to %s", filePath.c_str());
-						if (RecordingSnapshotCreatedCallback != nullptr) {
-							RecordingSnapshotCreatedCallback(filePath);
+					if (!m_TaskWrapperImpl->m_RecordTaskCts.get_token().is_canceled()) {
+						bool success = SUCCEEDED(hr);
+						if (success) {
+							LOG_TRACE(L"Wrote snapshot to %s", filePath.c_str());
+							if (RecordingSnapshotCreatedCallback != nullptr) {
+								RecordingSnapshotCreatedCallback(filePath);
+							}
 						}
-					}
-					else {
-						_com_error err(hr);
-						LOG_ERROR("Error saving snapshot: %s", err.ErrorMessage());
+						else {
+							_com_error err(hr);
+							LOG_ERROR("Error saving snapshot: %s", err.ErrorMessage());
+						}
 					}
 					// if .get() didn't throw and the HRESULT succeeded, there are no errors.
 				}
@@ -1215,34 +1076,32 @@ void RecordingManager::WriteFrameToImageAsync(_In_ ID3D11Texture2D *pAcquiredDes
 				pAcquiredDesktopImage->Release();
 			});
 }
-/// <summary>
-/// Take screenshots in a video recording, if video recording is file mode.
-/// </summary>
-HRESULT RecordingManager::TakeSnapshotsWithVideo(_In_ ID3D11Texture2D *frame, _In_ RECT destRect)
+
+HRESULT RecordingManager::SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ RECT destRect)
 {
-	if (m_OutputSnapshotsFolderPath.empty())
+	if (GetSnapshotOptions()->GetSnapshotsDirectory().empty())
 		return S_FALSE;
 
 	HRESULT hr = S_OK;
-	CComPtr<ID3D11Texture2D> pFrameCopyForSnapshotsWithVideo = nullptr;
+	CComPtr<ID3D11Texture2D> pProcessedTexture = nullptr;
 	D3D11_TEXTURE2D_DESC frameDesc;
-	frame->GetDesc(&frameDesc);
+	pTexture->GetDesc(&frameDesc);
 	int destWidth = RectWidth(destRect);
 	int destHeight = RectHeight(destRect);
-	if (frameDesc.Width > destWidth
-		|| frameDesc.Height > destHeight) {
-		////If the source frame is larger than the destionation rect, we crop it, to avoid black borders around the snapshots.
-		RETURN_ON_BAD_HR(hr = CropFrame(frame, destRect, &pFrameCopyForSnapshotsWithVideo));
+	if ((int)frameDesc.Width > RectWidth(destRect)
+		|| (int)frameDesc.Height > RectHeight(destRect)) {
+		//If the source frame is larger than the destionation rect, we crop it, to avoid black borders around the snapshots.
+		RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(pTexture, destRect, &pProcessedTexture));
 	}
 	else {
-		m_Device->CreateTexture2D(&frameDesc, nullptr, &pFrameCopyForSnapshotsWithVideo);
+		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&frameDesc, nullptr, &pProcessedTexture));
 		// Copy the current frame for a separate thread to write it to a file asynchronously.
-		m_ImmediateContext->CopyResource(pFrameCopyForSnapshotsWithVideo, frame);
+		m_DeviceContext->CopyResource(pProcessedTexture, pTexture);
 	}
 
-	m_previousSnapshotTaken = steady_clock::now();
-	wstring snapshotPath = m_OutputSnapshotsFolderPath + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetImageExtension();
-	WriteFrameToImageAsync(pFrameCopyForSnapshotsWithVideo, snapshotPath.c_str());
+
+	wstring snapshotPath = GetSnapshotOptions()->GetSnapshotsDirectory() + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetSnapshotOptions()->GetImageExtension();
+	WriteTextureToImageAsync(pProcessedTexture, snapshotPath.c_str());
 	return hr;
 }
 

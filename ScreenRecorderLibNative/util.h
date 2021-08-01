@@ -5,6 +5,13 @@
 #include <comdef.h>
 #include "log.h"
 #include <string>
+#include <chrono>
+#include <algorithm>
+
+template < class T, class U >
+bool isinst(U u) {
+	return dynamic_cast<T>(u) != nullptr;
+}
 
 template<typename ... Args>
 std::wstring string_format(const std::wstring &format, Args ... args)
@@ -15,6 +22,7 @@ std::wstring string_format(const std::wstring &format, Args ... args)
 	swprintf(buf.get(), size, format.c_str(), args ...);
 	return std::wstring(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
 }
+
 
 #define RETURN_ON_BAD_HR(expr) \
 { \
@@ -139,6 +147,10 @@ inline RECT MakeRectEven(_In_ RECT &rect)
 	return rect;
 }
 
+inline LONG MakeEven(LONG n) {
+	return n - n % 2;
+}
+
 inline LONG RectWidth(RECT rc)
 {
 	return rc.right - rc.left;
@@ -147,6 +159,14 @@ inline LONG RectWidth(RECT rc)
 inline LONG RectHeight(RECT rc)
 {
 	return rc.bottom - rc.top;
+}
+
+inline bool IsValidRect(RECT rc) {
+	return rc.right > rc.left && rc.bottom > rc.top;
+}
+
+inline bool IsValidSize(SIZE size) {
+	return size.cx > 0 && size.cy > 0;
 }
 
 enum class ImageFileType
@@ -223,11 +243,34 @@ inline ImageFileType getImageTypeByMagic(const char *data)
 }
 
 inline std::string ReadFileSignature(std::wstring filePath) {
-	char buffer[16]; // Buffer to store data
 	FILE *stream;
+	std::string signature = "";
 	_wfopen_s(&stream, filePath.c_str(), L"r");
-	size_t count = fread(&buffer, sizeof(char), 16, stream);
-	fclose(stream);
-	auto string = std::string(buffer);
-	return string;
+	if (stream) {
+		char buffer[16]{0}; // Buffer to store data
+		int charNum = 16;
+		size_t count = fread(&buffer, sizeof(char), charNum, stream);
+		if (count == charNum) {
+			signature = std::string(buffer);
+		}
+		fclose(stream);
+	}
+	return signature;
+}
+
+inline std::string CurrentTimeToFormattedString()
+{
+	std::chrono::system_clock::time_point p = std::chrono::system_clock::now();
+	time_t t = std::chrono::system_clock::to_time_t(p);
+	struct tm newTime;
+	auto err = localtime_s(&newTime, &t);
+
+	std::stringstream ss;
+	if (err)
+		ss << "NEW";
+	else
+		ss << std::put_time(&newTime, "%Y-%m-%d %X");
+	std::string time = ss.str();
+	std::replace(time.begin(), time.end(), ':', '-');
+	return time;
 }

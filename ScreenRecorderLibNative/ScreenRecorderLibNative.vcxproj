@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioManager.h" />
+    <ClInclude Include="TextureManager.h" />
     <ClInclude Include="ScreenCaptureBase.h" />
     <ClInclude Include="CameraCapture.h" />
     <ClInclude Include="GifReader.h" />
@@ -51,6 +52,7 @@
   <ItemGroup>
     <ClCompile Include="AudioManager.cpp" />
     <ClCompile Include="Log.cpp" />
+    <ClCompile Include="TextureManager.cpp" />
     <ClCompile Include="ScreenCaptureBase.cpp" />
     <ClCompile Include="CameraCapture.cpp" />
     <ClCompile Include="GifReader.cpp" />

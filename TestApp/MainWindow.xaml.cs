@@ -6,13 +6,14 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
+
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Win32Interop.WinHandles;
+
 
 namespace TestApp
 {
@@ -35,7 +36,8 @@ namespace TestApp
                 _isRecording = value;
             }
         }
-
+        public ICheckableRecordingSource SelectedRecordingSource { get; set; }
+        public ObservableCollection<ICheckableRecordingSource> RecordingSources { get; } = new ObservableCollection<ICheckableRecordingSource>();
         public List<OverlayModel> Overlays { get; } = new List<OverlayModel>();
         public int VideoBitrate { get; set; } = 7000;
         public int VideoFramerate { get; set; } = 60;
@@ -218,6 +220,61 @@ namespace TestApp
             }
         }
 
+        private ScreenRect _sourceRect = ScreenRect.Empty;
+        public ScreenRect SourceRect
+        {
+            get { return _sourceRect; }
+            set
+            {
+                if (_sourceRect != value)
+                {
+                    _sourceRect = value;
+                    RaisePropertyChanged(nameof(SourceRect));
+                }
+            }
+        }
+
+        private ScreenSize _outputSize;
+        public ScreenSize OutputSize
+        {
+            get { return _outputSize; }
+            set
+            {
+                if (_outputSize != value)
+                {
+                    _outputSize = value;
+                    RaisePropertyChanged(nameof(OutputSize));
+                }
+            }
+        }
+        private bool _isCustomOutputSourceRectEnabled;
+        public bool IsCustomOutputSourceRectEnabled
+        {
+            get { return _isCustomOutputSourceRectEnabled; }
+            set
+            {
+                if (_isCustomOutputSourceRectEnabled != value)
+                {
+                    _isCustomOutputSourceRectEnabled = value;
+                    RaisePropertyChanged(nameof(IsCustomOutputSourceRectEnabled));
+                }
+            }
+        }
+
+        private bool _isCustomOutputFrameSizeEnabled;
+        public bool IsCustomOutputFrameSizeEnabled
+        {
+            get { return _isCustomOutputFrameSizeEnabled; }
+            set
+            {
+                if (_isCustomOutputFrameSizeEnabled != value)
+                {
+                    _isCustomOutputFrameSizeEnabled = value;
+                    RaisePropertyChanged(nameof(IsCustomOutputFrameSizeEnabled));
+                }
+            }
+        }
+
 
         public H264Profile CurrentH264Profile { get; set; } = H264Profile.High;
         public H265Profile CurrentH265Profile { get; set; } = H265Profile.Main;
@@ -225,7 +282,6 @@ namespace TestApp
         public MainWindow()
         {
             InitializeComponent();
-
             InitializeDefaultOverlays();
             RefreshCaptureTargetItems();
         }
@@ -325,47 +381,20 @@ namespace TestApp
             _progressTimer.Interval = TimeSpan.FromSeconds(1);
             _progressTimer.Start();
 
-            Int32.TryParse(this.RecordingAreaRightTextBox.Text, out int right);
-            Int32.TryParse(this.RecordingAreaBottomTextBox.Text, out int bottom);
-            Int32.TryParse(this.RecordingAreaLeftTextBox.Text, out int left);
-            Int32.TryParse(this.RecordingAreaTopTextBox.Text, out int top);
-
             var selectedDisplay = this.ScreenComboBox.SelectedItem as CheckableRecordableDisplay;
 
             string audioOutputDevice = AudioOutputsComboBox.SelectedValue as string;
             string audioInputDevice = AudioInputsComboBox.SelectedValue as string;
 
-            var windowsToRecord = this.WindowComboBox.Items.Cast<CheckableRecordableWindow>().Where(x => x.IsSelected).ToList();
-            if (windowsToRecord.Count == 0
-                && this.WindowComboBox.SelectedItem != null
-                && ((CheckableRecordableWindow)this.WindowComboBox.SelectedItem).IsCheckable)
+            var sourcesToRecord = RecordingSources.Where(x => x.IsSelected).ToList();
+            if (sourcesToRecord.Count == 0
+                && SelectedRecordingSource != null
+                && SelectedRecordingSource.IsCheckable)
             {
-                windowsToRecord.Add((CheckableRecordableWindow)this.WindowComboBox.SelectedItem);
+                sourcesToRecord.Add(SelectedRecordingSource);
             }
 
-            var displayDevicesToRecord = this.ScreenComboBox.Items.Cast<CheckableRecordableDisplay>().Where(x => x.IsSelected).ToList();
-            if (displayDevicesToRecord.Count == 0
-                && this.ScreenComboBox.SelectedItem != null
-                && ((CheckableRecordableDisplay)this.ScreenComboBox.SelectedItem).IsCheckable)
-            {
-                displayDevicesToRecord.Add((CheckableRecordableDisplay)this.ScreenComboBox.SelectedItem);
-            }
-
-            List<RecordingSource> recordingSources = new List<ScreenRecorderLib.RecordingSource>();
-            recordingSources.AddRange(windowsToRecord);
-            recordingSources.AddRange(displayDevicesToRecord);
-            var foo = new H264VideoEncoder()
-            {
-                BitrateMode = CurrentH264VideoBitrateMode,
-                EncoderProfile = CurrentH264Profile
-            };
-            var bar = new H265VideoEncoder()
-            {
-                BitrateMode = CurrentH265VideoBitrateMode,
-                EncoderProfile = CurrentH265Profile
-            };
-
-            VideoEncoder videoEncoder = null;
+            IVideoEncoder videoEncoder;
             switch (CurrentVideoEncoderFormat)
             {
                 default:
@@ -412,6 +441,7 @@ namespace TestApp
                     IsLowLatencyEnabled = this.IsLowLatencyEnabled,
                     IsMp4FastStartEnabled = this.IsMp4FastStartEnabled,
                     IsFragmentedMp4Enabled = this.IsFragmentedMp4Enabled,
+                    FrameSize = IsCustomOutputFrameSizeEnabled ? this.OutputSize : null
                 },
                 SnapshotOptions = new SnapshotOptions
                 {
@@ -421,8 +451,34 @@ namespace TestApp
                 },
                 SourceOptions = new SourceOptions
                 {
-                    RecordingSources = recordingSources,
-                    SourceRect = new ScreenRect(left, top, right - left, bottom - top)
+                    //RecordingSources = sourcesToRecord.Cast<RecordingSourceBase>().ToList(),
+                    RecordingSources = sourcesToRecord.Select(x =>
+                    {
+                        if (x is WindowRecordingSource win)
+                        {
+                            return new WindowRecordingSource(win.Handle)
+                            {
+                                IsCursorCaptureEnabled = win.IsCursorCaptureEnabled,
+                                OutputSize = x.IsCustomOutputSizeEnabled ? x.OutputSize : null,
+                                Position = x.IsCustomPositionEnabled ? x.Position : null
+                            };
+                        }
+                        else if (x is CheckableRecordableDisplay disp)
+                        {
+                            return new DisplayRecordingSource(disp.DeviceName)
+                            {
+                                IsCursorCaptureEnabled = disp.IsCursorCaptureEnabled,
+                                OutputSize = x.IsCustomOutputSizeEnabled ? x.OutputSize : null,
+                                SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
+                                Position = x.IsCustomPositionEnabled ? x.Position : null
+                            };
+                        }
+                        else
+                        {
+                            return null as RecordingSourceBase;
+                        }
+                    }).ToList(),
+                    SourceRect = IsCustomOutputSourceRectEnabled ? this.SourceRect : null
                 },
                 MouseOptions = new MouseOptions
                 {
@@ -593,39 +649,8 @@ namespace TestApp
             if (e.AddedItems.Count == 0)
                 return;
             SetScreenComboBoxTitle();
-            SetScreenRect();
-        }
-
-        private void SetScreenRect()
-        {
-            var selectedDisplays = this.ScreenComboBox.Items.Cast<CheckableRecordableDisplay>()
-                .Where(x => x.IsSelected)
-                .OrderBy(x => x.ScreenCoordinates.Left)
-                .ThenBy(x => x.ScreenCoordinates.Top)
-                .ToList();
-
-            var selectedWindows = this.WindowComboBox.Items.Cast<CheckableRecordableWindow>()
-                .Where(x => x.IsSelected)
-                .ToList();
-
-            if (selectedDisplays.Count == 0
-                && this.ScreenComboBox.SelectedItem != null
-                && ((CheckableRecordableDisplay)this.ScreenComboBox.SelectedItem).IsCheckable)
-            {
-                selectedDisplays.Add(this.ScreenComboBox.SelectedItem as CheckableRecordableDisplay);
-            }
-            if (selectedWindows.Count == 0
-                && this.WindowComboBox.SelectedItem != null
-                && ((CheckableRecordableWindow)this.WindowComboBox.SelectedItem).IsCheckable)
-            {
-                selectedWindows.Add(this.WindowComboBox.SelectedItem as CheckableRecordableWindow);
-            }
-            var size = Recorder.GetCombinedOutputSizeForRecordingSources(selectedDisplays.Cast<RecordingSource>().Union(selectedWindows.Cast<RecordingSource>()).ToList());
-
-            this.RecordingAreaRightTextBox.Text = size.Width.ToString();
-            this.RecordingAreaBottomTextBox.Text = size.Height.ToString();
-            this.RecordingAreaLeftTextBox.Text = 0.ToString();
-            this.RecordingAreaTopTextBox.Text = 0.ToString();
+            SetOutputDimensions();
+            ((CollectionViewSource)Resources["SelectedRecordingSourcesViewSource"]).View.Refresh();
         }
 
         private void Hyperlink_Click(object sender, RoutedEventArgs e)
@@ -635,7 +660,10 @@ namespace TestApp
 
         private void TextBox_GotFocus(object sender, RoutedEventArgs e)
         {
-            ((TextBox)sender).SelectAll();
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, (Action)(() =>
+             {
+                 ((TextBox)sender).SelectAll();
+             }));
         }
 
         private void DeleteTempFilesButton_Click(object sender, RoutedEventArgs e)
@@ -709,23 +737,12 @@ namespace TestApp
         private void RecordingApiComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             UpdateUiState();
-            if (CurrentRecordingApi == RecorderApi.DesktopDuplication)
-            {
-                SetScreenRect();
-            }
             if (this.IsLoaded)
             {
                 RefreshCaptureTargetItems();
             }
         }
 
-        private void WindowComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (e.AddedItems.Count == 0)
-                return;
-            SetWindowComboBoxTitle();
-            SetScreenRect();
-        }
         private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
             RefreshCaptureTargetItems();
@@ -781,17 +798,6 @@ namespace TestApp
                     default:
                         break;
                 }
-                switch (CurrentRecordingApi)
-                {
-                    case RecorderApi.DesktopDuplication:
-                        this.WindowComboBox.Visibility = Visibility.Collapsed;
-                        break;
-                    case RecorderApi.WindowsGraphicsCapture:
-                        this.WindowComboBox.Visibility = Visibility.Visible;
-                        break;
-                    default:
-                        break;
-                }
             }
         }
 
@@ -799,7 +805,6 @@ namespace TestApp
         {
             RefreshVideoCaptureItems();
             RefreshScreenComboBox();
-            RefreshWindowComboBox();
             RefreshAudioComboBoxes();
         }
 
@@ -817,68 +822,59 @@ namespace TestApp
 
         private void RefreshScreenComboBox()
         {
-            this.ScreenComboBox.Items.Clear();
-            this.ScreenComboBox.Items.Add(new CheckableRecordableDisplay()
+            foreach (CheckableRecordableDisplay display in RecordingSources.ToList().Where(x => x is CheckableRecordableDisplay))
             {
-                DeviceName = null,
-                MonitorName = "-- No monitor selected --",
-                IsCheckable = false
-            });
-
-            var allMonitorsSize = Recorder.GetCombinedOutputSizeForRecordingSources(new List<RecordingSource>() { DisplayRecordingSource.AllMonitors });
-            this.ScreenComboBox.Items.Add(new CheckableRecordableDisplay
-            {
-                DeviceName = DisplayRecordingSource.AllMonitors.DeviceName,
-                MonitorName = "All monitors",
-                IsCheckable = true,
-                ScreenCoordinates = new Rect(0, 0, allMonitorsSize.Width, allMonitorsSize.Height)
-            });
+                RecordingSources.Remove(display);
+            }
 
             foreach (var target in Recorder.GetDisplays())
             {
-                this.ScreenComboBox.Items.Add(new CheckableRecordableDisplay(target));
+                RecordingSources.Add(new CheckableRecordableDisplay(target));
             }
-            if (this.CurrentRecordingApi == RecorderApi.DesktopDuplication)
-            {
-                ScreenComboBox.SelectedIndex = 1;
-            }
-            else
-            {
-                ScreenComboBox.SelectedIndex = 0;
-            }
-        }
-        private void RefreshWindowComboBox()
-        {
-            this.WindowComboBox.Items.Clear();
-            this.WindowComboBox.Items.Add(new CheckableRecordableWindow("-- No window selected --", IntPtr.Zero) { IsCheckable = false });
 
+            foreach (CheckableRecordableWindow window in RecordingSources.ToList().Where(x => x is CheckableRecordableWindow))
+            {
+                RecordingSources.Remove(window);
+            }
             foreach (RecordableWindow window in Recorder.GetWindows())
             {
-                this.WindowComboBox.Items.Add(new CheckableRecordableWindow(window));
+                RecordingSources.Add(new CheckableRecordableWindow(window));
             }
             RefreshWindowSizeAndAvailability();
-            WindowComboBox.SelectedIndex = 0;
+
+            ScreenComboBox.SelectedIndex = 0;
         }
 
         private void RefreshWindowSizeAndAvailability()
         {
-            foreach (CheckableRecordableWindow window in this.WindowComboBox.Items)
+            //var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(RecordingSources.Cast<RecordingSourceBase>());
+            foreach (CheckableRecordableWindow window in RecordingSources.Where(x => x is CheckableRecordableWindow))
             {
-                if (window.Handle == IntPtr.Zero || window.IsMinmimized() || !window.IsValidWindow())
+                //var dimens = outputDimens.OutputCoordinates.FirstOrDefault(x => x.Source == window);
+                //if (dimens != null)
+                //{
+                if (!window.IsCustomPositionEnabled && !window.IsCustomOutputSizeEnabled)
                 {
-                    window.IsCheckable = false;
-                    window.ScreenCoordinates = Rect.Empty;
+                    var dimens = window.GetScreenCoordinates();
+                    window.UpdateScreenCoordinates(new ScreenPoint(0, 0), new ScreenSize(dimens.Width, dimens.Height));
                 }
-                else
-                {
-                    window.UpdateScreenCoordinates();
-                    if (!window.ScreenCoordinates.IsEmpty)
-                    {
-                        window.IsCheckable = true;
-
-                    }
-                }
+                window.IsCheckable = window.OutputSize != ScreenSize.Empty;
+                //}
             }
+            //var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(RecordingSources.Where(x => !x.IsSelected).Cast<RecordingSourceBase>());
+            //foreach (CheckableRecordableWindow window in RecordingSources.Where(x => x is CheckableRecordableWindow && !x.IsSelected))
+            //{
+            //    var dimens = outputDimens.OutputCoordinates.FirstOrDefault(x => x.Source == window);
+            //    if (dimens != null)
+            //    {
+            //        window.UpdateScreenCoordinates(new ScreenRect(0, 0, dimens.Coordinates.Width, dimens.Coordinates.Height));
+            //    }
+            //    else
+            //    {
+            //        window.UpdateScreenCoordinates(ScreenRect.Empty);
+            //    }
+            //    window.IsCheckable = window.OutputSize != ScreenSize.Empty;
+            //}
         }
 
         private void RefreshAudioComboBoxes()
@@ -911,41 +907,112 @@ namespace TestApp
         private void ScreenCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
         {
             SetScreenComboBoxTitle();
-            SetScreenRect();
+            SetOutputDimensions();
+            ((CollectionViewSource)Resources["SelectedRecordingSourcesViewSource"]).View.Refresh();
         }
         private void SetScreenComboBoxTitle()
         {
             this.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
             {
-                if (this.ScreenComboBox.Items.Cast<CheckableRecordableDisplay>().Any(x => x.IsSelected))
+                if (RecordingSources.Any(x => x.IsSelected))
                 {
-                    var displays = this.ScreenComboBox.Items.Cast<CheckableRecordableDisplay>().Where(x => x.IsSelected).Select(x => $"{x.MonitorName} ({x.DeviceName})");
-                    this.ScreenComboBox.Text = string.Join(", ", displays);
+                    var sources = RecordingSources.Where(x => x.IsSelected).Select(x => x.ToString());
+                    this.ScreenComboBox.Text = string.Join(", ", sources);
                 }
             }));
         }
-
-        private void SetWindowComboBoxTitle()
+        private void SetOutputDimensions()
         {
-            this.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
+            List<ICheckableRecordingSource> selectedSources = RecordingSources.Where(x => x.IsSelected && x.IsCheckable).ToList();
+            if (selectedSources.Count == 0)
             {
-                if (this.WindowComboBox.Items.Cast<CheckableRecordableWindow>().Any(x => x.IsSelected))
+                selectedSources.Add(SelectedRecordingSource);
+            }
+
+            foreach (var source in selectedSources)
+            {
+                if (!source.IsCustomPositionEnabled)
                 {
-                    var windows = this.WindowComboBox.Items.Cast<CheckableRecordableWindow>().Where(x => x.IsSelected).Select(x => $"{x.Title}");
-                    this.WindowComboBox.Text = string.Join(", ", windows);
+                    source.Position = null;
                 }
-            }));
+                if (!source.IsCustomOutputSizeEnabled)
+                {
+                    source.OutputSize = null;
+                }
+                if (source is CheckableRecordableDisplay disp && !disp.IsCustomOutputSourceRectEnabled)
+                {
+                    disp.SourceRect = null;
+                }
+            }
+            var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(selectedSources.Cast<RecordingSourceBase>());
+            var allMonitorsSize = outputDimens.CombinedOutputSize;
+            if (!IsCustomOutputSourceRectEnabled)
+            {
+                SourceRect = new ScreenRect(0, 0, allMonitorsSize.Width, allMonitorsSize.Height);
+            }
+            if (!IsCustomOutputFrameSizeEnabled)
+            {
+                OutputSize = new ScreenSize(allMonitorsSize.Width, allMonitorsSize.Height);
+            }
+            foreach (SourceCoordinates sourceCoord in outputDimens.OutputCoordinates)
+            {
+                var source = selectedSources.FirstOrDefault(x => x == sourceCoord.Source);
+                if (source != null)
+                {
+                    source.UpdateScreenCoordinates(new ScreenPoint(sourceCoord.Coordinates.Left, sourceCoord.Coordinates.Top), new ScreenSize(sourceCoord.Coordinates.Width, sourceCoord.Coordinates.Height));
+                }
+            }
         }
-
-        private void WindowCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
+        private void RecordingSourcesViewSource_Filter(object sender, System.Windows.Data.FilterEventArgs e)
         {
-            SetScreenRect();
-            SetWindowComboBoxTitle();
+            if (CurrentRecordingApi == RecorderApi.DesktopDuplication)
+            {
+                e.Accepted = e.Item is DisplayRecordingSource;
+            }
+            else if (CurrentRecordingApi == RecorderApi.WindowsGraphicsCapture)
+            {
+                e.Accepted = true;
+            }
+            else
+            {
+                e.Accepted = false;
+            }
         }
 
-        private void WindowComboBox_DropDownOpened(object sender, EventArgs e)
+        private void WindowRecordingSourcesViewSource_Filter(object sender, System.Windows.Data.FilterEventArgs e)
+        {
+            e.Accepted = e.Item is WindowRecordingSource;
+        }
+
+        private void SelectedRecordingSourcesViewSource_Filter(object sender, System.Windows.Data.FilterEventArgs e)
+        {
+            if (!RecordingSources.Any(x => x.IsSelected))
+            {
+                e.Accepted = e.Item == SelectedRecordingSource
+                    && SelectedRecordingSource.IsCheckable;
+            }
+            else
+            {
+                e.Accepted = ((ICheckableRecordingSource)e.Item).IsSelected
+                    && ((ICheckableRecordingSource)e.Item).IsCheckable;
+            }
+        }
+
+        private void MainWin_Activated(object sender, EventArgs e)
         {
             RefreshWindowSizeAndAvailability();
+            SetOutputDimensions();
+            ((CollectionViewSource)Resources["SelectedRecordingSourcesViewSource"]).View.Refresh();
+        }
+
+        private void UserInput_TextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+        {
+             SetOutputDimensions();
+        }
+
+        private void CustomCoordinates_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            SetOutputDimensions();
         }
     }
 }

@@ -1,29 +1,31 @@
 #pragma once
 #include "CommonTypes.h"
-
+#include "TextureManager.h"
+#include <memory>
 class DesktopDuplicationManager
 {
 public:
 	DesktopDuplicationManager();
 	~DesktopDuplicationManager();
-	HRESULT GetFrame(_Out_ DUPL_FRAME_DATA *Data);
+	HRESULT GetFrame(_Out_ DUPL_FRAME_DATA *pData);
 	HRESULT ReleaseFrame();
-	HRESULT Initialize(_In_ DX_RESOURCES *Data, std::wstring Output);
-	void GetOutputDesc(_Out_ DXGI_OUTPUT_DESC *DescPtr);
+	HRESULT Initialize(_In_ DX_RESOURCES *pData, std::wstring Output);
+	void GetOutputDesc(_Out_ DXGI_OUTPUT_DESC *pOutputDesc);
 	IDXGIOutputDuplication *GetOutputDuplication() { return m_DeskDupl; }
 	ID3D11Device *GetDevice() { return m_Device; }
-	HRESULT ProcessFrame(_In_ DUPL_FRAME_DATA *Data, _Inout_ ID3D11Texture2D *SharedSurf, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc);
+	HRESULT ProcessFrame(_In_ DUPL_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_ DXGI_MODE_ROTATION rotation, _In_opt_ const std::optional<RECT> &sourceRect = std::nullopt);
 private:
 	static const int NUMVERTICES = 6;
 
 	// methods
-	HRESULT CopyDirty(_In_ ID3D11Texture2D *SrcSurface, _Inout_ ID3D11Texture2D *SharedSurf, _In_reads_(DirtyCount) RECT *DirtyBuffer, UINT DirtyCount, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc);
-	HRESULT CopyMove(_Inout_ ID3D11Texture2D *SharedSurf, _In_reads_(MoveCount) DXGI_OUTDUPL_MOVE_RECT *MoveBuffer, UINT MoveCount, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc, INT TexWidth, INT TexHeight);
-	void SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX *Vertices, _In_ RECT *Dirty, INT OffsetX, INT OffsetY, _In_ DXGI_OUTPUT_DESC *DeskDesc, _In_ D3D11_TEXTURE2D_DESC *FullDesc, _In_ D3D11_TEXTURE2D_DESC *ThisDesc);
-	void SetMoveRect(_Out_ RECT *SrcRect, _Out_ RECT *DestRect, _In_ DXGI_OUTPUT_DESC *DeskDesc, _In_ DXGI_OUTDUPL_MOVE_RECT *MoveRect, INT TexWidth, INT TexHeight);
+	HRESULT CopyDirty(_In_ ID3D11Texture2D *pSrcSurface, _Inout_ ID3D11Texture2D *pSharedSurf, _In_reads_(dirtyCount) RECT *pDirtyBuffer, UINT dirtyCount, INT offsetX, INT offsetY, _In_ RECT desktopCoordinates, _In_ DXGI_MODE_ROTATION rotation);
+	HRESULT CopyMove(_Inout_ ID3D11Texture2D *pSharedSurf, _In_reads_(moveCount) DXGI_OUTDUPL_MOVE_RECT *pMoveBuffer, UINT moveCount, INT offsetX, INT offsetY, _In_ RECT desktopCoordinates, _In_ DXGI_MODE_ROTATION rotation);
+	void SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX *pVertices, _In_ RECT *pDirty, INT offsetX, INT offsetY, _In_ RECT desktopCoordinates, _In_ DXGI_MODE_ROTATION rotation, _In_ D3D11_TEXTURE2D_DESC *pFullDesc, _In_ D3D11_TEXTURE2D_DESC *pThisDesc);
+	void SetMoveRect(_Out_ RECT *SrcRect, _Out_ RECT *pDestRect, _In_ DXGI_MODE_ROTATION rotation, _In_ DXGI_OUTDUPL_MOVE_RECT *pMoveRect, INT texWidth, INT texHeight);
 	void CleanRefs();
 
 	// vars
+	std::unique_ptr<TextureManager> m_TextureManager;
 	bool m_OutputIsOnSeparateGraphicsAdapter;
 	IDXGIOutputDuplication *m_DeskDupl;
 	ID3D11Texture2D *m_AcquiredDesktopImage;

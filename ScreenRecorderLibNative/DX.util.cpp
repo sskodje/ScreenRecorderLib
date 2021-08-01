@@ -1,7 +1,9 @@
 #pragma warning (disable : 26451)
 #include "DX.util.h"
 #include "Cleanup.h"
+#include <dwmapi.h>
 
+using namespace DirectX;
 //
 // Get DX_RESOURCES
 //
@@ -19,7 +21,7 @@ HRESULT InitializeDx(_In_opt_ IDXGIAdapter *pDxgiAdapter, _Out_ DX_RESOURCES *Da
 		driverTypes.push_back(D3D_DRIVER_TYPE_WARP);
 		driverTypes.push_back(D3D_DRIVER_TYPE_REFERENCE);
 	}
-	UINT NumDriverTypes = driverTypes.size();
+	size_t NumDriverTypes = driverTypes.size();
 
 	// Feature levels supported
 	D3D_FEATURE_LEVEL FeatureLevels[] =
@@ -87,52 +89,54 @@ HRESULT GetAdapterForDevice(_In_ ID3D11Device *pDevice, _Outptr_ IDXGIAdapter **
 	return hr;
 }
 
-HRESULT GetOutputDescsForDeviceNames(_In_ std::vector<std::wstring> deviceNames, _Out_ std::vector<DXGI_OUTPUT_DESC> *outputDescs) {
-	*outputDescs = std::vector<DXGI_OUTPUT_DESC>();
-
-	// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
-	std::vector<IDXGIOutput *> outputs{};
-	EnumOutputs(&outputs);
-	for each (IDXGIOutput * output in outputs)
-	{
-		DXGI_OUTPUT_DESC desc;
-		output->GetDesc(&desc);
-		if (std::find(deviceNames.begin(), deviceNames.end(), desc.DeviceName) != deviceNames.end()
-			|| std::find(deviceNames.begin(), deviceNames.end(), ALL_MONITORS_ID) != deviceNames.end())
-		{
-			outputDescs->push_back(desc);
-		}
-		output->Release();
-	}
-	return S_OK;
-}
-
 HRESULT GetOutputRectsForRecordingSources(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<std::pair<RECORDING_SOURCE, RECT>> *outputs)
 {
 	std::vector<std::pair<RECORDING_SOURCE, RECT>> validOutputs{};
 	int xOffset = 0;
 	for each (RECORDING_SOURCE source in sources)
 	{
+		auto AddDisplaySource([&](IDXGIOutput *output) {
+			DXGI_OUTPUT_DESC outputDesc;
+			output->GetDesc(&outputDesc);
+			RECT sourceRect = outputDesc.DesktopCoordinates;
+			long left = outputDesc.DesktopCoordinates.left;
+			long top = outputDesc.DesktopCoordinates.top;
+			if (source.Position.has_value()) {
+				left = source.Position.value().x;
+				top = source.Position.value().y;
+			}
+			if (source.Offset.has_value()) {
+				left += source.Offset.value().cx;
+				top += source.Offset.value().cy;
+			}
+			if (source.OutputSize.has_value() && IsValidSize(source.OutputSize.value())) {
+				sourceRect = RECT
+				{
+					left,
+					top,
+					left + source.OutputSize.value().cx,
+					top + source.OutputSize.value().cy
+				};
+			}
+			else if (IsValidRect(source.SourceRect.value_or(RECT{}))) {
+				sourceRect = RECT
+				{
+					left,
+					top,
+					left + RectWidth(source.SourceRect.value()),
+					top + RectHeight(source.SourceRect.value())
+				};
+			}
+			sourceRect.left += xOffset;
+			sourceRect.right += xOffset;
+			std::pair<RECORDING_SOURCE, RECT> tuple(source, sourceRect);
+			validOutputs.push_back(tuple);
+		});
+
 		switch (source.Type)
 		{
 		case RecordingSourceType::Display: {
-			if (source.CaptureDevice == ALL_MONITORS_ID) {
-				std::vector<IDXGIOutput *> outputs;
-				EnumOutputs(&outputs);
-				for each (IDXGIOutput * output in outputs)
-				{
-					DXGI_OUTPUT_DESC outputDesc;
-					output->GetDesc(&outputDesc);
-					outputDesc.DesktopCoordinates.left += xOffset;
-					outputDesc.DesktopCoordinates.right += xOffset;
-					std::pair<RECORDING_SOURCE, RECT> tuple(source, outputDesc.DesktopCoordinates);
-					validOutputs.push_back(tuple);
-					output->Release();
-				}
-			}
-			else {
 				// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
-				DXGI_OUTPUT_DESC outputDesc;
 				CComPtr<IDXGIOutput> output;
 				HRESULT hr = GetOutputForDeviceName(source.CaptureDevice, &output);
 				if (FAILED(hr))
@@ -140,26 +144,58 @@ HRESULT GetOutputRectsForRecordingSources(_In_ std::vector<RECORDING_SOURCE> sou
 					LOG_ERROR(L"Failed to get output descs for selected devices");
 					return hr;
 				}
-				RETURN_ON_BAD_HR(hr = output->GetDesc(&outputDesc));
-				outputDesc.DesktopCoordinates.left += xOffset;
-				outputDesc.DesktopCoordinates.right += xOffset;
-				std::pair<RECORDING_SOURCE, RECT> tuple(source, outputDesc.DesktopCoordinates);
-				validOutputs.push_back(tuple);
-			}
+				AddDisplaySource(output);
 			break;
 		}
 		case RecordingSourceType::Window: {
-			RECT rect;
-			if (GetWindowRect(source.WindowHandle, &rect))
+			RECT windowRect;
+			if (SUCCEEDED(DwmGetWindowAttribute(source.WindowHandle, DWMWA_EXTENDED_FRAME_BOUNDS, &windowRect, sizeof(windowRect))))
 			{
-				rect = RECT{ 0,0, RectWidth(rect),RectHeight(rect) };
-				LONG width = RectWidth(rect);
-				if (validOutputs.size() > 0) {
-					rect.right = validOutputs.back().second.right + width;
-					rect.left = rect.right - width;
+				RECT sourceRect{};
+				long left = 0;
+				long top = 0;
+				if (source.Position.has_value()) {
+					left = source.Position.value().x;
+					top = source.Position.value().y;
+				}
+				if (source.Offset.has_value()) {
+					left += source.Offset.value().cx;
+					top += source.Offset.value().cy;
+				}
+				if (source.OutputSize.has_value() && IsValidSize(source.OutputSize.value())) {
+					sourceRect = RECT
+					{
+						left,
+						top,
+						left + source.OutputSize.value().cx,
+						top + source.OutputSize.value().cy
+					};
+				}
+				else if (IsValidRect(source.SourceRect.value_or(RECT{}))) {
+					sourceRect = RECT
+					{
+						left,
+						top,
+						left + RectWidth(source.SourceRect.value()),
+						top + RectHeight(source.SourceRect.value())
+					};
+				}
+				else {
+					sourceRect = RECT
+					{
+						left,
+						top,
+						left + RectWidth(windowRect),
+						top + RectHeight(windowRect)
+					};
+				}
+				LONG width = RectWidth(sourceRect);
+				if (validOutputs.size() > 0 && !source.Position.has_value()) {
+					sourceRect.right = validOutputs.back().second.right + width;
+					sourceRect.left = sourceRect.right - width;
 				}
 				xOffset += width;
-				std::pair<RECORDING_SOURCE, RECT> tuple(source, rect);
+				std::pair<RECORDING_SOURCE, RECT> tuple(source, sourceRect);
 				validOutputs.push_back(tuple);
 			}
 			break;
@@ -306,24 +342,12 @@ void GetCombinedRects(_In_ std::vector<RECT> inputs, _Out_ RECT *pOutRect, _Out_
 		*pOffsets = std::vector<SIZE>();
 	}
 	for (int i = 0; i < inputs.size(); i++) {
-		RECT curDisplay = inputs[i];
-		UnionRect(pOutRect, &curDisplay, pOutRect);
-		//The offset is the difference between the end of the previous screen and the start of the current screen.
+		RECT curRecordingSource = inputs[i];
+		UnionRect(pOutRect, &curRecordingSource, pOutRect);
+		//The offset is the difference between the end of the previous source and the start of the current source.
 		int xPosOffset = 0;
 		int yPosOffset = 0;
-		if (i > 0) {
-			//Fix any gaps in the output RECTS with offsets
-			RECT prevDisplay = inputs[i - 1];
-			if (curDisplay.left > prevDisplay.right) {
-				xPosOffset = curDisplay.left - prevDisplay.right;
-			}
 
-			if (curDisplay.top > prevDisplay.bottom) {
-				yPosOffset = curDisplay.top - prevDisplay.bottom;
-			}
-			pOutRect->right -= xPosOffset;
-			pOutRect->bottom -= yPosOffset;
-		}
 		if (pOffsets) {
 			pOffsets->push_back(SIZE{ xPosOffset,yPosOffset });
 		}
@@ -409,4 +433,62 @@ void SetDebugName(_In_ ID3D11DeviceChild *child, _In_ const std::string &name)
 	if (child != nullptr)
 		child->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)name.size(), name.c_str());
 #endif
+}
+
+
+//
+// Initialize shaders for drawing to screen
+//
+HRESULT InitShaders(_In_ ID3D11Device *pDevice, _Outptr_ ID3D11PixelShader **ppPixelShader, _Outptr_ ID3D11VertexShader **ppVertexShader, _Outptr_ ID3D11InputLayout **ppInputLayout)
+{
+	HRESULT hr;
+	CComPtr<ID3D11DeviceContext> pDeviceContext;
+	pDevice->GetImmediateContext(&pDeviceContext);
+	UINT Size = ARRAYSIZE(g_VS);
+	CComPtr<ID3D11VertexShader> vertexShader;
+	hr = pDevice->CreateVertexShader(g_VS, Size, nullptr, &vertexShader);
+	if (FAILED(hr))
+	{
+		_com_error err(hr);
+		LOG_ERROR(L"Failed to create vertex shader: %lls", err.ErrorMessage());
+		return hr;
+	}
+	D3D11_INPUT_ELEMENT_DESC Layout[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
+	};
+	UINT NumElements = ARRAYSIZE(Layout);
+	CComPtr<ID3D11InputLayout> inputLayout;
+	hr = pDevice->CreateInputLayout(Layout, NumElements, g_VS, Size, &inputLayout);
+	if (FAILED(hr))
+	{
+		_com_error err(hr);
+		LOG_ERROR(L"Failed to create input layout: %lls", err.ErrorMessage());
+		return hr;
+	}
+	pDeviceContext->IASetInputLayout(inputLayout);
+
+	Size = ARRAYSIZE(g_PS);
+	CComPtr<ID3D11PixelShader> pixelShader;
+	hr = pDevice->CreatePixelShader(g_PS, Size, nullptr, &pixelShader);
+	if (FAILED(hr))
+	{
+		_com_error err(hr);
+		LOG_ERROR(L"Failed to create pixel shader: %lls", err.ErrorMessage());
+		return hr;
+	}
+
+	*ppPixelShader = pixelShader;
+	(*ppPixelShader)->AddRef();
+
+
+	*ppVertexShader = vertexShader;
+	(*ppVertexShader)->AddRef();
+
+
+	*ppInputLayout = inputLayout;
+	(*ppInputLayout)->AddRef();
+
+	return hr;
 }

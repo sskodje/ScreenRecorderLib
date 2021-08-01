@@ -376,7 +376,7 @@ HRESULT SourceReaderBase::OnReadSample(HRESULT status, DWORD streamIndex, DWORD 
 		if (SUCCEEDED(hr)) {
 			if (!m_FramerateTimer) {
 				m_FramerateTimer = new HighresTimer();
-				m_FramerateTimer->StartRecurringTimer((UINT)round(m_FrameRate));
+				m_FramerateTimer->StartRecurringTimer((INT64)round(m_FrameRate));
 			}
 			if (m_FrameRate > 0) {
 				auto t1 = std::chrono::high_resolution_clock::now();

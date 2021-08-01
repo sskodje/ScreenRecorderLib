@@ -6,7 +6,11 @@
 #include <iomanip>
 #include <sstream>
 
+#if _DEBUG
 #define MEASURE_EXECUTION_TIME false
+#else
+#define MEASURE_EXECUTION_TIME false
+#endif
 
 #define LOG_BUFFER_SIZE 1024
 

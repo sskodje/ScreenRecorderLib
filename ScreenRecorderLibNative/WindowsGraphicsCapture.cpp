@@ -24,15 +24,8 @@ WindowsGraphicsCapture::~WindowsGraphicsCapture()
 
 RECT WindowsGraphicsCapture::GetOutputRect()
 {
-	if (IsSingleWindowCapture()) {
-		while (IsCapturing() && !IsInitialFrameWriteComplete()) {
-			Sleep(1);
-		}
-		return GetContentRect();
-	}
-	else {
-		return m_OutputRect;
-	}
+
+	return m_OutputRect;
 }
 
 LPTHREAD_START_ROUTINE WindowsGraphicsCapture::GetCaptureThreadProc()
@@ -61,14 +54,15 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	// Data passed in from thread creation
 	CAPTURE_THREAD_DATA *pData = reinterpret_cast<CAPTURE_THREAD_DATA *>(Param);
 	RECORDING_SOURCE_DATA *pSource = pData->RecordingSource;
+	GRAPHICS_FRAME_DATA CurrentData{};
 
-	RtlZeroMemory(&pData->ContentFrameRect, sizeof(pData->ContentFrameRect));
+
 	if (pData->RecordingSource->WindowHandle != nullptr) {
 		captureItem = CreateCaptureItemForWindow(pSource->WindowHandle);
-		pData->ContentFrameRect.right = captureItem.Size().Width;
-		pData->ContentFrameRect.bottom = captureItem.Size().Height;
+		CurrentData.IsWindow = true;
 	}
 	else {
+
 		CComPtr<IDXGIOutput> output = nullptr;
 		HRESULT hr = GetOutputForDeviceName(pSource->CaptureDevice, &output);
 		if (FAILED(hr)) {
@@ -82,8 +76,9 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 		DXGI_OUTPUT_DESC outputDesc;
 		output->GetDesc(&outputDesc);
 		captureItem = CreateCaptureItemForMonitor(outputDesc.Monitor);
-		pData->ContentFrameRect = outputDesc.DesktopCoordinates;
+
 	}
+	CurrentData.ContentSize = SIZE{ captureItem.Size().Width,captureItem.Size().Height };
 	//This scope must be here for ReleaseOnExit to work.
 	{
 		pMouseManager.Initialize(pSource->DxRes.Context, pSource->DxRes.Device, std::make_shared<MOUSE_OPTIONS>());
@@ -114,7 +109,6 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 
 		// Main capture loop
 		bool WaitToProcessCurrentFrame = false;
-		GRAPHICS_FRAME_DATA CurrentData{};
 		while (true)
 		{
 			if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
@@ -127,7 +121,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				// Get new frame from Windows Graphics Capture.
 				hr = graphicsManager.GetFrame(&CurrentData);
 				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-					if (!CurrentData.IsIconic && pSource->WindowHandle && IsIconic(pSource->WindowHandle)) {
+					if (!CurrentData.IsIconic && CurrentData.IsWindow && IsIconic(pSource->WindowHandle)) {
 						CurrentData.IsIconic = true;
 						LOG_INFO("Recorded window is minimized");
 					}
@@ -145,12 +139,6 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 						LOG_INFO("Recorded window is restored and no longer minimized");
 					}
 				}
-			}
-			/*To correctly resize recordings, the window contentsize must be returned for window recordings,
-			and the output dimensions of the shared surface for monitor recording.*/
-			if (pSource->WindowHandle) {
-				pData->ContentFrameRect.right = CurrentData.ContentSize.cx + pData->ContentFrameRect.left;
-				pData->ContentFrameRect.bottom = CurrentData.ContentSize.cy + pData->ContentFrameRect.top;
 			}
 			{
 				MeasureExecutionTime measure(L"Duplication CaptureThreadProc wait for sync");
@@ -180,11 +168,12 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			hr = pMouseManager.GetMouse(pData->PtrInfo, false, pSource->OffsetX, pSource->OffsetY);
 
 			// Process new frame
-			hr = graphicsManager.ProcessFrame(&CurrentData, SharedSurf, pSource->OffsetX, pSource->OffsetY, pData->ContentFrameRect);
+			hr = graphicsManager.ProcessFrame(&CurrentData, SharedSurf, pSource->OffsetX, pSource->OffsetY, pData->RecordingSource->FrameCoordinates, pSource->SourceRect);
 			if (FAILED(hr))
 			{
 				break;
 			}
+
 			pData->UpdatedFrameCountSinceLastWrite++;
 			pData->TotalUpdatedFrameCount++;
 
@@ -193,14 +182,13 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	}
 Exit:
 	graphicsManager.Close();
-
+	SafeRelease(&CurrentData.Frame);
 	pData->ThreadResult = hr;
 
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
 		LOG_ERROR(L"Error in Windows Graphics Capture, aborting: %s", err.ErrorMessage());
-
 	}
 
 	if (isExpectedError) {

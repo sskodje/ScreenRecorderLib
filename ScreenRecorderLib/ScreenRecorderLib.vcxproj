@@ -166,10 +166,16 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Callback.h" />
+    <ClInclude Include="Coordinates.h" />
     <ClInclude Include="ManagedIStream.h" />
+    <ClInclude Include="Options.h" />
+    <ClInclude Include="RecordingOverlays.h" />
+    <ClInclude Include="RecordingSources.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Recorder.h" />
     <ClInclude Include="ManagedStreamWrapper.h" />
+    <ClInclude Include="VideoEncoders.h" />
     <ClInclude Include="Win32WindowEnumeration.h" />
   </ItemGroup>
   <ItemGroup>
