@@ -78,6 +78,7 @@ HRESULT HighresTimer::StopTimer(bool waitForCompletion)
 	}
 	m_IsActive = false;
 	CancelWaitableTimer(m_TickEvent);
+	LOG_DEBUG("Stopped HighresTimer");
 	return S_OK;
 }
 
@@ -85,12 +86,13 @@ HRESULT HighresTimer::WaitForNextTick()
 {
 	//WAIT_OBJECT_0 means the first handle in the array, the stop event, signaled the stop, so exit.
 	if (WaitForMultipleObjects(ARRAYSIZE(m_EventArray), m_EventArray, FALSE, INFINITE) == WAIT_OBJECT_0) {
-		LOG_TRACE("Framerate timer was canceled");
+		LOG_TRACE("HighresTimer was canceled");
 		return E_FAIL;
 	}
 
 	m_LastTick = std::chrono::steady_clock::now();
 	m_TickCount++;
+	LOG_TRACE("HighresTimer tick");
 	return S_OK;
 }
 
@@ -110,7 +112,7 @@ HRESULT HighresTimer::WaitFor(INT64 interval100Nanos)
 	m_IsActive = true;
 	//WAIT_OBJECT_0 means the first handle in the array, the stop event, signaled the stop, so exit.
 	if (WaitForMultipleObjects(ARRAYSIZE(m_EventArray), m_EventArray, FALSE, INFINITE) == WAIT_OBJECT_0) {
-		LOG_TRACE("Framerate timer was canceled");
+		LOG_TRACE("HighresTimer was canceled");
 		m_IsActive = false;
 		return E_FAIL;
 	}

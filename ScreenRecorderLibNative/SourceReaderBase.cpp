@@ -14,6 +14,7 @@ SourceReaderBase::SourceReaderBase() :
 	m_FrameSize{},
 	m_FramerateTimer(nullptr),
 	m_NewFrameEvent(nullptr),
+	m_CaptureStoppedEvent(nullptr),
 	m_OutputMediaType(nullptr),
 	m_InputMediaType(nullptr),
 	m_SourceReader(nullptr),
@@ -21,6 +22,10 @@ SourceReaderBase::SourceReaderBase() :
 {
 	InitializeCriticalSection(&m_CriticalSection);
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	m_CaptureStoppedEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+	if (m_CaptureStoppedEvent) {
+		SetEvent(m_CaptureStoppedEvent);
+	}
 }
 SourceReaderBase::~SourceReaderBase()
 {
@@ -31,6 +36,7 @@ SourceReaderBase::~SourceReaderBase()
 
 	delete m_FramerateTimer;
 	CloseHandle(m_NewFrameEvent);
+	CloseHandle(m_CaptureStoppedEvent);
 	LeaveCriticalSection(&m_CriticalSection);
 	DeleteCriticalSection(&m_CriticalSection);
 }
@@ -45,6 +51,7 @@ HRESULT SourceReaderBase::StartCapture(_In_ std::wstring source)
 	RETURN_ON_BAD_HR(GetFrameSize(m_InputMediaType, &m_FrameSize));
 	if (SUCCEEDED(hr))
 	{
+		ResetEvent(m_CaptureStoppedEvent);
 		// Ask for the first sample.
 		hr = m_SourceReader->ReadSample(streamIndex, 0, NULL, NULL, NULL, NULL);
 	}
@@ -59,10 +66,13 @@ void SourceReaderBase::Close()
 		LOG_DEBUG("Stopping source reader sync timer");
 		m_FramerateTimer->StopTimer(true);
 	}
+	LeaveCriticalSection(&m_CriticalSection);
+	if (WaitForSingleObject(m_CaptureStoppedEvent, INFINITE) != WAIT_OBJECT_0) {
+		LOG_ERROR("Failed to wait for CaptureStoppedEvent");
+	}
 	SafeRelease(&m_SourceReader);
 	SafeRelease(&m_InputMediaType);
 	SafeRelease(&m_MediaTransform);
-	LeaveCriticalSection(&m_CriticalSection);
 	LOG_DEBUG("Closed source reader");
 }
 
@@ -307,98 +317,98 @@ HRESULT SourceReaderBase::CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMed
 HRESULT SourceReaderBase::OnReadSample(HRESULT status, DWORD streamIndex, DWORD streamFlags, LONGLONG timeStamp, IMFSample *sample)
 {
 	HRESULT hr = status;
-	if (FAILED(hr))
-	{
-		return hr;
-	}
-	if (streamFlags & MF_SOURCE_READERF_ENDOFSTREAM) {
-		PROPVARIANT var;
-		HRESULT hr = InitPropVariantFromInt64(0, &var);
-		hr = m_SourceReader->SetCurrentPosition(GUID_NULL, var);
-		PropVariantClear(&var);
-	}
-	if (sample)
-	{
-		EnterCriticalSection(&m_CriticalSection);
+	if (SUCCEEDED(hr)) {
+		if (streamFlags & MF_SOURCE_READERF_ENDOFSTREAM) {
+			PROPVARIANT var;
+			HRESULT hr = InitPropVariantFromInt64(0, &var);
+			hr = m_SourceReader->SetCurrentPosition(GUID_NULL, var);
+			PropVariantClear(&var);
+		}
+		if (sample)
 		{
-			LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"OnReadSample");
-			if (m_MediaTransform) {
-				//Run media transform to convert sample to MFVideoFormat_ARGB32
-				MFT_OUTPUT_STREAM_INFO info{};
-				hr = m_MediaTransform->GetOutputStreamInfo(streamIndex, &info);
-				if (FAILED(hr)) {
-					LOG_ERROR(L"GetOutputStreamInfo failed: hr = 0x%08x", hr);
-				}
-				IMFMediaBuffer *transformBuffer;
-				//create a buffer for the output sample
-				hr = MFCreateMemoryBuffer(info.cbSize, &transformBuffer);
-				if (FAILED(hr))
-				{
-					LOG_ERROR(L"MFCreateMemoryBuffer failed: hr = 0x%08x", hr);
-				}
-				IMFSample *transformSample;
-				hr = MFCreateSample(&transformSample);
-				if (FAILED(hr)) {
-					LOG_ERROR(L"MFCreateSample failed: hr = 0x%08x", hr);
-				}
-				hr = transformSample->AddBuffer(transformBuffer);
-				MFT_OUTPUT_DATA_BUFFER outputDataBuffer{};
-				outputDataBuffer.dwStreamID = streamIndex;
-				outputDataBuffer.pSample = transformSample;
+			EnterCriticalSection(&m_CriticalSection);
+			{
+				LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"OnReadSample");
+				if (m_MediaTransform) {
+					//Run media transform to convert sample to MFVideoFormat_ARGB32
+					MFT_OUTPUT_STREAM_INFO info{};
+					hr = m_MediaTransform->GetOutputStreamInfo(streamIndex, &info);
+					if (FAILED(hr)) {
+						LOG_ERROR(L"GetOutputStreamInfo failed: hr = 0x%08x", hr);
+					}
+					IMFMediaBuffer *transformBuffer;
+					//create a buffer for the output sample
+					hr = MFCreateMemoryBuffer(info.cbSize, &transformBuffer);
+					if (FAILED(hr))
+					{
+						LOG_ERROR(L"MFCreateMemoryBuffer failed: hr = 0x%08x", hr);
+					}
+					IMFSample *transformSample;
+					hr = MFCreateSample(&transformSample);
+					if (FAILED(hr)) {
+						LOG_ERROR(L"MFCreateSample failed: hr = 0x%08x", hr);
+					}
+					hr = transformSample->AddBuffer(transformBuffer);
+					MFT_OUTPUT_DATA_BUFFER outputDataBuffer{};
+					outputDataBuffer.dwStreamID = streamIndex;
+					outputDataBuffer.pSample = transformSample;
 
-				hr = m_MediaTransform->ProcessInput(streamIndex, sample, 0);
-				if (FAILED(hr)) {
-					LOG_ERROR(L"ProcessInput failed: hr = 0x%08x", hr);
+					hr = m_MediaTransform->ProcessInput(streamIndex, sample, 0);
+					if (FAILED(hr)) {
+						LOG_ERROR(L"ProcessInput failed: hr = 0x%08x", hr);
+					}
+					DWORD dwDSPStatus = 0;
+					hr = m_MediaTransform->ProcessOutput(0, 1, &outputDataBuffer, &dwDSPStatus);
+					if (FAILED(hr)) {
+						LOG_ERROR(L"ProcessOutput failed: hr = 0x%08x", hr);
+					}
+					SafeRelease(&m_Sample);
+					SafeRelease(&transformBuffer);
+					//Store the converted media buffer
+					IMFMediaBuffer *mediaBuffer = NULL;
+					outputDataBuffer.pSample->GetBufferByIndex(0, &mediaBuffer);
+					outputDataBuffer.pSample->Release();
+					m_Sample = mediaBuffer;
 				}
-				DWORD dwDSPStatus = 0;
-				hr = m_MediaTransform->ProcessOutput(0, 1, &outputDataBuffer, &dwDSPStatus);
-				if (FAILED(hr)) {
-					LOG_ERROR(L"ProcessOutput failed: hr = 0x%08x", hr);
+				else {
+					IMFMediaBuffer *mediaBuffer = NULL;
+					sample->GetBufferByIndex(0, &mediaBuffer);
+					sample->Release();
+					m_Sample = mediaBuffer;
 				}
-				SafeRelease(&m_Sample);
-				SafeRelease(&transformBuffer);
-				//Store the converted media buffer
-				IMFMediaBuffer *mediaBuffer = NULL;
-				outputDataBuffer.pSample->GetBufferByIndex(0, &mediaBuffer);
-				outputDataBuffer.pSample->Release();
-				m_Sample = mediaBuffer;
+				//Update timestamp and notify that there is a new sample available
+				QueryPerformanceCounter(&m_LastSampleReceivedTimeStamp);
+				SetEvent(m_NewFrameEvent);
 			}
-			else {
-				IMFMediaBuffer *mediaBuffer = NULL;
-				sample->GetBufferByIndex(0, &mediaBuffer);
-				sample->Release();
-				m_Sample = mediaBuffer;
+			if (SUCCEEDED(hr)) {
+				if (!m_FramerateTimer) {
+					m_FramerateTimer = new HighresTimer();
+					m_FramerateTimer->StartRecurringTimer((INT64)round(m_FrameRate));
+				}
+				if (m_FrameRate > 0) {
+					auto t1 = std::chrono::high_resolution_clock::now();
+					auto sleepTime = m_FramerateTimer->GetMillisUntilNextTick();
+					//LOG_TRACE("OnReadSample waiting for %.2f ms", sleepTime);
+					MeasureExecutionTime measureNextTick(L"OnReadSample scheduled delay");
+					hr = m_FramerateTimer->WaitForNextTick();
+					if (SUCCEEDED(hr)) {
+						auto t2 = std::chrono::high_resolution_clock::now();
+						std::chrono::duration<double, std::milli> ms_double = t2 - t1;
+						double diff = ms_double.count() - sleepTime;
+						measureNextTick.SetName(string_format(L"OnReadSample scheduled delay for %.2f ms for next frame. Actual delay differed by: %.2f ms, with a total delay of", sleepTime, diff));
+					}
+				}
 			}
-			//Update timestamp and notify that there is a new sample available
-			QueryPerformanceCounter(&m_LastSampleReceivedTimeStamp);
-			SetEvent(m_NewFrameEvent);
 		}
-		if (SUCCEEDED(hr)) {
-			if (!m_FramerateTimer) {
-				m_FramerateTimer = new HighresTimer();
-				m_FramerateTimer->StartRecurringTimer((INT64)round(m_FrameRate));
-			}
-			if (m_FrameRate > 0) {
-				auto t1 = std::chrono::high_resolution_clock::now();
-				auto sleepTime = m_FramerateTimer->GetMillisUntilNextTick();
-				//LOG_TRACE("OnReadSample waiting for %.2f ms", sleepTime);
-				MeasureExecutionTime measureNextTick(L"OnReadSample scheduled delay");
-				hr = m_FramerateTimer->WaitForNextTick();
-				if (FAILED(hr)) {
-					return hr;
-				}
-
-				auto t2 = std::chrono::high_resolution_clock::now();
-				std::chrono::duration<double, std::milli> ms_double = t2 - t1;
-				double diff = ms_double.count() - sleepTime;
-				measureNextTick.SetName(string_format(L"OnReadSample scheduled delay for %.2f ms for next frame. Actual delay differed by: %.2f ms, with a total delay of", sleepTime, diff));
+		// Request the next frame.
+		if (m_SourceReader && (SUCCEEDED(hr))) {
+			hr = m_SourceReader->ReadSample(streamIndex, 0, NULL, NULL, NULL, NULL);
+			if (SUCCEEDED(hr)) {
+				return hr;
 			}
 		}
 	}
-	// Request the next frame.
-	if (m_SourceReader) {
-		hr = m_SourceReader->ReadSample(streamIndex, 0, NULL, NULL, NULL, NULL);
-	}
+	SetEvent(m_CaptureStoppedEvent);
 	return hr;
 }
 //Method from IMFSourceReaderCallback 

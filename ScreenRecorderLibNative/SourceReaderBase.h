@@ -50,6 +50,7 @@ protected:
 private:
 	long m_ReferenceCount;
 	HANDLE m_NewFrameEvent;
+	HANDLE m_CaptureStoppedEvent;
 	LARGE_INTEGER m_LastSampleReceivedTimeStamp;
 	LARGE_INTEGER m_LastGrabTimeStamp;
 	IMFMediaBuffer *m_Sample;

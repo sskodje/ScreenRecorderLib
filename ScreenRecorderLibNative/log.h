@@ -7,7 +7,7 @@
 #include <sstream>
 
 #if _DEBUG
-#define MEASURE_EXECUTION_TIME false
+#define MEASURE_EXECUTION_TIME true
 #else
 #define MEASURE_EXECUTION_TIME false
 #endif
