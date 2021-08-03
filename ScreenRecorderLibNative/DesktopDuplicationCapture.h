@@ -1,6 +1,5 @@
 #pragma once
 #include "ScreenCaptureBase.h"
-#include <map>
 
 class duplication_capture : public ScreenCaptureBase
 {

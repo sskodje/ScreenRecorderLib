@@ -1,7 +1,6 @@
 #include "TextureManager.h"
 #include "screengrab.h"
 #include "util.h"
-#include <wincodec.h>
 #include <atlbase.h>
 
 using namespace DirectX;

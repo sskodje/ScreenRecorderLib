@@ -1,18 +1,16 @@
 #pragma warning (disable : 26451)
-
 #include "MouseManager.h"
 #include "Log.h"
 #include "Util.h"
-#include <comdef.h>
-#include <commctrl.h>
-#include <mfapi.h>
-#include <Dxgiformat.h>
 #include "Cleanup.h"
 #include <concrt.h>
 #include <ppltasks.h>
+
 using namespace DirectX;
 using namespace Concurrency;
+
 #pragma comment(lib, "comctl32.lib")
+#pragma comment(lib, "D2d1.lib")
 
 INT64 g_LastMouseClickDurationRemaining = 0;
 INT g_MouseClickDetectionDurationMillis = 50;

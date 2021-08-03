@@ -1,6 +1,5 @@
 #include "DesktopDuplicationCapture.h"
 #include "DesktopDuplicationManager.h"
-#include <chrono>
 #include "Cleanup.h"
 #include "MouseManager.h"
 using namespace std::chrono;

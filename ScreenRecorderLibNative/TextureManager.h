@@ -1,11 +1,7 @@
 #pragma once
-#include <windows.h>
-#include <d3d11.h>
-#include <dxgi1_2.h>
 #include <DirectXMath.h>
 #include "CommonTypes.h"
 #include "DX.util.h"
-#include <optional>
 class TextureManager
 {
 public:

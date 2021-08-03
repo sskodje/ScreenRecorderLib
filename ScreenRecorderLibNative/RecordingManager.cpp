@@ -1,20 +1,10 @@
 #include <ppltasks.h> 
-#include <ctime>   // localtime
-#include <sstream> // stringstream
-#include <iomanip> // put_time
-#include <string>
-#include <comdef.h>
-#include <Mferror.h>
-#include <wrl.h>
 #include <concrt.h>
 #include <mfidl.h>
 #include <VersionHelpers.h>
-#include <Wmcodecdsp.h>
 #include <filesystem>
 #include "LoopbackCapture.h"
 #include "RecordingManager.h"
-#include "AudioPrefs.h"
-#include "Log.h"
 #include "Cleanup.h"
 #include "Screengrab.h"
 #include "TextureManager.h"
@@ -302,7 +292,7 @@ bool RecordingManager::SetExcludeFromCapture(HWND hwnd, bool isExcluded) {
 ScreenCaptureBase *RecordingManager::CreateCaptureSession()
 {
 	if (m_RecorderApi == API_DESKTOP_DUPLICATION) {
-		return	new duplication_capture();
+		return new duplication_capture();
 	}
 	else if (m_RecorderApi == API_GRAPHICS_CAPTURE) {
 		return new WindowsGraphicsCapture();

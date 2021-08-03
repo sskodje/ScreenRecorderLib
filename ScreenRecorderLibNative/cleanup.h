@@ -2,9 +2,6 @@
 #pragma once
 #include <audioclient.h>
 #include "WWMFResampler.h"
-#include <atlbase.h>
-#include <dxgi1_2.h>
-#include <wincodec.h>
 #include "Log.h"
 #include "DesktopDuplicationCapture.h"
 #include "WindowsGraphicsCapture.h"

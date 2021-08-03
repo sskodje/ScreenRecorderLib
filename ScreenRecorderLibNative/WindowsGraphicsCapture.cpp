@@ -1,6 +1,5 @@
 #include "WindowsGraphicsCapture.h"
 #include "WindowsGraphicsCapture.util.h"
-
 #include "Util.h"
 #include "Cleanup.h"
 #include "WindowsGraphicsManager.h"

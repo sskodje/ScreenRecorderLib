@@ -138,6 +138,9 @@
     <ClInclude Include="TextureManager.h">
       <Filter>Header Files\Video Capture</Filter>
     </ClInclude>
+    <ClInclude Include="CMFSinkWriterCallback.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RecordingManager.cpp">

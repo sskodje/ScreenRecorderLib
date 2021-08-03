@@ -1,10 +1,4 @@
 #pragma once
-#include <vector>
-#include <sal.h>
-#include <new>
-#include <atlbase.h>
-#include <algorithm>
-
 #include "CommonTypes.h"
 #include "Log.h"
 #include "DX.util.h"

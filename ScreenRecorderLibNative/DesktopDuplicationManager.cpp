@@ -1,7 +1,6 @@
 #include "DesktopDuplicationManager.h"
 #include "Log.h"
 #include "Cleanup.h"
-#include <suppress.h>
 #include "DX.util.h"
 using namespace DirectX;
 using namespace std;
