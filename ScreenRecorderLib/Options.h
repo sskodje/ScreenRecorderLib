@@ -49,11 +49,11 @@ namespace ScreenRecorderLib {
 
 	public enum class RecorderMode {
 		///<summary>Record to mp4 container in H.264/AVC or H.265/HEVC format. </summary>
-		Video = MODE_VIDEO,
+		Video = (int)RecorderModeInternal::Video,
 		///<summary>Record a slideshow of pictures. </summary>
-		Slideshow = MODE_SLIDESHOW,
+		Slideshow = (int)RecorderModeInternal::Slideshow,
 		///<summary>Create a single screenshot.</summary>
-		Screenshot = MODE_SCREENSHOT
+		Screenshot = (int)RecorderModeInternal::Screenshot
 	};
 
 

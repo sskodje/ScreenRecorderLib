@@ -49,6 +49,12 @@
     <Filter Include="Source Files\Video Capture\Windows Graphics Capture">
       <UniqueIdentifier>{ffb79b04-1db6-4269-925b-0e02cda62b66}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\Video Capture\Output">
+      <UniqueIdentifier>{8b6d7873-5318-4449-a554-4ab576529af4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Output">
+      <UniqueIdentifier>{e961d185-4b6f-4ac7-aa65-c0c7836538c5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="RecordingManager.h">
@@ -105,9 +111,6 @@
     <ClInclude Include="ScreenCaptureBase.h">
       <Filter>Header Files\Video Capture</Filter>
     </ClInclude>
-    <ClInclude Include="CommonTypes.h">
-      <Filter>Header Files\Video Capture</Filter>
-    </ClInclude>
     <ClInclude Include="MouseManager.h">
       <Filter>Header Files\Video Capture</Filter>
     </ClInclude>
@@ -139,6 +142,12 @@
       <Filter>Header Files\Video Capture</Filter>
     </ClInclude>
     <ClInclude Include="CMFSinkWriterCallback.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="OutputManager.h">
+      <Filter>Header Files\Output</Filter>
+    </ClInclude>
+    <ClInclude Include="CommonTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -208,6 +217,9 @@
     </ClCompile>
     <ClCompile Include="TextureManager.cpp">
       <Filter>Source Files\Video Capture</Filter>
+    </ClCompile>
+    <ClCompile Include="OutputManager.cpp">
+      <Filter>Source Files\Video Capture\Output</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

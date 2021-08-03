@@ -97,6 +97,15 @@ struct CAPTURED_FRAME
 	LARGE_INTEGER Timestamp;
 };
 
+enum class RecorderModeInternal {
+	///<summary>Record to mp4 container in H.264/AVC or H.265/HEVC format. </summary>
+	Video = 0,
+	///<summary>Record a slideshow of pictures. </summary>
+	Slideshow = 1,
+	///<summary>Create a single screenshot.</summary>
+	Screenshot = 2
+};
+
 enum class OverlayAnchor {
 	TopLeft,
 	TopRight,
@@ -111,17 +120,6 @@ enum class RecordingOverlayType {
 enum class RecordingSourceType {
 	Display,
 	Window
-};
-
-enum class MouseDetectionMode {
-	///<summary>
-	///Use polling for detecting mouse clicks. Does not affect mouse performance, but may not work for all mouse clicks generated programmatically.
-	///</summary>
-	Polling = 0,
-	///<summary>
-	///Use a low level system hook for detecting mouse clicks. Works more reliably for programmatic events, but can negatively affect mouse performance while recording.
-	///</summary>
-	Hook = 1
 };
 
 struct RECORDING_SOURCE
