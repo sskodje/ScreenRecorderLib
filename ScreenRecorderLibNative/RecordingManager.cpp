@@ -428,7 +428,6 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 	}
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 
-	INT frameNr = 0;
 	INT64 lastFrameStartPos = 0;
 	bool haveCachedPrematureFrame = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
@@ -470,10 +469,8 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		model.Duration = duration100Nanos;
 		model.StartPos = lastFrameStartPos;
 		model.Audio = pAudioManager->GrabAudioFrame();
-		model.FrameNumber = frameNr;
 		RETURN_ON_BAD_HR(renderHr = m_EncoderResult = m_OutputManager->RenderFrame(model));
 		haveCachedPrematureFrame = false;
-		frameNr++;
 		lastFrameStartPos += duration100Nanos;
 		return renderHr;
 	});
@@ -525,7 +522,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		else {
 			if (m_RecorderMode == RecorderModeInternal::Slideshow
 			   || m_RecorderMode == RecorderModeInternal::Screenshot
-			   && (frameNr == 0 && (pCurrentFrameCopy == nullptr || capturedFrame.FrameUpdateCount == 0))) {
+			   && (m_OutputManager->GetRenderedFrameCount() == 0 && (pCurrentFrameCopy == nullptr || capturedFrame.FrameUpdateCount == 0))) {
 				continue;
 			}
 			else if ((!pCurrentFrameCopy && !pPreviousFrameCopy)
@@ -542,7 +539,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 			bool delayRender = false;
 			INT64 delay100Nanos = 0;
 			if (m_RecorderMode == RecorderModeInternal::Video
-				&& (frameNr == 0 //never delay the first frame 
+				&& (m_OutputManager->GetRenderedFrameCount() == 0 //never delay the first frame 
 					|| (GetMouseOptions()->IsMousePointerEnabled() && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
 					|| (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()))) // Or if we need to write a snapshot 
 			{

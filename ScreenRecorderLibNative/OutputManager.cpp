@@ -19,6 +19,7 @@ OutputManager::OutputManager() :
 	m_OutputFolder(L""),
 	m_OutputFullPath(L""),
 	m_LastFrameHadAudio(false),
+	m_RenderedFrameCount(0),
 	m_RecorderMode(RecorderModeInternal::Video)
 {
 }
@@ -137,7 +138,7 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 		LOG_TRACE(L"Wrote %s with duration %.2f ms", frameInfoStr, HundredNanosToMillisDouble(model.Duration));
 	}
 	else if (m_RecorderMode == RecorderModeInternal::Slideshow) {
-		wstring	path = m_OutputFolder + L"\\" + to_wstring(model.FrameNumber) + GetSnapshotOptions()->GetImageExtension();
+		wstring	path = m_OutputFolder + L"\\" + to_wstring(m_RenderedFrameCount) + GetSnapshotOptions()->GetImageExtension();
 		hr = WriteFrameToImage(model.Frame, path);
 		INT64 startposMs = HundredNanosToMillis(model.StartPos);
 		INT64 durationMs = HundredNanosToMillis(model.Duration);
@@ -148,7 +149,7 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 		}
 		else {
 
-			m_FrameDelays.insert(std::pair<wstring, int>(path, model.FrameNumber == 0 ? 0 : (int)durationMs));
+			m_FrameDelays.insert(std::pair<wstring, int>(path, m_RenderedFrameCount == 0 ? 0 : (int)durationMs));
 			LOG_TRACE(L"Wrote video slideshow frame with start pos %lld ms and with duration %lld ms", startposMs, durationMs);
 		}
 	}
@@ -157,6 +158,7 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 		LOG_TRACE(L"Wrote snapshot to %s", m_OutputFullPath.c_str());
 	}
 	model.Frame.Release();
+	m_RenderedFrameCount++;
 	return hr;
 }
 

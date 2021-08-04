@@ -10,7 +10,6 @@
 
 struct FrameWriteModel
 {
-	INT FrameNumber;
 	//Timestamp of the start of the frame, in 100 nanosecond units.
 	INT64 StartPos;
 	//Duration of the frame, in 100 nanosecond units.
@@ -27,11 +26,12 @@ public:
 	OutputManager();
 	~OutputManager();
 	HRESULT Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<ENCODER_OPTIONS> &pEncoderOptions, _In_ std::shared_ptr<AUDIO_OPTIONS> pAudioOptions, _In_ std::shared_ptr<SNAPSHOT_OPTIONS> pSnapshotOptions);
-	HRESULT BeginRecording(_In_ std::wstring outputPath, _In_ SIZE videoOutputFrameSize, _In_ RecorderModeInternal recorderMode, _In_opt_ IStream *pStream=nullptr);
+	HRESULT BeginRecording(_In_ std::wstring outputPath, _In_ SIZE videoOutputFrameSize, _In_ RecorderModeInternal recorderMode, _In_opt_ IStream *pStream = nullptr);
 	HRESULT FinalizeRecording();
 	HRESULT RenderFrame(_In_ FrameWriteModel &model);
 	void WriteTextureToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath, _In_opt_ std::function<void(HRESULT)> onCompletion = nullptr);
 	inline nlohmann::fifo_map<std::wstring, int> GetFrameDelays() { return m_FrameDelays; }
+	inline UINT64 GetRenderedFrameCount() { return m_RenderedFrameCount; }
 private:
 	ID3D11DeviceContext *m_DeviceContext = nullptr;
 	ID3D11Device *m_Device = nullptr;
@@ -51,6 +51,8 @@ private:
 	std::wstring m_OutputFolder;
 	std::wstring m_OutputFullPath;
 	bool m_LastFrameHadAudio;
+	UINT64 m_RenderedFrameCount;
+	std::chrono::steady_clock::time_point m_PreviousSnapshotTaken;
 
 	std::shared_ptr<AUDIO_OPTIONS> GetAudioOptions() { return m_AudioOptions; }
 	std::shared_ptr<ENCODER_OPTIONS> GetEncoderOptions() { return m_EncoderOptions; }
