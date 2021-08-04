@@ -112,11 +112,29 @@ private:
 	/// <summary>
 	/// Save texture as image to video snapshot folder.
 	/// </summary>
-	/// <param name="texture">The texture to save to a snapshot</param>
+	/// <param name="pTexture">The texture to save to a snapshot</param>
 	/// <param name="sourceRect">The area of the texture to save. If the texture is larger, it will be cropped to these coordinates.</param>
 	/// <returns></returns>
 	HRESULT SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ RECT sourceRect);
-	void CleanupResourcesAndShutDownMF();
-	void SetRecordingCompleteStatus(_In_ HRESULT hr, nlohmann::fifo_map<std::wstring, int> frameDelays);
 
+	/// <summary>
+	/// Perform cropping and resizing on texture if needed.
+	/// </summary>
+	/// <param name="pTexture">The texture to process</param>
+	/// <param name="ppProcessedTexture">The output texture. If no transformations are done, the original texture is returned.</param>
+	/// <param name="videoInputFrameRect">The source rectangle. The texture will be cropped to these coordinates if larger.</param>
+	/// <param name="videoOutputFrameSize">The output dimensions. The texture will be resized to these coordinates if differing.</param>
+	HRESULT ProcessTextureTransforms(_In_ ID3D11Texture2D *pTexture,_Out_ ID3D11Texture2D **ppProcessedTexture, RECT videoInputFrameRect, SIZE videoOutputFrameSize);
+
+	/// <summary>
+	/// Releases DirectX resources and shuts down Media Foundation.
+	/// </summary>
+	void CleanupResourcesAndShutDownMF();
+
+	/// <summary>
+	///	Calls the RecordingComplete or RecordingFailed callbacks depending on the success of the recording result.
+	/// </summary>
+	/// <param name="hr">The recording result.</param>
+	/// <param name="frameDelays">A map of paths to saved frames with corresponding delay between them. Only used for Slideshow mode.</param>
+	void SetRecordingCompleteStatus(_In_ HRESULT hr, nlohmann::fifo_map<std::wstring, int> frameDelays);
 };

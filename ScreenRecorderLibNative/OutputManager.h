@@ -15,7 +15,9 @@ struct FrameWriteModel
 	INT64 StartPos;
 	//Duration of the frame, in 100 nanosecond units.
 	INT64 Duration;
+	//The audio sample bytes for this frame.
 	std::vector<BYTE> Audio;
+	//The frame texture.
 	CComPtr<ID3D11Texture2D> Frame;
 };
 

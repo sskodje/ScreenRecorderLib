@@ -450,45 +450,10 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 				//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
 			}
 		}
-		D3D11_TEXTURE2D_DESC desc;
-		pTexture->GetDesc(&desc);
-
-		if (RectWidth(videoInputFrameRect) != desc.Width
-			|| RectHeight(videoInputFrameRect) != desc.Height) {
-			ID3D11Texture2D *pCroppedFrameCopy;
-			RETURN_ON_BAD_HR(renderHr = m_TextureManager->CropTexture(pTexture, videoInputFrameRect, &pCroppedFrameCopy));
-			pTexture.Release();
-			pTexture.Attach(pCroppedFrameCopy);
-		}
-		if (RectWidth(videoInputFrameRect) < videoOutputFrameSize.cx
-			|| RectHeight(videoInputFrameRect) < videoOutputFrameSize.cy) {
-			CComPtr<ID3D11Texture2D> pResizedFrameCopy;
-			double widthRatio = (double)videoOutputFrameSize.cx / RectWidth(videoInputFrameRect);
-			double heightRatio = (double)videoOutputFrameSize.cy / RectHeight(videoInputFrameRect);
-			double resizeRatio = min(widthRatio, heightRatio);
-			UINT resizedWidth = (UINT)MakeEven((LONG)round(RectWidth(videoInputFrameRect) * resizeRatio));
-			UINT resizedHeight = (UINT)MakeEven((LONG)round(RectHeight(videoInputFrameRect) * resizeRatio));
-			RETURN_ON_BAD_HR(renderHr = m_TextureManager->ResizeTexture(pTexture, &pResizedFrameCopy, SIZE{ static_cast<LONG>(resizedWidth), static_cast<LONG>(resizedHeight) }));
-			D3D11_TEXTURE2D_DESC desc;
-			pResizedFrameCopy->GetDesc(&desc);
-			desc.Width = videoOutputFrameSize.cx;
-			desc.Height = videoOutputFrameSize.cy;
-			ID3D11Texture2D *pCanvas;
-			RETURN_ON_BAD_HR(renderHr = m_Device->CreateTexture2D(&desc, nullptr, &pCanvas));
-			int leftMargin = (int)max(0, round(((double)videoOutputFrameSize.cx - (double)resizedWidth)) / 2);
-			int topMargin = (int)max(0, round(((double)videoOutputFrameSize.cy - (double)resizedHeight)) / 2);
-
-			D3D11_BOX Box;
-			Box.front = 0;
-			Box.back = 1;
-			Box.left = 0;
-			Box.top = 0;
-			Box.right = resizedWidth;
-			Box.bottom = resizedHeight;
-			m_DeviceContext->CopySubresourceRegion(pCanvas, 0, leftMargin, topMargin, 0, pResizedFrameCopy, 0, &Box);
-			pTexture.Release();
-			pTexture.Attach(pCanvas);
-		}
+		ID3D11Texture2D *processedTexture;
+		RETURN_ON_BAD_HR(hr = ProcessTextureTransforms(pTexture, &processedTexture, videoInputFrameRect, videoOutputFrameSize));
+		pTexture.Release();
+		pTexture.Attach(processedTexture);
 
 		if (m_RecorderMode == RecorderModeInternal::Video && GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()) {
 			if (SUCCEEDED(renderHr = SaveTextureAsVideoSnapshot(pTexture, videoInputFrameRect))) {
@@ -701,6 +666,54 @@ HRESULT RecordingManager::InitializeRects(_In_ SIZE captureFrameSize, _Out_ RECT
 	*pAdjustedSourceRect = MakeRectEven(adjustedSourceRect);
 	*pAdjustedOutputFrameSize = adjustedOutputFrameSize;
 	return S_OK;
+}
+
+HRESULT RecordingManager::ProcessTextureTransforms(_In_ ID3D11Texture2D *pTexture, _Out_ ID3D11Texture2D **ppProcessedTexture, RECT videoInputFrameRect, SIZE videoOutputFrameSize)
+{
+	D3D11_TEXTURE2D_DESC desc;
+	pTexture->GetDesc(&desc);
+	HRESULT hr = S_OK;
+	CComPtr<ID3D11Texture2D> pProcessedTexture = pTexture;
+	if (RectWidth(videoInputFrameRect) != desc.Width
+		|| RectHeight(videoInputFrameRect) != desc.Height) {
+		ID3D11Texture2D *pCroppedFrameCopy;
+		RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(pTexture, videoInputFrameRect, &pCroppedFrameCopy));
+		pProcessedTexture.Release();
+		pProcessedTexture.Attach(pCroppedFrameCopy);
+	}
+	if (RectWidth(videoInputFrameRect) < videoOutputFrameSize.cx
+		|| RectHeight(videoInputFrameRect) < videoOutputFrameSize.cy) {
+		CComPtr<ID3D11Texture2D> pResizedFrameCopy;
+		double widthRatio = (double)videoOutputFrameSize.cx / RectWidth(videoInputFrameRect);
+		double heightRatio = (double)videoOutputFrameSize.cy / RectHeight(videoInputFrameRect);
+		double resizeRatio = min(widthRatio, heightRatio);
+		UINT resizedWidth = (UINT)MakeEven((LONG)round(RectWidth(videoInputFrameRect) * resizeRatio));
+		UINT resizedHeight = (UINT)MakeEven((LONG)round(RectHeight(videoInputFrameRect) * resizeRatio));
+		RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pTexture, &pResizedFrameCopy, SIZE{ static_cast<LONG>(resizedWidth), static_cast<LONG>(resizedHeight) }));
+		D3D11_TEXTURE2D_DESC desc;
+		pResizedFrameCopy->GetDesc(&desc);
+		desc.Width = videoOutputFrameSize.cx;
+		desc.Height = videoOutputFrameSize.cy;
+		ID3D11Texture2D *pCanvas;
+		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pCanvas));
+		int leftMargin = (int)max(0, round(((double)videoOutputFrameSize.cx - (double)resizedWidth)) / 2);
+		int topMargin = (int)max(0, round(((double)videoOutputFrameSize.cy - (double)resizedHeight)) / 2);
+
+		D3D11_BOX Box;
+		Box.front = 0;
+		Box.back = 1;
+		Box.left = 0;
+		Box.top = 0;
+		Box.right = resizedWidth;
+		Box.bottom = resizedHeight;
+		m_DeviceContext->CopySubresourceRegion(pCanvas, 0, leftMargin, topMargin, 0, pResizedFrameCopy, 0, &Box);
+		pProcessedTexture.Release();
+		pProcessedTexture.Attach(pCanvas);
+	}
+	if (ppProcessedTexture) {
+		*ppProcessedTexture = pProcessedTexture;
+		(*ppProcessedTexture)->AddRef();
+	}
 }
 
 bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
