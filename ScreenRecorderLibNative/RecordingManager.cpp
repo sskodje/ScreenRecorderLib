@@ -508,8 +508,6 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 			lastFrame = steady_clock::now();
 			if (pAudioManager)
 				pAudioManager->ClearRecordedBytes();
-			if (pAudioManager)
-				pAudioManager->ClearRecordedBytes();
 			continue;
 		}
 		CAPTURED_FRAME capturedFrame{};
@@ -538,7 +536,6 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 			}
 		}
 		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::steady_clock::now() - lastFrame).count() / 100, 0);
-		INT64 durationSinceLastFrameMillis = HundredNanosToMillis(durationSinceLastFrame100Nanos);
 		//Delay frames that comes quicker than selected framerate to see if we can skip them.
 		if (hr == DXGI_ERROR_WAIT_TIMEOUT || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) //attempt to wait if frame timeouted or duration is under our chosen framerate
 		{
