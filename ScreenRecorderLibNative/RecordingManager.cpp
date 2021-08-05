@@ -429,7 +429,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 
 	INT64 lastFrameStartPos = 0;
-	bool haveCachedPrematureFrame = false;
+	bool havePrematureFrame = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
 
 	auto IsTimeToTakeSnapshot([&]()
@@ -470,7 +470,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		model.StartPos = lastFrameStartPos;
 		model.Audio = pAudioManager->GrabAudioFrame();
 		RETURN_ON_BAD_HR(renderHr = m_EncoderResult = m_OutputManager->RenderFrame(model));
-		haveCachedPrematureFrame = false;
+		havePrematureFrame = false;
 		lastFrameStartPos += duration100Nanos;
 		return renderHr;
 	});
@@ -510,7 +510,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		CAPTURED_FRAME capturedFrame{};
 		// Get new frame
 		hr = pCapture->AcquireNextFrame(
-			haveCachedPrematureFrame || GetEncoderOptions()->GetIsFixedFramerate() ? 0 : 100,
+			havePrematureFrame || GetEncoderOptions()->GetIsFixedFramerate() ? 0 : 100,
 			&capturedFrame);
 
 		if (SUCCEEDED(hr)) {
@@ -536,7 +536,6 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		//Delay frames that comes quicker than selected framerate to see if we can skip them.
 		if (hr == DXGI_ERROR_WAIT_TIMEOUT || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) //attempt to wait if frame timeouted or duration is under our chosen framerate
 		{
-			bool delayRender = false;
 			INT64 delay100Nanos = 0;
 			if (m_RecorderMode == RecorderModeInternal::Video
 				&& (m_OutputManager->GetRenderedFrameCount() == 0 //never delay the first frame 
@@ -546,7 +545,6 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 				if (capturedFrame.PtrInfo) {
 					capturedFrame.PtrInfo->IsPointerShapeUpdated = false;
 				}
-				delayRender = false;
 			}
 			else if (SUCCEEDED(hr) && videoFrameDuration100Nanos > durationSinceLastFrame100Nanos) {
 				if (capturedFrame.FrameUpdateCount > 0 || capturedFrame.OverlayUpdateCount > 0) {
@@ -560,30 +558,19 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 						m_DeviceContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
 					}
 				}
-				delayRender = true;
-				haveCachedPrematureFrame = true;
-				delay100Nanos = videoFrameDuration100Nanos - durationSinceLastFrame100Nanos;
+				havePrematureFrame = true;
+				delay100Nanos = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
 			}
 			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-				if (m_RecorderMode == RecorderModeInternal::Slideshow
-					|| GetEncoderOptions()->GetIsFixedFramerate()) {
-					if (videoFrameDuration100Nanos > durationSinceLastFrame100Nanos) {
-						delayRender = true;
+					if ((havePrematureFrame || m_RecorderMode == RecorderModeInternal::Slideshow || GetEncoderOptions()->GetIsFixedFramerate())
+						&& videoFrameDuration100Nanos > durationSinceLastFrame100Nanos) {
 						delay100Nanos = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
 					}
-				}
-				else {
-					if (haveCachedPrematureFrame && videoFrameDuration100Nanos > durationSinceLastFrame100Nanos) {
-						delayRender = true;
-						delay100Nanos = videoFrameDuration100Nanos - durationSinceLastFrame100Nanos;
+					else if (!havePrematureFrame && m_MaxFrameLength100Nanos > durationSinceLastFrame100Nanos) {
+						delay100Nanos = max(0, m_MaxFrameLength100Nanos - durationSinceLastFrame100Nanos);
 					}
-					else if (!haveCachedPrematureFrame && m_MaxFrameLength100Nanos > durationSinceLastFrame100Nanos) {
-						delayRender = true;
-						delay100Nanos = m_MaxFrameLength100Nanos - durationSinceLastFrame100Nanos;
-					}
-				}
 			}
-			if (delayRender) {
+			if (delay100Nanos > 0) {
 				if (delay100Nanos > MillisToHundredNanos(2)) {
 					MeasureExecutionTime measureSleep(L"DelayRender");
 					Sleep(1);
