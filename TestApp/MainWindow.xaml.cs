@@ -5,10 +5,13 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
+using Win32Interop.WinHandles;
 using WindowsDisplayAPI;
 
 namespace TestApp
@@ -36,6 +39,7 @@ namespace TestApp
         public int VideoBitrate { get; set; } = 7000;
         public int VideoFramerate { get; set; } = 60;
         public int VideoQuality { get; set; } = 70;
+        public int SnapshotsIntervalInSec { get; set; } = 10;
         public bool IsAudioEnabled { get; set; } = true;
         public bool IsMousePointerEnabled { get; set; } = true;
         public bool IsFixedFramerate { get; set; } = false;
@@ -53,6 +57,10 @@ namespace TestApp
         public Dictionary<string, string> AudioOutputsList { get; set; } = new Dictionary<string, string>();
         public bool IsAudioInEnabled { get; set; } = false;
         public bool IsAudioOutEnabled { get; set; } = true;
+        public string LogFilePath { get; set; } = "log.txt";
+        public bool IsLogToFileEnabled { get; set; }
+        public bool IsLogEnabled { get; set; } = true;
+        public LogLevel LogSeverityLevel { get; set; } = LogLevel.Debug;
 
         private bool _recordToStream;
         public bool RecordToStream
@@ -77,6 +85,46 @@ namespace TestApp
             }
         }
 
+        private bool _isExcludeWindowEnabled = false;
+        public bool IsExcludeWindowEnabled
+        {
+            get { return _isExcludeWindowEnabled; }
+            set
+            {
+                if (_isExcludeWindowEnabled != value)
+                {
+                    _isExcludeWindowEnabled = value;
+                    RaisePropertyChanged("IsExcludeWindowEnabled");
+
+                    IntPtr hwnd = new WindowInteropHelper(this).Handle;
+                    Recorder.SetExcludeFromCapture(hwnd, value);
+                }
+            }
+        }
+        private bool _snapshotsWithVideo = false;
+        public bool SnapshotsWithVideo
+        {
+            get { return _snapshotsWithVideo; }
+            set
+            {
+                if (_snapshotsWithVideo != value)
+                {
+                    _snapshotsWithVideo = value;
+                    RaisePropertyChanged("SnapshotsWithVideo");
+                    if (value)
+                    {
+                        this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
+                        this.SnapshotsIntervalPanel.Visibility = Visibility.Visible;
+                    }
+                    else
+                    {
+                        this.SnapshotImageFormatPanel.Visibility = Visibility.Collapsed;
+                        this.SnapshotsIntervalPanel.Visibility = Visibility.Collapsed;
+                    }
+                }
+            }
+        }
+
         private RecorderMode _currentRecordingMode;
         public RecorderMode CurrentRecordingMode
         {
@@ -87,6 +135,20 @@ namespace TestApp
                 {
                     _currentRecordingMode = value;
                     RaisePropertyChanged("CurrentRecordingMode");
+                }
+            }
+        }
+
+        private RecorderApi _currentRecordingApi;
+        public RecorderApi CurrentRecordingApi
+        {
+            get { return _currentRecordingApi; }
+            set
+            {
+                if (_currentRecordingApi != value)
+                {
+                    _currentRecordingApi = value;
+                    RaisePropertyChanged("CurrentRecordingApi");
                 }
             }
         }
@@ -140,27 +202,13 @@ namespace TestApp
         public MainWindow()
         {
             InitializeComponent();
-            foreach (var target in WindowsDisplayAPI.Display.GetDisplays())
-            {
-                this.ScreenComboBox.Items.Add(target);
-            }
-            AudioOutputsList.Add("", "Default playback device");
-            AudioInputsList.Add("", "Default recording device");
-            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices))
-            {
-                AudioOutputsList.Add(kvp.Key, kvp.Value);
-            }
-            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices))
-            {
-                AudioInputsList.Add(kvp.Key, kvp.Value);
-            }
 
-            RaisePropertyChanged("AudioOutputsList");
-            RaisePropertyChanged("AudioInputsList");
+            RefreshCaptureTargetItems();
+        }
 
-            ScreenComboBox.SelectedIndex = 0;
-            AudioOutputsComboBox.SelectedIndex = 0;
-            AudioInputsComboBox.SelectedIndex = 0;
+        private bool IsValidWindow(WindowHandle window)
+        {
+            return window.IsVisible() && window.IsValid && !String.IsNullOrEmpty(window.GetWindowText());
         }
 
         protected void RaisePropertyChanged(string propertyName)
@@ -216,17 +264,24 @@ namespace TestApp
 
             Display selectedDisplay = (Display)this.ScreenComboBox.SelectedItem;
 
+            IntPtr selectedWindowHandle = this.WindowComboBox.Items.Count > 0 ? ((RecordableWindow)this.WindowComboBox.SelectedItem).Handle : IntPtr.Zero;
+
             string audioOutputDevice = AudioOutputsComboBox.SelectedValue as string;
             string audioInputDevice = AudioInputsComboBox.SelectedValue as string;
 
             RecorderOptions options = new RecorderOptions
             {
                 RecorderMode = CurrentRecordingMode,
+                RecorderApi = CurrentRecordingApi,
                 IsThrottlingDisabled = this.IsThrottlingDisabled,
                 IsHardwareEncodingEnabled = this.IsHardwareEncodingEnabled,
                 IsLowLatencyEnabled = this.IsLowLatencyEnabled,
                 IsMp4FastStartEnabled = this.IsMp4FastStartEnabled,
                 IsFragmentedMp4Enabled = this.IsFragmentedMp4Enabled,
+                IsLogEnabled = this.IsLogEnabled,
+                LogSeverityLevel = this.LogSeverityLevel,
+                LogFilePath = IsLogToFileEnabled ? this.LogFilePath : "",
+
                 AudioOptions = new AudioOptions
                 {
                     Bitrate = AudioBitrate.bitrate_96kbps,
@@ -235,7 +290,9 @@ namespace TestApp
                     IsOutputDeviceEnabled = IsAudioOutEnabled,
                     IsInputDeviceEnabled = IsAudioInEnabled,
                     AudioOutputDevice = audioOutputDevice,
-                    AudioInputDevice = audioInputDevice
+                    AudioInputDevice = audioInputDevice,
+                    InputVolume = (float)InputVolumeSlider.Value,
+                    OutputVolume = (float)OutputVolumeSlider.Value
                 },
                 VideoOptions = new VideoOptions
                 {
@@ -245,9 +302,19 @@ namespace TestApp
                     Quality = this.VideoQuality,
                     IsFixedFramerate = this.IsFixedFramerate,
                     EncoderProfile = this.CurrentH264Profile,
-                    SnapshotFormat = CurrentImageFormat
+                    SnapshotFormat = CurrentImageFormat,
+                    SnapshotsWithVideo = this.SnapshotsWithVideo,
+                    SnapshotsInterval = this.SnapshotsIntervalInSec
                 },
-                DisplayOptions = new DisplayOptions(selectedDisplay.DisplayName, left, top, right, bottom),
+                DisplayOptions = new DisplayOptions
+                {
+                    MonitorDeviceName = selectedDisplay.DisplayName,
+                    WindowHandle = selectedWindowHandle,
+                    Left = left,
+                    Top = top,
+                    Right = right,
+                    Bottom = bottom
+                },
                 MouseOptions = new MouseOptions
                 {
                     IsMouseClicksDetected = this.IsMouseClicksDetected,
@@ -266,6 +333,7 @@ namespace TestApp
                 _rec.OnRecordingComplete += Rec_OnRecordingComplete;
                 _rec.OnRecordingFailed += Rec_OnRecordingFailed;
                 _rec.OnStatusChanged += _rec_OnStatusChanged;
+                _rec.OnSnapshotSaved += _rec_OnSnapshotSaved;
             }
             else
             {
@@ -301,21 +369,11 @@ namespace TestApp
             }
         }
 
-        private string GetDeviceId(Dictionary<string, string> dictionary, string name)
-        {
-            foreach (var value in dictionary.Where(value => value.Value == name))
-            {
-                return value.Key;
-            }
-
-            return string.Empty;
-        }
-
         private void Rec_OnRecordingFailed(object sender, RecordingFailedEventArgs e)
         {
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
             {
-                PauseButton.Visibility = Visibility.Hidden;
+                PauseButton.Visibility = Visibility.Collapsed;
                 RecordButton.Content = "Record";
                 RecordButton.IsEnabled = true;
                 StatusTextBlock.Text = "Error:";
@@ -336,7 +394,7 @@ namespace TestApp
                 }
 
                 OutputResultTextBlock.Text = filePath;
-                PauseButton.Visibility = Visibility.Hidden;
+                PauseButton.Visibility = Visibility.Collapsed;
                 RecordButton.Content = "Record";
                 RecordButton.IsEnabled = true;
                 this.StatusTextBlock.Text = "Completed";
@@ -344,7 +402,10 @@ namespace TestApp
                 CleanupResources();
             }));
         }
-
+        private void _rec_OnSnapshotSaved(object sender, SnapshotSavedEventArgs e)
+        {
+            string filepath = e.SnapshotPath;
+        }
         private void CleanupResources()
         {
             _outputStream?.Flush();
@@ -386,7 +447,7 @@ namespace TestApp
                         this.StatusTextBlock.Text = "Paused";
                         break;
                     case RecorderStatus.Finishing:
-                        PauseButton.Visibility = Visibility.Hidden;
+                        PauseButton.Visibility = Visibility.Collapsed;
                         this.StatusTextBlock.Text = "Finalizing video";
                         break;
                     default:
@@ -416,11 +477,25 @@ namespace TestApp
 
         private void ScreenComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            var screen = WindowsDisplayAPI.Display.GetDisplays().ToList()[this.ScreenComboBox.SelectedIndex];
-            this.RecordingAreaRightTextBox.Text = screen.CurrentSetting.Resolution.Width.ToString();
-            this.RecordingAreaBottomTextBox.Text = screen.CurrentSetting.Resolution.Height.ToString();
-            this.RecordingAreaLeftTextBox.Text = 0.ToString();
-            this.RecordingAreaTopTextBox.Text = 0.ToString();
+            if (e.AddedItems.Count == 0)
+                return;
+
+            if (this.WindowComboBox.SelectedIndex==0)
+            {
+                SetScreenRect();
+            }
+        }
+
+        private void SetScreenRect()
+        {
+            if (this.ScreenComboBox.SelectedIndex >= 0 && WindowsDisplayAPI.Display.GetDisplays().Count() > this.ScreenComboBox.SelectedIndex)
+            {
+                var screen = WindowsDisplayAPI.Display.GetDisplays().ToList()[this.ScreenComboBox.SelectedIndex];
+                this.RecordingAreaRightTextBox.Text = screen.CurrentSetting.Resolution.Width.ToString();
+                this.RecordingAreaBottomTextBox.Text = screen.CurrentSetting.Resolution.Height.ToString();
+                this.RecordingAreaLeftTextBox.Text = 0.ToString();
+                this.RecordingAreaTopTextBox.Text = 0.ToString();
+            }
         }
 
         private void Hyperlink_Click(object sender, RoutedEventArgs e)
@@ -445,7 +520,15 @@ namespace TestApp
                 MessageBox.Show("An error occured while deleting files: " + ex.Message);
             }
         }
-
+        private void OpenRecordedFilesFolderButton_Click(object sender, RoutedEventArgs e)
+        {
+            string directory = Path.Combine(Path.GetTempPath(), "ScreenRecorder");
+            if (!Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+            Process.Start(directory);
+        }
         private void RecordingBitrateModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (VideoQualityPanel != null)
@@ -476,18 +559,150 @@ namespace TestApp
                     case RecorderMode.Video:
                         this.VideoBitrateModePanel.Visibility = Visibility.Visible;
                         this.VideoProfilePanel.Visibility = Visibility.Visible;
-                        this.SnapshotImageFormatPanel.Visibility = Visibility.Collapsed;
+                        this.SnapshotImageFormatPanel.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
+                        this.SnapshotsIntervalPanel.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
                         break;
                     case RecorderMode.Slideshow:
                     case RecorderMode.Snapshot:
                         this.VideoBitrateModePanel.Visibility = Visibility.Collapsed;
                         this.VideoProfilePanel.Visibility = Visibility.Collapsed;
                         this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
+                        this.SnapshotsIntervalPanel.Visibility = Visibility.Collapsed;
                         break;
                     default:
                         break;
                 }
             }
+        }
+
+        private void OnInputVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_rec != null)
+            {
+                _rec.SetInputVolume((float)e.NewValue);
+            }
+
+        }
+
+        private void OnOutputVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_rec != null)
+            {
+                _rec.SetOutputVolume((float)e.NewValue);
+            }
+        }
+
+        private void RecordingApiComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (CurrentRecordingApi == RecorderApi.DesktopDuplication)
+            {
+                this.WindowComboBox.Visibility = Visibility.Collapsed;
+                this.CoordinatesPanel.IsEnabled = true;
+                SetScreenRect();
+            }
+            else if (CurrentRecordingApi == RecorderApi.WindowsGraphicsCapture)
+            {
+                this.WindowComboBox.Visibility = Visibility.Visible;
+                this.CoordinatesPanel.IsEnabled = false;
+            }
+        }
+
+        private void WindowComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (e.AddedItems.Count == 0)
+                return;
+            
+            var window = this.WindowComboBox.Items[this.WindowComboBox.SelectedIndex] as RecordableWindow;
+            if (window.Handle == IntPtr.Zero)
+            {
+                SetScreenRect();
+            }
+            else
+            {
+                NativeMethods.RECT windowRect;
+                if (NativeMethods.GetWindowRect(window.Handle, out windowRect))
+                {
+                    this.RecordingAreaRightTextBox.Text = windowRect.Right.ToString();
+                    this.RecordingAreaBottomTextBox.Text = windowRect.Bottom.ToString();
+                    this.RecordingAreaLeftTextBox.Text = windowRect.Left.ToString();
+                    this.RecordingAreaTopTextBox.Text = windowRect.Top.ToString();
+                }
+            }
+        }
+        private void RefreshButton_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshCaptureTargetItems();
+        }
+        private void RefreshCaptureTargetItems()
+        {
+            RefreshScreenComboBox();
+            RefreshWindowComboBox();
+            RefreshAudioComboBoxes();
+        }
+        private void RefreshScreenComboBox()
+        {
+            this.ScreenComboBox.Items.Clear();
+
+            foreach (var target in WindowsDisplayAPI.Display.GetDisplays())
+            {
+                this.ScreenComboBox.Items.Add(target);
+            }
+
+            ScreenComboBox.SelectedIndex = 0;
+        }
+        private void RefreshWindowComboBox()
+        {
+            this.WindowComboBox.Items.Clear();
+            this.WindowComboBox.Items.Add(new RecordableWindow("-- No window selected --", IntPtr.Zero));
+
+            foreach (RecordableWindow window in Recorder.GetWindows())
+            {
+                this.WindowComboBox.Items.Add(window);
+            }
+
+            WindowComboBox.SelectedIndex = 0;
+        }
+        private void RefreshAudioComboBoxes()
+        {
+            AudioOutputsList.Clear();
+            AudioInputsList.Clear();
+
+            AudioOutputsList.Add("", "Default playback device");
+            AudioInputsList.Add("", "Default recording device");
+            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices))
+            {
+                AudioOutputsList.Add(kvp.Key, kvp.Value);
+            }
+            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices))
+            {
+                AudioInputsList.Add(kvp.Key, kvp.Value);
+            }
+
+            // Since Dictionary is not "observable", reset the reference.
+            AudioOutputsComboBox.ItemsSource = null;
+            AudioInputsComboBox.ItemsSource = null;
+
+            AudioOutputsComboBox.ItemsSource = AudioOutputsList;
+            AudioInputsComboBox.ItemsSource = AudioInputsList;
+
+            AudioOutputsComboBox.SelectedIndex = 0;
+            AudioInputsComboBox.SelectedIndex = 0;
+        }
+    }
+
+    internal class NativeMethods
+    {
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT
+        {
+            public int Left;        // x position of upper-left corner
+            public int Top;         // y position of upper-left corner
+            public int Right;       // x position of lower-right corner
+            public int Bottom;      // y position of lower-right corner
         }
     }
 }

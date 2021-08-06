@@ -3,9 +3,7 @@
 #include <memory>
 #include <msclr\marshal.h>
 #include <msclr\marshal_cppstd.h>
-#include "cleanup.h"
 #include "ManagedIStream.h"
-#include "internal_recorder.h"
 using namespace ScreenRecorderLib;
 using namespace nlohmann;
 
@@ -24,6 +22,8 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			lRec->SetFixedFramerate(options->VideoOptions->IsFixedFramerate);
 			lRec->SetH264EncoderProfile((UINT32)options->VideoOptions->EncoderProfile);
 			lRec->SetVideoBitrateMode((UINT32)options->VideoOptions->BitrateMode);
+			lRec->SetTakeSnapthotsWithVideo(options->VideoOptions->SnapshotsWithVideo);
+			lRec->SetSnapthotsWithVideoInterval(options->VideoOptions->SnapshotsInterval);
 			switch (options->VideoOptions->SnapshotFormat)
 			{
 			case ImageFormat::BMP:
@@ -48,9 +48,9 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			rect.right = options->DisplayOptions->Right;
 			rect.bottom = options->DisplayOptions->Bottom;
 			lRec->SetDestRectangle(rect);
-			if (options->DisplayOptions->MonitorDeviceName != nullptr) {
-				lRec->SetDisplayOutput(msclr::interop::marshal_as<std::wstring>(options->DisplayOptions->MonitorDeviceName));
-			}
+			lRec->SetDisplayOutput(options->DisplayOptions->MonitorDeviceName ? msclr::interop::marshal_as<std::wstring>(options->DisplayOptions->MonitorDeviceName) : L"");
+			if (options->DisplayOptions->WindowHandle != IntPtr::Zero)
+				lRec->SetWindowHandle((HWND)options->DisplayOptions->WindowHandle.ToPointer());
 		}
 
 		if (options->AudioOptions) {
@@ -65,6 +65,8 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			if (options->AudioOptions->AudioInputDevice != nullptr) {
 				lRec->SetInputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioInputDevice));
 			}
+			lRec->SetInputVolume(options->AudioOptions->InputVolume);
+			lRec->SetOutputVolume(options->AudioOptions->OutputVolume);
 		}
 		if (options->MouseOptions) {
 			lRec->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled);
@@ -77,12 +79,39 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		}
 
 		lRec->SetRecorderMode((UINT32)options->RecorderMode);
+		lRec->SetRecorderApi((UINT32)options->RecorderApi);
 		lRec->SetIsThrottlingDisabled(options->IsThrottlingDisabled);
 		lRec->SetIsLowLatencyModeEnabled(options->IsLowLatencyEnabled);
 		lRec->SetIsFastStartEnabled(options->IsMp4FastStartEnabled);
 		lRec->SetIsHardwareEncodingEnabled(options->IsHardwareEncodingEnabled);
 		lRec->SetIsFragmentedMp4Enabled(options->IsFragmentedMp4Enabled);
+		lRec->SetIsLogEnabled(options->IsLogEnabled);
+		if (options->LogFilePath != nullptr) {
+			lRec->SetLogFilePath(msclr::interop::marshal_as<std::wstring>(options->LogFilePath));
+		}
+		lRec->SetLogSeverityLevel((UINT32)options->LogSeverityLevel);
 	}
+}
+
+void Recorder::SetInputVolume(float volume)
+{
+	if (lRec)
+	{
+		lRec->SetInputVolume(volume);
+	}
+}
+
+void Recorder::SetOutputVolume(float volume)
+{
+	if (lRec)
+	{
+		lRec->SetOutputVolume(volume);
+	}
+}
+
+bool Recorder::SetExcludeFromCapture(System::IntPtr hwnd, bool isExcluded)
+{
+	return internal_recorder::SetExcludeFromCapture((HWND)hwnd.ToPointer(), isExcluded);
 }
 
 Dictionary<String^, String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
@@ -147,6 +176,16 @@ Recorder^ Recorder::CreateRecorder(RecorderOptions ^ options)
 	Recorder^ rec = gcnew Recorder(options);
 	return rec;
 }
+List<RecordableWindow^>^ ScreenRecorderLib::Recorder::GetWindows()
+{
+	List<RecordableWindow^>^ windows = gcnew List<RecordableWindow^>();
+	for each (Window win in EnumerateWindows())
+	{
+		RecordableWindow^ recordableWin = gcnew RecordableWindow(gcnew String(win.Title().c_str()),IntPtr(win.Hwnd())); 
+		windows->Add(recordableWin);
+	}
+	return windows;
+}
 void Recorder::Record(System::Runtime::InteropServices::ComTypes::IStream^ stream) {
 	SetupCallbacks();
 	IStream *pNativeStream = (IStream*)Marshal::GetComInterfaceForObject(stream, System::Runtime::InteropServices::ComTypes::IStream::typeid).ToPointer();
@@ -173,9 +212,10 @@ void Recorder::Stop() {
 }
 
 void Recorder::SetupCallbacks() {
-	createErrorCallback();
-	createCompletionCallback();
-	createStatusCallback();
+	CreateErrorCallback();
+	CreateCompletionCallback();
+	CreateStatusCallback();
+	CreateSnapshotCallback();
 }
 
 void Recorder::ClearCallbacks() {
@@ -185,9 +225,11 @@ void Recorder::ClearCallbacks() {
 		_errorDelegateGcHandler.Free();
 	if (_completedDelegateGcHandler.IsAllocated)
 		_completedDelegateGcHandler.Free();
+	if (_snapshotDelegateGcHandler.IsAllocated)
+		_snapshotDelegateGcHandler.Free();
 }
 
-void Recorder::createErrorCallback() {
+void Recorder::CreateErrorCallback() {
 	InternalErrorCallbackDelegate^ fp = gcnew InternalErrorCallbackDelegate(this, &Recorder::EventFailed);
 	_errorDelegateGcHandler = GCHandle::Alloc(fp);
 	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
@@ -195,21 +237,27 @@ void Recorder::createErrorCallback() {
 	lRec->RecordingFailedCallback = cb;
 
 }
-void Recorder::createCompletionCallback() {
+void Recorder::CreateCompletionCallback() {
 	InternalCompletionCallbackDelegate^ fp = gcnew InternalCompletionCallbackDelegate(this, &Recorder::EventComplete);
 	_completedDelegateGcHandler = GCHandle::Alloc(fp);
 	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
 	CallbackCompleteFunction cb = static_cast<CallbackCompleteFunction>(ip.ToPointer());
 	lRec->RecordingCompleteCallback = cb;
 }
-void Recorder::createStatusCallback() {
+void Recorder::CreateStatusCallback() {
 	InternalStatusCallbackDelegate^ fp = gcnew InternalStatusCallbackDelegate(this, &Recorder::EventStatusChanged);
 	_statusChangedDelegateGcHandler = GCHandle::Alloc(fp);
 	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
 	CallbackStatusChangedFunction cb = static_cast<CallbackStatusChangedFunction>(ip.ToPointer());
 	lRec->RecordingStatusChangedCallback = cb;
 }
-
+void Recorder::CreateSnapshotCallback() {
+	InternalSnapshotCallbackDelegate^ fp = gcnew InternalSnapshotCallbackDelegate(this, &Recorder::EventSnapshotCreated);
+	_snapshotDelegateGcHandler = GCHandle::Alloc(fp);
+	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
+	CallbackSnapshotFunction cb = static_cast<CallbackSnapshotFunction>(ip.ToPointer());
+	lRec->RecordingSnapshotCreatedCallback = cb;
+}
 void Recorder::EventComplete(std::wstring str, fifo_map<std::wstring, int> delays)
 {
 	ClearCallbacks();
@@ -240,4 +288,9 @@ void Recorder::EventStatusChanged(int status)
 	RecorderStatus recorderStatus = (RecorderStatus)status;
 	Status = recorderStatus;
 	OnStatusChanged(this, gcnew RecordingStatusEventArgs(recorderStatus));
+}
+
+void ScreenRecorderLib::Recorder::EventSnapshotCreated(std::wstring str)
+{
+	OnSnapshotSaved(this, gcnew SnapshotSavedEventArgs(gcnew String(str.c_str())));
 }

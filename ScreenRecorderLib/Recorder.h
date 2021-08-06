@@ -4,9 +4,9 @@
 #include <atlbase.h>
 #include <vcclr.h>
 #include <vector>
-#include "fifo_map.h"
-#include "internal_recorder.h"
+#include "../ScreenRecorderLibNative/Native.h"
 #include "ManagedIStream.h"
+#include "Win32WindowEnumeration.h"
 using namespace System;
 using namespace System::Runtime::InteropServices;
 using namespace System::Collections::Generic;
@@ -15,17 +15,26 @@ using namespace System::Collections::Generic;
 delegate void InternalStatusCallbackDelegate(int status);
 delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fifo_map<std::wstring, int>);
 delegate void InternalErrorCallbackDelegate(std::wstring path);
+delegate void InternalSnapshotCallbackDelegate(std::wstring path);
 
 namespace ScreenRecorderLib {
+	public enum class LogLevel
+	{
+		Trace = 0,
+		Debug = 1,
+		Info = 2,
+		Warn = 3,
+		Error = 4
+	};
 	public enum class MouseDetectionMode {
 		///<summary>
 		///Use polling for detecting mouse clicks. Does not affect mouse performance, but may not work for all mouse clicks generated programmatically.
 		///</summary>
-		Polling= MOUSE_DETECTION_MODE_POLLING,
+		Polling = MOUSE_DETECTION_MODE_POLLING,
 		///<summary>
 		///Use a low level system hook for detecting mouse clicks. Works more reliably for programmatic events, but can negatively affect mouse performance while recording.
 		///</summary>
-		Hook= MOUSE_DETECTION_MODE_HOOK
+		Hook = MOUSE_DETECTION_MODE_HOOK
 	};
 	public enum class ImageFormat {
 		PNG,
@@ -62,8 +71,8 @@ namespace ScreenRecorderLib {
 		///<summary>Record as mp4 video in h264 format. </summary>
 		Video = MODE_VIDEO,
 		///<summary>Record one PNG picture for each frame. </summary>
-		Slideshow= MODE_SLIDESHOW,
-		///<summary>Make a snapshot of the screen. </summary>
+		Slideshow = MODE_SLIDESHOW,
+		///<summary>Create a screenshot. This can not be used on a video recording in progress. Set a snapshot interval in VideoOptions to get snapshots from a runnning Recorder instance.</summary>
 		Snapshot = MODE_SNAPSHOT
 	};
 	public enum class H264Profile
@@ -80,6 +89,12 @@ namespace ScreenRecorderLib {
 		///<summary>Quality-based VBR encoding. The encoder selects the bit rate to match a specified quality level. Set Quality level in VideoOptions from 1-100. Default is 70. </summary>
 		Quality
 	};
+	public enum class RecorderApi {
+		///<summary>Desktop Duplication is supported on all Windows 8 and 10 versions. This API supports recording of a whole screen or an area of a screen set in DisplayOptions.</summary>
+		DesktopDuplication = 0,
+		///<summary>WindowsGraphicsCapture requires Windows 10 version 1803 or newer. This API supports recording single windows in addition to whole screens, by setting WindowHandle in DisplayOptions.</summary>
+		WindowsGraphicsCapture = 1,
+	};
 	public ref class FrameData {
 	public:
 		property String^ Path;
@@ -93,6 +108,7 @@ namespace ScreenRecorderLib {
 	public ref class DisplayOptions {
 	public:
 		property String^ MonitorDeviceName;
+		property IntPtr WindowHandle;
 		property int Left;
 		property int Top;
 		property int Right;
@@ -101,17 +117,14 @@ namespace ScreenRecorderLib {
 
 		}
 		DisplayOptions(int left, int top, int right, int bottom) {
-			Left = left;
-			Top = top;
-			Right = right;
-			Bottom = bottom;
+			this->DisplayOptions::DisplayOptions("", left, top, right, bottom);
 		}
 
 		/// <summary>
 		///Select monitor to record via device name, e.g.\\.\DISPLAY1
 		/// </summary>
 		DisplayOptions(String^ monitorDeviceName) {
-			MonitorDeviceName = monitorDeviceName;
+			this->DisplayOptions::DisplayOptions(monitorDeviceName, 0, 0, 0, 0);
 		}
 
 		/// <summary>
@@ -123,6 +136,12 @@ namespace ScreenRecorderLib {
 			Top = top;
 			Right = right;
 			Bottom = bottom;
+		}
+		/// <summary>
+		///Select monitor to record via device name, e.g.\\.\DISPLAY1, and the rectangle to record on that monitor.
+		/// </summary>
+		DisplayOptions(IntPtr windowHandle) {
+			WindowHandle = windowHandle;
 		}
 	};
 
@@ -136,6 +155,8 @@ namespace ScreenRecorderLib {
 			EncoderProfile = H264Profile::Baseline;
 			BitrateMode = BitrateControlMode::Quality;
 			SnapshotFormat = ImageFormat::PNG;
+			SnapshotsWithVideo = false;
+			SnapshotsInterval = 10;
 		}
 		property H264Profile EncoderProfile;
 		/// <summary>
@@ -162,6 +183,14 @@ namespace ScreenRecorderLib {
 		///Image format for snapshots. This is only used with Snapshot and Slideshow modes.
 		/// </summary>
 		property ImageFormat SnapshotFormat;
+		/// <summary>
+		///Whether to take snapshots in a video recording. This is only used with Video mode.
+		/// </summary>
+		property bool SnapshotsWithVideo;
+		/// <summary>
+		///Interval in second for taking snapshots in a video recording. This is only used with Video mode AND SnapshotsWithVideo enabled.
+		/// </summary>
+		property int SnapshotsInterval;
 	};
 	public ref class AudioOptions {
 	public:
@@ -171,6 +200,8 @@ namespace ScreenRecorderLib {
 			IsInputDeviceEnabled = false;
 			Bitrate = AudioBitrate::bitrate_96kbps;
 			Channels = AudioChannels::Stereo;
+			InputVolume = 1.0f;
+			OutputVolume = 1.0f;
 		}
 		property bool IsAudioEnabled;
 		/// <summary>
@@ -191,6 +222,20 @@ namespace ScreenRecorderLib {
 		///Audio input device to capture audio from. Pass null or empty string to select system default.
 		/// </summary>
 		property String^ AudioInputDevice;
+
+		/// <summary>
+		/// Volume if the input stream. Recommended values are between 0 and 1.
+		/// Value of 0 mutes the stream and value of 1 makes it original volume.
+		/// This value can be changed after the recording is started with SetInputVolume() method.
+		/// </summary>
+		property float InputVolume;
+
+		/// <summary>
+		/// Volume if the output stream. Recommended values are between 0 and 1.
+		/// Value of 0 mutes the stream and value of 1 makes it original volume.
+		/// This value can be changed after the recording is started with SetOutputVolume() method.
+		/// </summary>
+		property float OutputVolume;
 	};
 	public ref class MouseOptions {
 	public:
@@ -236,12 +281,22 @@ namespace ScreenRecorderLib {
 	public ref class RecorderOptions {
 	public:
 		RecorderOptions() {
+			RecorderMode = ScreenRecorderLib::RecorderMode::Video;
+			RecorderApi = ScreenRecorderLib::RecorderApi::DesktopDuplication;
 			IsThrottlingDisabled = false;
 			IsLowLatencyEnabled = false;
 			IsHardwareEncodingEnabled = true;
 			IsMp4FastStartEnabled = true;
+#if _DEBUG
+			IsLogEnabled = true;
+			LogSeverityLevel = LogLevel::Debug;
+#else
+			IsLogEnabled = false;
+			LogSeverityLevel = LogLevel::Info;
+#endif
 		}
 		property RecorderMode RecorderMode;
+		property RecorderApi RecorderApi;
 		/// <summary>
 		///Disable throttling of video renderer. If this is disabled, all frames are sent to renderer as fast as they come. Can cause out of memory crashes.
 		/// </summary>
@@ -262,7 +317,18 @@ namespace ScreenRecorderLib {
 		/// Fragments the video into a list of individually playable blocks. This allows playback of video segments that has no end, i.e. live streaming.
 		/// </summary>
 		property bool IsFragmentedMp4Enabled;
-
+		/// <summary>
+		/// Toggles logging. Default is on when debugging, off in release mode, this setting overrides it.
+		/// </summary>
+		property bool IsLogEnabled;
+		/// <summary>
+		/// A path to a file to write logs to. If this is not empty, all logs will be redirected to it.
+		/// </summary>
+		property String^ LogFilePath;
+		/// <summary>
+		/// The maximum level of the logs to write.
+		/// </summary>
+		property LogLevel LogSeverityLevel;
 
 		property VideoOptions^ VideoOptions;
 		property DisplayOptions^ DisplayOptions;
@@ -293,23 +359,43 @@ namespace ScreenRecorderLib {
 			Error = error;
 		}
 	};
+
+	public ref class RecordableWindow {
+	public:
+		RecordableWindow(String^ title, IntPtr handle) { Title = title; Handle = handle; }
+		property String^ Title;
+		property IntPtr Handle;
+	};
+
+
+	public ref class SnapshotSavedEventArgs :System::EventArgs {
+	public:
+		property String^ SnapshotPath;
+		SnapshotSavedEventArgs(String^ path) {
+			SnapshotPath = path;
+		}
+	};
+
 	public ref class Recorder {
 	private:
 		Recorder(RecorderOptions^ options);
 		~Recorder();
 		!Recorder();
 		RecorderStatus _status;
-		void createErrorCallback();
-		void createCompletionCallback();
-		void createStatusCallback();
+		void CreateErrorCallback();
+		void CreateCompletionCallback();
+		void CreateStatusCallback();
+		void CreateSnapshotCallback();
 		void EventComplete(std::wstring str, nlohmann::fifo_map<std::wstring, int> delays);
 		void EventFailed(std::wstring str);
 		void EventStatusChanged(int status);
+		void EventSnapshotCreated(std::wstring str);
 		void SetupCallbacks();
 		void ClearCallbacks();
 		GCHandle _statusChangedDelegateGcHandler;
 		GCHandle _errorDelegateGcHandler;
 		GCHandle _completedDelegateGcHandler;
+		GCHandle _snapshotDelegateGcHandler;
 	public:
 		property RecorderStatus Status {
 			RecorderStatus get() {
@@ -328,12 +414,17 @@ namespace ScreenRecorderLib {
 		void Resume();
 		void Stop();
 		void SetOptions(RecorderOptions^ options);
+		void SetInputVolume(float volume);
+		void SetOutputVolume(float volume);
+		static bool SetExcludeFromCapture(System::IntPtr hwnd, bool isExcluded);
 		static Recorder^ CreateRecorder();
 		static Recorder^ CreateRecorder(RecorderOptions^ options);
+		static List<RecordableWindow^>^ GetWindows();
 		static Dictionary<String^, String^>^ GetSystemAudioDevices(AudioDeviceSource source);
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;
+		event EventHandler<SnapshotSavedEventArgs^>^ OnSnapshotSaved;
 		ManagedIStream *m_ManagedStream;
 	};
 }

@@ -9,11 +9,18 @@
         xmlns:rec="clr-namespace:ScreenRecorderLib;assembly=ScreenRecorderLib"
         mc:Ignorable="d"
         Title="ScreenRecorderLib Demo"
-        Height="700"
-        Width="525"
+        Height="775"
+        Width="550"
         SizeToContent="Height">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <ObjectDataProvider x:Key="RecorderApiData"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type System:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="rec:RecorderApi" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
         <ObjectDataProvider x:Key="RecorderModeData"
                             MethodName="GetValues"
                             ObjectType="{x:Type System:Enum}">
@@ -49,6 +56,13 @@
                 <x:Type TypeName="rec:MouseDetectionMode" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
+        <ObjectDataProvider x:Key="LogLevelData"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type System:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="rec:LogLevel" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
     </Window.Resources>
     <Grid x:Name="LayoutRoot">
         <Grid.RowDefinitions>
@@ -60,7 +74,7 @@
             <StackPanel x:Name="SettingsPanel">
 
                 <ComboBox x:Name="ScreenComboBox"
-                          Margin="5"
+                          Margin="0,5"
                           SelectionChanged="ScreenComboBox_SelectionChanged">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
@@ -73,39 +87,56 @@
                         </DataTemplate>
                     </ComboBox.ItemTemplate>
                 </ComboBox>
-                <StackPanel Orientation="Horizontal"
-                            Margin="5,0">
+                <ComboBox x:Name="WindowComboBox"
+                          Margin="0,5"
+                          Visibility="Collapsed"
+                          SelectionChanged="WindowComboBox_SelectionChanged">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Title, Mode=OneTime}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
 
-                    <Label Content="left" />
-                    <TextBox x:Name="RecordingAreaLeftTextBox"
+                <DockPanel Margin="0,5">
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal"
+                            x:Name="CoordinatesPanel">
+                        <Label Content="left" />
+                        <TextBox x:Name="RecordingAreaLeftTextBox"
                              VerticalContentAlignment="Center"
                              GotFocus="TextBox_GotFocus"
                              MinWidth="
                          30" />
-                    <Label Content="top" />
-                    <TextBox x:Name="RecordingAreaTopTextBox"
+                        <Label Content="top" />
+                        <TextBox x:Name="RecordingAreaTopTextBox"
                              VerticalContentAlignment="Center"
                              GotFocus="TextBox_GotFocus"
                              MinWidth="30" />
-                    <Label Content="right" />
-                    <TextBox x:Name="RecordingAreaRightTextBox"
+                        <Label Content="right" />
+                        <TextBox x:Name="RecordingAreaRightTextBox"
                              VerticalContentAlignment="Center"
                              GotFocus="TextBox_GotFocus"
                              MinWidth="
                          30" />
-                    <Label Content="bottom" />
-                    <TextBox x:Name="RecordingAreaBottomTextBox"
+                        <Label Content="bottom" />
+                        <TextBox x:Name="RecordingAreaBottomTextBox"
                              VerticalContentAlignment="Center"
                              GotFocus="TextBox_GotFocus"
                              MinWidth="30" />
+                    </StackPanel>
+                    <Button HorizontalAlignment="Right" Margin="0,2" MinWidth="90"
+                            Content="Refresh targets"
+                            Click="RefreshButton_Click"/>
+                </DockPanel>
 
-                </StackPanel>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel Margin="5">
+                    <StackPanel Margin="0,5,5,5">
                         <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsHardwareEncodingEnabled}"
                                   Content="Enable hardware encoding"
                                   ToolTip="" />
@@ -134,6 +165,27 @@
                                   Content="Detect mouse clicks"
                                   Margin="0"
                                   ToolTip="Display a colored dot where the left mouse button is pressed." />
+                        <CheckBox Content="Record to stream"
+                                  x:Name="CheckBoxRecordToStream"
+                                  IsChecked="{Binding ElementName=MainWin,Path=RecordToStream}"
+                                  Margin="0" />								  
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,10,0,0">
+                            <Label Content="API"
+                                   Width="85"
+                                   VerticalAlignment="Center" />
+                            <ComboBox x:Name="RecordingApiComboBox"
+                                      MinWidth="100"
+                                      Margin="0,5,5,5"
+                                      ItemsSource="{Binding Source={StaticResource RecorderApiData}}"
+                                      SelectedItem="{Binding ElementName=MainWin,Path=CurrentRecordingApi}"
+                                      SelectionChanged="RecordingApiComboBox_SelectionChanged"
+                                      VerticalAlignment="Top" />
+                        </StackPanel>
+                        <CheckBox Content="Take snapshots with Video"
+                                  x:Name="CheckBoxSnapshotsWithVideo"
+                                  IsChecked="{Binding ElementName=MainWin,Path=SnapshotsWithVideo}"
+                                  Margin="0" />
                         <StackPanel Orientation="Horizontal">
                             <Label Content="Mode"
                                    Width="85"
@@ -144,9 +196,8 @@
                                       ItemsSource="{Binding Source={StaticResource RecorderModeData}}"
                                       SelectedItem="{Binding ElementName=MainWin,Path=CurrentRecordingMode}"
                                       VerticalAlignment="Top"
-                                      SelectionChanged="RecordingModeComboBox_SelectionChanged"/>
+                                      SelectionChanged="RecordingModeComboBox_SelectionChanged" />
                         </StackPanel>
-
                         <StackPanel Orientation="Horizontal"
                                     x:Name="SnapshotImageFormatPanel"
                                     Visibility="Collapsed">
@@ -159,6 +210,20 @@
                                       ItemsSource="{Binding Source={StaticResource ImageFormatData}}"
                                       SelectedItem="{Binding ElementName=MainWin,Path=CurrentImageFormat}"
                                       VerticalAlignment="Top" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal"
+                                    x:Name="SnapshotsIntervalPanel"
+                                    Visibility="Collapsed">
+                            <Label Content="Snapshots interval"
+                                   Width="120"
+                                   VerticalAlignment="Center" />
+                            <TextBox x:Name="SnapshotsIntervalTextBox"
+                                     Width="30"
+                                     Text="{Binding ElementName=MainWin,Path=SnapshotsIntervalInSec}"
+                                     HorizontalAlignment="Left"
+                                     VerticalAlignment="Center" />
+                            <Label Content="second" />
                         </StackPanel>
 
                         <StackPanel Orientation="Horizontal"
@@ -186,42 +251,10 @@
                                       SelectedItem="{Binding ElementName=MainWin,Path=CurrentH264Profile}"
                                       VerticalAlignment="Top" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal"
-                                    x:Name="AudioOutPanel">
-                            <CheckBox Content="Audio out"
-                                      Width="85"
-                                      IsChecked="{Binding ElementName=MainWin,Path=IsAudioOutEnabled,Mode=TwoWay}"
-                                      VerticalAlignment="Center" />
-                            <ComboBox x:Name="AudioOutputsComboBox"
-                                      MinWidth="100"
-                                      MaxWidth="155"
-                                      Margin="0,5,5,5"
-                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioOutputsList}"
-                                      DisplayMemberPath="Value"
-                                      SelectedValuePath="Key"
-                                      SelectedIndex="0"
-                                      VerticalAlignment="Top" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal"
-                                    x:Name="AudioInPanel">
-                            <CheckBox Content="Audio in"
-                                      IsChecked="{Binding ElementName=MainWin,Path=IsAudioInEnabled,Mode=TwoWay}"
-                                      Width="85"
-                                      VerticalAlignment="Center" />
-                            <ComboBox x:Name="AudioInputsComboBox"
-                                      MinWidth="100"
-                                      MaxWidth="155"
-                                      Margin="0,5,5,5"
-                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioInputsList}"
-                                      DisplayMemberPath="Value"
-                                      SelectedValuePath="Key"
-                                      SelectedIndex="0"
-                                      VerticalAlignment="Top" />
-                        </StackPanel>
+
                     </StackPanel>
 
-
-                    <Grid Margin="5"
+                    <Grid Margin="5,0,0,0"
                           Grid.Column="1">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
@@ -330,22 +363,140 @@
                                      VerticalAlignment="Center" />
                             <Label Content="ms" />
                         </StackPanel>
-                        <Grid Grid.Row="8">
-                            <Button Content="Delete temp files"
+                        <StackPanel Grid.Row="8"
+                                    Margin="0,10,0,0">
+                            <CheckBox Content="Enable logging"
+                                      IsChecked="{Binding ElementName=MainWin,Path=IsLogEnabled}" />
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,5,0,0">
+                                <CheckBox Content="Log to file"
+                                          IsChecked="{Binding ElementName=MainWin,Path=IsLogToFileEnabled}"
+                                          Width="85" />
+                                <TextBox Text="{Binding ElementName=MainWin,Path=LogFilePath}"
+                                         MinWidth="80" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal"
+                                        x:Name="LogLevelPanel">
+                                <Label Content="Log level"
+                                       Width="85"
+                                       VerticalAlignment="Center" />
+                                <ComboBox x:Name="LogLevelComboBox"
+                                          MinWidth="80"
+                                          Margin="0,5,5,5"
+                                          ItemsSource="{Binding Source={StaticResource LogLevelData}}"
+                                          SelectedItem="{Binding ElementName=MainWin,Path=LogSeverityLevel}"
+                                          VerticalAlignment="Top" />
+                            </StackPanel>
+                            <Button Content="Delete recorded files"
+                                    Margin="0,5"
                                     Click="DeleteTempFilesButton_Click"
                                     VerticalAlignment="Top" />
-                        </Grid>
+                            <Button Content="Open recorded files folder"
+                                    Margin="0,5"
+                                    Click="OpenRecordedFilesFolderButton_Click"
+                                    VerticalAlignment="Top" />
+                        </StackPanel>
                     </Grid>
 
                 </Grid>
-                <CheckBox Content="Record to stream"
-                          x:Name="CheckBoxRecordToStream"
-                          IsChecked="{Binding ElementName=MainWin,Path=RecordToStream}"
-                          Margin="5" />
+                <Grid Margin="0,10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="0.5*" />
+                        <ColumnDefinition Width="0.5*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal"
+                                x:Name="AudioOutPanel">
+                        <CheckBox Content="Audio out"
+                                  Width="85"
+                                  IsChecked="{Binding ElementName=MainWin,Path=IsAudioOutEnabled,Mode=TwoWay}"
+                                  VerticalAlignment="Center" />
+                        <ComboBox x:Name="AudioOutputsComboBox"
+                                  MinWidth="100"
+                                  MaxWidth="155"
+                                  Margin="0,5,5,5"
+                                  ItemsSource="{Binding ElementName=MainWin,Path=AudioOutputsList}"
+                                  DisplayMemberPath="Value"
+                                  SelectedValuePath="Key"
+                                  SelectedIndex="0"
+                                  VerticalAlignment="Top" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal"
+                                Grid.Row="1"
+                                x:Name="AudioInPanel">
+                        <CheckBox Content="Audio in"
+                                  IsChecked="{Binding ElementName=MainWin,Path=IsAudioInEnabled,Mode=TwoWay}"
+                                  Width="85"
+                                  VerticalAlignment="Center" />
+                        <ComboBox x:Name="AudioInputsComboBox"
+                                  MinWidth="100"
+                                  MaxWidth="155"
+                                  Margin="0,5,5,5"
+                                  ItemsSource="{Binding ElementName=MainWin,Path=AudioInputsList}"
+                                  DisplayMemberPath="Value"
+                                  SelectedValuePath="Key"
+                                  SelectedIndex="0"
+                                  VerticalAlignment="Top" />
+                    </StackPanel>
+                    <Grid Grid.Column="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Label Content="0%" />
+
+                        <Slider Name="OutputVolumeSlider"
+                                Orientation="Horizontal"
+                                Grid.Column="1"
+                                Foreground="Blue"
+                                Margin="0,5,5,5"
+                                Maximum="1"
+                                TickPlacement="BottomRight"
+                                Value="1"
+                                TickFrequency="0.1"
+                                ValueChanged="OnOutputVolumeChanged" />
+                        <Label Content="100%"
+                               Grid.Column="2" />
+                    </Grid>
+                    <Grid Grid.Column="1"
+                          Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Label Content="0%" />
+                        <Slider Name="InputVolumeSlider"
+                                Orientation="Horizontal"
+                                Grid.Column="1"
+                                Foreground="Blue"
+                                Margin="0,5,5,5"
+                                Maximum="1"
+                                TickPlacement="BottomRight"
+                                Value="1"
+                                TickFrequency="0.1"
+                                ValueChanged="OnInputVolumeChanged" />
+                        <Label Content="100%"
+                               Grid.Column="2" />
+                    </Grid>
+                </Grid>
+            </StackPanel>
+
+            <StackPanel Orientation="Vertical"
+                        x:Name="ControlsPanel">
+                <CheckBox Content="Exclude this window from capture"
+                                  x:Name="CheckBoxExclude"
+                                  IsChecked="{Binding ElementName=MainWin,Path=IsExcludeWindowEnabled}"
+                                  Margin="0" />
                 <TextBlock FontSize="72"
                            Text="00:00:00"
                            HorizontalAlignment="Center"
-                           x:Name="TimeStampTextBlock" />
+                           x:Name="TimeStampTextBlock"
+                           Margin="10,0" />
                 <TextBlock FontSize="42"
                            Text="Idle"
                            HorizontalAlignment="Center"
@@ -354,26 +505,29 @@
                            Text=""
                            Margin="10,0"
                            TextWrapping="Wrap"
+                           MaxWidth="{Binding ElementName=ControlsPanel,Path=ActualWidth}"
                            HorizontalAlignment="Center"
                            x:Name="ErrorTextBlock" />
+                <Button Height="50"
+                        Width="150"
+                        x:Name="RecordButton"
+                        Content="Record"
+                        FontSize="28"
+                        Click="RecordButton_Click" />
+                <Button x:Name="PauseButton"
+                        Height="50"
+                        Width="150"
+                        Content="Pause"
+                        FontSize="28"
+                        Visibility="Collapsed"
+                        Click="PauseButton_Click" />
             </StackPanel>
-            <Button Height="50"
-                    Width="150"
-                    x:Name="RecordButton"
-                    Content="Record"
-                    FontSize="28"
-                    Click="RecordButton_Click" />
-            <Button x:Name="PauseButton"
-                    Height="50"
-                    Width="150"
-                    Content="Pause"
-                    FontSize="28"
-                    Visibility="Hidden"
-                    Click="PauseButton_Click" />
         </StackPanel>
-        <TextBlock Margin="5"
+
+        <TextBlock Margin="10"
                    TextWrapping="Wrap"
-                   Grid.Row="1">
+                   Grid.Row="1"
+                   HorizontalAlignment="Center">
             <Hyperlink Click="Hyperlink_Click">
                 <Run Text=""
                      x:Name="OutputResultTextBlock" />

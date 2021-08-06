@@ -1,15 +1,24 @@
 #include "mouse_pointer.h"
 #include "log.h"
+#include "utilities.h"
 #include <comdef.h>
+#include <commctrl.h>
+#include <mfapi.h>
 #include <Dxgiformat.h>
+#include "PixelShader.h"
+#include "VertexShader.h"
+#include "cleanup.h"
 using namespace DirectX;
+
+#pragma comment(lib, "comctl32.lib")
 
 HRESULT mouse_pointer::Initialize(ID3D11DeviceContext *ImmediateContext, ID3D11Device *Device)
 {
+	CleanupResources();
 	// Create the sample state
 	D3D11_SAMPLER_DESC SampDesc;
 	RtlZeroMemory(&SampDesc, sizeof(SampDesc));
-	SampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	SampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
 	SampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
 	SampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
 	SampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -159,7 +168,7 @@ HRESULT mouse_pointer::DrawMouseClick(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Texture
 //
 // Draw mouse provided in buffer to backbuffer
 //
-HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11DeviceContext* DeviceContext, _In_ ID3D11Device* Device, _In_ ID3D11Texture2D* bgTexture, DXGI_MODE_ROTATION rotation)
+HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11DeviceContext* DeviceContext, _In_ ID3D11Device* Device, _Inout_ ID3D11Texture2D* bgTexture, DXGI_MODE_ROTATION rotation)
 {
 	if (!PtrInfo || !PtrInfo->Visible || PtrInfo->PtrShapeBuffer == nullptr)
 		return S_FALSE;
@@ -167,11 +176,10 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 	ID3D11Texture2D* MouseTex = nullptr;
 	ID3D11ShaderResourceView* ShaderRes = nullptr;
 	ID3D11Buffer* VertexBufferMouse = nullptr;
-	D3D11_SUBRESOURCE_DATA InitData;
-	D3D11_TEXTURE2D_DESC Desc;
+	D3D11_SUBRESOURCE_DATA InitData = { 0 };
+	D3D11_TEXTURE2D_DESC Desc = { 0 };
 	D3D11_SHADER_RESOURCE_VIEW_DESC SDesc;
-
-	D3D11_TEXTURE2D_DESC DesktopDesc;
+	D3D11_TEXTURE2D_DESC DesktopDesc = { 0 };
 	bgTexture->GetDesc(&DesktopDesc);
 	// Position will be changed based on mouse position
 	VERTEX Vertices[NUMVERTICES] =
@@ -201,7 +209,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 	BYTE* InitBuffer = nullptr;
 
 	// Used for copying pixels
-	D3D11_BOX Box;
+	D3D11_BOX Box = { 0 };
 	Box.front = 0;
 	Box.back = 1;
 
@@ -243,7 +251,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 		break;
 	}
 	default:
-		ERR("Unrecognized mouse pointer type");
+		ERROR("Unrecognized mouse pointer type");
 		return E_FAIL;
 	}
 
@@ -320,7 +328,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERR(L"Failed to create mouse pointer texture: %ls", err.ErrorMessage());
+		ERROR(L"Failed to create mouse pointer texture: %ls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -331,7 +339,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 		MouseTex->Release();
 		MouseTex = nullptr;
 		_com_error err(hr);
-		ERR(L"Failed to create shader resource from mouse pointer texture: %ls", err.ErrorMessage());
+		ERROR(L"Failed to create shader resource from mouse pointer texture: %ls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -355,7 +363,7 @@ HRESULT mouse_pointer::DrawMousePointer(_In_ PTR_INFO* PtrInfo, _In_ ID3D11Devic
 		MouseTex = nullptr;
 
 		_com_error err(hr);
-		ERR(L"Failed to create mouse pointer vertex buffer: %ls", err.ErrorMessage());
+		ERROR(L"Failed to create mouse pointer vertex buffer: %ls", err.ErrorMessage());
 		return hr;
 	}
 	ID3D11RenderTargetView* RTV;
@@ -475,7 +483,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERR(L"Failed creating staging texture for pointer: %ls", err.ErrorMessage());
+		ERROR(L"Failed creating staging texture for pointer: %ls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -494,7 +502,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERR(L"Failed to QI staging texture into IDXGISurface for pointer: %lls", err.ErrorMessage());
+		ERROR(L"Failed to QI staging texture into IDXGISurface for pointer: %lls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -506,7 +514,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 		CopySurface->Release();
 		CopySurface = nullptr;
 		_com_error err(hr);
-		ERR(L"Failed to map surface for pointer: %lls", err.ErrorMessage());
+		ERROR(L"Failed to map surface for pointer: %lls", err.ErrorMessage());
 		return hr;
 	}
 	auto bufSize = *PtrWidth * *PtrHeight * BPP;
@@ -625,7 +633,7 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERR(L"Failed to allocate memory for new mouse shape buffer: %lls", err.ErrorMessage());
+		ERROR(L"Failed to allocate memory for new mouse shape buffer: %lls", err.ErrorMessage());
 		return hr;
 	}
 	return hr;
@@ -637,13 +645,12 @@ HRESULT mouse_pointer::ProcessMonoMask(_In_ ID3D11Texture2D* bgTexture, _In_ ID3
 HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Device* Device)
 {
 	HRESULT hr;
-
 	UINT Size = ARRAYSIZE(g_VS);
 	hr = Device->CreateVertexShader(g_VS, Size, nullptr, &m_VertexShader);
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERR(L"Failed to create vertex shader: %lls", err.ErrorMessage());
+		ERROR(L"Failed to create vertex shader: %lls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -657,7 +664,7 @@ HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Dev
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERR(L"Failed to create input layout: %lls", err.ErrorMessage());
+		ERROR(L"Failed to create input layout: %lls", err.ErrorMessage());
 		return hr;
 	}
 	DeviceContext->IASetInputLayout(m_InputLayout);
@@ -667,9 +674,32 @@ HRESULT mouse_pointer::InitShaders(ID3D11DeviceContext* DeviceContext, ID3D11Dev
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		ERR(L"Failed to create pixel shader: %lls", err.ErrorMessage());
+		ERROR(L"Failed to create pixel shader: %lls", err.ErrorMessage());
 	}
 	return hr;
+}
+
+HRESULT mouse_pointer::ResizeShapeBuffer(PTR_INFO* PtrInfo, int bufferSize) {
+	// Old buffer too small
+	if (bufferSize > PtrInfo->BufferSize)
+	{
+		if (PtrInfo->PtrShapeBuffer)
+		{
+			delete[] PtrInfo->PtrShapeBuffer;
+			PtrInfo->PtrShapeBuffer = nullptr;
+		}
+		PtrInfo->PtrShapeBuffer = new (std::nothrow) BYTE[bufferSize];
+		if (!PtrInfo->PtrShapeBuffer)
+		{
+			PtrInfo->BufferSize = 0;
+			ERROR(L"Failed to allocate memory for pointer shape in DUPLICATIONMANAGER");
+			return E_OUTOFMEMORY;
+		}
+
+		// Update buffer size
+		PtrInfo->BufferSize = bufferSize;
+	}
+	return S_OK;
 }
 
 //
@@ -682,7 +712,7 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 	// A non-zero mouse update timestamp indicates that there is a mouse position update and optionally a shape change
 	if (FrameInfo->LastMouseUpdateTime.QuadPart == 0)
 	{
-		return S_OK;
+		return S_FALSE;
 	}
 
 	bool UpdatePosition = true;
@@ -714,28 +744,10 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 	// No new shape
 	if (FrameInfo->PointerShapeBufferSize == 0)
 	{
-		return S_OK;
+		return S_FALSE;
 	}
 
-	// Old buffer too small
-	if (FrameInfo->PointerShapeBufferSize > PtrInfo->BufferSize)
-	{
-		if (PtrInfo->PtrShapeBuffer)
-		{
-			delete[] PtrInfo->PtrShapeBuffer;
-			PtrInfo->PtrShapeBuffer = nullptr;
-		}
-		PtrInfo->PtrShapeBuffer = new (std::nothrow) BYTE[FrameInfo->PointerShapeBufferSize];
-		if (!PtrInfo->PtrShapeBuffer)
-		{
-			PtrInfo->BufferSize = 0;
-			ERR(L"Failed to allocate memory for pointer shape in DUPLICATIONMANAGER");
-			return E_OUTOFMEMORY;
-		}
-
-		// Update buffer size
-		PtrInfo->BufferSize = FrameInfo->PointerShapeBufferSize;
-	}
+	RETURN_ON_BAD_HR(ResizeShapeBuffer(PtrInfo, FrameInfo->PointerShapeBufferSize));
 
 	// Get shape
 	UINT BufferSizeRequired;
@@ -746,10 +758,130 @@ HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO* PtrInfo, _In_ DXGI_OUTDUPL_FRA
 		PtrInfo->PtrShapeBuffer = nullptr;
 		PtrInfo->BufferSize = 0;
 		_com_error err(hr);
-		ERR(L"Failed to get frame pointer shape in DUPLICATIONMANAGER: %lls", err.ErrorMessage());
+		ERROR(L"Failed to get frame pointer shape in DUPLICATIONMANAGER: %lls", err.ErrorMessage());
 		return hr;
 	}
 
+	return S_OK;
+}
+
+HRESULT mouse_pointer::GetMouse(_Inout_ PTR_INFO * PtrInfo, int offsetX, int offsetY, RECT screenRect, bool getShapeBuffer)
+{
+	int screenOffsetX = min(screenRect.left, INT_MAX);
+	int screenOffsetY = min(screenRect.top, INT_MAX);
+	CURSORINFO cursorInfo = { 0 };
+	cursorInfo.cbSize = sizeof(CURSORINFO);
+	if (!GetCursorInfo(&cursorInfo)) {
+		return E_FAIL;
+	}
+
+	ICONINFO iconInfo = { 0 };
+	if (!GetIconInfo(cursorInfo.hCursor, &iconInfo)) {
+		return E_FAIL;
+	}
+	bool isVisible = cursorInfo.flags == CURSOR_SHOWING;
+	LONG width = 0;
+	LONG height = 0;
+	LONG widthBytes = 0;
+	LONG cursorType = 0;
+	DeleteGdiObjectOnExit deleteColor(iconInfo.hbmColor);
+	DeleteGdiObjectOnExit deleteMask(iconInfo.hbmMask);
+
+	if (iconInfo.hbmColor) {
+		BITMAP cursorBitmap;
+		GetObject(iconInfo.hbmColor, sizeof(cursorBitmap), &cursorBitmap);
+		cursorType = DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR;
+		width = cursorBitmap.bmWidth;
+		height = cursorBitmap.bmHeight;
+		widthBytes = cursorBitmap.bmWidthBytes;
+		int colorBits = cursorBitmap.bmBitsPixel;
+		if (getShapeBuffer) {
+			HDC dc = GetDC(NULL);
+			ReleaseDCOnExit ReleaseDC(dc);
+
+			BITMAPINFO bmInfo = { 0 };
+			bmInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+			bmInfo.bmiHeader.biBitCount = 0;    // don't get the color table  
+			if (!GetDIBits(dc, iconInfo.hbmColor, 0, 0, NULL, &bmInfo, DIB_RGB_COLORS))
+			{
+				return E_FAIL;
+			}
+
+			// Allocate size of bitmap info header plus space for color table:
+			int nBmInfoSize = sizeof(BITMAPINFOHEADER);
+			if (colorBits < 24)
+			{
+				nBmInfoSize += sizeof(RGBQUAD) * (int)(1 << colorBits);
+			}
+
+			CAutoVectorPtr<UCHAR> bitmapInfo;
+			bitmapInfo.Allocate(nBmInfoSize);
+			BITMAPINFO* pBmInfo = (BITMAPINFO*)(UCHAR*)bitmapInfo;
+			memcpy(pBmInfo, &bmInfo, sizeof(BITMAPINFOHEADER));
+
+			// Get bitmap data:
+			RETURN_ON_BAD_HR(ResizeShapeBuffer(PtrInfo, bmInfo.bmiHeader.biSizeImage));
+			pBmInfo->bmiHeader.biBitCount = colorBits;
+			pBmInfo->bmiHeader.biCompression = BI_RGB;
+			pBmInfo->bmiHeader.biHeight = -bmInfo.bmiHeader.biHeight;
+			if (!GetDIBits(dc, iconInfo.hbmColor, 0, bmInfo.bmiHeader.biHeight, PtrInfo->PtrShapeBuffer, pBmInfo, DIB_RGB_COLORS))
+			{
+				return E_FAIL;
+			}
+		}
+	}
+	else {
+		BITMAP cursorBitmap;
+		GetObject(iconInfo.hbmMask, sizeof(cursorBitmap), &cursorBitmap);
+		cursorType = DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME;
+		width = cursorBitmap.bmWidth;
+		height = cursorBitmap.bmHeight;
+		widthBytes = cursorBitmap.bmWidthBytes;
+		int colorBits = cursorBitmap.bmBitsPixel;
+		if (getShapeBuffer) {
+			HDC dc = GetDC(NULL);
+			ReleaseDCOnExit ReleaseDC(dc);
+
+			BITMAPINFO maskInfo = { 0 };
+			maskInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+			maskInfo.bmiHeader.biBitCount = 0;  // don't get the color table     
+			if (!GetDIBits(dc, iconInfo.hbmMask, 0, 0, NULL, &maskInfo, DIB_RGB_COLORS))
+			{
+				return false;
+			}
+
+			RETURN_ON_BAD_HR(ResizeShapeBuffer(PtrInfo, maskInfo.bmiHeader.biSizeImage));
+			CAutoVectorPtr<UCHAR> maskInfoBytes;
+			maskInfoBytes.Allocate(sizeof(BITMAPINFO) + 2 * sizeof(RGBQUAD));
+			BITMAPINFO* pMaskInfo = (BITMAPINFO*)(UCHAR*)maskInfoBytes;
+			memcpy(pMaskInfo, &maskInfo, sizeof(maskInfo));
+			pMaskInfo->bmiHeader.biBitCount = colorBits;
+			pMaskInfo->bmiHeader.biCompression = BI_RGB;
+			pMaskInfo->bmiHeader.biHeight = -maskInfo.bmiHeader.biHeight;
+			if (!GetDIBits(dc, iconInfo.hbmMask, 0, maskInfo.bmiHeader.biHeight, PtrInfo->PtrShapeBuffer, pMaskInfo, DIB_RGB_COLORS))
+			{
+				return false;
+			}
+		}
+	}
+
+	DXGI_OUTDUPL_POINTER_SHAPE_INFO shapeInfo = { 0 };
+	POINT hotSpot = { 0 };
+	hotSpot.x = iconInfo.xHotspot;
+	hotSpot.y = iconInfo.yHotspot;
+
+	shapeInfo.HotSpot = hotSpot;
+	shapeInfo.Width = width;
+	shapeInfo.Height = height;
+	shapeInfo.Type = cursorType;
+	shapeInfo.Pitch = widthBytes;
+
+	cursorInfo.ptScreenPos.x = cursorInfo.ptScreenPos.x + offsetX + screenRect.left - screenOffsetX - hotSpot.x;
+	cursorInfo.ptScreenPos.y = cursorInfo.ptScreenPos.y + offsetY + screenRect.top - screenOffsetY - hotSpot.y;
+	PtrInfo->Position = cursorInfo.ptScreenPos;
+	PtrInfo->ShapeInfo = shapeInfo;
+	PtrInfo->Visible = isVisible;
+	QueryPerformanceCounter(&PtrInfo->LastTimeStamp);
 	return S_OK;
 }
 
@@ -765,4 +897,6 @@ void mouse_pointer::CleanupResources()
 		m_VertexShader.Release();
 	if (m_PixelShader)
 		m_PixelShader.Release();
+	if (m_D2DFactory)
+		m_D2DFactory.Release();
 }
