@@ -695,6 +695,7 @@ HRESULT RecordingManager::ProcessTextureTransforms(_In_ ID3D11Texture2D *pTextur
 		*ppProcessedTexture = pProcessedTexture;
 		(*ppProcessedTexture)->AddRef();
 	}
+	return hr;
 }
 
 bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
