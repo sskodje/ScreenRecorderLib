@@ -3,16 +3,27 @@
   <metadata>
     <id>ScreenRecorderLib.StrongName</id>
     <version>3.1.1</version>
-    <authors>CSG Systems, Inc.</authors>
     <owners>Sverre Kristoffer Skodje</owners>
-    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+	<authors>CSG Systems, Inc.</authors>
     <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to h264 video or PNG images.</description>
-    <summary></summary>
-    <releaseNotes>- Fixed error in nuget package.</releaseNotes>
+    <summary />
+    <releaseNotes>
+      - Fixed error in nuget package.
+    </releaseNotes>
     <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
     <language>en-GB</language>
     <tags>Screen Recording Windows .NET</tags>
   </metadata>
+  <files>
+    <file src="ScreenRecorderLib.StrongName.targets" target="build\ScreenRecorderLib.StrongName.targets" />
+    <file src="..\ScreenRecorderLib\Release\ScreenRecorderLib.dll" target="build\x64\ScreenRecorderLib.dll" />
+    <file src="..\ScreenRecorderLib\Release\ScreenRecorderLib.xml" target="build\x64\ScreenRecorderLib.xml" />
+    <file src="..\ScreenRecorderLib\Release\ScreenRecorderLib.dll" target="build\x86\ScreenRecorderLib.dll" />
+    <file src="..\ScreenRecorderLib\Release\ScreenRecorderLib.xml" target="build\x86\ScreenRecorderLib.xml" />
+    <file src="..\ScreenRecorderLib\Release\ScreenRecorderLib.dll" target="lib\net47\ScreenRecorderLib.dll" />
+    <file src="..\ScreenRecorderLib\Release\ScreenRecorderLib.xml" target="lib\net47\ScreenRecorderLib.xml" />
+  </files>
 </package>
