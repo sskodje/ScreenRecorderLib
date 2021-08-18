@@ -15,8 +15,8 @@ public:
 	~GifReader();
 	virtual HRESULT StartCapture(_In_ std::wstring source) override;
 	virtual HRESULT StopCapture();
-	virtual HRESULT GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int timeoutMs) override;
-	virtual HRESULT Initialize(_In_ DX_RESOURCES *Data) override;
+	virtual HRESULT AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_ ID3D11Texture2D **ppFrame) override;
+	virtual HRESULT Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice) override;
 
 private:
 	enum DISPOSAL_METHODS
@@ -28,7 +28,7 @@ private:
 	};
 	HRESULT Initialize();
 	HRESULT CreateDeviceResources();
-	HRESULT ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize);
+	//HRESULT ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize);
 
 	HRESULT GetRawFrame(UINT uFrameIndex);
 	HRESULT GetGlobalMetadata();

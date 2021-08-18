@@ -311,20 +311,24 @@ HRESULT TextureManager::RotateTexture(_In_ ID3D11Texture2D *pOrgTexture, _Outptr
 	return hr;
 }
 
-HRESULT TextureManager::DrawOverlay(_In_ ID3D11Texture2D *pBackgroundTexture, _In_ ID3D11Texture2D *pOverlayTexture, _In_ RECT overlayRect)
+HRESULT TextureManager::DrawTexture(_Inout_ ID3D11Texture2D *pCanvasTexture, _In_ ID3D11Texture2D *pTexture, _In_ RECT rect)
 {
+	HRESULT hr = S_FALSE;
 	D3D11_TEXTURE2D_DESC desktopDesc = {};
-	pBackgroundTexture->GetDesc(&desktopDesc);
+	pCanvasTexture->GetDesc(&desktopDesc);
 	D3D11_TEXTURE2D_DESC overlayDesc = {};
-	pOverlayTexture->GetDesc(&overlayDesc);
+	pCanvasTexture->GetDesc(&overlayDesc);
 
 	// Save current view port so we can restore later
 	D3D11_VIEWPORT VP;
 	UINT numViewports = 1;
 	m_DeviceContext->RSGetViewports(&numViewports, &VP);
 
-	// Set view port
-	SetViewPort(m_DeviceContext, desktopDesc.Width, desktopDesc.Height);
+	{
+		MeasureExecutionTime measure(L"SetViewPort");
+		// Set view port
+		SetViewPort(m_DeviceContext, desktopDesc.Width, desktopDesc.Height);
+	}
 
 	VERTEX Vertices[] =
 	{
@@ -336,10 +340,10 @@ HRESULT TextureManager::DrawOverlay(_In_ ID3D11Texture2D *pBackgroundTexture, _I
 		{ XMFLOAT3(1.0f, 1.0f, 0), XMFLOAT2(1.0f, 0.0f) },
 	};
 
-	LONG overlayLeft = overlayRect.left;
-	LONG overlayTop = overlayRect.top;
-	LONG overlayWidth = RectWidth(overlayRect);
-	LONG overlayHeight = RectHeight(overlayRect);
+	LONG overlayLeft = rect.left;
+	LONG overlayTop = rect.top;
+	LONG overlayWidth = RectWidth(rect);
+	LONG overlayHeight = RectHeight(rect);
 	// Center of desktop dimensions
 	FLOAT centerX = ((FLOAT)desktopDesc.Width / 2);
 	FLOAT centerY = ((FLOAT)desktopDesc.Height / 2);
@@ -367,15 +371,17 @@ HRESULT TextureManager::DrawOverlay(_In_ ID3D11Texture2D *pBackgroundTexture, _I
 	shaderDesc.Texture2D.MipLevels = overlayDesc.MipLevels;
 
 	// Create shader resource from texture
-	CComPtr<ID3D11ShaderResourceView> shaderRes;
-	HRESULT hr = m_Device->CreateShaderResourceView(pOverlayTexture, &shaderDesc, &shaderRes);
-	if (FAILED(hr))
+	ID3D11ShaderResourceView *srcSRV;
 	{
-		_com_error err(hr);
-		LOG_ERROR(L"Failed to create shader resource from overlay texture: %ls", err.ErrorMessage());
-		return hr;
+		MeasureExecutionTime measure(L"CreateShaderResourceView");
+		hr = m_Device->CreateShaderResourceView(pTexture, &shaderDesc, &srcSRV);
+		if (FAILED(hr))
+		{
+			_com_error err(hr);
+			LOG_ERROR(L"Failed to create shader resource from overlay texture: %ls", err.ErrorMessage());
+			return hr;
+		}
 	}
-
 	D3D11_BUFFER_DESC bufferDesc;
 	ZeroMemory(&bufferDesc, sizeof(D3D11_BUFFER_DESC));
 	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
@@ -388,38 +394,87 @@ HRESULT TextureManager::DrawOverlay(_In_ ID3D11Texture2D *pBackgroundTexture, _I
 	initData.pSysMem = Vertices;
 
 	// Create vertex buffer
-	CComPtr<ID3D11Buffer> VertexBuffer;
-	hr = m_Device->CreateBuffer(&bufferDesc, &initData, &VertexBuffer);
-	if (FAILED(hr))
+	ID3D11Buffer *VertexBuffer;
 	{
-		_com_error err(hr);
-		LOG_ERROR(L"Failed to create overlay vertex buffer: %ls", err.ErrorMessage());
-		return hr;
+		MeasureExecutionTime measure(L"CreateBuffer");
+		hr = m_Device->CreateBuffer(&bufferDesc, &initData, &VertexBuffer);
+		if (FAILED(hr))
+		{
+			_com_error err(hr);
+			LOG_ERROR(L"Failed to create overlay vertex buffer: %ls", err.ErrorMessage());
+			return hr;
+		}
 	}
-	CComPtr<ID3D11RenderTargetView> RTV;
-	// Create a render target view
-	hr = m_Device->CreateRenderTargetView(pBackgroundTexture, nullptr, &RTV);
+	ID3D11RenderTargetView *RTV;
+	{
+		MeasureExecutionTime measure(L"CreateRenderTargetView");
+		// Create a render target view
+		hr = m_Device->CreateRenderTargetView(pCanvasTexture, nullptr, &RTV);
+	}
 	// Set resources
 	FLOAT BlendFactor[4] = { 0.f, 0.f, 0.f, 0.f };
 	UINT Stride = sizeof(VERTEX);
 	UINT Offset = 0;
-	m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBuffer.p, &Stride, &Offset);
-	m_DeviceContext->OMSetBlendState(m_BlendState, BlendFactor, 0xFFFFFFFF);
-	m_DeviceContext->OMSetRenderTargets(1, &RTV.p, nullptr);
-	m_DeviceContext->VSSetShader(m_VertexShader, nullptr, 0);
-	m_DeviceContext->PSSetShader(m_PixelShader, nullptr, 0);
-	m_DeviceContext->PSSetShaderResources(0, 1, &shaderRes.p);
-	m_DeviceContext->PSSetSamplers(0, 1, &m_SamplerLinear);
-	m_DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	// Draw
-	m_DeviceContext->Draw(_countof(Vertices), 0);
+	{
+		MeasureExecutionTime measure(L"IASetVertexBuffers");
+		m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBuffer, &Stride, &Offset);
+	}
+	{
+		MeasureExecutionTime measure(L"OMSetBlendState");
+		m_DeviceContext->OMSetBlendState(m_BlendState, BlendFactor, 0xFFFFFFFF);
+	}
+	{
+		MeasureExecutionTime measure(L"OMSetRenderTargets");
+		m_DeviceContext->OMSetRenderTargets(1, &RTV, nullptr);
+	}
+	{
+		MeasureExecutionTime measure(L"VSSetShader");
+		m_DeviceContext->VSSetShader(m_VertexShader, nullptr, 0);
+	}
+	{
+		MeasureExecutionTime measure(L"PSSetShader");
+		m_DeviceContext->PSSetShader(m_PixelShader, nullptr, 0);
+	}
+	{
+		MeasureExecutionTime measure(L"PSSetShaderResources");
+		m_DeviceContext->PSSetShaderResources(0, 1, &srcSRV);
+	}
+	{
+		MeasureExecutionTime measure(L"PSSetSamplers");
+		m_DeviceContext->PSSetSamplers(0, 1, &m_SamplerLinear);
+	}
+	{
+		MeasureExecutionTime measure(L"IASetPrimitiveTopology");
+		m_DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	}
+	{
+		MeasureExecutionTime measure(L"Draw");
+		// Draw
+		m_DeviceContext->Draw(_countof(Vertices), 0);
+	}
+	{
+		MeasureExecutionTime measure(L"Restore viewport");
+		// Restore view port
+		m_DeviceContext->RSSetViewports(1, &VP);
+	}
+	{
+		MeasureExecutionTime measure(L"Clear shader resource");
+		// Clear shader resource
+		ID3D11ShaderResourceView *null[] = { nullptr };
+		m_DeviceContext->PSSetShaderResources(0, 1, null);
+	}
+	{
+		MeasureExecutionTime measure(L"Clean up");
+		// Clean up
+		VertexBuffer->Release();
+		VertexBuffer = nullptr;
 
-	// Restore view port
-	m_DeviceContext->RSSetViewports(1, &VP);
+		srcSRV->Release();
+		srcSRV = nullptr;
 
-	// Clear shader resource
-	ID3D11ShaderResourceView *null[] = { nullptr, nullptr };
-	m_DeviceContext->PSSetShaderResources(0, 1, null);
+		RTV->Release();
+		RTV = nullptr;
+	}
 	return hr;
 }
 
@@ -607,6 +662,36 @@ HRESULT TextureManager::CopyTextureWithCPU(_In_ ID3D11Device *pDevice, _In_ ID3D
 	RETURN_ON_BAD_HR(hr = pDevice->CreateTexture2D(&mappedTextureDesc, &initData, &pTextureCopy));
 	*ppTextureCopy = pTextureCopy;
 	(*ppTextureCopy)->AddRef();
+	return hr;
+}
+
+HRESULT TextureManager::CreateTextureFromBuffer(BYTE *pFrameBuffer, LONG stride, UINT width, UINT height, ID3D11Texture2D **ppTexture)
+{
+	D3D11_TEXTURE2D_DESC desc = { 0 };
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Usage = D3D11_USAGE_DEFAULT;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.CPUAccessFlags = 0;
+	desc.MiscFlags = 0;
+
+	// Set texture properties
+	desc.Width = width;
+	desc.Height = height;
+
+	// Set up init data
+	D3D11_SUBRESOURCE_DATA initData;
+	ZeroMemory(&initData, sizeof(D3D11_SUBRESOURCE_DATA));
+	initData.pSysMem = pFrameBuffer;
+	initData.SysMemPitch = abs(stride);
+	initData.SysMemSlicePitch = 0;
+
+	// Create overlay as texture
+
+	HRESULT hr = m_Device->CreateTexture2D(&desc, &initData, ppTexture);
 	return hr;
 }
 

@@ -8,5 +8,5 @@ public:
 	~duplication_capture();
 
 private:
-	LPTHREAD_START_ROUTINE GetCaptureThreadProc();
+	LPTHREAD_START_ROUTINE GetCaptureThreadProc() override;
 };

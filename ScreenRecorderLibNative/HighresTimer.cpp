@@ -92,7 +92,6 @@ HRESULT HighresTimer::WaitForNextTick()
 
 	m_LastTick = std::chrono::steady_clock::now();
 	m_TickCount++;
-	LOG_TRACE("HighresTimer tick");
 	return S_OK;
 }
 

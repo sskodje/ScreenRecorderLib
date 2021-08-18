@@ -290,6 +290,7 @@ HRESULT DesktopDuplicationManager::ProcessFrame(_In_ DUPL_FRAME_DATA *pData, _In
 	// Process dirties and moves
 	if (pData->FrameInfo.TotalMetadataBufferSize)
 	{
+		MeasureExecutionTime measure(L"Duplication ProcessFrame");
 		if (sourceRect.has_value() && !EqualRect(&sourceRect.value(), &destinationRect)) {
 			CComPtr<ID3D11Texture2D> processedTexture = pData->Frame;
 
@@ -297,9 +298,6 @@ HRESULT DesktopDuplicationManager::ProcessFrame(_In_ DUPL_FRAME_DATA *pData, _In
 				ID3D11Texture2D *rotatedTexture = nullptr;
 				RETURN_ON_BAD_HR(hr = m_TextureManager->RotateTexture(processedTexture, &rotatedTexture, rotation));
 				processedTexture.Attach(rotatedTexture);
-			}
-			else {
-
 			}
 
 			CComPtr<ID3D11Texture2D> pCroppedTexture = nullptr;
@@ -672,9 +670,17 @@ HRESULT DesktopDuplicationManager::CopyDirty(_In_ ID3D11Texture2D *pSrcSurface, 
 	UINT Offset = 0;
 	m_DeviceContext->IASetVertexBuffers(0, 1, &VertBuf, &Stride, &Offset);
 
+	// Save current view port so we can restore later
+	D3D11_VIEWPORT VP;
+	UINT numViewports = 1;
+	m_DeviceContext->RSGetViewports(&numViewports, &VP);
+
 	SetViewPort(m_DeviceContext, FullDesc.Width, FullDesc.Height);
 
 	m_DeviceContext->Draw(NUMVERTICES * dirtyCount, 0);
+
+	// Restore view port
+	m_DeviceContext->RSSetViewports(1, &VP);
 
 	// Clear shader resource
 	ID3D11ShaderResourceView *null[] = { nullptr, nullptr };

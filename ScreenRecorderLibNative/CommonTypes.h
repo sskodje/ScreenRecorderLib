@@ -29,19 +29,6 @@ struct PTR_INFO
 };
 
 //
-// FRAME_INFO holds information about an acquired generic frame
-//
-struct FRAME_INFO
-{
-	_Field_size_bytes_(BufferSize) BYTE *PtrFrameBuffer;
-	UINT BufferSize;
-	LONG Stride;
-	UINT Width;
-	UINT Height;
-	LARGE_INTEGER LastTimeStamp;
-};
-
-//
 // A vertex with a position and texture coordinate
 //
 struct VERTEX
@@ -84,17 +71,23 @@ struct DX_RESOURCES
 };
 
 //
-// CAPTURED_FRAME holds information about a generic captured frame
+// FRAME_BASE holds the base info about a generic frame
 //
-struct CAPTURED_FRAME
+struct FRAME_BASE {
+	ID3D11Texture2D *Frame;
+	//LARGE_INTEGER Timestamp;
+};
+
+//
+// CAPTURED_FRAME holds information about a merged output frame with overlays
+//
+struct CAPTURED_FRAME : public FRAME_BASE
 {
 	PTR_INFO *PtrInfo;
-	ID3D11Texture2D *Frame;
 	//The number of updates written to the current frame since last fetch.
 	int FrameUpdateCount;
 	//The number of updates written to the frame overlays since last fetch.
 	int OverlayUpdateCount;
-	LARGE_INTEGER Timestamp;
 };
 
 enum class RecorderModeInternal {
@@ -205,19 +198,35 @@ struct RECORDING_SOURCE
 };
 
 struct RECORDING_SOURCE_DATA :RECORDING_SOURCE {
-	INT OffsetX{};
-	INT OffsetY{};
+	INT OffsetX;
+	INT OffsetY;
 	/// <summary>
-	/// Describes the position and size of this recording source within the combined recording surface.
+	/// Describes the position and size of this recording source within the recording surface.
 	/// </summary>
-	RECT FrameCoordinates{};
-	DX_RESOURCES DxRes{};
+	RECT FrameCoordinates;
+	DX_RESOURCES DxRes;
+	//FRAME_BASE *FrameInfo;
 
 	RECORDING_SOURCE_DATA() :
 		OffsetX(0),
 		OffsetY(0),
-		DxRes{}{}
-	RECORDING_SOURCE_DATA(const RECORDING_SOURCE &source) :RECORDING_SOURCE(source) {}
+		DxRes{},
+		FrameCoordinates{}
+		//FrameInfo{ nullptr }
+	{
+
+	}
+
+	RECORDING_SOURCE_DATA(const RECORDING_SOURCE &source) :
+		RECORDING_SOURCE(source),
+		OffsetX(0),
+		OffsetY(0),
+		DxRes{},
+		FrameCoordinates{}
+		//FrameInfo{ nullptr }{}
+	{
+
+	}
 };
 
 
@@ -246,7 +255,6 @@ struct RECORDING_OVERLAY
 
 struct RECORDING_OVERLAY_DATA :RECORDING_OVERLAY
 {
-	FRAME_INFO *FrameInfo{};
 	DX_RESOURCES DxRes{};
 	RECORDING_OVERLAY_DATA() {}
 	RECORDING_OVERLAY_DATA(const RECORDING_OVERLAY &overlay) :RECORDING_OVERLAY(overlay) {}
@@ -265,8 +273,10 @@ struct THREAD_DATA_BASE
 	HANDLE TerminateThreadsEvent{};
 	LARGE_INTEGER LastUpdateTimeStamp{};
 	HRESULT ThreadResult{ E_FAIL };
-	//Handle to shared texture
-	HANDLE TexSharedHandle{};
+	////Handle to shared texture
+	//HANDLE TexSharedHandle{};
+	FRAME_BASE *FrameInfo{};
+	HANDLE Mutex{};
 };
 
 //
@@ -275,10 +285,10 @@ struct THREAD_DATA_BASE
 struct CAPTURE_THREAD_DATA :THREAD_DATA_BASE
 {
 
-	RECORDING_SOURCE_DATA *RecordingSource{};
-	INT UpdatedFrameCountSinceLastWrite{};
+	RECORDING_SOURCE_DATA *RecordingSource{ nullptr };
+	//INT UpdatedFrameCountSinceLastWrite{};
 	INT64 TotalUpdatedFrameCount{};
-	PTR_INFO *PtrInfo{};
+	PTR_INFO *PtrInfo{ nullptr };
 };
 
 //

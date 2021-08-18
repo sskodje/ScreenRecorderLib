@@ -2,6 +2,8 @@
 #include <Mferror.h>
 #include "Cleanup.h"
 
+using namespace std;
+
 SourceReaderBase::SourceReaderBase() :
 	m_Sample{ nullptr },
 	m_Device(nullptr),
@@ -18,7 +20,10 @@ SourceReaderBase::SourceReaderBase() :
 	m_OutputMediaType(nullptr),
 	m_InputMediaType(nullptr),
 	m_SourceReader(nullptr),
-	m_MediaTransform(nullptr)
+	m_MediaTransform(nullptr),
+	m_TextureManager(nullptr),
+	m_BufferSize(0),
+	m_PtrFrameBuffer(nullptr)
 {
 	InitializeCriticalSection(&m_CriticalSection);
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -39,6 +44,9 @@ SourceReaderBase::~SourceReaderBase()
 	CloseHandle(m_CaptureStoppedEvent);
 	LeaveCriticalSection(&m_CriticalSection);
 	DeleteCriticalSection(&m_CriticalSection);
+
+	delete[] m_PtrFrameBuffer;
+	m_PtrFrameBuffer = nullptr;
 }
 
 HRESULT SourceReaderBase::StartCapture(_In_ std::wstring source)
@@ -76,30 +84,33 @@ void SourceReaderBase::Close()
 	LOG_DEBUG("Closed source reader");
 }
 
-HRESULT SourceReaderBase::GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int timeoutMs)
+HRESULT SourceReaderBase::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_ ID3D11Texture2D **ppFrame)
 {
-	DWORD result = WaitForSingleObject(m_NewFrameEvent, timeoutMs);
+	DWORD result = WaitForSingleObject(m_NewFrameEvent, timeoutMillis);
 	HRESULT hr;
 	if (result == WAIT_OBJECT_0) {
 		EnterCriticalSection(&m_CriticalSection);
 		LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"GetFrameBuffer");
+
+
 		DWORD len;
 		BYTE *data;
 		hr = m_Sample->Lock(&data, NULL, &len);
 		if (FAILED(hr))
 		{
-			delete[] pFrameInfo->PtrFrameBuffer;
-			pFrameInfo->PtrFrameBuffer = nullptr;
+			delete[] m_PtrFrameBuffer;
+			m_PtrFrameBuffer = nullptr;
+			return hr;
 		}
 		if (SUCCEEDED(hr)) {
-			hr = ResizeFrameBuffer(pFrameInfo, len);
-		}
-		if (SUCCEEDED(hr)) {
+			hr = ResizeFrameBuffer(len);
+
+			//if (SUCCEEDED(hr)) {
 			QueryPerformanceCounter(&m_LastGrabTimeStamp);
 			int bytesPerPixel = abs(m_Stride) / m_FrameSize.cx;
 			//Copy the bitmap buffer, with handling of negative stride. https://docs.microsoft.com/en-us/windows/win32/medfound/image-stride
 			hr = MFCopyImage(
-				pFrameInfo->PtrFrameBuffer,       // Destination buffer.
+				m_PtrFrameBuffer,       // Destination buffer.
 				abs(m_Stride),                    // Destination stride. We use the absolute value to flip bitmaps with negative stride. 
 				m_Stride > 0 ? data : data + (m_FrameSize.cy - 1) * abs(m_Stride), // First row in source image with positive stride, or the last row with negative stride.
 				m_Stride,						  // Source stride.
@@ -107,10 +118,18 @@ HRESULT SourceReaderBase::GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int time
 				m_FrameSize.cy						  // Image height in pixels.
 			);
 
-			pFrameInfo->Stride = abs(m_Stride);
-			pFrameInfo->LastTimeStamp = m_LastGrabTimeStamp;
-			pFrameInfo->Width = m_FrameSize.cx;
-			pFrameInfo->Height = m_FrameSize.cy;
+			//pFrameInfo->Stride = abs(m_Stride);
+			//pFrame->Timestamp = m_LastGrabTimeStamp;
+			//pFrameInfo->Width = m_FrameSize.cx;
+			//pFrameInfo->Height = m_FrameSize.cy;
+			//SafeRelease(&pFrame->Frame);
+			CComPtr<ID3D11Texture2D> pTexture;
+			hr = m_TextureManager->CreateTextureFromBuffer(m_PtrFrameBuffer, m_Stride, m_FrameSize.cx, m_FrameSize.cy, &pTexture);
+			if (SUCCEEDED(hr)) {
+				*ppFrame = pTexture;
+				(*ppFrame)->AddRef();
+			}
+			//}
 		}
 	}
 	else if (result == WAIT_TIMEOUT) {
@@ -124,36 +143,39 @@ HRESULT SourceReaderBase::GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int time
 	return hr;
 }
 
-HRESULT SourceReaderBase::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize) {
+HRESULT SourceReaderBase::ResizeFrameBuffer(UINT bufferSize) {
 	// Old buffer too small
-	if (bufferSize > (int)FrameInfo->BufferSize)
+	if (bufferSize > m_BufferSize)
 	{
-		if (FrameInfo->PtrFrameBuffer)
+		if (m_PtrFrameBuffer)
 		{
-			delete[] FrameInfo->PtrFrameBuffer;
-			FrameInfo->PtrFrameBuffer = nullptr;
+			delete[] m_PtrFrameBuffer;
+			m_PtrFrameBuffer = nullptr;
 		}
-		FrameInfo->PtrFrameBuffer = new (std::nothrow) BYTE[bufferSize];
-		if (!FrameInfo->PtrFrameBuffer)
+		m_PtrFrameBuffer = new (std::nothrow) BYTE[bufferSize];
+		if (!m_PtrFrameBuffer)
 		{
-			FrameInfo->BufferSize = 0;
+			m_BufferSize = 0;
 			LOG_ERROR(L"Failed to allocate memory for frame");
 			return E_OUTOFMEMORY;
 		}
 
 		// Update buffer size
-		FrameInfo->BufferSize = bufferSize;
+		m_BufferSize = bufferSize;
 	}
 	return S_OK;
 }
 
-HRESULT SourceReaderBase::Initialize(_In_ DX_RESOURCES *Data)
+HRESULT SourceReaderBase::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice)
 {
-	m_Device = Data->Device;
-	m_DeviceContext = Data->Context;
+	m_Device = pDevice;
+	m_DeviceContext = pDeviceContext;
 
 	m_Device->AddRef();
 	m_DeviceContext->AddRef();
+
+	m_TextureManager = make_unique<TextureManager>();
+	m_TextureManager->Initialize(m_DeviceContext, m_Device);
 	return S_OK;
 }
 

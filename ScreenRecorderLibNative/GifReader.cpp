@@ -94,9 +94,9 @@ HRESULT GifReader::StopCapture()
 	return S_OK;
 }
 
-HRESULT GifReader::GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int timeoutMs)
+HRESULT GifReader::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_ ID3D11Texture2D **ppFrame)
 {
-	DWORD result = WaitForSingleObject(m_NewFrameEvent, timeoutMs);
+	DWORD result = WaitForSingleObject(m_NewFrameEvent, timeoutMillis);
 	HRESULT hr;
 	if (result == WAIT_OBJECT_0) {
 		EnterCriticalSection(&m_CriticalSection);
@@ -105,43 +105,50 @@ HRESULT GifReader::GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int timeoutMs)
 		D3D11_TEXTURE2D_DESC desc;
 		m_RenderTexture->GetDesc(&desc);
 		desc.BindFlags = 0;
-		desc.MiscFlags &= D3D11_RESOURCE_MISC_TEXTURECUBE;
-		desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+		desc.MiscFlags = 0;
+		//desc.MiscFlags &= D3D11_RESOURCE_MISC_TEXTURECUBE;
+		//desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 		desc.Usage = D3D11_USAGE_STAGING;
 		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pStagingTexture));
 		m_DeviceContext->CopyResource(pStagingTexture, m_RenderTexture);
-		D3D11_MAPPED_SUBRESOURCE mapped;
-		RETURN_ON_BAD_HR(hr = m_DeviceContext->Map(pStagingTexture, 0, D3D11_MAP_READ, 0, &mapped));
-		auto data = (BYTE *)mapped.pData;
-		auto stride = mapped.RowPitch;
-		UINT len = m_cyGifImagePixel * stride;
-		if (FAILED(hr))
-		{
-			delete[] pFrameInfo->PtrFrameBuffer;
-			pFrameInfo->PtrFrameBuffer = nullptr;
-		}
-		if (SUCCEEDED(hr)) {
-			hr = ResizeFrameBuffer(pFrameInfo, len);
-		}
-		if (SUCCEEDED(hr)) {
-			double bytesPerPixel = stride / (double)m_cxGifImagePixel;
-			//Copy the bitmap buffer, with handling of negative stride. https://docs.microsoft.com/en-us/windows/win32/medfound/image-stride
-			hr = MFCopyImage(
-				pFrameInfo->PtrFrameBuffer,       // Destination buffer.
-				stride,                    // Destination stride. We use the absolute value to flip bitmaps with negative stride. 
-				stride > 0 ? (BYTE *)data : (BYTE *)data + (m_cyGifImagePixel - 1) * stride, // First row in source image with positive stride, or the last row with negative stride.
-				stride,						  // Source stride.
-				round(bytesPerPixel * m_cxGifImagePixel),	      // Image width in bytes.
-				m_cyGifImagePixel						  // Image height in pixels.
-			);
 
-			QueryPerformanceCounter(&m_LastGrabTimeStamp);
-			pFrameInfo->Stride = stride;
-			pFrameInfo->LastTimeStamp = m_LastGrabTimeStamp;
-			pFrameInfo->Width = m_cxGifImagePixel;
-			pFrameInfo->Height = m_cyGifImagePixel;
-		}
-		m_DeviceContext->Unmap(pStagingTexture, 0);
+		//D3D11_MAPPED_SUBRESOURCE mapped;
+		//RETURN_ON_BAD_HR(hr = m_DeviceContext->Map(pStagingTexture, 0, D3D11_MAP_READ, 0, &mapped));
+		//auto data = (BYTE *)mapped.pData;
+		//auto stride = mapped.RowPitch;
+		//UINT len = m_cyGifImagePixel * stride;
+		//if (FAILED(hr))
+		//{
+		//	delete[] pFrameInfo->PtrFrameBuffer;
+		//	pFrameInfo->PtrFrameBuffer = nullptr;
+		//}
+		//if (SUCCEEDED(hr)) {
+		//	hr = ResizeFrameBuffer(pFrameInfo, len);
+		//}
+		//if (SUCCEEDED(hr)) {
+		//	double bytesPerPixel = stride / (double)m_cxGifImagePixel;
+		//	//Copy the bitmap buffer, with handling of negative stride. https://docs.microsoft.com/en-us/windows/win32/medfound/image-stride
+		//	hr = MFCopyImage(
+		//		pFrameInfo->PtrFrameBuffer,       // Destination buffer.
+		//		stride,                    // Destination stride. We use the absolute value to flip bitmaps with negative stride. 
+		//		stride > 0 ? (BYTE *)data : (BYTE *)data + (m_cyGifImagePixel - 1) * stride, // First row in source image with positive stride, or the last row with negative stride.
+		//		stride,						  // Source stride.
+		//		round(bytesPerPixel * m_cxGifImagePixel),	      // Image width in bytes.
+		//		m_cyGifImagePixel						  // Image height in pixels.
+		//	);
+
+		//	QueryPerformanceCounter(&m_LastGrabTimeStamp);
+		//	pFrameInfo->Stride = stride;
+		//	pFrameInfo->LastTimeStamp = m_LastGrabTimeStamp;
+		//	pFrameInfo->Width = m_cxGifImagePixel;
+		//	pFrameInfo->Height = m_cyGifImagePixel;
+		//}
+		//m_DeviceContext->Unmap(pStagingTexture, 0);
+
+		//SafeRelease(&pFrame->Frame);
+		//pFrame->Timestamp = m_LastGrabTimeStamp;
+		*ppFrame = pStagingTexture;
+		(*ppFrame)->AddRef();
 		LOG_TRACE("Got GIF frame buffer");
 	}
 	else if (result == WAIT_TIMEOUT) {
@@ -155,33 +162,33 @@ HRESULT GifReader::GetFrame(_Inout_ FRAME_INFO *pFrameInfo, _In_ int timeoutMs)
 	return hr;
 }
 
-HRESULT GifReader::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize) {
-	// Old buffer too small
-	if (bufferSize > (int)FrameInfo->BufferSize)
-	{
-		if (FrameInfo->PtrFrameBuffer)
-		{
-			delete[] FrameInfo->PtrFrameBuffer;
-			FrameInfo->PtrFrameBuffer = nullptr;
-		}
-		FrameInfo->PtrFrameBuffer = new (std::nothrow) BYTE[bufferSize];
-		if (!FrameInfo->PtrFrameBuffer)
-		{
-			FrameInfo->BufferSize = 0;
-			LOG_ERROR(L"Failed to allocate memory for frame");
-			return E_OUTOFMEMORY;
-		}
+//HRESULT GifReader::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize) {
+//	// Old buffer too small
+//	if (bufferSize > (int)FrameInfo->BufferSize)
+//	{
+//		if (FrameInfo->PtrFrameBuffer)
+//		{
+//			delete[] FrameInfo->PtrFrameBuffer;
+//			FrameInfo->PtrFrameBuffer = nullptr;
+//		}
+//		FrameInfo->PtrFrameBuffer = new (std::nothrow) BYTE[bufferSize];
+//		if (!FrameInfo->PtrFrameBuffer)
+//		{
+//			FrameInfo->BufferSize = 0;
+//			LOG_ERROR(L"Failed to allocate memory for frame");
+//			return E_OUTOFMEMORY;
+//		}
+//
+//		// Update buffer size
+//		FrameInfo->BufferSize = bufferSize;
+//	}
+//	return S_OK;
+//}
 
-		// Update buffer size
-		FrameInfo->BufferSize = bufferSize;
-	}
-	return S_OK;
-}
-
-HRESULT GifReader::Initialize(_In_ DX_RESOURCES *Data)
+HRESULT GifReader::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice)
 {
-	m_Device = Data->Device;
-	m_DeviceContext = Data->Context;
+	m_Device = pDevice;
+	m_DeviceContext = pDeviceContext;
 
 	m_Device->AddRef();
 	m_DeviceContext->AddRef();

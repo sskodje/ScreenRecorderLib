@@ -43,9 +43,9 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	MouseManager pMouseManager{};
 	WindowsGraphicsManager graphicsManager{};
 	GraphicsCaptureItem captureItem{ nullptr };
-	// D3D objects
-	ID3D11Texture2D *SharedSurf = nullptr;
-	IDXGIKeyedMutex *KeyMutex = nullptr;
+	//// D3D objects
+	//ID3D11Texture2D *SharedSurf = nullptr;
+	//IDXGIKeyedMutex *KeyMutex = nullptr;
 
 	bool isExpectedError = false;
 	bool isUnexpectedError = false;
@@ -53,6 +53,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	// Data passed in from thread creation
 	CAPTURE_THREAD_DATA *pData = reinterpret_cast<CAPTURE_THREAD_DATA *>(Param);
 	RECORDING_SOURCE_DATA *pSource = pData->RecordingSource;
+	FRAME_BASE *pFrameInfo = pData->FrameInfo;
 	GRAPHICS_FRAME_DATA CurrentData{};
 
 
@@ -81,21 +82,22 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	//This scope must be here for ReleaseOnExit to work.
 	{
 		pMouseManager.Initialize(pSource->DxRes.Context, pSource->DxRes.Device, std::make_shared<MOUSE_OPTIONS>());
-		// Obtain handle to sync shared Surface
-		hr = pSource->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Opening shared texture failed");
-			goto Exit;
-		}
-		ReleaseOnExit releaseSharedSurf(SharedSurf);
-		hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&KeyMutex));
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");
-			goto Exit;
-		}
-		ReleaseOnExit releaseMutex(KeyMutex);
+		//// Obtain handle to sync shared Surface
+		//hr = pSource->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
+		//if (FAILED(hr))
+		//{
+		//	LOG_ERROR(L"Opening shared texture failed");
+		//	goto Exit;
+		//}
+		//ReleaseOnExit releaseSharedSurf(SharedSurf);
+		//hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&KeyMutex));
+		//if (FAILED(hr))
+		//{
+		//	LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");
+		//	goto Exit;
+		//}
+
+		//ReleaseOnExit releaseMutex(KeyMutex);
 		// Initialize graphics manager.
 		hr = graphicsManager.Initialize(&pSource->DxRes, captureItem, pSource->IsCursorCaptureEnabled, DirectXPixelFormat::B8G8R8A8UIntNormalized);
 
@@ -103,8 +105,8 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 		{
 			goto Exit;
 		}
-		D3D11_TEXTURE2D_DESC outputDesc;
-		SharedSurf->GetDesc(&outputDesc);
+		//D3D11_TEXTURE2D_DESC outputDesc;
+		//pFrameInfo->Frame->GetDesc(&outputDesc);
 
 		// Main capture loop
 		bool WaitToProcessCurrentFrame = false;
@@ -140,10 +142,13 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				}
 			}
 			{
-				MeasureExecutionTime measure(L"Duplication CaptureThreadProc wait for sync");
+				MeasureExecutionTime measure(L"WGC CaptureThreadProc wait for sync");
 				// We have a new frame so try and process it
 				// Try to acquire keyed mutex in order to access shared surface
-				hr = KeyMutex->AcquireSync(0, 10);
+				//hr = KeyMutex->AcquireSync(0, 1000);
+				if (WaitForSingleObject(pData->Mutex, 1000) != WAIT_OBJECT_0) {
+					hr = WAIT_TIMEOUT;
+				}
 			}
 			if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
 			{
@@ -158,7 +163,8 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				break;
 			}
 
-			ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
+			//ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
+			ReleaseMutexHandleOnExit releaseMutex(pData->Mutex);
 
 			// We can now process the current frame
 			WaitToProcessCurrentFrame = false;
@@ -166,14 +172,29 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			// Get mouse info. Windows Graphics Capture includes the mouse cursor on the texture, so we only get the positioning info for mouse click draws.
 			hr = pMouseManager.GetMouse(pData->PtrInfo, false, pSource->OffsetX, pSource->OffsetY);
 
+			D3D11_TEXTURE2D_DESC desc;
+			CurrentData.Frame->GetDesc(&desc);
+
+			if (pFrameInfo->Frame == nullptr) {
+				desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+				desc.SampleDesc.Count = 1;
+				desc.Usage = D3D11_USAGE_DEFAULT;
+				desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+				desc.CPUAccessFlags = 0;
+				desc.MiscFlags = 0;
+				//SafeRelease(&pData->FrameInfo->Frame);
+				//CComPtr<ID3D11Texture2D> tex;
+				pSource->DxRes.Device->CreateTexture2D(&desc, nullptr, &pFrameInfo->Frame);
+			}
+			RECT coordinates = RECT{ 0,0,(LONG)desc.Width,(LONG)desc.Height };
 			// Process new frame
-			hr = graphicsManager.ProcessFrame(&CurrentData, SharedSurf, pSource->OffsetX, pSource->OffsetY, pData->RecordingSource->FrameCoordinates, pSource->SourceRect);
+			hr = graphicsManager.ProcessFrame(&CurrentData, pFrameInfo->Frame, pSource->OffsetX, pSource->OffsetY, coordinates, pSource->SourceRect);
 			if (FAILED(hr))
 			{
 				break;
 			}
 
-			pData->UpdatedFrameCountSinceLastWrite++;
+			//pData->UpdatedFrameCountSinceLastWrite++;
 			pData->TotalUpdatedFrameCount++;
 
 			QueryPerformanceCounter(&pData->LastUpdateTimeStamp);

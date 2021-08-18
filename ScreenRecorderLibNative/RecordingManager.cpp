@@ -431,6 +431,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 	INT64 lastFrameStartPos = 0;
 	bool havePrematureFrame = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
+	INT64 minimumTimeForDelay100Nanons = 5000;//0.5ms
 
 	auto IsTimeToTakeSnapshot([&]()
 	{
@@ -570,7 +571,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 						delay100Nanos = max(0, m_MaxFrameLength100Nanos - durationSinceLastFrame100Nanos);
 					}
 			}
-			if (delay100Nanos > 0) {
+			if (delay100Nanos > minimumTimeForDelay100Nanons) {
 				if (delay100Nanos > MillisToHundredNanos(2)) {
 					MeasureExecutionTime measureSleep(L"DelayRender");
 					Sleep(1);

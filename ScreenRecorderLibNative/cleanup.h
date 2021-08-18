@@ -7,6 +7,7 @@
 #include "WindowsGraphicsCapture.h"
 #include "DesktopDuplicationManager.h"
 #include "SourceReaderBase.h"
+//#include <mutex>
 template <class T> void SafeRelease(T **ppT)
 {
 	if (*ppT)
@@ -177,6 +178,17 @@ private:
 	void *m_p;
 };
 
+class DeleteArrayOnExit {
+public:
+	DeleteArrayOnExit(void *p) : m_p(p) {}
+	~DeleteArrayOnExit() {
+		delete[] m_p;
+	}
+
+private:
+	void *m_p;
+};
+
 class DeleteGdiObjectOnExit {
 public:
 	DeleteGdiObjectOnExit(HGDIOBJ p) : m_p(p) {}
@@ -263,6 +275,22 @@ public:
 private:
 	IDXGIKeyedMutex *m_p;
 	UINT64 m_key;
+};
+
+class ReleaseMutexHandleOnExit {
+public:
+	ReleaseMutexHandleOnExit(HANDLE p) : m_p(p) {}
+	~ReleaseMutexHandleOnExit() {
+
+		if (m_p) {
+			if (!ReleaseMutex(m_p)) {
+				LOG_ERROR(L"Failed to release mutex");
+			}
+		}
+	}
+
+private:
+	HANDLE m_p;
 };
 
 class ReleaseDuplicationManagerFrameOnExit {

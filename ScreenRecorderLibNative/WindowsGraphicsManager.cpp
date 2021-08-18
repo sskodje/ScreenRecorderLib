@@ -171,9 +171,9 @@ HRESULT WindowsGraphicsManager::BlankFrame(_Inout_ ID3D11Texture2D *pSharedSurf,
 
 HRESULT WindowsGraphicsManager::GetFrame(_Inout_ GRAPHICS_FRAME_DATA *pData)
 {
-	MeasureExecutionTime measureGetFrame(L"WindowsGraphicsManager::GetFrame");
 	Direct3D11CaptureFrame frame = m_framePool.TryGetNextFrame();
 	if (frame) {
+		MeasureExecutionTime measureGetFrame(L"WindowsGraphicsManager::GetFrame");
 		auto surfaceTexture = Graphics::Capture::Util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
 		D3D11_TEXTURE2D_DESC desc;
 		surfaceTexture->GetDesc(&desc);
