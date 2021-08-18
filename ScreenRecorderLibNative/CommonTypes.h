@@ -255,6 +255,7 @@ struct RECORDING_OVERLAY
 
 struct RECORDING_OVERLAY_DATA :RECORDING_OVERLAY
 {
+	FRAME_BASE *FrameInfo{nullptr};
 	DX_RESOURCES DxRes{};
 	RECORDING_OVERLAY_DATA() {}
 	RECORDING_OVERLAY_DATA(const RECORDING_OVERLAY &overlay) :RECORDING_OVERLAY(overlay) {}
@@ -274,9 +275,7 @@ struct THREAD_DATA_BASE
 	LARGE_INTEGER LastUpdateTimeStamp{};
 	HRESULT ThreadResult{ E_FAIL };
 	////Handle to shared texture
-	//HANDLE TexSharedHandle{};
-	FRAME_BASE *FrameInfo{};
-	HANDLE Mutex{};
+	HANDLE TexSharedHandle{};
 };
 
 //
@@ -286,7 +285,7 @@ struct CAPTURE_THREAD_DATA :THREAD_DATA_BASE
 {
 
 	RECORDING_SOURCE_DATA *RecordingSource{ nullptr };
-	//INT UpdatedFrameCountSinceLastWrite{};
+	INT UpdatedFrameCountSinceLastWrite{};
 	INT64 TotalUpdatedFrameCount{};
 	PTR_INFO *PtrInfo{ nullptr };
 };
