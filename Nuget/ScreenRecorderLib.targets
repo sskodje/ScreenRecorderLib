@@ -6,30 +6,4 @@
     <Error  Text="$(MSBuildThisFileName) does not work correctly on '$(Platform)' platform. You need to specify platform (x86, Win32 or x64)." />
   </Target>
 
-  <Target Name="InjectReference" BeforeTargets="ResolveAssemblyReferences">
-  <ItemGroup>
-    <Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'x86'">
-      <HintPath>$(MSBuildThisFileDirectory)x86\ScreenRecorderLib.dll</HintPath>
-    </Reference>
-	<Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'Win32'">
-      <HintPath>$(MSBuildThisFileDirectory)x86\ScreenRecorderLib.dll</HintPath>
-    </Reference>
-    <Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'x64'">
-      <HintPath>$(MSBuildThisFileDirectory)x64\ScreenRecorderLib.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
-    <ItemGroup Condition="'$(Language)' == 'C++'">
-      <Content Include="$(MSBuildThisFileDirectory)\$(Platform)\*.*">
-        <Link>%(RecursiveDir)%(FileName)%(Extension)</Link>
-      </Content>
-    </ItemGroup>
-  </Target>
-  <Target Name="CopyLinkedContentFiles" BeforeTargets="Build">
-    <Copy SourceFiles="%(Content.Identity)"
-			  DestinationFiles="%(Content.Link)"
-			  SkipUnchangedFiles='true'
-			  OverwriteReadOnlyFiles='true'
-			  Condition="'%(Content.Link)' != ''" />
-  </Target>
 </Project>
