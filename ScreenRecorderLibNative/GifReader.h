@@ -14,6 +14,7 @@ public:
 	GifReader();
 	~GifReader();
 	virtual HRESULT StartCapture(_In_ std::wstring source) override;
+	virtual HRESULT GetNativeSize(_In_ std::wstring source, _Out_ SIZE *nativeMediaSize) override;
 	virtual HRESULT StopCapture();
 	virtual HRESULT AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_ ID3D11Texture2D **ppFrame) override;
 	virtual HRESULT Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice) override;
@@ -26,7 +27,7 @@ private:
 		DM_BACKGROUND = 2,
 		DM_PREVIOUS = 3
 	};
-	HRESULT Initialize();
+	HRESULT InitializeDecoder(_In_ std::wstring source);
 	HRESULT CreateDeviceResources();
 	//HRESULT ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize);
 

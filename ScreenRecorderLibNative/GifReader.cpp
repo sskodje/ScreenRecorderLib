@@ -41,43 +41,25 @@ GifReader::~GifReader()
 HRESULT GifReader::StartCapture(_In_ std::wstring source)
 {
 	HRESULT hr;
-	RETURN_ON_BAD_HR(hr = Initialize());
+	RETURN_ON_BAD_HR(hr = InitializeDecoder(source));
 
-	// Reset the states
-	m_uNextFrameIndex = 0;
-	m_uFrameDisposal = DM_NONE;  // No previous frame, use disposal none
-	m_uLoopNumber = 0;
-	m_fHasLoop = FALSE;
-	SafeRelease(&m_pSavedFrame);
-
-	// Create a decoder for the gif file
-	SafeRelease(&m_pDecoder);
-	hr = m_pIWICFactory->CreateDecoderFromFilename(
-		source.c_str(),
-		NULL,
-		GENERIC_READ,
-		WICDecodeMetadataCacheOnLoad,
-		&m_pDecoder);
-	if (SUCCEEDED(hr))
+	// If we have at least one frame, start playing
+	// the animation from the first frame
+	if (m_cFrames > 0)
 	{
-		hr = GetGlobalMetadata();
+		hr = StartCaptureLoop();
 	}
 
-	if (SUCCEEDED(hr))
-	{
-		hr = CreateDeviceResources();
-	}
+	return hr;
+}
 
-	if (SUCCEEDED(hr))
-	{
-		// If we have at least one frame, start playing
-		// the animation from the first frame
-		if (m_cFrames > 0)
-		{
-			hr = StartCaptureLoop();
-		}
+HRESULT GifReader::GetNativeSize(_In_ std::wstring source, _Out_ SIZE *nativeMediaSize)
+{
+	HRESULT hr = S_OK;
+	if (m_cxGifImage == 0 || m_cyGifImage == 0) {
+		RETURN_ON_BAD_HR(hr = InitializeDecoder(source));
 	}
-
+	*nativeMediaSize = SIZE{ static_cast<LONG>(m_cxGifImage) , static_cast<LONG>(m_cyGifImage) };
 	return hr;
 }
 
@@ -195,9 +177,17 @@ HRESULT GifReader::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3
 	return S_OK;
 }
 
-HRESULT GifReader::Initialize()
+HRESULT GifReader::InitializeDecoder(_In_ std::wstring source)
 {
 	HRESULT hr = S_OK;
+
+	// Reset the states
+	m_uNextFrameIndex = 0;
+	m_uFrameDisposal = DM_NONE;  // No previous frame, use disposal none
+	m_uLoopNumber = 0;
+	m_fHasLoop = FALSE;
+	SafeRelease(&m_pSavedFrame);
+
 	if (!m_pD2DFactory) {
 		// Create D2D factory
 		RETURN_ON_BAD_HR(hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), (void **)&m_pD2DFactory));
@@ -211,6 +201,25 @@ HRESULT GifReader::Initialize()
 			IID_PPV_ARGS(&m_pIWICFactory));
 
 	}
+
+	// Create a decoder for the gif file
+	SafeRelease(&m_pDecoder);
+	hr = m_pIWICFactory->CreateDecoderFromFilename(
+		source.c_str(),
+		NULL,
+		GENERIC_READ,
+		WICDecodeMetadataCacheOnLoad,
+		&m_pDecoder);
+	if (SUCCEEDED(hr))
+	{
+		hr = GetGlobalMetadata();
+	}
+
+	if (SUCCEEDED(hr))
+	{
+		hr = CreateDeviceResources();
+	}
+
 	return hr;
 }
 

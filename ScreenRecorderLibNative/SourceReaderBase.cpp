@@ -66,6 +66,15 @@ HRESULT SourceReaderBase::StartCapture(_In_ std::wstring source)
 	return hr;
 }
 
+HRESULT SourceReaderBase::GetNativeSize(_In_ std::wstring source, _Out_ SIZE *nativeMediaSize)
+{
+	if (!m_InputMediaType) {
+		long streamIndex;
+		RETURN_ON_BAD_HR(InitializeSourceReader(source, &streamIndex, &m_SourceReader, &m_InputMediaType, &m_OutputMediaType, &m_MediaTransform));
+	}
+	return GetFrameSize(m_InputMediaType, nativeMediaSize);
+}
+
 void SourceReaderBase::Close()
 {
 	EnterCriticalSection(&m_CriticalSection);
