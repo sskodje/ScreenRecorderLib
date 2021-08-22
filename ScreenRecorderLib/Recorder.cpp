@@ -277,7 +277,8 @@ OutputDimensions^ ScreenRecorderLib::Recorder::GetOutputDimensionsForRecordingSo
 				if (isinst<WindowRecordingSource^>(recordingSource)) {
 					WindowRecordingSource^ windowRecordingSource = (WindowRecordingSource^)recordingSource;
 					HWND hwnd = (HWND)windowRecordingSource->Handle.ToPointer();
-					if (hwnd == nativeSource.WindowHandle) {
+					HWND nativeSourceHwnd = static_cast<HWND>(nativeSource.Source);
+					if (hwnd == nativeSourceHwnd) {
 						outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
 					}
 				}
@@ -288,7 +289,8 @@ OutputDimensions^ ScreenRecorderLib::Recorder::GetOutputDimensionsForRecordingSo
 			{
 				if (isinst<DisplayRecordingSource^>(recordingSource)) {
 					DisplayRecordingSource^ displayRecordingSource = (DisplayRecordingSource^)recordingSource;
-					if ((gcnew String(nativeSource.CaptureDevice.c_str()))->Equals(displayRecordingSource->DeviceName)) {
+					std::wstring nativeSourceDevice = *static_cast<std::wstring*>(nativeSource.Source);
+					if ((gcnew String(nativeSourceDevice.c_str()))->Equals(displayRecordingSource->DeviceName)) {
 						outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
 					}
 				}
@@ -391,7 +393,7 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(IEnumerable<Re
 						if (SUCCEEDED(hr)) {
 							RECORDING_SOURCE source{};
 							source.Type = RecordingSourceType::Display;
-							source.CaptureDevice = desc.DeviceName;
+							source.Source = new std::wstring(desc.DeviceName);
 							if (displaySource->SourceRect
 								&& displaySource->SourceRect != ScreenRect::Empty
 								&& displaySource->SourceRect->Right > displaySource->SourceRect->Left
@@ -433,7 +435,7 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(IEnumerable<Re
 					if (!IsIconic(windowHandle) && IsWindow(windowHandle)) {
 						RECORDING_SOURCE source{};
 						source.Type = RecordingSourceType::Window;
-						source.WindowHandle = windowHandle;
+						source.Source = windowHandle;
 						if (windowSource->OutputSize
 							&& windowSource->OutputSize != ScreenSize::Empty
 							&& windowSource->OutputSize->Width > 0

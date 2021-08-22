@@ -136,20 +136,22 @@ HRESULT GetOutputRectsForRecordingSources(_In_ std::vector<RECORDING_SOURCE> sou
 		switch (source.Type)
 		{
 		case RecordingSourceType::Display: {
-				// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
-				CComPtr<IDXGIOutput> output;
-				HRESULT hr = GetOutputForDeviceName(source.CaptureDevice, &output);
-				if (FAILED(hr))
-				{
-					LOG_ERROR(L"Failed to get output descs for selected devices");
-					return hr;
-				}
-				AddDisplaySource(output);
+			// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
+			std::wstring captureDevice = *static_cast<std::wstring *>(source.Source);
+			CComPtr<IDXGIOutput> output;
+			HRESULT hr = GetOutputForDeviceName(captureDevice, &output);
+			if (FAILED(hr))
+			{
+				LOG_ERROR(L"Failed to get output descs for selected devices");
+				return hr;
+			}
+			AddDisplaySource(output);
 			break;
 		}
 		case RecordingSourceType::Window: {
 			RECT windowRect;
-			if (SUCCEEDED(DwmGetWindowAttribute(source.WindowHandle, DWMWA_EXTENDED_FRAME_BOUNDS, &windowRect, sizeof(windowRect))))
+			HWND windowHandle = static_cast<HWND>(source.Source);
+			if (SUCCEEDED(DwmGetWindowAttribute(windowHandle, DWMWA_EXTENDED_FRAME_BOUNDS, &windowRect, sizeof(windowRect))))
 			{
 				RECT sourceRect{};
 				long left = 0;

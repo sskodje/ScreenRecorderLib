@@ -2,6 +2,7 @@
 #include "DesktopDuplicationManager.h"
 #include "Cleanup.h"
 #include "MouseManager.h"
+#include "OverlayManager.h"
 using namespace std::chrono;
 DWORD WINAPI CaptureThreadProc(_In_ void *Param);
 
@@ -31,6 +32,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	// Classes
 	DesktopDuplicationManager pDuplicationManager{};
 	MouseManager pMouseManager{};
+	//OverlayManager pOverlayManager{};
 
 	// D3D objects
 	ID3D11Texture2D *SharedSurf = nullptr;
@@ -67,7 +69,6 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	RECORDING_SOURCE_DATA *pSource = pData->RecordingSource;
 	//This scope must be here for ReleaseOnExit to work.
 	{
-
 		pMouseManager.Initialize(pSource->DxRes.Context, pSource->DxRes.Device, std::make_shared<MOUSE_OPTIONS>());
 		// Obtain handle to sync shared Surface
 		hr = pSource->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
@@ -84,14 +85,26 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			goto Exit;
 		}
 		ReleaseOnExit releaseMutex(KeyMutex);
+		std::wstring sourceDevice = *static_cast<std::wstring *>(pSource->Source);
 		// Make duplication manager
-		hr = pDuplicationManager.Initialize(&pSource->DxRes, pSource->CaptureDevice);
+		hr = pDuplicationManager.Initialize(&pSource->DxRes, sourceDevice);
 
 		if (FAILED(hr))
 		{
+			LOG_ERROR(L"Failed initialize DesktopDuplicationManager");
 			goto Exit;
 		}
 
+		//hr = pOverlayManager.Initialize(pSource->DxRes.Context, pSource->DxRes.Device);
+
+		if (FAILED(hr))
+		{
+			LOG_ERROR(L"Failed to initialize OverlayManager");
+			goto Exit;
+		}
+		//if (pSource->Overlays.size() > 0) {
+		//	pOverlayManager.StartCapture(pSource->Overlays, pData->UnexpectedErrorEvent, pData->ExpectedErrorEvent);
+		//}
 		// Get output description
 		DXGI_OUTPUT_DESC DesktopDesc;
 		RtlZeroMemory(&DesktopDesc, sizeof(DXGI_OUTPUT_DESC));
@@ -112,6 +125,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			{
 				// Get new frame from desktop duplication
 				hr = pDuplicationManager.GetFrame(&CurrentData);
+
 				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 					continue;
 				}
@@ -140,7 +154,6 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				break;
 			}
 
-
 			ReleaseDuplicationManagerFrameOnExit releaseFrame(&pDuplicationManager);
 			ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
 
@@ -153,15 +166,20 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			{
 				break;
 			}
+
 			// Process new frame
 			hr = pDuplicationManager.ProcessFrame(&CurrentData, SharedSurf, pSource->OffsetX, pSource->OffsetY, pSource->FrameCoordinates, DesktopDesc.Rotation, pSource->SourceRect);
 			if (FAILED(hr))
 			{
 				break;
 			}
-			if (CurrentData.FrameInfo.AccumulatedFrames > 0) {
+			int updatedOverlayCount = 0;
+			//pOverlayManager.ProcessOverlays(SharedSurf, &updatedOverlayCount);
 
+			if (CurrentData.FrameInfo.AccumulatedFrames > 0 || updatedOverlayCount > 0) {
+				pData->UpdatedFrameCountSinceLastWrite++;
 				pData->TotalUpdatedFrameCount++;
+				LOG_TRACE("Wrote desktop duplication frame with %d updated frames and %d overlays", pData->UpdatedFrameCountSinceLastWrite, updatedOverlayCount);
 			}
 			if (CurrentData.FrameInfo.LastPresentTime.QuadPart > CurrentData.FrameInfo.LastMouseUpdateTime.QuadPart) {
 				pData->LastUpdateTimeStamp = CurrentData.FrameInfo.LastPresentTime;

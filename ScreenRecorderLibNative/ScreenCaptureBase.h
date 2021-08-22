@@ -5,6 +5,7 @@
 #include "Util.h"
 #include "Screengrab.h"
 #include "TextureManager.h"
+#include "OverlayManager.h"
 class ScreenCaptureBase abstract
 {
 public:
@@ -23,7 +24,6 @@ public:
 	virtual bool IsInitialFrameWriteComplete();
 	virtual bool IsCapturing() { return m_IsCapturing; }
 	virtual UINT GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCounts);
-	virtual bool IsSingleWindowCapture() final;
 protected:
 	LARGE_INTEGER m_LastAcquiredFrameTimeStamp;
 	ID3D11Texture2D *m_SharedSurf;
@@ -44,10 +44,7 @@ private:
 	HANDLE m_TerminateThreadsEvent;
 
 	std::unique_ptr<TextureManager> m_TextureManager;
-
-	UINT m_OverlayThreadCount;
-	_Field_size_(m_OverlayThreadCount) HANDLE *m_OverlayThreadHandles;
-	_Field_size_(m_OverlayThreadCount) OVERLAY_THREAD_DATA *m_OverlayThreadData;
+	std::unique_ptr<OverlayManager> m_OverlayManager;
 
 	UINT m_CaptureThreadCount;
 	_Field_size_(m_CaptureThreadCount) HANDLE *m_CaptureThreadHandles;
@@ -58,7 +55,6 @@ private:
 	//HRESULT DrawOverlay(_Inout_ ID3D11Texture2D *pBackgroundFrame, _In_ RECORDING_OVERLAY_DATA *pOverlay);
 	//HRESULT DrawSource(_Inout_ ID3D11Texture2D *pBackgroundFrame, _In_ RECORDING_SOURCE_DATA *pSource);
 	_Ret_maybenull_ CAPTURE_THREAD_DATA *GetCaptureDataForRect(RECT rect);
-	RECT GetOverlayRect(_In_ SIZE canvasSize, _In_ SIZE overlayTextureSize, _In_ RECORDING_OVERLAY_DATA *pOverlay);
 	RECT GetSourceRect(_In_ SIZE canvasSize, _In_ RECORDING_SOURCE_DATA *pSource);
 };
 

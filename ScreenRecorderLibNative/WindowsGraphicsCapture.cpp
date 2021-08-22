@@ -40,7 +40,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	HRESULT hr = S_OK;
 
 	// Classes
-	MouseManager pMouseManager{};
+	MouseManager mouseManager{};
 	WindowsGraphicsManager graphicsManager{};
 	GraphicsCaptureItem captureItem{ nullptr };
 	//// D3D objects
@@ -56,14 +56,16 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	GRAPHICS_FRAME_DATA CurrentData{};
 
 
-	if (pData->RecordingSource->WindowHandle != nullptr) {
-		captureItem = CreateCaptureItemForWindow(pSource->WindowHandle);
+	if (pData->RecordingSource->Type == RecordingSourceType::Window) {
+		HWND windowHandle = *static_cast<HWND *>(pData->RecordingSource->Source);
+		captureItem = CreateCaptureItemForWindow(windowHandle);
 		CurrentData.IsWindow = true;
 	}
 	else {
 
 		CComPtr<IDXGIOutput> output = nullptr;
-		HRESULT hr = GetOutputForDeviceName(pSource->CaptureDevice, &output);
+		std::wstring captureDevice = *static_cast<std::wstring *>(pData->RecordingSource->Source);
+		HRESULT hr = GetOutputForDeviceName(captureDevice, &output);
 		if (FAILED(hr)) {
 			GetMainOutput(&output);
 			if (!output) {
@@ -80,7 +82,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	CurrentData.ContentSize = SIZE{ captureItem.Size().Width,captureItem.Size().Height };
 	//This scope must be here for ReleaseOnExit to work.
 	{
-		pMouseManager.Initialize(pSource->DxRes.Context, pSource->DxRes.Device, std::make_shared<MOUSE_OPTIONS>());
+		mouseManager.Initialize(pSource->DxRes.Context, pSource->DxRes.Device, std::make_shared<MOUSE_OPTIONS>());
 		// Obtain handle to sync shared Surface
 		hr = pSource->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
 		if (FAILED(hr))
@@ -121,7 +123,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				// Get new frame from Windows Graphics Capture.
 				hr = graphicsManager.GetFrame(&CurrentData);
 				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-					if (!CurrentData.IsIconic && CurrentData.IsWindow && IsIconic(pSource->WindowHandle)) {
+					if (!CurrentData.IsIconic && CurrentData.IsWindow && IsIconic(*static_cast<HWND *>(pData->RecordingSource->Source))) {
 						CurrentData.IsIconic = true;
 						LOG_INFO("Recorded window is minimized");
 					}
@@ -165,7 +167,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			WaitToProcessCurrentFrame = false;
 
 			// Get mouse info. Windows Graphics Capture includes the mouse cursor on the texture, so we only get the positioning info for mouse click draws.
-			hr = pMouseManager.GetMouse(pData->PtrInfo, false, pSource->OffsetX, pSource->OffsetY);
+			hr = mouseManager.GetMouse(pData->PtrInfo, false, pSource->OffsetX, pSource->OffsetY);
 
 			D3D11_TEXTURE2D_DESC desc;
 			CurrentData.Frame->GetDesc(&desc);

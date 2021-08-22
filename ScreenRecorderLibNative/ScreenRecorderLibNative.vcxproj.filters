@@ -150,6 +150,9 @@
     <ClInclude Include="CommonTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="OverlayManager.h">
+      <Filter>Header Files\Video Capture\Overlay Capture</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RecordingManager.cpp">
@@ -220,6 +223,9 @@
     </ClCompile>
     <ClCompile Include="OutputManager.cpp">
       <Filter>Source Files\Video Capture\Output</Filter>
+    </ClCompile>
+    <ClCompile Include="OverlayManager.cpp">
+      <Filter>Source Files\Video Capture\Overlay Capture</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
