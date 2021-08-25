@@ -51,3 +51,4 @@ std::vector<IDXGIAdapter *> EnumDisplayAdapters();
 void CleanDx(_Inout_ DX_RESOURCES *Data);
 void SetViewPort(_In_ ID3D11DeviceContext *deviceContext, _In_ UINT Width, _In_ UINT Height);
 void SetDebugName(_In_ ID3D11DeviceChild *child, _In_ const std::string &name);
+_Ret_maybenull_  HANDLE GetSharedHandle(_In_ ID3D11Texture2D *pSurface);

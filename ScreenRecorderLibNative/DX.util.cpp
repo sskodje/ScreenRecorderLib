@@ -494,3 +494,27 @@ HRESULT InitShaders(_In_ ID3D11Device *pDevice, _Outptr_ ID3D11PixelShader **ppP
 
 	return hr;
 }
+
+//
+// Returns shared handle
+//
+_Ret_maybenull_ HANDLE GetSharedHandle(_In_ ID3D11Texture2D *pSurface)
+{
+	if (!pSurface) {
+		return nullptr;
+	}
+	HANDLE Hnd = nullptr;
+
+	// QI IDXGIResource interface to synchronized shared surface.
+	IDXGIResource *DXGIResource = nullptr;
+	HRESULT hr = pSurface->QueryInterface(__uuidof(IDXGIResource), reinterpret_cast<void **>(&DXGIResource));
+	if (SUCCEEDED(hr))
+	{
+		// Obtain handle to IDXGIResource object.
+		DXGIResource->GetSharedHandle(&Hnd);
+		DXGIResource->Release();
+		DXGIResource = nullptr;
+	}
+
+	return Hnd;
+}

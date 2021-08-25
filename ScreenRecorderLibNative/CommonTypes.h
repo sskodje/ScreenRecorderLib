@@ -70,19 +70,13 @@ struct DX_RESOURCES
 	ID3D11Debug *Debug;
 };
 
-//
-// FRAME_BASE holds the base info about a generic frame
-//
-struct FRAME_BASE {
-	ID3D11Texture2D *Frame;
-	//LARGE_INTEGER Timestamp;
-};
 
 //
 // CAPTURED_FRAME holds information about a merged output frame with overlays
 //
-struct CAPTURED_FRAME : public FRAME_BASE
+struct CAPTURED_FRAME
 {
+	ID3D11Texture2D *Frame;
 	PTR_INFO *PtrInfo;
 	//The number of updates written to the current frame since last fetch.
 	int FrameUpdateCount;
@@ -140,7 +134,6 @@ struct RECORDING_OVERLAY
 
 struct RECORDING_OVERLAY_DATA :RECORDING_OVERLAY
 {
-	FRAME_BASE *FrameInfo{ nullptr };
 	DX_RESOURCES DxRes{};
 	RECORDING_OVERLAY_DATA() {}
 	RECORDING_OVERLAY_DATA(const RECORDING_OVERLAY &overlay) :RECORDING_OVERLAY(overlay) {}
@@ -151,7 +144,7 @@ struct RECORDING_SOURCE
 	void *Source;
 	RecordingSourceType Type;
 	bool IsCursorCaptureEnabled{};
-	std::vector<RECORDING_OVERLAY> Overlays{}; 
+	std::vector<RECORDING_OVERLAY> Overlays{};
 	/// <summary>
 	/// An optional custom area of the source to record. Must be equal or smaller than the source area. A smaller area will crop the source.
 	/// </summary>
@@ -197,7 +190,7 @@ struct RECORDING_SOURCE
 			if (b.Type == RecordingSourceType::Window) {
 				return true;
 			}
-			std::wstring aSource = *static_cast<std::wstring*>(a.Source);
+			std::wstring aSource = *static_cast<std::wstring *>(a.Source);
 			std::wstring bSource = *static_cast<std::wstring *>(b.Source);
 			return (aSource.compare(bSource) < 0);
 		}
@@ -283,7 +276,7 @@ struct THREAD_DATA_BASE
 struct CAPTURE_THREAD_DATA :THREAD_DATA_BASE
 {
 	////Handle to shared texture
-	HANDLE TexSharedHandle{};
+	HANDLE TexSharedHandle{ nullptr };
 	RECORDING_SOURCE_DATA *RecordingSource{ nullptr };
 	INT UpdatedFrameCountSinceLastWrite{};
 	INT64 TotalUpdatedFrameCount{};
@@ -296,7 +289,7 @@ struct CAPTURE_THREAD_DATA :THREAD_DATA_BASE
 struct OVERLAY_THREAD_DATA :THREAD_DATA_BASE
 {
 	////Handle to shared texture
-	HANDLE TexSharedHandle{};
+	HANDLE TexSharedHandle{ nullptr };
 	RECORDING_OVERLAY_DATA *RecordingOverlay{};
 };
 

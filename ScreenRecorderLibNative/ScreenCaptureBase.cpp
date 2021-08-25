@@ -181,19 +181,19 @@ HRESULT ScreenCaptureBase::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ C
 		//	measure.SetName(string_format(L"ProcessSources for %d sources", updatedFrameCount));
 		//}
 
-		int updatedOverlaysCount = 0;
-		m_OverlayManager->ProcessOverlays(m_SharedSurf, &updatedOverlaysCount);
-		//{
-		//	MeasureExecutionTime measure(L"ProcessOverlays");
-		//	RETURN_ON_BAD_HR(hr = ProcessOverlays(m_SharedSurf, &updatedOverlaysCount));
-		//	measure.SetName(string_format(L"ProcessOverlays for %d sources", updatedOverlaysCount));
-		//}
-
 		D3D11_TEXTURE2D_DESC desc;
 		m_SharedSurf->GetDesc(&desc);
 		desc.MiscFlags = 0;
 		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pDesktopFrame));
 		m_DeviceContext->CopyResource(pDesktopFrame, m_SharedSurf);
+
+		int updatedOverlaysCount = 0;
+		m_OverlayManager->ProcessOverlays(pDesktopFrame, &updatedOverlaysCount);
+		//{
+		//	MeasureExecutionTime measure(L"ProcessOverlays");
+		//	RETURN_ON_BAD_HR(hr = ProcessOverlays(m_SharedSurf, &updatedOverlaysCount));
+		//	measure.SetName(string_format(L"ProcessOverlays for %d sources", updatedOverlaysCount));
+		//}
 
 		//m_DeviceContext->CopyResource(m_SharedSurf, pDesktopFrame);
 		if (updatedFrameCount > 0 || updatedOverlaysCount > 0) {
@@ -330,30 +330,6 @@ RECT ScreenCaptureBase::GetSourceRect(_In_ SIZE canvasSize, _In_ RECORDING_SOURC
 	int left = pSource->FrameCoordinates.left + pSource->OffsetX;
 	int top = pSource->FrameCoordinates.top + pSource->OffsetY;
 	return RECT{ left, top, left + RectWidth(pSource->FrameCoordinates),top + RectHeight(pSource->FrameCoordinates) };
-}
-
-//
-// Returns shared handle
-//
-_Ret_maybenull_ HANDLE ScreenCaptureBase::GetSharedHandle(_In_ ID3D11Texture2D *pSurface)
-{
-	if (!pSurface) {
-		return nullptr;
-	}
-	HANDLE Hnd = nullptr;
-
-	// QI IDXGIResource interface to synchronized shared surface.
-	IDXGIResource *DXGIResource = nullptr;
-	HRESULT hr = pSurface->QueryInterface(__uuidof(IDXGIResource), reinterpret_cast<void **>(&DXGIResource));
-	if (SUCCEEDED(hr))
-	{
-		// Obtain handle to IDXGIResource object.
-		DXGIResource->GetSharedHandle(&Hnd);
-		DXGIResource->Release();
-		DXGIResource = nullptr;
-	}
-
-	return Hnd;
 }
 
 bool ScreenCaptureBase::IsUpdatedFramesAvailable()

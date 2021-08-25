@@ -90,7 +90,7 @@ HRESULT GifReader::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_ ID3D11Tex
 		desc.MiscFlags = 0;
 		//desc.MiscFlags &= D3D11_RESOURCE_MISC_TEXTURECUBE;
 		//desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-		desc.Usage = D3D11_USAGE_STAGING;
+		desc.Usage = D3D11_USAGE_DEFAULT;
 		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pStagingTexture));
 		m_DeviceContext->CopyResource(pStagingTexture, m_RenderTexture);
 
