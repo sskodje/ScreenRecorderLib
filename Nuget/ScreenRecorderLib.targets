@@ -18,18 +18,5 @@
       <HintPath>$(MSBuildThisFileDirectory)x64\ScreenRecorderLib.dll</HintPath>
     </Reference>
   </ItemGroup>
-
-    <ItemGroup Condition="'$(Language)' == 'C++'">
-      <Content Include="$(MSBuildThisFileDirectory)\$(Platform)\*.*">
-        <Link>%(RecursiveDir)%(FileName)%(Extension)</Link>
-      </Content>
-    </ItemGroup>
-  </Target>
-  <Target Name="CopyLinkedContentFiles" BeforeTargets="Build" Condition="'$(Language)' == 'C++'">
-    <Copy SourceFiles="%(Content.Identity)"
-			  DestinationFiles="%(Content.Link)"
-			  SkipUnchangedFiles='true'
-			  OverwriteReadOnlyFiles='true'
-			  Condition="'%(Content.Link)' != ''" />
   </Target>
 </Project>
