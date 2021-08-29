@@ -25,7 +25,7 @@
       </Content>
     </ItemGroup>
   </Target>
-  <Target Name="CopyLinkedContentFiles" BeforeTargets="Build">
+  <Target Name="CopyLinkedContentFiles" BeforeTargets="Build" Condition="'$(Language)' == 'C++'">
     <Copy SourceFiles="%(Content.Identity)"
 			  DestinationFiles="%(Content.Link)"
 			  SkipUnchangedFiles='true'
