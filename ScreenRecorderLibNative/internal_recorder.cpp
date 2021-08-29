@@ -571,7 +571,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 			videoInputFrameRect.right = contentSize.Width - videoInputFrameRect.left;
 			videoInputFrameRect.bottom = contentSize.Height - videoInputFrameRect.top;
 			videoInputFrameRect = MakeRectEven(videoInputFrameRect);
-			if (!EqualRect(&videoInputFrameRect, &previousInputFrameRect)) {
+			if (m_RecorderMode == MODE_VIDEO && !EqualRect(&videoInputFrameRect, &previousInputFrameRect)) {
 				//A marker is placed in the stream and then we wait for the sink writer to trigger it. This ensures all pending frames are encoded before the input is resized to the new size.
 				//The timeout is one frame @ 30fps, because it is preferable to avoid having the framerate drop too much if the encoder is busy.
 				RETURN_ON_BAD_HR(m_SinkWriter->PlaceMarker(m_VideoStreamIndex, nullptr));
