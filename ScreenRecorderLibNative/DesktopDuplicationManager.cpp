@@ -51,11 +51,11 @@ DesktopDuplicationManager::~DesktopDuplicationManager()
 //
 // Initialize duplication interfaces
 //
-HRESULT DesktopDuplicationManager::Initialize(_In_ DX_RESOURCES *pData, std::wstring Output)
+HRESULT DesktopDuplicationManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice, std::wstring Output)
 {
 	m_OutputName = Output;
-	m_Device = pData->Device;
-	m_DeviceContext = pData->Context;
+	m_Device = pDevice;
+	m_DeviceContext = pDeviceContext;
 	m_Device->AddRef();
 	m_DeviceContext->AddRef();
 
@@ -73,8 +73,8 @@ HRESULT DesktopDuplicationManager::Initialize(_In_ DX_RESOURCES *pData, std::wst
 	// Input layout
 	D3D11_INPUT_ELEMENT_DESC Layout[] =
 	{
-		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0},
-		{"TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0}
+		{ "SV_POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 	UINT NumElements = ARRAYSIZE(Layout);
 	hr = m_Device->CreateInputLayout(Layout, NumElements, g_VS, Size, &m_InputLayout);
@@ -173,22 +173,22 @@ HRESULT DesktopDuplicationManager::Initialize(_In_ DX_RESOURCES *pData, std::wst
 //
 // Get next frame and write it into Data
 //
-HRESULT DesktopDuplicationManager::GetFrame(_Out_ DUPL_FRAME_DATA *pData)
+HRESULT DesktopDuplicationManager::GetFrame(_In_ DWORD timeoutMillis, _Inout_ DUPL_FRAME_DATA *pData)
 {
 	IDXGIResource *DesktopResource = nullptr;
 	DXGI_OUTDUPL_FRAME_INFO FrameInfo;
 
+	// If holding old frame, release it
+	if (m_AcquiredDesktopImage) {
+		m_DeskDupl->ReleaseFrame();
+		m_AcquiredDesktopImage->Release();
+		m_AcquiredDesktopImage = nullptr;
+	}
 	// Get new frame
-	HRESULT hr = m_DeskDupl->AcquireNextFrame(1, &FrameInfo, &DesktopResource);
+	HRESULT hr = m_DeskDupl->AcquireNextFrame(timeoutMillis, &FrameInfo, &DesktopResource);
 	if (FAILED(hr))
 	{
 		return hr;
-	}
-	// If still holding old frame, destroy it
-	if (m_AcquiredDesktopImage)
-	{
-		m_AcquiredDesktopImage->Release();
-		m_AcquiredDesktopImage = nullptr;
 	}
 
 	// QI for IDXGIResource
@@ -284,9 +284,10 @@ void DesktopDuplicationManager::GetOutputDesc(_Out_ DXGI_OUTPUT_DESC *pOutputDes
 //
 // Process a given frame and its metadata
 //
-HRESULT DesktopDuplicationManager::ProcessFrame(_In_ DUPL_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_ DXGI_MODE_ROTATION rotation, _In_opt_ const std::optional<RECT> &sourceRect)
+HRESULT DesktopDuplicationManager::ProcessFrame(_In_ DUPL_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ const std::optional<RECT> &sourceRect)
 {
 	HRESULT hr = S_FALSE;
+	DXGI_MODE_ROTATION rotation = m_OutputDesc.Rotation;
 	// Process dirties and moves
 	if (pData->FrameInfo.TotalMetadataBufferSize)
 	{

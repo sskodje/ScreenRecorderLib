@@ -1,15 +1,13 @@
-﻿using System;
+﻿using ScreenRecorderLib;
+using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows;
-using ScreenRecorderLib;
 
-namespace TestApp
+namespace TestApp.Sources
 {
-    public class CheckableRecordableDisplay : RecordableDisplay, ICheckableRecordingSource
+    public class CheckableRecordableImage : ImageRecordingSource, ICheckableRecordingSource
     {
         private bool _isSelected;
         public bool IsSelected
@@ -83,24 +81,22 @@ namespace TestApp
         }
 
 
-        public CheckableRecordableDisplay() : base()
+        public CheckableRecordableImage() : base()
         {
 
         }
-        public CheckableRecordableDisplay(string monitorName, string deviceName) : base(monitorName, deviceName)
+        public CheckableRecordableImage(string filePath) : base(filePath)
         {
-            ScreenRect coord = GetScreenCoordinates();
-            UpdateScreenCoordinates(new ScreenPoint(coord.Left, coord.Top), new ScreenSize(coord.Width, coord.Height));
+
         }
-        public CheckableRecordableDisplay(RecordableDisplay disp) : base(disp.MonitorName, disp.DeviceName)
+        public CheckableRecordableImage(ImageRecordingSource image) : base(image.SourcePath)
         {
-            ScreenRect coord = GetScreenCoordinates();
-            UpdateScreenCoordinates(new ScreenPoint(coord.Left, coord.Top), new ScreenSize(coord.Width, coord.Height));
+
         }
 
         public override string ToString()
         {
-            return $"{MonitorName} ({DeviceName})";
+            return System.IO.Path.GetFileName(SourcePath);
         }
 
         public void UpdateScreenCoordinates(ScreenPoint position, ScreenSize size)

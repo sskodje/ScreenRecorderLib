@@ -166,6 +166,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AudioDevice.h" />
     <ClInclude Include="Callback.h" />
     <ClInclude Include="Coordinates.h" />
     <ClInclude Include="ManagedIStream.h" />

@@ -74,17 +74,17 @@ namespace ScreenRecorderLib
         [TestMethod]
         public void EnumAndRecordAllDisplaysSequentiallyWithDDTest()
         {
-            foreach (var display in Recorder.GetDisplays())
+            foreach (DisplayRecordingSource displaySource in Recorder.GetDisplays())
             {
                 string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
                 try
                 {
                     using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                     {
+                        displaySource.RecorderApi = RecorderApi.DesktopDuplication;
                         var options = new RecorderOptions
                         {
-                            RecorderApi = RecorderApi.DesktopDuplication,
-                            SourceOptions = new SourceOptions { RecordingSources = { display } }
+                            SourceOptions = new SourceOptions { RecordingSources = { displaySource } }
                         };
                         using (var rec = Recorder.CreateRecorder(options))
                         {
@@ -133,17 +133,17 @@ namespace ScreenRecorderLib
         [TestMethod]
         public void EnumAndRecordAllDisplaysSequentiallyWithGCTest()
         {
-            foreach (var display in Recorder.GetDisplays())
+            foreach (DisplayRecordingSource displaySource in Recorder.GetDisplays())
             {
                 string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
                 try
                 {
                     using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                     {
+                        displaySource.RecorderApi = RecorderApi.WindowsGraphicsCapture;
                         var options = new RecorderOptions
                         {
-                            RecorderApi = RecorderApi.WindowsGraphicsCapture,
-                            SourceOptions = new SourceOptions { RecordingSources = { display } }
+                            SourceOptions = new SourceOptions { RecordingSources = { displaySource } }
                         };
                         using (var rec = Recorder.CreateRecorder(options))
                         {
@@ -1126,7 +1126,12 @@ namespace ScreenRecorderLib
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
             {
-                RecorderOptions options = new RecorderOptions() { RecorderApi = RecorderApi.WindowsGraphicsCapture };
+                var recordingSource = DisplayRecordingSource.MainMonitor;
+                recordingSource.RecorderApi = RecorderApi.WindowsGraphicsCapture;
+                RecorderOptions options = new RecorderOptions()
+                {
+                    SourceOptions = new SourceOptions { RecordingSources = { recordingSource } }
+                };
                 using (var rec = Recorder.CreateRecorder(options))
                 {
                     string error = "";
@@ -1503,13 +1508,15 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void TwoSimultaneousGCRecorderInstancesTest()
+        public void TwoSimultaneousGCRecorderInstances()
         {
             string filePath1 = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             string filePath2 = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
             {
-                using (var rec = Recorder.CreateRecorder(new RecorderOptions { RecorderApi = RecorderApi.WindowsGraphicsCapture }))
+                var recordingSource = DisplayRecordingSource.MainMonitor;
+                recordingSource.RecorderApi = RecorderApi.WindowsGraphicsCapture;
+                using (var rec = Recorder.CreateRecorder(new RecorderOptions { SourceOptions = new SourceOptions { RecordingSources = { recordingSource } } }))
                 {
                     string error = "";
                     bool isError = false;
@@ -1531,7 +1538,87 @@ namespace ScreenRecorderLib
 
                     rec.Record(filePath1);
 
-                    using (var rec2 = Recorder.CreateRecorder(new RecorderOptions { RecorderApi = RecorderApi.WindowsGraphicsCapture }))
+                    using (var rec2 = Recorder.CreateRecorder(new RecorderOptions { SourceOptions = new SourceOptions { RecordingSources = { recordingSource } } }))
+                    {
+                        string error2 = "";
+                        bool isError2 = false;
+                        bool isComplete2 = false;
+                        ManualResetEvent finalizingResetEvent2 = new ManualResetEvent(false);
+                        ManualResetEvent recordingResetEvent2 = new ManualResetEvent(false);
+                        rec2.OnRecordingComplete += (s, args) =>
+                        {
+                            isComplete2 = true;
+                            finalizingResetEvent2.Set();
+                        };
+                        rec2.OnRecordingFailed += (s, args) =>
+                        {
+                            isError2 = true;
+                            error2 = args.Error;
+                            finalizingResetEvent2.Set();
+                            recordingResetEvent2.Set();
+                        };
+
+                        rec2.Record(filePath2);
+                        recordingResetEvent2.WaitOne(2 * 1000);
+                        rec2.Stop();
+                        finalizingResetEvent2.WaitOne(5000);
+                        Assert.IsFalse(isError2, error2);
+                        Assert.IsTrue(isComplete2);
+                        Assert.IsTrue(new FileInfo(filePath2).Length > 0);
+                        var mediaInfo2 = new MediaInfoWrapper(filePath2);
+                        Assert.IsTrue(mediaInfo2.Format == "MPEG-4");
+                        Assert.IsTrue(mediaInfo2.VideoStreams.Count > 0);
+                    }
+                    recordingResetEvent.WaitOne(2 * 1000);
+                    rec.Stop();
+                    finalizingResetEvent.WaitOne(5000);
+                    Assert.IsFalse(isError, error);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath1).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath1);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                }
+            }
+            finally
+            {
+                File.Delete(filePath1);
+                File.Delete(filePath2);
+            }
+        }
+        [TestMethod]
+        public void TwoSimultaneousGCAndDDRecorderInstances()
+        {
+            string filePath1 = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            string filePath2 = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
+            {
+                var recordingSource = DisplayRecordingSource.MainMonitor;
+                recordingSource.RecorderApi = RecorderApi.WindowsGraphicsCapture;
+                using (var rec = Recorder.CreateRecorder(new RecorderOptions { SourceOptions = new SourceOptions { RecordingSources = { recordingSource } } }))
+                {
+                    string error = "";
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent finalizingResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        finalizingResetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        error = args.Error;
+                        finalizingResetEvent.Set();
+                        recordingResetEvent.Set();
+                    };
+
+                    rec.Record(filePath1);
+                    var recordingSource2 = DisplayRecordingSource.MainMonitor;
+                    recordingSource2.RecorderApi = RecorderApi.DesktopDuplication;
+                    using (var rec2 = Recorder.CreateRecorder(new RecorderOptions { SourceOptions = new SourceOptions { RecordingSources = { recordingSource2 } } }))
                     {
                         string error2 = "";
                         bool isError2 = false;
@@ -1675,26 +1762,39 @@ namespace ScreenRecorderLib
                 overlays.Add(new VideoOverlay
                 {
                     AnchorPosition = Anchor.TopRight,
-                    FilePath = @"testmedia\cat.mp4",
-                    Height = 200,
-                    OffsetX = 50,
-                    OffsetY = 50
+                    SourcePath = @"testmedia\cat.mp4",
+                    Size = new ScreenSize(0, 200),
+                    Offset = new ScreenSize(50, 50)
                 });
-                overlays.Add(new PictureOverlay
+                overlays.Add(new ImageOverlay
                 {
                     AnchorPosition = Anchor.BottomLeft,
-                    FilePath = @"testmedia\alphatest.png",
-                    Height = 300,
-                    OffsetX = 0,
-                    OffsetY = 0
+                    SourcePath = @"testmedia\alphatest.png",
+                    Size = new ScreenSize(0, 300),
+                    Offset = new ScreenSize(0, 0)
                 });
-                overlays.Add(new PictureOverlay
+                overlays.Add(new ImageOverlay
                 {
                     AnchorPosition = Anchor.BottomRight,
-                    FilePath = @"testmedia\giftest.gif",
-                    Height = 300,
-                    OffsetX = 75,
-                    OffsetY = 25
+                    SourcePath = @"testmedia\giftest.gif",
+                    Size = new ScreenSize(0, 300),
+                    Offset = new ScreenSize(75, 25)
+                });
+                if (Recorder.GetWindows().Where(x => x.IsValidWindow() && !x.IsMinmimized()).Count() > 0)
+                {
+                    overlays.Add(new WindowOverlay
+                    {
+                        AnchorPosition = Anchor.BottomRight,
+                        Handle = Recorder.GetWindows().FirstOrDefault(x => x.IsValidWindow() && !x.IsMinmimized()).Handle,
+                        Size = new ScreenSize(0, 300),
+                        Offset = new ScreenSize(75, 25)
+                    });
+                }
+                overlays.Add(new DisplayOverlay
+                {
+                    AnchorPosition = Anchor.BottomRight,
+                    Size = new ScreenSize(0, 300),
+                    Offset = new ScreenSize(75, 25)
                 });
                 RecorderOptions options = new RecorderOptions();
                 options.OverlayOptions = new OverLayOptions { Overlays = overlays };
@@ -1729,6 +1829,115 @@ namespace ScreenRecorderLib
                     var mediaInfo = new MediaInfoWrapper(filePath);
                     Assert.IsTrue(mediaInfo.Format == "MPEG-4");
                     Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+            }
+        }
+        [TestMethod]
+        public void RecordWindowTest()
+        {
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
+            {
+                RecorderOptions options = new RecorderOptions
+                {
+                    SourceOptions = new SourceOptions
+                    {
+                        RecordingSources = { { Recorder.GetWindows().FirstOrDefault(x=>x.IsValidWindow() && !x.IsMinmimized()) } }
+                    }
+                };
+                using (var rec = Recorder.CreateRecorder(options))
+                {
+                    string error = "";
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        finalizeResetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        error = args.Error;
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
+                    };
+
+                    rec.Record(filePath);
+                    recordingResetEvent.WaitOne(3000);
+                    rec.Stop();
+                    finalizeResetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError, error);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+            }
+        }
+        [TestMethod]
+        public void RecordMultipleSourcesTest()
+        {
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
+            {
+                var sources = new List<RecordingSourceBase>();
+                sources.Add(DisplayRecordingSource.MainMonitor);
+                sources.Add(Recorder.GetWindows().FirstOrDefault(x => x.IsValidWindow() && !x.IsMinmimized()));
+                sources.Add(new VideoRecordingSource(@"testmedia\cat.mp4"));
+                sources.Add(new ImageRecordingSource(@"testmedia\earth.gif"));
+                var coordinates = Recorder.GetOutputDimensionsForRecordingSources(sources);
+                RecorderOptions options = new RecorderOptions
+                {
+                    SourceOptions = new SourceOptions
+                    {
+                        RecordingSources = sources
+                    }
+                };
+                using (var rec = Recorder.CreateRecorder(options))
+                {
+                    string error = "";
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        finalizeResetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        error = args.Error;
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
+                    };
+
+                    rec.Record(filePath);
+                    recordingResetEvent.WaitOne(3000);
+                    rec.Stop();
+                    finalizeResetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError, error);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                    Assert.IsTrue(mediaInfo.Width == coordinates.CombinedOutputSize.Width && mediaInfo.Height == coordinates.CombinedOutputSize.Height);
                 }
             }
             finally

@@ -3,8 +3,7 @@
 #include <audioclient.h>
 #include "WWMFResampler.h"
 #include "Log.h"
-#include "DesktopDuplicationCapture.h"
-#include "WindowsGraphicsCapture.h"
+#include "ScreenCaptureManager.h"
 #include "DesktopDuplicationManager.h"
 #include "SourceReaderBase.h"
 //#include <mutex>
@@ -60,16 +59,16 @@ private:
 
 class CaptureStopOnExit {
 public:
-	CaptureStopOnExit(ScreenCaptureBase *p) : m_p(p) {}
+	CaptureStopOnExit(ScreenCaptureManager *p) : m_p(p) {}
 	~CaptureStopOnExit() {
 		m_p->StopCapture();
 	}
-	void Reset(ScreenCaptureBase *p) {
+	void Reset(ScreenCaptureManager *p) {
 		m_p = p;
 	}
 
 private:
-	ScreenCaptureBase *m_p;
+	ScreenCaptureManager *m_p;
 };
 
 

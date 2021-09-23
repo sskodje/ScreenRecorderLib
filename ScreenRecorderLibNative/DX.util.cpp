@@ -2,7 +2,10 @@
 #include "DX.util.h"
 #include "Cleanup.h"
 #include <dwmapi.h>
-
+#include "VideoReader.h"
+#include "CameraCapture.h"
+#include "ImageReader.h"
+#include "GifReader.h"
 using namespace DirectX;
 //
 // Get DX_RESOURCES
@@ -89,121 +92,123 @@ HRESULT GetAdapterForDevice(_In_ ID3D11Device *pDevice, _Outptr_ IDXGIAdapter **
 	return hr;
 }
 
+
 HRESULT GetOutputRectsForRecordingSources(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<std::pair<RECORDING_SOURCE, RECT>> *outputs)
 {
 	std::vector<std::pair<RECORDING_SOURCE, RECT>> validOutputs{};
-	int xOffset = 0;
+
+	auto GetOffsetSourceRect([&](const RECT &originalSourceRect, const RECORDING_SOURCE &source) {
+
+		RECT offsetSourceRect = originalSourceRect;
+		if (source.Position.has_value()) {
+			OffsetRect(&offsetSourceRect, source.Position.value().x - offsetSourceRect.left, source.Position.value().y - offsetSourceRect.top);
+		}
+		else if (validOutputs.size() == 0) {
+			//For the first source, we start at [0,0]
+			OffsetRect(&offsetSourceRect, -offsetSourceRect.left, -offsetSourceRect.top);
+		}
+		else if (validOutputs.size() > 0) {
+			for each (std::pair<RECORDING_SOURCE, RECT> var in validOutputs)
+			{
+				RECT prevRect = var.second;
+				RECT intersect{};
+				if (IntersectRect(&intersect, &offsetSourceRect, &prevRect)) {
+					OffsetRect(&offsetSourceRect, prevRect.right - intersect.left, 0);
+				}
+				if (IntersectRect(&intersect, &offsetSourceRect, &prevRect)) {
+					OffsetRect(&offsetSourceRect, 0, prevRect.bottom - intersect.top);
+				}
+			}
+		}
+		if (source.OutputSize.has_value() && IsValidSize(source.OutputSize.value())) {
+			offsetSourceRect.right = offsetSourceRect.left + source.OutputSize.value().cx;
+			offsetSourceRect.bottom = offsetSourceRect.top + source.OutputSize.value().cy;
+		}
+		else if (IsValidRect(source.SourceRect.value_or(RECT{}))) {
+			offsetSourceRect = source.SourceRect.value();
+		}
+		return offsetSourceRect;
+	});
+
 	for each (RECORDING_SOURCE source in sources)
 	{
-		auto AddDisplaySource([&](IDXGIOutput *output) {
-			DXGI_OUTPUT_DESC outputDesc;
-			output->GetDesc(&outputDesc);
-			RECT sourceRect = outputDesc.DesktopCoordinates;
-			long left = outputDesc.DesktopCoordinates.left;
-			long top = outputDesc.DesktopCoordinates.top;
-			if (source.Position.has_value()) {
-				left = source.Position.value().x;
-				top = source.Position.value().y;
-			}
-			if (source.Offset.has_value()) {
-				left += source.Offset.value().cx;
-				top += source.Offset.value().cy;
-			}
-			if (source.OutputSize.has_value() && IsValidSize(source.OutputSize.value())) {
-				sourceRect = RECT
-				{
-					left,
-					top,
-					left + source.OutputSize.value().cx,
-					top + source.OutputSize.value().cy
-				};
-			}
-			else if (IsValidRect(source.SourceRect.value_or(RECT{}))) {
-				sourceRect = RECT
-				{
-					left,
-					top,
-					left + RectWidth(source.SourceRect.value()),
-					top + RectHeight(source.SourceRect.value())
-				};
-			}
-			sourceRect.left += xOffset;
-			sourceRect.right += xOffset;
-			std::pair<RECORDING_SOURCE, RECT> tuple(source, sourceRect);
-			validOutputs.push_back(tuple);
-		});
-
 		switch (source.Type)
 		{
-		case RecordingSourceType::Display: {
-			// Figure out right dimensions for full size desktop texture and # of outputs to duplicate
-			std::wstring captureDevice = *static_cast<std::wstring *>(source.Source);
-			CComPtr<IDXGIOutput> output;
-			HRESULT hr = GetOutputForDeviceName(captureDevice, &output);
-			if (FAILED(hr))
-			{
-				LOG_ERROR(L"Failed to get output descs for selected devices");
-				return hr;
-			}
-			AddDisplaySource(output);
-			break;
-		}
-		case RecordingSourceType::Window: {
-			RECT windowRect;
-			HWND windowHandle = static_cast<HWND>(source.Source);
-			if (SUCCEEDED(DwmGetWindowAttribute(windowHandle, DWMWA_EXTENDED_FRAME_BOUNDS, &windowRect, sizeof(windowRect))))
-			{
-				RECT sourceRect{};
-				long left = 0;
-				long top = 0;
-				if (source.Position.has_value()) {
-					left = source.Position.value().x;
-					top = source.Position.value().y;
+			case RecordingSourceType::Display: {
+				CComPtr<IDXGIOutput> output;
+				HRESULT hr = GetOutputForDeviceName(source.SourcePath, &output);
+				if (FAILED(hr))
+				{
+					LOG_ERROR(L"Failed to get output descs for selected devices");
+					return hr;
 				}
-				if (source.Offset.has_value()) {
-					left += source.Offset.value().cx;
-					top += source.Offset.value().cy;
-				}
-				if (source.OutputSize.has_value() && IsValidSize(source.OutputSize.value())) {
-					sourceRect = RECT
-					{
-						left,
-						top,
-						left + source.OutputSize.value().cx,
-						top + source.OutputSize.value().cy
-					};
-				}
-				else if (IsValidRect(source.SourceRect.value_or(RECT{}))) {
-					sourceRect = RECT
-					{
-						left,
-						top,
-						left + RectWidth(source.SourceRect.value()),
-						top + RectHeight(source.SourceRect.value())
-					};
-				}
-				else {
-					sourceRect = RECT
-					{
-						left,
-						top,
-						left + RectWidth(windowRect),
-						top + RectHeight(windowRect)
-					};
-				}
-				LONG width = RectWidth(sourceRect);
-				if (validOutputs.size() > 0 && !source.Position.has_value()) {
-					sourceRect.right = validOutputs.back().second.right + width;
-					sourceRect.left = sourceRect.right - width;
-				}
-				xOffset += width;
+				DXGI_OUTPUT_DESC outputDesc;
+				output->GetDesc(&outputDesc);
+				RECT displayRect = outputDesc.DesktopCoordinates;
+				RECT sourceRect = GetOffsetSourceRect(displayRect, source);
 				std::pair<RECORDING_SOURCE, RECT> tuple(source, sourceRect);
 				validOutputs.push_back(tuple);
+				break;
 			}
-			break;
-		}
-		default:
-			break;
+			case RecordingSourceType::Window: {
+				RECT windowRect;
+				if (SUCCEEDED(DwmGetWindowAttribute(source.SourceWindow, DWMWA_EXTENDED_FRAME_BOUNDS, &windowRect, sizeof(windowRect))))
+				{
+					//Offset the window rect to start at[0,0] instead of screen coordinates.
+					OffsetRect(&windowRect, -windowRect.left, -windowRect.top);
+					RECT sourceRect = GetOffsetSourceRect(windowRect, source);
+					LONG width = RectWidth(sourceRect);
+					std::pair<RECORDING_SOURCE, RECT> tuple(source, sourceRect);
+					validOutputs.push_back(tuple);
+				}
+				break;
+			}
+			case RecordingSourceType::Video: {
+				SIZE size{};
+				VideoReader reader{};
+				HRESULT hr = reader.GetNativeSize(source, &size);
+				if (SUCCEEDED(hr)) {
+					RECT sourceRect = GetOffsetSourceRect(RECT{ 0,0,size.cx,size.cx }, source);
+					LONG width = RectWidth(sourceRect);
+					std::pair<RECORDING_SOURCE, RECT> tuple(source, sourceRect);
+					validOutputs.push_back(tuple);
+				}
+				break;
+			}
+			case RecordingSourceType::CameraCapture: {
+				SIZE size{};
+				CameraCapture reader{};
+				HRESULT hr = reader.GetNativeSize(source, &size);
+				if (SUCCEEDED(hr)) {
+					RECT sourceRect = GetOffsetSourceRect(RECT{ 0,0,size.cx,size.cy }, source);
+					LONG width = RectWidth(sourceRect);
+					std::pair<RECORDING_SOURCE, RECT> tuple(source, sourceRect);
+					validOutputs.push_back(tuple);
+				}
+				break;
+			}
+			case RecordingSourceType::Picture: {
+				SIZE size{};
+				std::string signature = ReadFileSignature(source.SourcePath.c_str());
+				ImageFileType imageType = getImageTypeByMagic(signature.c_str());
+				std::unique_ptr<CaptureBase> reader = nullptr;
+				if (imageType == ImageFileType::IMAGE_FILE_GIF) {
+					reader = std::make_unique<GifReader>();
+				}
+				else {
+					reader = std::make_unique<ImageReader>();
+				}
+				HRESULT hr = reader->GetNativeSize(source, &size);
+				if (SUCCEEDED(hr)) {
+					RECT sourceRect = GetOffsetSourceRect(RECT{ 0,0,size.cx,size.cy }, source);
+					LONG width = RectWidth(sourceRect);
+					std::pair<RECORDING_SOURCE, RECT> tuple(source, sourceRect);
+					validOutputs.push_back(tuple);
+				}
+				break;
+			}
+			default:
+				break;
 		}
 	}
 	auto sortRect = [](const std::pair<RECORDING_SOURCE, RECT> &p1, const std::pair<RECORDING_SOURCE, RECT> &p2)
@@ -457,7 +462,7 @@ HRESULT InitShaders(_In_ ID3D11Device *pDevice, _Outptr_ ID3D11PixelShader **ppP
 	}
 	D3D11_INPUT_ELEMENT_DESC Layout[] =
 	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+		{ "SV_POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
 		{ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 }
 	};
 	UINT NumElements = ARRAYSIZE(Layout);

@@ -156,8 +156,7 @@ HRESULT CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMedi
 
 HRESULT EnumVideoCaptureDevices(_Out_ std::map<std::wstring, std::wstring> *pDevices)
 {
-	std::map<std::wstring, std::wstring> devices;
-	pDevices = &devices;
+	*pDevices = std::map<std::wstring, std::wstring>();
 	HRESULT hr = S_OK;
 	CComPtr<IMFAttributes> pAttributes = nullptr;
 	UINT32 count = 0;
@@ -201,7 +200,7 @@ HRESULT EnumVideoCaptureDevices(_Out_ std::map<std::wstring, std::wstring> *pDev
 			//allocate a byte buffer for the raw pixel data
 			std::wstring deviceName = std::wstring(nameString);
 			std::wstring deviceSymbolicLink = std::wstring(symbolicLink);
-			devices.insert(std::pair<std::wstring, std::wstring>(deviceSymbolicLink, deviceName));
+			pDevices->insert(std::pair<std::wstring, std::wstring>(deviceSymbolicLink, deviceName));
 		}
 		CoTaskMemFree(nameString);
 	}

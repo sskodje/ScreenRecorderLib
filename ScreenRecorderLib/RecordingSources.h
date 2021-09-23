@@ -7,14 +7,20 @@ using namespace System::ComponentModel;
 
 namespace ScreenRecorderLib {
 
+	public enum class RecorderApi {
+		///<summary>Desktop Duplication is supported on all Windows 8 and 10 versions. This API supports recording of screens.</summary>
+		DesktopDuplication = 0,
+		///<summary>WindowsGraphicsCapture requires Windows 10 version 1803 or higher. This API supports recording windows in addition to screens.</summary>
+		WindowsGraphicsCapture = 1,
+	};
+
 	public ref class RecordingSourceBase abstract : public INotifyPropertyChanged {
 	private:
 		ScreenSize^ _outputSize;
 		ScreenPoint^ _position;
-		bool _isCursorCaptureEnabled;
 	internal:
 		RecordingSourceBase() {
-			IsCursorCaptureEnabled = true;
+
 		}
 	public:
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
@@ -43,6 +49,36 @@ namespace ScreenRecorderLib {
 				OnPropertyChanged("Position");
 			}
 		}
+
+
+		void OnPropertyChanged(String^ info)
+		{
+			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
+		}
+	};
+
+	public ref class WindowRecordingSource : public RecordingSourceBase {
+	private:
+		bool _isCursorCaptureEnabled;
+	public:
+		/// <summary>
+		/// The handle to the window to record.
+		/// </summary>
+		property IntPtr Handle;
+
+		WindowRecordingSource()
+		{
+			IsCursorCaptureEnabled = true;
+		}
+		WindowRecordingSource(IntPtr windowHandle) :WindowRecordingSource() {
+			Handle = windowHandle;
+		}
+
+		virtual property RecorderApi RecorderApi {
+			ScreenRecorderLib::RecorderApi get() {
+				return ScreenRecorderLib::RecorderApi::WindowsGraphicsCapture;
+			}
+		}
 		/// <summary>
 		///This option determines if the mouse cursor is recorded for this source. Defaults to true.
 		/// </summary>
@@ -55,34 +91,13 @@ namespace ScreenRecorderLib {
 				OnPropertyChanged("IsCursorCaptureEnabled");
 			}
 		}
-
-		void OnPropertyChanged(String^ info)
-		{
-			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
-		}
-	};
-
-	public ref class WindowRecordingSource : public RecordingSourceBase {
-	private:
-		ScreenSize^ _outputSize;
-		ScreenPoint^ _position;
-	public:
-		/// <summary>
-		/// The handle to the window to record.
-		/// </summary>
-		property IntPtr Handle;
-
-		WindowRecordingSource() {	}
-		WindowRecordingSource(IntPtr windowHandle) {
-			Handle = windowHandle;
-		}
 	};
 
 	public ref class DisplayRecordingSource : public RecordingSourceBase {
 	private:
 		ScreenRect^ _sourceRect;
-		ScreenSize^ _outputSize;
-		ScreenPoint^ _position;
+		RecorderApi _recorderApi;
+		bool _isCursorCaptureEnabled;
 	public:
 		static property DisplayRecordingSource^ MainMonitor {
 			DisplayRecordingSource^ get() {
@@ -100,8 +115,62 @@ namespace ScreenRecorderLib {
 		/// </summary>
 		property String^ DeviceName;
 
-		DisplayRecordingSource() {	}
-		DisplayRecordingSource(String^ deviceName) {
+		DisplayRecordingSource()
+		{
+			RecorderApi = ScreenRecorderLib::RecorderApi::DesktopDuplication;
+			IsCursorCaptureEnabled = true;
+		}
+		DisplayRecordingSource(String^ deviceName) :DisplayRecordingSource() {
+			DeviceName = deviceName;
+		}
+
+		virtual property ScreenRect^ SourceRect {
+			ScreenRect^ get() {
+				return _sourceRect;
+			}
+			void set(ScreenRect^ rect) {
+				_sourceRect = rect;
+				OnPropertyChanged("SourceRect");
+			}
+		}
+
+		virtual property RecorderApi RecorderApi {
+			ScreenRecorderLib::RecorderApi get() {
+				return _recorderApi;
+			}
+			void set(ScreenRecorderLib::RecorderApi api) {
+				_recorderApi = api;
+				OnPropertyChanged("RecorderApi");
+			}
+		}
+		/// <summary>
+		///This option determines if the mouse cursor is recorded for this source. Defaults to true.
+		/// </summary>
+		virtual property bool IsCursorCaptureEnabled {
+			bool get() {
+				return _isCursorCaptureEnabled;
+			}
+			void set(bool value) {
+				_isCursorCaptureEnabled = value;
+				OnPropertyChanged("IsCursorCaptureEnabled");
+			}
+		}
+	};
+
+	public ref class VideoCaptureRecordingSource : public RecordingSourceBase {
+	private:
+		ScreenRect^ _sourceRect;
+	public:
+		/// <summary>
+		/// The device name to record
+		/// </summary>
+		property String^ DeviceName;
+
+		VideoCaptureRecordingSource()
+		{
+
+		}
+		VideoCaptureRecordingSource(String^ deviceName) :VideoCaptureRecordingSource() {
 			DeviceName = deviceName;
 		}
 
@@ -115,6 +184,74 @@ namespace ScreenRecorderLib {
 			}
 		}
 	};
+
+
+	public ref class VideoRecordingSource : public RecordingSourceBase {
+	private:
+		ScreenRect^ _sourceRect;
+	public:
+		/// <summary>
+		/// The file path to the video
+		/// </summary>
+		property String^ SourcePath;
+
+		VideoRecordingSource()
+		{
+
+		}
+		VideoRecordingSource(String^ path) :VideoRecordingSource() {
+			SourcePath = path;
+		}
+
+		virtual property ScreenRect^ SourceRect {
+			ScreenRect^ get() {
+				return _sourceRect;
+			}
+			void set(ScreenRect^ rect) {
+				_sourceRect = rect;
+				OnPropertyChanged("SourceRect");
+			}
+		}
+	};
+
+	public ref class ImageRecordingSource : public RecordingSourceBase {
+	private:
+		ScreenRect^ _sourceRect;
+	public:
+		/// <summary>
+		/// The file path to the video
+		/// </summary>
+		property String^ SourcePath;
+
+		ImageRecordingSource()
+		{
+
+		}
+		ImageRecordingSource(String^ path) :ImageRecordingSource() {
+			SourcePath = path;
+		}
+
+		virtual property ScreenRect^ SourceRect {
+			ScreenRect^ get() {
+				return _sourceRect;
+			}
+			void set(ScreenRect^ rect) {
+				_sourceRect = rect;
+				OnPropertyChanged("SourceRect");
+			}
+		}
+	};
+
+	public ref class RecordableCamera : VideoCaptureRecordingSource {
+	public:
+		RecordableCamera() {}
+		RecordableCamera(String^ friendlyName, String^ deviceName) :VideoCaptureRecordingSource(deviceName)
+		{
+			FriendlyName = friendlyName;
+		}
+		property String^ FriendlyName;
+	};
+
 	public ref class RecordableWindow : WindowRecordingSource {
 	public:
 		RecordableWindow() {}
@@ -130,48 +267,16 @@ namespace ScreenRecorderLib {
 		bool IsValidWindow() {
 			return IsWindow(((HWND)Handle.ToPointer()));
 		}
-		/// <summary>
-		/// Retrieves the dimensions of the bounding rectangle of the specified window. The dimensions are given in screen coordinates that are relative to the upper-left corner of the screen.
-		/// </summary>
-		/// <returns></returns>
-		ScreenRect^ GetScreenCoordinates() {
-			if (Handle != IntPtr::Zero) {
-				HWND hwnd = (HWND)Handle.ToPointer();
-				if (IsWindow(hwnd)) {
-					RECT rect;
-					DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, &rect, sizeof(rect));
-					if (rect.right > rect.left) {
-						return gcnew ScreenRect(rect.left, rect.top, RectWidth(rect), RectHeight(rect));
-					}
-				}
-			}
-			return gcnew ScreenRect();
-		}
 	};
 
 	public ref class RecordableDisplay : DisplayRecordingSource {
 	public:
 		RecordableDisplay() :DisplayRecordingSource() {
 		}
-		RecordableDisplay(String^ monitorName, String^ deviceName) :DisplayRecordingSource(deviceName) {
-			MonitorName = monitorName;
+		RecordableDisplay(String^ friendlyName, String^ deviceName) :DisplayRecordingSource(deviceName) {
+			FriendlyName = friendlyName;
 		}
-		property String^ MonitorName;
-		/// <summary>
-		/// The bounds of the output in desktop coordinates. Desktop coordinates depend on the dots per inch (DPI) of the desktop.
-		/// </summary>
-		/// <returns></returns>
-		ScreenRect^ GetScreenCoordinates() {
-			if (!String::IsNullOrEmpty(DeviceName)) {
-				IDXGIOutput* pOutput;
-				if (SUCCEEDED(GetOutputForDeviceName(msclr::interop::marshal_as<std::wstring>(DeviceName), &pOutput))) {
-					DXGI_OUTPUT_DESC desc;
-					pOutput->GetDesc(&desc);
-					pOutput->Release(); 
-					return gcnew ScreenRect(desc.DesktopCoordinates.left, desc.DesktopCoordinates.top, RectWidth(desc.DesktopCoordinates), RectHeight(desc.DesktopCoordinates));
-				}
-			}
-			return gcnew ScreenRect();
-		}
+		property String^ FriendlyName;
+
 	};
 }

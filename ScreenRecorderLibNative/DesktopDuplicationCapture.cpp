@@ -1,236 +1,114 @@
 #include "DesktopDuplicationCapture.h"
-#include "DesktopDuplicationManager.h"
 #include "Cleanup.h"
 #include "MouseManager.h"
 #include "OverlayManager.h"
 using namespace std::chrono;
-DWORD WINAPI CaptureThreadProc(_In_ void *Param);
+using namespace std;
 
-duplication_capture::duplication_capture() :
-	ScreenCaptureBase()
+DesktopDuplicationCapture::DesktopDuplicationCapture() :
+	CaptureBase(),
+	m_SourceType(RecordingSourceType::Display),
+	m_DuplicationManager(nullptr),
+	m_IsInitialized(false),
+	m_IsCursorCaptureEnabled(false)
 {
-
+	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 }
 
-duplication_capture::~duplication_capture()
+DesktopDuplicationCapture::DesktopDuplicationCapture(_In_ bool isCursorCaptureEnabled) :DesktopDuplicationCapture()
 {
-
+	m_IsCursorCaptureEnabled = isCursorCaptureEnabled;
 }
 
-LPTHREAD_START_ROUTINE duplication_capture::GetCaptureThreadProc()
+DesktopDuplicationCapture::~DesktopDuplicationCapture()
 {
-	return CaptureThreadProc;
+	SafeRelease(&m_Device);
+	SafeRelease(&m_DeviceContext);
 }
 
-//
-// Entry point for new duplication threads
-//
-DWORD WINAPI CaptureThreadProc(_In_ void *Param)
+HRESULT DesktopDuplicationCapture::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice)
 {
-	HRESULT hr = S_OK;
+	m_Device = pDevice;
+	m_DeviceContext = pDeviceContext;
 
-	// Classes
-	DesktopDuplicationManager pDuplicationManager{};
-	MouseManager pMouseManager{};
-	//OverlayManager pOverlayManager{};
+	m_Device->AddRef();
+	m_DeviceContext->AddRef();
 
-	// D3D objects
-	ID3D11Texture2D *SharedSurf = nullptr;
-	IDXGIKeyedMutex *KeyMutex = nullptr;
+	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 
-	bool isExpectedError = false;
-	bool isUnexpectedError = false;
+	m_MouseManager = make_unique<MouseManager>();
+	m_MouseManager->Initialize(pDeviceContext, pDevice, std::make_shared<MOUSE_OPTIONS>());
 
-	// Data passed in from thread creation
-	CAPTURE_THREAD_DATA *pData = reinterpret_cast<CAPTURE_THREAD_DATA *>(Param);
+	if (m_Device && m_DeviceContext) {
+		m_IsInitialized = true;
+		return S_OK;
+	}
+	else {
+		LOG_ERROR(L"DesktopDuplicationCapture initialization failed");
+		return E_FAIL;
+	}
+}
 
-	// Get desktop
-	HDESK CurrentDesktop = nullptr;
-	CurrentDesktop = OpenInputDesktop(0, FALSE, GENERIC_ALL);
-	if (!CurrentDesktop)
-	{
-		// We do not have access to the desktop so request a retry
-		isExpectedError = true;
-		hr = E_ACCESSDENIED;
-		goto Exit;
+HRESULT DesktopDuplicationCapture::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame)
+{
+	if (!m_DuplicationManager) {
+		LOG_ERROR("DesktopDuplicationManager must be initialized before frames can be fetched.");
+		return E_FAIL;
+	}
+	// Get new frame from Desktop Duplication.
+	HRESULT hr = m_DuplicationManager->GetFrame(timeoutMillis, &m_CurrentData);
+	if (SUCCEEDED(hr) && ppFrame) {
+		*ppFrame = m_CurrentData.Frame;
 	}
 
-	// Attach desktop to this thread
-	bool DesktopAttached = SetThreadDesktop(CurrentDesktop) != 0;
-	CloseDesktop(CurrentDesktop);
-	CurrentDesktop = nullptr;
-	if (!DesktopAttached)
-	{
-		// We do not have access to the desktop so request a retry
-		isExpectedError = TRUE;
-		hr = E_ACCESSDENIED;
-		goto Exit;
+	return hr;
+}
+
+HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ const std::optional<RECT> &sourceRect)
+{
+	if (!m_DuplicationManager) {
+		LOG_ERROR("DesktopDuplicationManager must be initialized before frames can be fetched.");
+		return E_FAIL;
 	}
-	RECORDING_SOURCE_DATA *pSource = pData->RecordingSource;
-	//This scope must be here for ReleaseOnExit to work.
-	{
-		pMouseManager.Initialize(pSource->DxRes.Context, pSource->DxRes.Device, std::make_shared<MOUSE_OPTIONS>());
-		// Obtain handle to sync shared Surface
-		hr = pSource->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Opening shared texture failed");
-			goto Exit;
-		}
-		ReleaseOnExit releaseSharedSurf(SharedSurf);
-		hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&KeyMutex));
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");
-			goto Exit;
-		}
-		ReleaseOnExit releaseMutex(KeyMutex);
-		std::wstring sourceDevice = *static_cast<std::wstring *>(pSource->Source);
-		// Make duplication manager
-		hr = pDuplicationManager.Initialize(&pSource->DxRes, sourceDevice);
+	return	m_DuplicationManager->ProcessFrame(&m_CurrentData, pSharedSurf, offsetX, offsetY, destinationRect, sourceRect);
+}
 
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Failed initialize DesktopDuplicationManager");
-			goto Exit;
-		}
-
-		//hr = pOverlayManager.Initialize(pSource->DxRes.Context, pSource->DxRes.Device);
-
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Failed to initialize OverlayManager");
-			goto Exit;
-		}
-		//if (pSource->Overlays.size() > 0) {
-		//	pOverlayManager.StartCapture(pSource->Overlays, pData->UnexpectedErrorEvent, pData->ExpectedErrorEvent);
-		//}
-		// Get output description
-		DXGI_OUTPUT_DESC DesktopDesc;
-		RtlZeroMemory(&DesktopDesc, sizeof(DXGI_OUTPUT_DESC));
-		pDuplicationManager.GetOutputDesc(&DesktopDesc);
-
-		// Main duplication loop
-		bool WaitToProcessCurrentFrame = false;
-		DUPL_FRAME_DATA CurrentData{};
-
-		while (true)
-		{
-			if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
-				hr = S_OK;
-				break;
-			}
-
-			if (!WaitToProcessCurrentFrame)
-			{
-				// Get new frame from desktop duplication
-				hr = pDuplicationManager.GetFrame(&CurrentData);
-
-				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-					continue;
-				}
-				else if (FAILED(hr)) {
-					break;
-				}
-			}
-			{
-				MeasureExecutionTime measure(L"Duplication CaptureThreadProc wait for sync");
-				// We have a new frame so try and process it
-				// Try to acquire keyed mutex in order to access shared surface
-				hr = KeyMutex->AcquireSync(0, 10);
-			}
-			if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
-			{
-				LOG_TRACE(L"CaptureThreadProc shared surface is busy, retrying..");
-				// Can't use shared surface right now, try again later
-				WaitToProcessCurrentFrame = true;
-				continue;
-			}
-			else if (FAILED(hr))
-			{
-				// Generic unknown failure
-				LOG_ERROR(L"Unexpected error acquiring KeyMutex");
-				pDuplicationManager.ReleaseFrame();
-				break;
-			}
-
-			ReleaseDuplicationManagerFrameOnExit releaseFrame(&pDuplicationManager);
-			ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
-
-			// We can now process the current frame
-			WaitToProcessCurrentFrame = false;
-
-			// Get mouse info
-			hr = pMouseManager.GetMouse(pData->PtrInfo, pSource->IsCursorCaptureEnabled, &(CurrentData.FrameInfo), pSource->FrameCoordinates, pDuplicationManager.GetOutputDuplication(), pSource->OffsetX, pSource->OffsetY);
-			if (FAILED(hr))
-			{
-				break;
-			}
-
-			// Process new frame
-			hr = pDuplicationManager.ProcessFrame(&CurrentData, SharedSurf, pSource->OffsetX, pSource->OffsetY, pSource->FrameCoordinates, DesktopDesc.Rotation, pSource->SourceRect);
-			if (FAILED(hr))
-			{
-				break;
-			}
-			int updatedOverlayCount = 0;
-			//pOverlayManager.ProcessOverlays(SharedSurf, &updatedOverlayCount);
-
-			if (CurrentData.FrameInfo.AccumulatedFrames > 0 || updatedOverlayCount > 0) {
-				pData->UpdatedFrameCountSinceLastWrite++;
-				pData->TotalUpdatedFrameCount++;
-				LOG_TRACE("Wrote desktop duplication frame with %d updated frames and %d overlays", pData->UpdatedFrameCountSinceLastWrite, updatedOverlayCount);
-			}
-			if (CurrentData.FrameInfo.LastPresentTime.QuadPart > CurrentData.FrameInfo.LastMouseUpdateTime.QuadPart) {
-				pData->LastUpdateTimeStamp = CurrentData.FrameInfo.LastPresentTime;
-			}
-			else {
-				pData->LastUpdateTimeStamp = CurrentData.FrameInfo.LastMouseUpdateTime;
-			}
-		}
-	}
-Exit:
-
-	pData->ThreadResult = hr;
+HRESULT DesktopDuplicationCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSource)
+{
+	// Make duplication manager
+	m_DuplicationManager = make_unique<DesktopDuplicationManager>();
+	HRESULT hr = m_DuplicationManager->Initialize(m_DeviceContext, m_Device, recordingSource.SourcePath);
 
 	if (FAILED(hr))
 	{
-		_com_error err(hr);
-		switch (hr)
-		{
-		case DXGI_ERROR_DEVICE_REMOVED:
-		case DXGI_ERROR_DEVICE_RESET:
-			LOG_ERROR(L"Display device unavailable: %s", err.ErrorMessage());
-			isUnexpectedError = true;
-			break;
-		case E_ACCESSDENIED:
-		case DXGI_ERROR_MODE_CHANGE_IN_PROGRESS:
-		case DXGI_ERROR_SESSION_DISCONNECTED:
-			//case DXGI_ERROR_INVALID_CALL:
-		case DXGI_ERROR_ACCESS_LOST:
-			//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application is launching, or similar.
-			//We continue the recording, and instead of desktop texture just add a blank texture instead.
-			isExpectedError = true;
-			LOG_WARN(L"Desktop duplication temporarily unavailable: hr = 0x%08x, error = %s", hr, err.ErrorMessage());
-			break;
-		case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
-			LOG_ERROR(L"Error reinitializing desktop duplication with DXGI_ERROR_NOT_CURRENTLY_AVAILABLE. This means DXGI reached the limit on the maximum number of concurrent duplication applications (default of four). Therefore, the calling application cannot create any desktop duplication interfaces until the other applications close");
-			isUnexpectedError = true;
-			break;
-		default:
-			//Unexpected error, return.
-			LOG_ERROR(L"Error reinitializing desktop duplication with unexpected error, aborting: %s", err.ErrorMessage());
-			isUnexpectedError = true;
-			break;
-		}
+		LOG_ERROR(L"Failed initialize DesktopDuplicationManager");
+		return hr;
 	}
+	return hr;
+}
 
-	if (isExpectedError) {
-		SetEvent(pData->ExpectedErrorEvent);
+HRESULT DesktopDuplicationCapture::StopCapture()
+{
+	if (m_DuplicationManager) {
+		m_DuplicationManager.release();
+		m_DuplicationManager = nullptr;
 	}
-	else if (isUnexpectedError) {
-		SetEvent(pData->UnexpectedErrorEvent);
-	}
+	return S_OK;
+}
 
-	return 0;
+HRESULT DesktopDuplicationCapture::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *size)
+{
+	RtlZeroMemory(size, sizeof(size));
+	CComPtr<IDXGIOutput> output;
+	HRESULT hr = GetOutputForDeviceName(recordingSource.SourcePath, &output);
+	if (output) {
+		DXGI_OUTPUT_DESC desc;
+		output->GetDesc(&desc);
+		*size = SIZE{ RectWidth(desc.DesktopCoordinates),RectHeight(desc.DesktopCoordinates) };
+	}
+	return hr;
+}
+HRESULT DesktopDuplicationCapture::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuffer, _In_ RECT frameCoordinates, _In_ int offsetX, _In_ int offsetY)
+{
+	return m_MouseManager->GetMouse(pPtrInfo, getShapeBuffer, &m_CurrentData.FrameInfo, frameCoordinates, m_DuplicationManager->GetOutputDuplication(), offsetX, offsetY);
 }

@@ -7,13 +7,13 @@ class DesktopDuplicationManager
 public:
 	DesktopDuplicationManager();
 	~DesktopDuplicationManager();
-	HRESULT GetFrame(_Out_ DUPL_FRAME_DATA *pData);
+	HRESULT GetFrame(_In_ DWORD timeoutMillis, _Inout_ DUPL_FRAME_DATA *pData);
 	HRESULT ReleaseFrame();
-	HRESULT Initialize(_In_ DX_RESOURCES *pData, std::wstring Output);
+	HRESULT Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice, std::wstring Output);
 	void GetOutputDesc(_Out_ DXGI_OUTPUT_DESC *pOutputDesc);
 	IDXGIOutputDuplication *GetOutputDuplication() { return m_DeskDupl; }
 	ID3D11Device *GetDevice() { return m_Device; }
-	HRESULT ProcessFrame(_In_ DUPL_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_ DXGI_MODE_ROTATION rotation, _In_opt_ const std::optional<RECT> &sourceRect = std::nullopt);
+	HRESULT ProcessFrame(_In_ DUPL_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ const std::optional<RECT> &sourceRect = std::nullopt);
 private:
 	static const int NUMVERTICES = 6;
 

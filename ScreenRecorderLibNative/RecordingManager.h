@@ -7,7 +7,6 @@
 #include "MouseManager.h"
 #include "AudioManager.h"
 #include "Log.h"
-#include "Util.h"
 #include "HighresTimer.h"
 #include "MF.util.h"
 #include "fifo_map.h"
@@ -50,7 +49,6 @@ public:
 	static bool SetExcludeFromCapture(HWND hwnd, bool isExcluded);
 	void SetRecordingSources(std::vector<RECORDING_SOURCE> sources) { m_RecordingSources = sources; }
 	void SetRecorderMode(UINT32 mode) { m_RecorderMode = (RecorderModeInternal)mode; }
-	void SetRecorderApi(UINT32 api) { m_RecorderApi = api; }
 	void SetIsLogEnabled(bool value);
 	void SetLogFilePath(std::wstring value);
 	void SetLogSeverityLevel(int value);
@@ -83,7 +81,6 @@ private:
 	INT64 m_MaxFrameLength100Nanos = MillisToHundredNanos(500); //500 milliseconds in 100 nanoseconds measure.
 
 	RecorderModeInternal m_RecorderMode;
-	UINT32 m_RecorderApi;
 	std::vector<RECORDING_SOURCE> m_RecordingSources{};
 	std::vector<RECORDING_OVERLAY> m_Overlays;
 	RECT m_SourceRect{};
@@ -96,7 +93,6 @@ private:
 	std::shared_ptr<SNAPSHOT_OPTIONS> m_SnapshotOptions;
 
 	bool CheckDependencies(_Out_ std::wstring *error);
-	ScreenCaptureBase *CreateCaptureSession();
 	HRESULT ConfigureOutputDir(_In_ std::wstring path);
 	HRESULT StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_opt_ IStream *pStream);
 

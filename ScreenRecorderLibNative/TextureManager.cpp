@@ -26,7 +26,7 @@ HRESULT TextureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In
 	m_Device = pDevice;
 	m_DeviceContext = pDeviceContext;
 
-	HRESULT hr;
+	HRESULT hr = S_OK;
 
 	// Create the sample state
 	D3D11_SAMPLER_DESC SampDesc;
@@ -60,7 +60,7 @@ HRESULT TextureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In
 	hr = InitShaders(pDevice, &m_PixelShader, &m_VertexShader, &m_InputLayout);
 	RETURN_ON_BAD_HR(hr);
 
-	return S_OK;
+	return hr;
 }
 
 HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _Outptr_ ID3D11Texture2D **ppResizedTexture, _In_opt_ std::optional<SIZE> targetSize, _In_opt_ std::optional<double> scale)
@@ -91,7 +91,7 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _Outptr
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		LOG_ERROR(L"Failed to create shader resource from original frame's texture: %ls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to create shader resource from original frame texture: %ls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -203,7 +203,7 @@ HRESULT TextureManager::RotateTexture(_In_ ID3D11Texture2D *pOrgTexture, _Outptr
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		LOG_ERROR(L"Failed to create shader resource from original frame's texture: %ls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to create shader resource from original frame texture: %ls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -399,6 +399,12 @@ HRESULT TextureManager::DrawTexture(_Inout_ ID3D11Texture2D *pCanvasTexture, _In
 	ID3D11RenderTargetView *RTV;
 	// Create a render target view
 	hr = m_Device->CreateRenderTargetView(pCanvasTexture, nullptr, &RTV);
+	if (FAILED(hr))
+	{
+		_com_error err(hr);
+		LOG_ERROR(L"Failed to create render target view: %ls", err.ErrorMessage());
+		return hr;
+	}
 	// Set resources
 	FLOAT BlendFactor[4] = { 0.f, 0.f, 0.f, 0.f };
 	UINT Stride = sizeof(VERTEX);
@@ -417,8 +423,9 @@ HRESULT TextureManager::DrawTexture(_Inout_ ID3D11Texture2D *pCanvasTexture, _In
 	// Restore view port
 	m_DeviceContext->RSSetViewports(1, &VP);
 	// Clear shader resource
-	ID3D11ShaderResourceView *null[] = { nullptr };
-	m_DeviceContext->PSSetShaderResources(0, 1, null);
+	ID3D11ShaderResourceView *nullShader[] = { nullptr };
+	m_DeviceContext->PSSetShaderResources(0, 1, nullShader);
+
 	// Clean up
 	VertexBuffer->Release();
 	VertexBuffer = nullptr;
@@ -618,7 +625,7 @@ HRESULT TextureManager::CopyTextureWithCPU(_In_ ID3D11Device *pDevice, _In_ ID3D
 	return hr;
 }
 
-HRESULT TextureManager::CreateTextureFromBuffer(BYTE *pFrameBuffer, LONG stride, UINT width, UINT height, ID3D11Texture2D **ppTexture, std::optional<D3D11_RESOURCE_MISC_FLAG> miscFlag)
+HRESULT TextureManager::CreateTextureFromBuffer(_In_ BYTE *pFrameBuffer, _In_ LONG stride, _In_ UINT width, _In_ UINT height, _Outptr_ ID3D11Texture2D **ppTexture, std::optional<D3D11_RESOURCE_MISC_FLAG> miscFlag)
 {
 	D3D11_TEXTURE2D_DESC desc = { 0 };
 	desc.MipLevels = 1;

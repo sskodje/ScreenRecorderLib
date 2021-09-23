@@ -1,207 +1,139 @@
 #include "WindowsGraphicsCapture.h"
-#include "WindowsGraphicsCapture.util.h"
 #include "Util.h"
 #include "Cleanup.h"
-#include "WindowsGraphicsManager.h"
+#include "MouseManager.h"
 
+using namespace std;
 using namespace Graphics::Capture::Util;
 using namespace winrt::Windows::Graphics::Capture;
 using namespace winrt::Windows::Graphics::DirectX;
 
-static DWORD WINAPI CaptureThreadProc(_In_ void *Param);
-
 WindowsGraphicsCapture::WindowsGraphicsCapture() :
-	ScreenCaptureBase()
+	CaptureBase(),
+	m_CaptureItem(nullptr),
+	m_SourceType(RecordingSourceType::Display),
+	m_GraphicsManager(nullptr),
+	m_IsInitialized(false),
+	m_IsCursorCaptureEnabled(false),
+	m_MouseManager(nullptr)
 {
+	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
+}
 
+WindowsGraphicsCapture::WindowsGraphicsCapture(_In_ bool isCursorCaptureEnabled):WindowsGraphicsCapture()
+{
+	m_IsCursorCaptureEnabled = isCursorCaptureEnabled;
 }
 
 WindowsGraphicsCapture::~WindowsGraphicsCapture()
 {
-
+	SafeRelease(&m_Device);
+	SafeRelease(&m_DeviceContext);
 }
-
-RECT WindowsGraphicsCapture::GetOutputRect()
+HRESULT WindowsGraphicsCapture::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice)
 {
+	m_Device = pDevice;
+	m_DeviceContext = pDeviceContext;
 
-	return m_OutputRect;
-}
+	m_Device->AddRef();
+	m_DeviceContext->AddRef();
 
-LPTHREAD_START_ROUTINE WindowsGraphicsCapture::GetCaptureThreadProc()
-{
-	return CaptureThreadProc;
-}
+	m_MouseManager = make_unique<MouseManager>();
+	m_MouseManager->Initialize(pDeviceContext, pDevice, std::make_shared<MOUSE_OPTIONS>());
 
-//
-// Entry point for new capture threads
-//
-DWORD WINAPI CaptureThreadProc(_In_ void *Param)
-{
-	HRESULT hr = S_OK;
-
-	// Classes
-	MouseManager mouseManager{};
-	WindowsGraphicsManager graphicsManager{};
-	GraphicsCaptureItem captureItem{ nullptr };
-	//// D3D objects
-	ID3D11Texture2D *SharedSurf = nullptr;
-	IDXGIKeyedMutex *KeyMutex = nullptr;
-
-	bool isExpectedError = false;
-	bool isUnexpectedError = false;
-
-	// Data passed in from thread creation
-	CAPTURE_THREAD_DATA *pData = reinterpret_cast<CAPTURE_THREAD_DATA *>(Param);
-	RECORDING_SOURCE_DATA *pSource = pData->RecordingSource;
-	GRAPHICS_FRAME_DATA CurrentData{};
-
-
-	if (pData->RecordingSource->Type == RecordingSourceType::Window) {
-		HWND windowHandle = *static_cast<HWND *>(pData->RecordingSource->Source);
-		captureItem = CreateCaptureItemForWindow(windowHandle);
-		CurrentData.IsWindow = true;
+	if (m_Device && m_DeviceContext) {
+		m_IsInitialized = true;
+		return S_OK;
 	}
 	else {
+		LOG_ERROR(L"WindowsGraphicsCapture initialization failed");
+		return E_FAIL;
+	}
+}
+HRESULT WindowsGraphicsCapture::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame)
+{
+	if (!m_GraphicsManager) {
+		LOG_ERROR("WindowsGraphicsManager must be initialized before frames can be fetched.");
+		return E_FAIL;
+	}
+	// Get new frame from Windows Graphics Capture.
+	HRESULT hr = m_GraphicsManager->GetFrame(timeoutMillis, &m_CurrentData);
+	if (SUCCEEDED(hr) && ppFrame) {
+		*ppFrame = m_CurrentData.Frame;
+	}
 
+	return hr;
+}
+HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ const std::optional<RECT> &sourceRect)
+{
+	if (!m_GraphicsManager) {
+		LOG_ERROR("DesktopDuplicationManager must be initialized before frames can be fetched.");
+		return E_FAIL;
+	}
+	return	m_GraphicsManager->ProcessFrame(&m_CurrentData, pSharedSurf, offsetX, offsetY, destinationRect, sourceRect);
+}
+HRESULT WindowsGraphicsCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSource)
+{
+	if (!m_IsInitialized) {
+		LOG_ERROR(L"Initialize must be called before StartCapture");
+		return E_FAIL;
+	}
+	m_CaptureItem = GetCaptureItem(recordingSource);
+	m_SourceType = recordingSource.Type;
+
+	if (m_CaptureItem) {
+		// Initialize graphics manager.
+		m_GraphicsManager = make_unique<WindowsGraphicsManager>();
+		return m_GraphicsManager->Initialize(m_DeviceContext, m_Device, m_CaptureItem, m_IsCursorCaptureEnabled, DirectXPixelFormat::B8G8R8A8UIntNormalized);
+	}
+	else {
+		LOG_ERROR("Failed to create capture item");
+		return E_FAIL;
+	}
+}
+HRESULT WindowsGraphicsCapture::StopCapture()
+{
+	if (m_GraphicsManager) {
+		m_GraphicsManager->Close();
+		m_GraphicsManager.reset();
+	}
+	return S_OK;
+}
+HRESULT WindowsGraphicsCapture::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize)
+{
+	if (!m_CaptureItem) {
+		m_CaptureItem = GetCaptureItem(recordingSource);
+	}
+	if (!m_CaptureItem) {
+		LOG_ERROR("GraphicsCaptureItem was NULL when a non-null value was expected");
+		return E_FAIL;
+	}
+	*nativeMediaSize = SIZE{ m_CaptureItem.Size().Width,m_CaptureItem.Size().Height };
+	return S_OK;
+}
+HRESULT WindowsGraphicsCapture::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuffer, _In_ RECT frameCoordinates, _In_ int offsetX, _In_ int offsetY)
+{
+	// Windows Graphics Capture includes the mouse cursor on the texture, so we only get the positioning info for mouse click draws.
+	return m_MouseManager->GetMouse(pPtrInfo, false, offsetX, offsetY);
+}
+GraphicsCaptureItem WindowsGraphicsCapture::GetCaptureItem(_In_ RECORDING_SOURCE_BASE &recordingSource)
+{
+	if (recordingSource.Type == RecordingSourceType::Window) {
+		return CreateCaptureItemForWindow(recordingSource.SourceWindow);
+	}
+	else {
 		CComPtr<IDXGIOutput> output = nullptr;
-		std::wstring captureDevice = *static_cast<std::wstring *>(pData->RecordingSource->Source);
-		HRESULT hr = GetOutputForDeviceName(captureDevice, &output);
+		HRESULT hr = GetOutputForDeviceName(recordingSource.SourcePath, &output);
 		if (FAILED(hr)) {
 			GetMainOutput(&output);
 			if (!output) {
 				LOG_ERROR("Failed to find any monitors to record");
-				hr = E_FAIL;
-				goto Exit;
+				return nullptr;
 			}
 		}
 		DXGI_OUTPUT_DESC outputDesc;
 		output->GetDesc(&outputDesc);
-		captureItem = CreateCaptureItemForMonitor(outputDesc.Monitor);
-
+		return CreateCaptureItemForMonitor(outputDesc.Monitor);
 	}
-	CurrentData.ContentSize = SIZE{ captureItem.Size().Width,captureItem.Size().Height };
-	//This scope must be here for ReleaseOnExit to work.
-	{
-		mouseManager.Initialize(pSource->DxRes.Context, pSource->DxRes.Device, std::make_shared<MOUSE_OPTIONS>());
-		// Obtain handle to sync shared Surface
-		hr = pSource->DxRes.Device->OpenSharedResource(pData->TexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Opening shared texture failed");
-			goto Exit;
-		}
-		ReleaseOnExit releaseSharedSurf(SharedSurf);
-		hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&KeyMutex));
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");
-			goto Exit;
-		}
-
-		ReleaseOnExit releaseMutex(KeyMutex);
-		// Initialize graphics manager.
-		hr = graphicsManager.Initialize(&pSource->DxRes, captureItem, pSource->IsCursorCaptureEnabled, DirectXPixelFormat::B8G8R8A8UIntNormalized);
-
-		if (FAILED(hr))
-		{
-			goto Exit;
-		}
-		//D3D11_TEXTURE2D_DESC outputDesc;
-		//pFrameInfo->Frame->GetDesc(&outputDesc);
-
-		// Main capture loop
-		bool WaitToProcessCurrentFrame = false;
-		while (true)
-		{
-			if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
-				hr = S_OK;
-				break;
-			}
-
-			if (!WaitToProcessCurrentFrame)
-			{
-				// Get new frame from Windows Graphics Capture.
-				hr = graphicsManager.GetFrame(&CurrentData);
-				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-					if (!CurrentData.IsIconic && CurrentData.IsWindow && IsIconic(*static_cast<HWND *>(pData->RecordingSource->Source))) {
-						CurrentData.IsIconic = true;
-						LOG_INFO("Recorded window is minimized");
-					}
-					else {
-						Sleep(1);
-						continue;
-					}
-				}
-				else if (FAILED(hr)) {
-					break;
-				}
-				else if (SUCCEEDED(hr)) {
-					if (CurrentData.IsIconic) {
-						CurrentData.IsIconic = false;
-						LOG_INFO("Recorded window is restored and no longer minimized");
-					}
-				}
-			}
-			{
-				MeasureExecutionTime measure(L"WGC CaptureThreadProc wait for sync");
-				// We have a new frame so try and process it
-				// Try to acquire keyed mutex in order to access shared surface
-				hr = KeyMutex->AcquireSync(0, 1000);
-			}
-			if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
-			{
-				// Can't use shared surface right now, try again later
-				WaitToProcessCurrentFrame = true;
-				continue;
-			}
-			else if (FAILED(hr))
-			{
-				// Generic unknown failure
-				LOG_ERROR(L"Unexpected error acquiring KeyMutex");
-				break;
-			}
-
-			ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
-
-			// We can now process the current frame
-			WaitToProcessCurrentFrame = false;
-
-			// Get mouse info. Windows Graphics Capture includes the mouse cursor on the texture, so we only get the positioning info for mouse click draws.
-			hr = mouseManager.GetMouse(pData->PtrInfo, false, pSource->OffsetX, pSource->OffsetY);
-
-			D3D11_TEXTURE2D_DESC desc;
-			CurrentData.Frame->GetDesc(&desc);
-
-			// Process new frame
-			hr = graphicsManager.ProcessFrame(&CurrentData, SharedSurf, pSource->OffsetX, pSource->OffsetY, pSource->FrameCoordinates, pSource->SourceRect);
-			if (FAILED(hr))
-			{
-				break;
-			}
-
-			pData->UpdatedFrameCountSinceLastWrite++;
-			pData->TotalUpdatedFrameCount++;
-
-			QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
-		}
-	}
-Exit:
-	graphicsManager.Close();
-	SafeRelease(&CurrentData.Frame);
-	pData->ThreadResult = hr;
-
-	if (FAILED(hr))
-	{
-		_com_error err(hr);
-		LOG_ERROR(L"Error in Windows Graphics Capture, aborting: %s", err.ErrorMessage());
-	}
-
-	if (isExpectedError) {
-		SetEvent(pData->ExpectedErrorEvent);
-	}
-	else if (isUnexpectedError) {
-		SetEvent(pData->UnexpectedErrorEvent);
-	}
-
-	return 0;
+	return nullptr;
 }

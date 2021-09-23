@@ -3,12 +3,14 @@
 #include <mfidl.h>
 #include <VersionHelpers.h>
 #include <filesystem>
+#include "Util.h"
 #include "LoopbackCapture.h"
 #include "RecordingManager.h"
 #include "Cleanup.h"
 #include "Screengrab.h"
 #include "TextureManager.h"
 #include "OutputManager.h"
+#include "ScreenCaptureManager.h"
 
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "D3D11.lib")
@@ -74,8 +76,7 @@ RecordingManager::RecordingManager() :
 	m_AudioOptions(new AUDIO_OPTIONS),
 	m_MouseOptions(new MOUSE_OPTIONS),
 	m_SnapshotOptions(new SNAPSHOT_OPTIONS),
-	m_RecorderMode(RecorderModeInternal::Video),
-	m_RecorderApi(API_DESKTOP_DUPLICATION)
+	m_RecorderMode(RecorderModeInternal::Video)
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 }
@@ -221,13 +222,6 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 			LOG_DEBUG("Changed Recording Status to Recording");
 		}
 
-		if (m_RecorderApi == API_GRAPHICS_CAPTURE) {
-			LOG_DEBUG("Starting Windows Graphics Capture recorder loop");
-		}
-		else if (m_RecorderApi == API_DESKTOP_DUPLICATION) {
-			LOG_DEBUG("Starting Desktop Duplication recorder loop");
-		}
-
 		hr = StartRecorderLoop(m_RecordingSources, m_Overlays, stream);
 		LOG_INFO("Exiting recording task");
 		return hr;
@@ -305,17 +299,6 @@ bool RecordingManager::SetExcludeFromCapture(HWND hwnd, bool isExcluded) {
 		return false;
 }
 
-ScreenCaptureBase *RecordingManager::CreateCaptureSession()
-{
-	if (m_RecorderApi == API_DESKTOP_DUPLICATION) {
-		return new duplication_capture();
-	}
-	else if (m_RecorderApi == API_GRAPHICS_CAPTURE) {
-		return new WindowsGraphicsCapture();
-	}
-	return nullptr;
-}
-
 void RecordingManager::CleanupResourcesAndShutDownMF()
 {
 	SafeRelease(&m_DeviceContext);
@@ -378,7 +361,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 	CComPtr<ID3D11Texture2D> pCurrentFrameCopy = nullptr;
 
 	PTR_INFO *pPtrInfo = nullptr;
-	unique_ptr<ScreenCaptureBase> pCapture(CreateCaptureSession());
+	unique_ptr<ScreenCaptureManager> pCapture = make_unique<ScreenCaptureManager>();
 	RETURN_ON_BAD_HR(pCapture->Initialize(m_DeviceContext, m_Device));
 	HANDLE UnexpectedErrorEvent = nullptr;
 	HANDLE ExpectedErrorEvent = nullptr;
@@ -400,8 +383,8 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 
 	HRESULT hr;
 	RETURN_ON_BAD_HR(hr = pCapture->StartCapture(sources, overlays, UnexpectedErrorEvent, ExpectedErrorEvent));
-	CaptureStopOnExit stopCaptureOnExit(pCapture.get());
 
+	CaptureStopOnExit stopCaptureOnExit(pCapture.get());
 
 	RECT videoInputFrameRect{};
 	SIZE videoOutputFrameSize{};
@@ -493,7 +476,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 
 		if (WaitForSingleObjectEx(ExpectedErrorEvent, 0, FALSE) == WAIT_OBJECT_0) {
 			wait(10);
-			pCapture.reset(CreateCaptureSession());
+			pCapture.reset(new ScreenCaptureManager());
 			stopCaptureOnExit.Reset(pCapture.get());
 			ResetEvent(UnexpectedErrorEvent);
 			ResetEvent(ExpectedErrorEvent);
@@ -537,6 +520,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		//Delay frames that comes quicker than selected framerate to see if we can skip them.
 		if (hr == DXGI_ERROR_WAIT_TIMEOUT || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) //attempt to wait if frame timeouted or duration is under our chosen framerate
 		{
+			bool cacheCurrentFrame = false;
 			INT64 delay100Nanos = 0;
 			if (m_RecorderMode == RecorderModeInternal::Video
 				&& (m_OutputManager->GetRenderedFrameCount() == 0 //never delay the first frame 
@@ -548,32 +532,34 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 				}
 			}
 			else if (SUCCEEDED(hr) && videoFrameDuration100Nanos > durationSinceLastFrame100Nanos) {
-				if (capturedFrame.FrameUpdateCount > 0 || capturedFrame.OverlayUpdateCount > 0) {
-					if (pCurrentFrameCopy != nullptr) {
-						//we got a frame, but it's too soon, so we cache it and see if there are more changes.
-						if (pPreviousFrameCopy == nullptr) {
-							D3D11_TEXTURE2D_DESC desc;
-							pCurrentFrameCopy->GetDesc(&desc);
-							RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pPreviousFrameCopy));
-						}
-						m_DeviceContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
-					}
+				if (pCurrentFrameCopy != nullptr && (capturedFrame.FrameUpdateCount > 0 || capturedFrame.OverlayUpdateCount > 0)) {
+					cacheCurrentFrame = true;
 				}
-				havePrematureFrame = true;
 				delay100Nanos = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
 			}
 			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-					if ((havePrematureFrame || m_RecorderMode == RecorderModeInternal::Slideshow || GetEncoderOptions()->GetIsFixedFramerate())
-						&& videoFrameDuration100Nanos > durationSinceLastFrame100Nanos) {
-						delay100Nanos = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
-					}
-					else if (!havePrematureFrame && m_MaxFrameLength100Nanos > durationSinceLastFrame100Nanos) {
-						delay100Nanos = max(0, m_MaxFrameLength100Nanos - durationSinceLastFrame100Nanos);
-					}
+				if ((havePrematureFrame || m_RecorderMode == RecorderModeInternal::Slideshow || GetEncoderOptions()->GetIsFixedFramerate())
+					&& videoFrameDuration100Nanos > durationSinceLastFrame100Nanos) {
+					delay100Nanos = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
+				}
+				else if (!havePrematureFrame && m_MaxFrameLength100Nanos > durationSinceLastFrame100Nanos) {
+					delay100Nanos = max(0, m_MaxFrameLength100Nanos - durationSinceLastFrame100Nanos);
+				}
 			}
 			if (delay100Nanos > minimumTimeForDelay100Nanons) {
+				if (cacheCurrentFrame) {
+					//we got a frame, but it's too soon, so we cache it and continue to see if there are more changes.
+					if (pPreviousFrameCopy == nullptr) {
+						D3D11_TEXTURE2D_DESC desc;
+						pCurrentFrameCopy->GetDesc(&desc);
+						RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pPreviousFrameCopy));
+					}
+					m_DeviceContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
+					havePrematureFrame = true;
+				}
 				if (delay100Nanos > MillisToHundredNanos(2)) {
 					MeasureExecutionTime measureSleep(L"DelayRender");
+					m_DeviceContext->Flush();
 					Sleep(1);
 				}
 				else {
@@ -588,36 +574,35 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		}
 
 		lastFrame = steady_clock::now();
-		{
-			if (pCurrentFrameCopy) {
-				if (pPreviousFrameCopy) {
-					pPreviousFrameCopy.Release();
-				}
-				//Copy new frame to pPreviousFrameCopy
-				if (m_RecorderMode == RecorderModeInternal::Video || m_RecorderMode == RecorderModeInternal::Slideshow) {
-					D3D11_TEXTURE2D_DESC desc;
-					pCurrentFrameCopy->GetDesc(&desc);
-					RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pPreviousFrameCopy));
-					m_DeviceContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
-				}
+
+		if (pCurrentFrameCopy) {
+			if (pPreviousFrameCopy) {
+				pPreviousFrameCopy.Release();
 			}
-			else if (pPreviousFrameCopy) {
+			//Copy new frame to pPreviousFrameCopy
+			if (m_RecorderMode == RecorderModeInternal::Video || m_RecorderMode == RecorderModeInternal::Slideshow) {
 				D3D11_TEXTURE2D_DESC desc;
-				pPreviousFrameCopy->GetDesc(&desc);
-				RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pCurrentFrameCopy));
-				m_DeviceContext->CopyResource(pCurrentFrameCopy, pPreviousFrameCopy);
+				pCurrentFrameCopy->GetDesc(&desc);
+				RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pPreviousFrameCopy));
+				m_DeviceContext->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
 			}
+		}
+		else if (pPreviousFrameCopy) {
+			D3D11_TEXTURE2D_DESC desc;
+			pPreviousFrameCopy->GetDesc(&desc);
+			RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pCurrentFrameCopy));
+			m_DeviceContext->CopyResource(pCurrentFrameCopy, pPreviousFrameCopy);
+		}
 
-			if (token.is_canceled()) {
-				LOG_DEBUG("Recording task was cancelled");
-				hr = S_OK;
-				break;
-			}
+		if (token.is_canceled()) {
+			LOG_DEBUG("Recording task was cancelled");
+			hr = S_OK;
+			break;
+		}
 
-			RETURN_ON_BAD_HR(hr = PrepareAndRenderFrame(pCurrentFrameCopy, durationSinceLastFrame100Nanos));
-			if (m_RecorderMode == RecorderModeInternal::Screenshot) {
-				break;
-			}
+		RETURN_ON_BAD_HR(hr = PrepareAndRenderFrame(pCurrentFrameCopy, durationSinceLastFrame100Nanos));
+		if (m_RecorderMode == RecorderModeInternal::Screenshot) {
+			break;
 		}
 	}
 
@@ -705,18 +690,26 @@ bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
 	bool result = true;
 	HKEY hk;
 	DWORD errorCode;
-	if (m_RecorderApi == API_DESKTOP_DUPLICATION && !IsWindows8OrGreater()) {
-		errorText = L"Desktop Duplication requires Windows 8 or greater.";
-		result = false;
-	}
-	else if (m_RecorderApi == API_GRAPHICS_CAPTURE && !Graphics::Capture::Util::IsGraphicsCaptureAvailable())
-	{
-		errorText = L"Windows Graphics Capture requires Windows 10 version 1803 or greater.";
-		result = false;
-	}
-	else if (errorCode = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Setup\\WindowsFeatures\\WindowsMediaVersion", 0, KEY_READ, &hk) != ERROR_SUCCESS) {
+
+	if (errorCode = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Setup\\WindowsFeatures\\WindowsMediaVersion", 0, KEY_READ, &hk) != ERROR_SUCCESS) {
 		errorText = L"Missing dependency: Windows Media Features.";
 		result = false;
+	}
+	else {
+		for each (auto source in m_RecordingSources)
+		{
+			if (source.SourceApi.has_value() && source.SourceApi == RecordingSourceApi::DesktopDuplication && !IsWindows8OrGreater()) {
+				errorText = L"Desktop Duplication requires Windows 8 or greater.";
+				result = false;
+				break;
+			}
+			else if (source.SourceApi.has_value() && source.SourceApi == RecordingSourceApi::WindowsGraphicsCapture && !Graphics::Capture::Util::IsGraphicsCaptureAvailable())
+			{
+				errorText = L"Windows Graphics Capture requires Windows 10 version 1803 or greater.";
+				result = false;
+				break;
+			}
+		}
 	}
 	*error = errorText;
 	return result;

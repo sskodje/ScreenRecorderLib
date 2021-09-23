@@ -1,11 +1,11 @@
 #pragma once
+#include <inspectable.h>
 #include <winrt/windows.graphics.directx.direct3d11.h>
 #include <dxgi.h>
 #include <winrt/Windows.Graphics.Capture.h>
 #include <winrt/Windows.Foundation.Metadata.h>
 #include <windows.graphics.capture.interop.h>
 #include <windows.graphics.capture.h>
-
 namespace Graphics::Capture::Util
 {
 	extern "C"

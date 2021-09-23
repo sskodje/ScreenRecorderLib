@@ -1,13 +1,20 @@
 #include "Cleanup.h"
 #include <chrono>
-
+#include "ScreenCaptureManager.h"
+#include "DesktopDuplicationCapture.h"
+#include "WindowsGraphicsCapture.h"
+#include "CameraCapture.h"
+#include "VideoReader.h"
+#include "ImageReader.h"
+#include "GifReader.h"
+#include <typeinfo>
 using namespace DirectX;
 using namespace std::chrono;
 using namespace std;
 
+DWORD WINAPI CaptureThreadProc(_In_ void *Param);
 
-
-ScreenCaptureBase::ScreenCaptureBase() :
+ScreenCaptureManager::ScreenCaptureManager() :
 	m_Device(nullptr),
 	m_DeviceContext(nullptr),
 	m_TerminateThreadsEvent(nullptr),
@@ -27,7 +34,7 @@ ScreenCaptureBase::ScreenCaptureBase() :
 	m_TerminateThreadsEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 }
 
-ScreenCaptureBase::~ScreenCaptureBase()
+ScreenCaptureManager::~ScreenCaptureManager()
 {
 	Clean();
 }
@@ -35,9 +42,9 @@ ScreenCaptureBase::~ScreenCaptureBase()
 //
 // Initialize shaders for drawing to screen
 //
-HRESULT ScreenCaptureBase::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice)
+HRESULT ScreenCaptureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice)
 {
-	HRESULT hr = E_UNEXPECTED;
+	HRESULT hr = S_OK;
 	m_Device = pDevice;
 	m_DeviceContext = pDeviceContext;
 
@@ -49,13 +56,13 @@ HRESULT ScreenCaptureBase::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, 
 }
 
 //
-// Start up threads for DDA
+// Start up threads for video capture
 //
-HRESULT ScreenCaptureBase::StartCapture(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
+HRESULT ScreenCaptureManager::StartCapture(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
 {
 	ResetEvent(m_TerminateThreadsEvent);
 
-	HRESULT hr;
+	HRESULT hr = E_FAIL;
 	std::vector<RECORDING_SOURCE_DATA *> CreatedOutputs{};
 	RETURN_ON_BAD_HR(hr = CreateSharedSurf(sources, &CreatedOutputs, &m_OutputRect));
 	m_CaptureThreadCount = (UINT)(CreatedOutputs.size());
@@ -65,11 +72,7 @@ HRESULT ScreenCaptureBase::StartCapture(_In_ std::vector<RECORDING_SOURCE> sourc
 	{
 		return E_OUTOFMEMORY;
 	}
-	for each (RECORDING_SOURCE_DATA *source in CreatedOutputs)
-	{
-		for (int i = 0; i < overlays.size(); i++)
-			source->Overlays.push_back(overlays[i]);
-	}
+
 	HANDLE sharedHandle = GetSharedHandle(m_SharedSurf);
 	// Create appropriate # of threads for duplication
 
@@ -79,61 +82,26 @@ HRESULT ScreenCaptureBase::StartCapture(_In_ std::vector<RECORDING_SOURCE> sourc
 		m_CaptureThreadData[i].UnexpectedErrorEvent = hUnexpectedErrorEvent;
 		m_CaptureThreadData[i].ExpectedErrorEvent = hExpectedErrorEvent;
 		m_CaptureThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
-		m_CaptureThreadData[i].TexSharedHandle = sharedHandle;
+		m_CaptureThreadData[i].CanvasTexSharedHandle = sharedHandle;
 		m_CaptureThreadData[i].PtrInfo = &m_PtrInfo;
 
 		m_CaptureThreadData[i].RecordingSource = data;
 		RtlZeroMemory(&m_CaptureThreadData[i].RecordingSource->DxRes, sizeof(DX_RESOURCES));
-		m_CaptureThreadData[i].RecordingSource->DxRes.Context = m_DeviceContext;
-		m_CaptureThreadData[i].RecordingSource->DxRes.Device = m_Device;
 		RETURN_ON_BAD_HR(hr = InitializeDx(nullptr, &m_CaptureThreadData[i].RecordingSource->DxRes));
 
 		DWORD ThreadId;
-		m_CaptureThreadHandles[i] = CreateThread(nullptr, 0, GetCaptureThreadProc(), &m_CaptureThreadData[i], 0, &ThreadId);
+		m_CaptureThreadHandles[i] = CreateThread(nullptr, 0, CaptureThreadProc, &m_CaptureThreadData[i], 0, &ThreadId);
 		if (m_CaptureThreadHandles[i] == nullptr)
 		{
 			return E_FAIL;
 		}
 	}
-
-	//m_OverlayThreadCount = (UINT)(overlays.size());
-	//m_OverlayThreadHandles = new (std::nothrow) HANDLE[m_OverlayThreadCount]{};
-	//m_OverlayThreadData = new (std::nothrow) OVERLAY_THREAD_DATA[m_OverlayThreadCount]{};
-	//if (!m_OverlayThreadHandles || !m_OverlayThreadData)
-	//{
-	//	return E_OUTOFMEMORY;
-	//}
-	//for (UINT i = 0; i < m_OverlayThreadCount; i++)
-	//{
-	//	auto overlay = overlays.at(i);
-	//	m_OverlayThreadData[i].UnexpectedErrorEvent = hUnexpectedErrorEvent;
-	//	m_OverlayThreadData[i].ExpectedErrorEvent = hExpectedErrorEvent;
-	//	m_OverlayThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
-	//	m_OverlayThreadData[i].TexSharedHandle = sharedHandle;
-	//	m_OverlayThreadData[i].RecordingOverlay = new RECORDING_OVERLAY_DATA(overlay);
-	//	RtlZeroMemory(&m_OverlayThreadData[i].RecordingOverlay->DxRes, sizeof(DX_RESOURCES));
-	//	m_OverlayThreadData[i].RecordingOverlay->DxRes.Context = m_DeviceContext;
-	//	m_OverlayThreadData[i].RecordingOverlay->DxRes.Device = m_Device;
-	//	HRESULT hr = InitializeDx(nullptr, &m_OverlayThreadData[i].RecordingOverlay->DxRes);
-	//	if (FAILED(hr))
-	//	{
-	//		return hr;
-	//	}
-
-	//	DWORD ThreadId;
-	//	m_OverlayThreadHandles[i] = CreateThread(nullptr, 0, OverlayProc, &m_OverlayThreadData[i], 0, &ThreadId);
-	//	if (m_OverlayThreadHandles[i] == nullptr)
-	//	{
-	//		return E_FAIL;
-	//	}
-	//}
-
-	m_OverlayManager->StartCapture(overlays, hUnexpectedErrorEvent, hExpectedErrorEvent);
+	m_OverlayManager->StartCapture(sharedHandle, overlays, hUnexpectedErrorEvent, hExpectedErrorEvent);
 	m_IsCapturing = true;
 	return hr;
 }
 
-HRESULT ScreenCaptureBase::StopCapture()
+HRESULT ScreenCaptureManager::StopCapture()
 {
 	if (!SetEvent(m_TerminateThreadsEvent)) {
 		LOG_ERROR("Could not terminate capture thread");
@@ -144,7 +112,7 @@ HRESULT ScreenCaptureBase::StopCapture()
 	return S_OK;
 }
 
-HRESULT ScreenCaptureBase::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame)
+HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame)
 {
 	HRESULT hr;
 	// Try to acquire keyed mutex in order to access shared surface
@@ -154,7 +122,6 @@ HRESULT ScreenCaptureBase::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ C
 
 	}
 	if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
-	//if (WaitForSingleObject(m_Mutex, timeoutMillis) != WAIT_OBJECT_0)
 	{
 		return DXGI_ERROR_WAIT_TIMEOUT;
 	}
@@ -165,7 +132,6 @@ HRESULT ScreenCaptureBase::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ C
 
 	ID3D11Texture2D *pDesktopFrame = nullptr;
 	{
-		//ReleaseMutexHandleOnExit releaseMutex(m_Mutex);
 		ReleaseKeyedMutexOnExit releaseMutex(m_KeyMutex, 0);
 
 		bool haveNewFrameData = (IsUpdatedFramesAvailable() || m_OverlayManager->IsUpdatedFramesAvailable()) && IsInitialFrameWriteComplete();
@@ -175,27 +141,17 @@ HRESULT ScreenCaptureBase::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ C
 		}
 		MeasureExecutionTime measure(L"AcquireNextFrame lock");
 		int updatedFrameCount = GetUpdatedFrameCount(true);
-		//{
-		//	MeasureExecutionTime measure(L"ProcessSources");
-		//	RETURN_ON_BAD_HR(hr = ProcessSources(m_SharedSurf, &updatedFrameCount));
-		//	measure.SetName(string_format(L"ProcessSources for %d sources", updatedFrameCount));
-		//}
 
 		D3D11_TEXTURE2D_DESC desc;
 		m_SharedSurf->GetDesc(&desc);
 		desc.MiscFlags = 0;
+		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
 		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pDesktopFrame));
 		m_DeviceContext->CopyResource(pDesktopFrame, m_SharedSurf);
 
 		int updatedOverlaysCount = 0;
 		m_OverlayManager->ProcessOverlays(pDesktopFrame, &updatedOverlaysCount);
-		//{
-		//	MeasureExecutionTime measure(L"ProcessOverlays");
-		//	RETURN_ON_BAD_HR(hr = ProcessOverlays(m_SharedSurf, &updatedOverlaysCount));
-		//	measure.SetName(string_format(L"ProcessOverlays for %d sources", updatedOverlaysCount));
-		//}
 
-		//m_DeviceContext->CopyResource(m_SharedSurf, pDesktopFrame);
 		if (updatedFrameCount > 0 || updatedOverlaysCount > 0) {
 			QueryPerformanceCounter(&m_LastAcquiredFrameTimeStamp);
 		}
@@ -203,7 +159,6 @@ HRESULT ScreenCaptureBase::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ C
 		pFrame->Frame = pDesktopFrame;
 		pFrame->PtrInfo = &m_PtrInfo;
 		pFrame->FrameUpdateCount = updatedFrameCount;
-		//pFrame->Timestamp = m_LastAcquiredFrameTimeStamp;
 		pFrame->OverlayUpdateCount = updatedOverlaysCount;
 	}
 	return hr;
@@ -212,7 +167,7 @@ HRESULT ScreenCaptureBase::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ C
 //
 // Clean up resources
 //
-void ScreenCaptureBase::Clean()
+void ScreenCaptureManager::Clean()
 {
 	if (m_SharedSurf) {
 		m_SharedSurf->Release();
@@ -229,40 +184,6 @@ void ScreenCaptureBase::Clean()
 		m_PtrInfo.PtrShapeBuffer = nullptr;
 	}
 	RtlZeroMemory(&m_PtrInfo, sizeof(m_PtrInfo));
-
-	//if (m_OverlayThreadHandles) {
-	//	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
-	//	{
-	//		if (m_OverlayThreadHandles[i])
-	//		{
-	//			CloseHandle(m_OverlayThreadHandles[i]);
-	//		}
-	//	}
-	//	delete[] m_OverlayThreadHandles;
-	//	m_OverlayThreadHandles = nullptr;
-	//}
-
-	//if (m_OverlayThreadData)
-	//{
-	//	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
-	//	{
-	//		if (m_OverlayThreadData[i].RecordingOverlay) {
-	//			CleanDx(&m_OverlayThreadData[i].RecordingOverlay->DxRes);
-	//			//if (m_OverlayThreadData[i].RecordingOverlay->FrameInfo->PtrFrameBuffer) {
-	//			//	delete[] m_OverlayThreadData[i].RecordingOverlay->FrameInfo->PtrFrameBuffer;
-	//			//	m_OverlayThreadData[i].RecordingOverlay->FrameInfo->PtrFrameBuffer = nullptr;
-	//			//}
-	//			SafeRelease(&m_OverlayThreadData[i].RecordingOverlay->FrameInfo->Frame);
-	//			delete m_OverlayThreadData[i].RecordingOverlay->FrameInfo;
-	//			delete m_OverlayThreadData[i].RecordingOverlay;
-	//			m_OverlayThreadData[i].RecordingOverlay = nullptr;
-	//		}
-	//	}
-	//	delete[] m_OverlayThreadData;
-	//	m_OverlayThreadData = nullptr;
-	//}
-
-	//m_OverlayThreadCount = 0;
 
 	if (m_CaptureThreadHandles) {
 		for (UINT i = 0; i < m_CaptureThreadCount; ++i)
@@ -282,8 +203,6 @@ void ScreenCaptureBase::Clean()
 		{
 			if (m_CaptureThreadData[i].RecordingSource) {
 				CleanDx(&m_CaptureThreadData[i].RecordingSource->DxRes);
-				//SafeRelease(&m_CaptureThreadData[i].FrameInfo->Frame);
-				//delete m_CaptureThreadData[i].FrameInfo;
 				delete m_CaptureThreadData[i].RecordingSource;
 				m_CaptureThreadData[i].RecordingSource = nullptr;
 			}
@@ -300,7 +219,7 @@ void ScreenCaptureBase::Clean()
 //
 // Waits infinitely for all spawned threads to terminate
 //
-void ScreenCaptureBase::WaitForThreadTermination()
+void ScreenCaptureManager::WaitForThreadTermination()
 {
 	//if (m_OverlayThreadCount != 0)
 	//{
@@ -311,7 +230,7 @@ void ScreenCaptureBase::WaitForThreadTermination()
 	}
 }
 
-_Ret_maybenull_ CAPTURE_THREAD_DATA *ScreenCaptureBase::GetCaptureDataForRect(RECT rect)
+_Ret_maybenull_ CAPTURE_THREAD_DATA *ScreenCaptureManager::GetCaptureDataForRect(RECT rect)
 {
 	POINT pt{ rect.left,rect.top };
 	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
@@ -325,14 +244,14 @@ _Ret_maybenull_ CAPTURE_THREAD_DATA *ScreenCaptureBase::GetCaptureDataForRect(RE
 	return nullptr;
 }
 
-RECT ScreenCaptureBase::GetSourceRect(_In_ SIZE canvasSize, _In_ RECORDING_SOURCE_DATA *pSource)
+RECT ScreenCaptureManager::GetSourceRect(_In_ SIZE canvasSize, _In_ RECORDING_SOURCE_DATA *pSource)
 {
 	int left = pSource->FrameCoordinates.left + pSource->OffsetX;
 	int top = pSource->FrameCoordinates.top + pSource->OffsetY;
 	return RECT{ left, top, left + RectWidth(pSource->FrameCoordinates),top + RectHeight(pSource->FrameCoordinates) };
 }
 
-bool ScreenCaptureBase::IsUpdatedFramesAvailable()
+bool ScreenCaptureManager::IsUpdatedFramesAvailable()
 {
 	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
 	{
@@ -343,7 +262,7 @@ bool ScreenCaptureBase::IsUpdatedFramesAvailable()
 	return false;
 }
 
-bool ScreenCaptureBase::IsInitialFrameWriteComplete()
+bool ScreenCaptureManager::IsInitialFrameWriteComplete()
 {
 	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
 	{
@@ -357,7 +276,7 @@ bool ScreenCaptureBase::IsInitialFrameWriteComplete()
 	return true;
 }
 
-UINT ScreenCaptureBase::GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCounts)
+UINT ScreenCaptureManager::GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCounts)
 {
 	int updatedFrameCount = 0;
 
@@ -373,7 +292,7 @@ UINT ScreenCaptureBase::GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCounts)
 	return updatedFrameCount;
 }
 
-HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds)
+HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds)
 {
 	*pCreatedOutputs = std::vector<RECORDING_SOURCE_DATA *>();
 	std::vector<std::pair<RECORDING_SOURCE, RECT>> validOutputs;
@@ -384,7 +303,7 @@ HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> s
 	}
 
 	std::vector<RECT> outputRects{};
-	for each (auto &pair in validOutputs)
+	for each (auto & pair in validOutputs)
 	{
 		outputRects.push_back(pair.second);
 	}
@@ -392,7 +311,6 @@ HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> s
 	GetCombinedRects(outputRects, pDeskBounds, &outputOffsets);
 
 	pDeskBounds = &MakeRectEven(*pDeskBounds);
-	int accumulatedWindowXOffset = 0;
 	for (int i = 0; i < validOutputs.size(); i++)
 	{
 		RECORDING_SOURCE source = validOutputs.at(i).first;
@@ -404,10 +322,6 @@ HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> s
 			data->OffsetY -= pDeskBounds->top;
 
 		}
-		else if (source.Type == RecordingSourceType::Window) {
-
-			accumulatedWindowXOffset += RectWidth(sourceRect);
-		}
 		data->OffsetX -= outputOffsets.at(i).cx;
 		data->OffsetY -= outputOffsets.at(i).cy;
 		data->FrameCoordinates = sourceRect;
@@ -415,11 +329,11 @@ HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> s
 	}
 
 	// Set created outputs
-	hr = ScreenCaptureBase::CreateSharedSurf(*pDeskBounds, &m_SharedSurf, &m_KeyMutex);
+	hr = ScreenCaptureManager::CreateSharedSurf(*pDeskBounds, &m_SharedSurf, &m_KeyMutex);
 	return hr;
 }
 
-HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ RECT desktopRect, _Outptr_ ID3D11Texture2D **ppSharedTexture, _Outptr_ IDXGIKeyedMutex **ppKeyedMutex)
+HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ RECT desktopRect, _Outptr_ ID3D11Texture2D **ppSharedTexture, _Outptr_ IDXGIKeyedMutex **ppKeyedMutex)
 {
 	CComPtr<ID3D11Texture2D> pSharedTexture = nullptr;
 	CComPtr<IDXGIKeyedMutex> pKeyedMutex = nullptr;
@@ -462,3 +376,209 @@ HRESULT ScreenCaptureBase::CreateSharedSurf(_In_ RECT desktopRect, _Outptr_ ID3D
 }
 
 
+DWORD WINAPI CaptureThreadProc(_In_ void *Param)
+{
+	HRESULT hr = S_OK;
+	// D3D objects
+	CComPtr<ID3D11Texture2D> SharedSurf = nullptr;
+	CComPtr<IDXGIKeyedMutex> KeyMutex = nullptr;
+
+	bool isExpectedError = false;
+	bool isUnexpectedError = false;
+
+	// Data passed in from thread creation
+	CAPTURE_THREAD_DATA *pData = reinterpret_cast<CAPTURE_THREAD_DATA *>(Param);
+	RECORDING_SOURCE_DATA *pSource = pData->RecordingSource;
+
+	//This scope must be here for ReleaseOnExit to work.
+	{
+		std::unique_ptr<CaptureBase> pRecordingSource = nullptr;
+		switch (pSource->Type)
+		{
+			case RecordingSourceType::CameraCapture: {
+				pRecordingSource = make_unique<CameraCapture>();
+				break;
+			}
+			case RecordingSourceType::Display: {
+				if (pSource->SourceApi == RecordingSourceApi::DesktopDuplication) {
+					pRecordingSource = make_unique<DesktopDuplicationCapture>(pSource->IsCursorCaptureEnabled.value_or(false));
+				}
+				else if (pSource->SourceApi == RecordingSourceApi::WindowsGraphicsCapture) {
+					pRecordingSource = make_unique<WindowsGraphicsCapture>(pSource->IsCursorCaptureEnabled.value_or(false));
+				}
+				break;
+			}
+			case RecordingSourceType::Picture: {
+				std::string signature = ReadFileSignature(pSource->SourcePath.c_str());
+				ImageFileType imageType = getImageTypeByMagic(signature.c_str());
+				if (imageType == ImageFileType::IMAGE_FILE_GIF) {
+					pRecordingSource = make_unique<GifReader>();
+				}
+				else {
+					pRecordingSource = make_unique<ImageReader>();
+				}
+				break;
+			}
+			case RecordingSourceType::Video: {
+				pRecordingSource = make_unique<VideoReader>();
+				break;
+			}
+			case RecordingSourceType::Window: {
+				pRecordingSource = make_unique<WindowsGraphicsCapture>();
+				break;
+			}
+			default:
+				break;
+		}
+
+		if (!pRecordingSource) {
+			LOG_ERROR(L"Failed to create recording source");
+			goto Exit;
+		}
+
+		// Obtain handle to sync shared Surface
+		hr = pSource->DxRes.Device->OpenSharedResource(pData->CanvasTexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
+		if (FAILED(hr))
+		{
+			LOG_ERROR(L"Opening shared texture failed");
+			goto Exit;
+		}
+		hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&KeyMutex));
+		if (FAILED(hr))
+		{
+			LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");
+			goto Exit;
+		}
+
+		// Make duplication
+		hr = pRecordingSource->Initialize(pSource->DxRes.Context, pSource->DxRes.Device);
+
+		if (FAILED(hr))
+		{
+			LOG_ERROR(L"Failed to initialize recording source");
+			goto Exit;
+		}
+		hr = pRecordingSource->StartCapture(*pSource);
+
+		if (FAILED(hr))
+		{
+			LOG_ERROR(L"Failed to start capture");
+			goto Exit;
+		}
+
+		// Main duplication loop
+		bool WaitToProcessCurrentFrame = false;
+		while (true)
+		{
+			if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
+				hr = S_OK;
+				break;
+			}
+
+			if (!WaitToProcessCurrentFrame)
+			{
+				hr = pRecordingSource->AcquireNextFrame(100, nullptr);
+
+				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+					continue;
+				}
+				else if (FAILED(hr)) {
+					break;
+				}
+			}
+			{
+				MeasureExecutionTime measure(L"CaptureThreadProc wait for sync");
+				// We have a new frame so try and process it
+				// Try to acquire keyed mutex in order to access shared surface
+				hr = KeyMutex->AcquireSync(0, 100);
+			}
+			if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
+			{
+				LOG_TRACE(L"CaptureThreadProc shared surface is busy, retrying..");
+				// Can't use shared surface right now, try again later
+				WaitToProcessCurrentFrame = true;
+				continue;
+			}
+			else if (FAILED(hr))
+			{
+				// Generic unknown failure
+				LOG_ERROR(L"Unexpected error acquiring KeyMutex");
+				break;
+			}
+
+			MeasureExecutionTime measureLock(L"CaptureThreadProc sync lock");
+			ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
+
+			// We can now process the current frame
+			WaitToProcessCurrentFrame = false;
+
+			// Get mouse info
+			hr = pRecordingSource->GetMouse(pData->PtrInfo, pSource->IsCursorCaptureEnabled.value_or(false), pSource->FrameCoordinates, pSource->OffsetX, pSource->OffsetY);
+			if (FAILED(hr)) {
+				LOG_ERROR("Failed to get mouse data");
+			}
+			hr = pRecordingSource->WriteNextFrameToSharedSurface(100, SharedSurf, pSource->OffsetX, pSource->OffsetY, pSource->FrameCoordinates, pSource->SourceRect);
+			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+				continue;
+			}
+			else if (FAILED(hr)) {
+				break;
+			}
+			else if (hr == S_FALSE) {
+				continue;
+			}
+			pData->UpdatedFrameCountSinceLastWrite++;
+			pData->TotalUpdatedFrameCount++;
+
+			QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
+		}
+	}
+Exit:
+
+	pData->ThreadResult = hr;
+
+	if (FAILED(hr))
+	{
+		_com_error err(hr);
+		switch (hr)
+		{
+			case DXGI_ERROR_DEVICE_REMOVED:
+			case DXGI_ERROR_DEVICE_RESET:
+				LOG_ERROR(L"Display device unavailable: %s", err.ErrorMessage());
+				isUnexpectedError = true;
+				break;
+			case E_ACCESSDENIED:
+			case DXGI_ERROR_MODE_CHANGE_IN_PROGRESS:
+			case DXGI_ERROR_SESSION_DISCONNECTED:
+				//case DXGI_ERROR_INVALID_CALL:
+			case DXGI_ERROR_ACCESS_LOST:
+				//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application is launching, or similar.
+				//We continue the recording, and instead of desktop texture just add a blank texture instead.
+				isExpectedError = true;
+				LOG_WARN(L"Desktop temporarily unavailable: hr = 0x%08x, error = %s", hr, err.ErrorMessage());
+				break;
+			case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
+				LOG_ERROR(L"Error reinitializing capture with DXGI_ERROR_NOT_CURRENTLY_AVAILABLE. This probably means DXGI reached the limit on the maximum number of concurrent duplication applications (default of four). Therefore, the calling application cannot create any desktop duplication interfaces until the other applications close");
+				isUnexpectedError = true;
+				break;
+			case E_ABORT: {
+				//This error is returned when the capture loop should be stopped, but the recording continue.
+				break;
+			}
+			default:
+				//Unexpected error, return.
+				LOG_ERROR(L"Error reinitializing capture with unexpected error, aborting: %s", err.ErrorMessage());
+				isUnexpectedError = true;
+				break;
+		}
+	}
+
+	if (isExpectedError) {
+		SetEvent(pData->ExpectedErrorEvent);
+	}
+	else if (isUnexpectedError) {
+		SetEvent(pData->UnexpectedErrorEvent);
+	}
+
+	return 0;
+}

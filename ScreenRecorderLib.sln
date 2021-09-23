@@ -11,9 +11,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 	ProjectSection(SolutionItems) = preProject
 		Testmedia\alphatest.png = Testmedia\alphatest.png
 		Testmedia\cat.mp4 = Testmedia\cat.mp4
+		Testmedia\earth.gif = Testmedia\earth.gif
 		Testmedia\giftest.gif = Testmedia\giftest.gif
 		Nuget\nuget.exe = Nuget\nuget.exe
 		Nuget\pack.cmd = Nuget\pack.cmd
+		Testmedia\renault.png = Testmedia\renault.png
 		Nuget\ScreenRecorderLib.nuspec = Nuget\ScreenRecorderLib.nuspec
 		Nuget\ScreenRecorderLib.targets = Nuget\ScreenRecorderLib.targets
 	EndProjectSection

@@ -4,7 +4,18 @@
 #include "WindowsGraphicsCapture.util.h"
 #include "Cleanup.h"
 
-using namespace winrt::Windows::Graphics::Capture;
+namespace winrt
+{
+	using namespace Windows::Foundation;
+	using namespace Windows::System;
+	using namespace Windows::Graphics;
+	using namespace Windows::Graphics::Capture;
+	using namespace Windows::Graphics::DirectX;
+	using namespace Windows::Graphics::DirectX::Direct3D11;
+	using namespace Windows::Foundation::Numerics;
+	using namespace Windows::UI;
+	using namespace Windows::UI::Composition;
+}
 using namespace std;
 
 WindowsGraphicsManager::WindowsGraphicsManager() :
@@ -19,12 +30,14 @@ WindowsGraphicsManager::WindowsGraphicsManager() :
 	m_TextureManager(nullptr),
 	m_HaveDeliveredFirstFrame(false)
 {
+	m_OnNewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 }
 
 WindowsGraphicsManager::~WindowsGraphicsManager()
 {
 	Close();
 	CleanRefs();
+	CloseHandle(m_OnNewFrameEvent);
 }
 
 //
@@ -46,12 +59,12 @@ void WindowsGraphicsManager::CleanRefs()
 }
 
 
-HRESULT WindowsGraphicsManager::Initialize(_In_ DX_RESOURCES *pData, _In_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem captureItem, _In_ bool isCursorCaptureEnabled, _In_ winrt::Windows::Graphics::DirectX::DirectXPixelFormat pixelFormat)
+HRESULT WindowsGraphicsManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice, _In_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem captureItem, _In_ bool isCursorCaptureEnabled, _In_ winrt::Windows::Graphics::DirectX::DirectXPixelFormat pixelFormat)
 {
 	m_item = captureItem;
 	m_PixelFormat = pixelFormat;
-	m_Device = pData->Device;
-	m_DeviceContext = pData->Context;
+	m_Device = pDevice;
+	m_DeviceContext = pDeviceContext;
 
 	m_Device->AddRef();
 	m_DeviceContext->AddRef();
@@ -73,8 +86,9 @@ HRESULT WindowsGraphicsManager::Initialize(_In_ DX_RESOURCES *pData, _In_ winrt:
 	// the frame pool was created on. This also means that the creating thread
 	// must have a DispatcherQueue. If you use this method, it's best not to do
 	// it on the UI thread. 
-	m_framePool = Direct3D11CaptureFramePool::Create(direct3DDevice, m_PixelFormat, 1, m_item.Size());
+	m_framePool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(direct3DDevice, m_PixelFormat, 1, m_item.Size());
 	m_session = m_framePool.CreateCaptureSession(m_item);
+	m_framePool.FrameArrived({ this, &WindowsGraphicsManager::OnFrameArrived });
 
 	WINRT_ASSERT(m_session != nullptr);
 	m_session.IsCursorCaptureEnabled(isCursorCaptureEnabled);
@@ -169,22 +183,23 @@ HRESULT WindowsGraphicsManager::BlankFrame(_Inout_ ID3D11Texture2D *pSharedSurf,
 	return S_OK;
 }
 
-HRESULT WindowsGraphicsManager::GetFrame(_Inout_ GRAPHICS_FRAME_DATA *pData)
+HRESULT WindowsGraphicsManager::GetFrame(_In_ DWORD timeoutMillis, _Inout_ GRAPHICS_FRAME_DATA *pData)
 {
-	Direct3D11CaptureFrame frame = m_framePool.TryGetNextFrame();
+	if (WaitForSingleObject(m_OnNewFrameEvent, timeoutMillis) != WAIT_OBJECT_0) {
+		return DXGI_ERROR_WAIT_TIMEOUT;
+	}
+	winrt::Direct3D11CaptureFrame frame = m_framePool.TryGetNextFrame();
 	if (frame) {
 		MeasureExecutionTime measureGetFrame(L"WindowsGraphicsManager::GetFrame");
 		auto surfaceTexture = Graphics::Capture::Util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
 		D3D11_TEXTURE2D_DESC desc;
 		surfaceTexture->GetDesc(&desc);
-		SafeRelease(&pData->Frame);
 
 		HRESULT hr = m_Device->CreateTexture2D(&desc, nullptr, &pData->Frame);
 		if (FAILED(hr))
 		{
 			return hr;
 		}
-
 
 		m_DeviceContext->CopyResource(pData->Frame, surfaceTexture.get());
 
@@ -205,7 +220,7 @@ HRESULT WindowsGraphicsManager::GetFrame(_Inout_ GRAPHICS_FRAME_DATA *pData)
 			if (pData->IsWindow
 				&& !m_HaveDeliveredFirstFrame) {
 				m_HaveDeliveredFirstFrame = true;
-				return GetFrame(pData);
+				return GetFrame(timeoutMillis,pData);
 			}
 		}
 		pData->ContentSize.cx = frame.ContentSize().Width;
@@ -236,4 +251,9 @@ void WindowsGraphicsManager::Close()
 		m_framePool = nullptr;
 		m_session = nullptr;
 	}
+}
+
+void WindowsGraphicsManager::OnFrameArrived(winrt::Direct3D11CaptureFramePool const &sender, winrt::IInspectable const &)
+{
+	SetEvent(m_OnNewFrameEvent);
 }

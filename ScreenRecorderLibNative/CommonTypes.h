@@ -99,126 +99,124 @@ enum class OverlayAnchor {
 	BottomLeft,
 	BottomRight
 };
-enum class RecordingOverlayType {
-	Picture,
-	Video,
-	CameraCapture
-};
+
 enum class RecordingSourceType {
 	Display,
-	Window
+	Window,
+	CameraCapture,
+	Picture,
+	Video
 };
 
-struct RECORDING_OVERLAY
-{
-	std::wstring Source;
-	RecordingOverlayType Type;
-	POINT Offset;
-	SIZE Size;
-	OverlayAnchor Anchor;
+enum class RecordingSourceApi {
+	DesktopDuplication,
+	WindowsGraphicsCapture
+};
 
+struct RECORDING_SOURCE_BASE abstract {
+	std::wstring SourcePath;
+	HWND SourceWindow;
+	RecordingSourceType Type;
+
+	/// <summary>
+	/// Optional custom output size of the source frame. May be both smaller or larger than the source.
+	/// </summary>
+	std::optional<SIZE> OutputSize;
+	RECORDING_SOURCE_BASE() :
+		Type(RecordingSourceType::Display),
+		SourceWindow(nullptr),
+		SourcePath(L""),
+		OutputSize{ std::nullopt }
+	{
+
+	}
+	RECORDING_SOURCE_BASE(const RECORDING_SOURCE_BASE &otherSource) :RECORDING_SOURCE_BASE()
+	{
+		SourcePath = otherSource.SourcePath;
+		SourceWindow = otherSource.SourceWindow;
+		Type = otherSource.Type;
+		OutputSize = otherSource.OutputSize;
+	}
+};
+
+struct RECORDING_OVERLAY :RECORDING_SOURCE_BASE
+{
+	OverlayAnchor Anchor;
+	/// <summary>
+	/// Optional custom offset for the source frame.
+	/// </summary>
+	std::optional<SIZE> Offset;
 	RECORDING_OVERLAY() :
-		Source(L""),
-		Type(RecordingOverlayType::Picture),
-		Offset(POINT()),
-		Size(SIZE()),
-		Anchor(OverlayAnchor::BottomLeft) {}
+		RECORDING_SOURCE_BASE(),
+		Anchor(OverlayAnchor::BottomLeft),
+		Offset{ std::nullopt }
+	{
+
+	}
 
 	RECORDING_OVERLAY(const RECORDING_OVERLAY &overlay) :
-		Source(overlay.Source),
-		Type(overlay.Type),
-		Offset(overlay.Offset),
-		Size(overlay.Size),
-		Anchor(overlay.Anchor) {}
+		RECORDING_SOURCE_BASE(overlay),
+		Anchor(overlay.Anchor),
+		Offset(overlay.Offset)
+	{
+
+	}
 };
 
 struct RECORDING_OVERLAY_DATA :RECORDING_OVERLAY
 {
 	DX_RESOURCES DxRes{};
 	RECORDING_OVERLAY_DATA() {}
-	RECORDING_OVERLAY_DATA(const RECORDING_OVERLAY &overlay) :RECORDING_OVERLAY(overlay) {}
+	RECORDING_OVERLAY_DATA(const RECORDING_OVERLAY &otherOverlay) :RECORDING_OVERLAY(otherOverlay) {}
 };
 
-struct RECORDING_SOURCE
+struct RECORDING_SOURCE : RECORDING_SOURCE_BASE
 {
-	void *Source;
-	RecordingSourceType Type;
-	bool IsCursorCaptureEnabled{};
-	std::vector<RECORDING_OVERLAY> Overlays{};
+	std::optional<RecordingSourceApi> SourceApi;
+	std::optional<bool> IsCursorCaptureEnabled{};
 	/// <summary>
 	/// An optional custom area of the source to record. Must be equal or smaller than the source area. A smaller area will crop the source.
 	/// </summary>
 	std::optional<RECT> SourceRect;
 	/// <summary>
-	/// Optional custom output size of the source frame. May be both smaller or larger than the source.
-	/// </summary>
-	std::optional<SIZE> OutputSize;
-	/// <summary>
 	/// Optional custom position for the source frame.
 	/// </summary>
 	std::optional<POINT> Position;
-	/// <summary>
-	/// Optional custom offset for the source frame.
-	/// </summary>
-	std::optional<SIZE> Offset;
 	RECORDING_SOURCE() :
-		Source(NULL),
-		Type(RecordingSourceType::Display),
-		IsCursorCaptureEnabled(false),
+		RECORDING_SOURCE_BASE(),
+		IsCursorCaptureEnabled(std::nullopt),
 		SourceRect{ std::nullopt },
-		OutputSize{ std::nullopt },
 		Position{ std::nullopt },
-		Offset{ std::nullopt }
+		SourceApi(std::nullopt)
 	{
+		Type = RecordingSourceType::Display;
 	}
 
 	RECORDING_SOURCE(const RECORDING_SOURCE &source) :
-		Source(source.Source),
-		Type(source.Type),
+		RECORDING_SOURCE_BASE(source),
 		IsCursorCaptureEnabled(source.IsCursorCaptureEnabled),
 		SourceRect(source.SourceRect),
-		OutputSize(source.OutputSize),
 		Position(source.Position),
-		Offset(source.Offset)
+		SourceApi(source.SourceApi)
 	{
 	}
 
 	friend bool operator< (const RECORDING_SOURCE &a, const RECORDING_SOURCE &b) {
-		switch (a.Type)
-		{
-		case RecordingSourceType::Display: {
-			if (b.Type == RecordingSourceType::Window) {
-				return true;
-			}
-			std::wstring aSource = *static_cast<std::wstring *>(a.Source);
-			std::wstring bSource = *static_cast<std::wstring *>(b.Source);
-			return (aSource.compare(bSource) < 0);
-		}
-		case RecordingSourceType::Window: {
-			if (b.Type == RecordingSourceType::Display) {
-				return false;
-			}
-			HWND aSource = static_cast<HWND>(a.Source);
-			HWND bSource = static_cast<HWND>(b.Source);
-			return aSource < bSource;
-		}
-		default:
-			return 0;
-			break;
-		}
+		return std::tie(a.Type, a.SourceWindow, a.SourcePath) < std::tie(b.Type, b.SourceWindow, b.SourcePath);
 	}
 	friend bool operator== (const RECORDING_SOURCE &a, const RECORDING_SOURCE &b) {
 		switch (a.Type)
 		{
-		case RecordingSourceType::Display: {
-			return a.Type == b.Type && a.Source == b.Source;
-		}
-		case RecordingSourceType::Window: {
-			return a.Type == b.Type && a.Source == b.Source;
-		}
-		default:
-			return 0;
-			break;
+			case RecordingSourceType::Window: {
+				return a.Type == b.Type && a.SourceWindow == b.SourceWindow;
+			}
+			case RecordingSourceType::Display:
+			case RecordingSourceType::CameraCapture:
+			case RecordingSourceType::Picture:
+			case RecordingSourceType::Video:
+			default:
+				return a.Type == b.Type && a.SourcePath == b.SourcePath;
+				break;
 		}
 	}
 };
@@ -242,7 +240,6 @@ struct RECORDING_SOURCE_DATA :RECORDING_SOURCE {
 	{
 
 	}
-
 	RECORDING_SOURCE_DATA(const RECORDING_SOURCE &source) :
 		RECORDING_SOURCE(source),
 		OffsetX(0),
@@ -260,6 +257,8 @@ struct RECORDING_SOURCE_DATA :RECORDING_SOURCE {
 //
 struct THREAD_DATA_BASE
 {
+	////Handle to shared surface texture
+	HANDLE CanvasTexSharedHandle{ nullptr };
 	// Used to indicate abnormal error condition
 	HANDLE UnexpectedErrorEvent{};
 	// Used to indicate a transition event occurred e.g. PnpStop, PnpStart, mode change, TDR, desktop switch and the application needs to recreate the capture interface
@@ -275,8 +274,6 @@ struct THREAD_DATA_BASE
 //
 struct CAPTURE_THREAD_DATA :THREAD_DATA_BASE
 {
-	////Handle to shared texture
-	HANDLE TexSharedHandle{ nullptr };
 	RECORDING_SOURCE_DATA *RecordingSource{ nullptr };
 	INT UpdatedFrameCountSinceLastWrite{};
 	INT64 TotalUpdatedFrameCount{};
@@ -288,8 +285,8 @@ struct CAPTURE_THREAD_DATA :THREAD_DATA_BASE
 //
 struct OVERLAY_THREAD_DATA :THREAD_DATA_BASE
 {
-	////Handle to shared texture
-	HANDLE TexSharedHandle{ nullptr };
+	////Handle to shared overlay texture
+	HANDLE OverlayTexSharedHandle{ nullptr };
 	RECORDING_OVERLAY_DATA *RecordingOverlay{};
 };
 

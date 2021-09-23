@@ -28,15 +28,15 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 
 			switch (options->VideoEncoderOptions->Encoder->EncodingFormat)
 			{
-			default:
-			case VideoEncoderFormat::H264: {
-				encoderOptions = new H264_ENCODER_OPTIONS();
-				break;
-			}
-			case VideoEncoderFormat::H265: {
-				encoderOptions = new H265_ENCODER_OPTIONS();
-				break;
-			}
+				default:
+				case VideoEncoderFormat::H264: {
+					encoderOptions = new H264_ENCODER_OPTIONS();
+					break;
+				}
+				case VideoEncoderFormat::H265: {
+					encoderOptions = new H265_ENCODER_OPTIONS();
+					break;
+				}
 			}
 			if (options->VideoEncoderOptions->FrameSize && options->VideoEncoderOptions->FrameSize != ScreenSize::Empty) {
 				encoderOptions->SetFrameSize(SIZE{ (long)round(options->VideoEncoderOptions->FrameSize->Width),(long)round(options->VideoEncoderOptions->FrameSize->Height) });
@@ -63,19 +63,19 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			}
 			switch (options->SnapshotOptions->SnapshotFormat)
 			{
-			case ImageFormat::BMP:
-				snapshotOptions->SetSnapshotSaveFormat(GUID_ContainerFormatBmp);
-				break;
-			case ImageFormat::JPEG:
-				snapshotOptions->SetSnapshotSaveFormat(GUID_ContainerFormatJpeg);
-				break;
-			case ImageFormat::TIFF:
-				snapshotOptions->SetSnapshotSaveFormat(GUID_ContainerFormatTiff);
-				break;
-			default:
-			case ImageFormat::PNG:
-				snapshotOptions->SetSnapshotSaveFormat(GUID_ContainerFormatPng);
-				break;
+				case ImageFormat::BMP:
+					snapshotOptions->SetSnapshotSaveFormat(GUID_ContainerFormatBmp);
+					break;
+				case ImageFormat::JPEG:
+					snapshotOptions->SetSnapshotSaveFormat(GUID_ContainerFormatJpeg);
+					break;
+				case ImageFormat::TIFF:
+					snapshotOptions->SetSnapshotSaveFormat(GUID_ContainerFormatTiff);
+					break;
+				default:
+				case ImageFormat::PNG:
+					snapshotOptions->SetSnapshotSaveFormat(GUID_ContainerFormatPng);
+					break;
 			}
 			m_Rec->SetSnapshotOptions(snapshotOptions);
 		}
@@ -132,11 +132,10 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		}
 
 		m_Rec->SetRecorderMode((UINT32)options->RecorderMode);
-		m_Rec->SetRecorderApi((UINT32)options->RecorderApi);
 	}
 }
 
-void ScreenRecorderLib::Recorder::SetSourceRect(ScreenRect sourceRect)
+void Recorder::SetSourceRect(ScreenRect sourceRect)
 {
 	if (m_Rec)
 	{
@@ -170,26 +169,26 @@ bool Recorder::SetExcludeFromCapture(System::IntPtr hwnd, bool isExcluded)
 	return RecordingManager::SetExcludeFromCapture((HWND)hwnd.ToPointer(), isExcluded);
 }
 
-Dictionary<String^, String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
+List<AudioDevice^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
 {
 	std::map<std::wstring, std::wstring> map;
 	EDataFlow dFlow;
 
 	switch (source)
 	{
-	default:
-	case  AudioDeviceSource::OutputDevices:
-		dFlow = eRender;
-		break;
-	case AudioDeviceSource::InputDevices:
-		dFlow = eCapture;
-		break;
-	case AudioDeviceSource::All:
-		dFlow = eAll;
-		break;
+		default:
+		case  AudioDeviceSource::OutputDevices:
+			dFlow = eRender;
+			break;
+		case AudioDeviceSource::InputDevices:
+			dFlow = eCapture;
+			break;
+		case AudioDeviceSource::All:
+			dFlow = eAll;
+			break;
 	}
 
-	Dictionary<String^, String^>^ devices = gcnew Dictionary<String^, String^>();
+	auto devices = gcnew List<AudioDevice^> ();
 
 	HRESULT hr = AudioPrefs::list_devices(dFlow, &map);
 
@@ -198,31 +197,33 @@ Dictionary<String^, String^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource 
 		if (map.size() != 0)
 		{
 			for (auto const& element : map) {
-				devices->Add(gcnew String(element.first.c_str()), gcnew String(element.second.c_str()));
+				devices->Add(gcnew AudioDevice(gcnew String(element.first.c_str()), gcnew String(element.second.c_str())));
 			}
 		}
 	}
 	return devices;
 }
 
-Dictionary<String^, String^>^ ScreenRecorderLib::Recorder::GetSystemVideoCaptureDevices()
+List<RecordableCamera^>^ Recorder::GetSystemVideoCaptureDevices()
 {
 	std::map<std::wstring, std::wstring> map;
 	HRESULT hr = EnumVideoCaptureDevices(&map);
-	Dictionary<String^, String^>^ devices = gcnew Dictionary<String^, String^>();
+	List<RecordableCamera^>^ devices = gcnew List<RecordableCamera^>();
 	if (SUCCEEDED(hr))
 	{
 		if (map.size() != 0)
 		{
 			for (auto const& element : map) {
-				devices->Add(gcnew String(element.first.c_str()), gcnew String(element.second.c_str()));
+				String^ path = gcnew String(element.first.c_str());
+				String^ title = gcnew String(element.second.c_str());
+				devices->Add(gcnew RecordableCamera(title, path));
 			}
 		}
 	}
 	return devices;
 }
 
-List<RecordableDisplay^>^ ScreenRecorderLib::Recorder::GetDisplays()
+List<RecordableDisplay^>^ Recorder::GetDisplays()
 {
 	List<RecordableDisplay^>^ displays = gcnew List<RecordableDisplay^>();
 	std::vector<IDXGIOutput*> outputs{};
@@ -235,7 +236,7 @@ List<RecordableDisplay^>^ ScreenRecorderLib::Recorder::GetDisplays()
 			if (desc.AttachedToDesktop) {
 				auto display = gcnew RecordableDisplay();
 				display->DeviceName = gcnew String(desc.DeviceName);
-				display->MonitorName = gcnew String(GetMonitorName(desc.Monitor).c_str());
+				display->FriendlyName = gcnew String(GetMonitorName(desc.Monitor).c_str());
 				displays->Add(display);
 			}
 		}
@@ -244,7 +245,7 @@ List<RecordableDisplay^>^ ScreenRecorderLib::Recorder::GetDisplays()
 	return displays;
 }
 
-List<RecordableWindow^>^ ScreenRecorderLib::Recorder::GetWindows()
+List<RecordableWindow^>^ Recorder::GetWindows()
 {
 	List<RecordableWindow^>^ windows = gcnew List<RecordableWindow^>();
 	for each (const Window & win in EnumerateWindows())
@@ -255,7 +256,7 @@ List<RecordableWindow^>^ ScreenRecorderLib::Recorder::GetWindows()
 	return windows;
 }
 
-OutputDimensions^ ScreenRecorderLib::Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<RecordingSourceBase^>^ recordingSources)
+OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<RecordingSourceBase^>^ recordingSources)
 {
 	std::vector<RECORDING_SOURCE> sources = CreateRecordingSourceList(recordingSources);
 
@@ -271,33 +272,74 @@ OutputDimensions^ ScreenRecorderLib::Recorder::GetOutputDimensionsForRecordingSo
 		outputRects.push_back(nativeSourceRect);
 		switch (nativeSource.Type)
 		{
-		case RecordingSourceType::Window: {
-			for each (RecordingSourceBase ^ recordingSource in recordingSources)
-			{
-				if (isinst<WindowRecordingSource^>(recordingSource)) {
-					WindowRecordingSource^ windowRecordingSource = (WindowRecordingSource^)recordingSource;
-					HWND hwnd = (HWND)windowRecordingSource->Handle.ToPointer();
-					HWND nativeSourceHwnd = static_cast<HWND>(nativeSource.Source);
-					if (hwnd == nativeSourceHwnd) {
-						outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
+			case RecordingSourceType::Window: {
+				for each (RecordingSourceBase ^ recordingSource in recordingSources)
+				{
+					if (isinst<WindowRecordingSource^>(recordingSource)) {
+						WindowRecordingSource^ windowRecordingSource = (WindowRecordingSource^)recordingSource;
+						HWND hwnd = (HWND)windowRecordingSource->Handle.ToPointer();
+						if (hwnd == nativeSource.SourceWindow) {
+							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
+							break;
+						}
 					}
 				}
+				break;
 			}
-		}
-		case RecordingSourceType::Display: {
-			for each (RecordingSourceBase ^ recordingSource in recordingSources)
-			{
-				if (isinst<DisplayRecordingSource^>(recordingSource)) {
-					DisplayRecordingSource^ displayRecordingSource = (DisplayRecordingSource^)recordingSource;
-					std::wstring nativeSourceDevice = *static_cast<std::wstring*>(nativeSource.Source);
-					if ((gcnew String(nativeSourceDevice.c_str()))->Equals(displayRecordingSource->DeviceName)) {
-						outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
+			case RecordingSourceType::Display: {
+				for each (RecordingSourceBase ^ recordingSource in recordingSources)
+				{
+					if (isinst<DisplayRecordingSource^>(recordingSource)) {
+						DisplayRecordingSource^ displayRecordingSource = (DisplayRecordingSource^)recordingSource;
+						if ((gcnew String(nativeSource.SourcePath.c_str()))->Equals(displayRecordingSource->DeviceName)) {
+							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
+							break;
+						}
 					}
 				}
+				break;
 			}
-		}
-		default:
-			break;
+			case RecordingSourceType::Video: {
+				for each (RecordingSourceBase ^ recordingSource in recordingSources)
+				{
+					if (isinst<VideoRecordingSource^>(recordingSource)) {
+						VideoRecordingSource^ videoRecordingSource = (VideoRecordingSource^)recordingSource;
+						if ((gcnew String(nativeSource.SourcePath.c_str()))->Equals(videoRecordingSource->SourcePath)) {
+							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
+							break;
+						}
+					}
+				}
+				break;
+			}
+			case RecordingSourceType::CameraCapture: {
+				for each (RecordingSourceBase ^ recordingSource in recordingSources)
+				{
+					if (isinst<VideoCaptureRecordingSource^>(recordingSource)) {
+						VideoCaptureRecordingSource^ cameraRecordingSource = (VideoCaptureRecordingSource^)recordingSource;
+						if ((gcnew String(nativeSource.SourcePath.c_str()))->Equals(cameraRecordingSource->DeviceName)) {
+							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
+							break;
+						}
+					}
+				}
+				break;
+			}
+			case RecordingSourceType::Picture: {
+				for each (RecordingSourceBase ^ recordingSource in recordingSources)
+				{
+					if (isinst<ImageRecordingSource^>(recordingSource)) {
+						ImageRecordingSource^ videoRecordingSource = (ImageRecordingSource^)recordingSource;
+						if ((gcnew String(nativeSource.SourcePath.c_str()))->Equals(videoRecordingSource->SourcePath)) {
+							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
+							break;
+						}
+					}
+				}
+				break;
+			}
+			default:
+				break;
 		}
 	}
 	RECT deskBounds;
@@ -376,87 +418,125 @@ void Recorder::ClearCallbacks() {
 		_snapshotDelegateGcHandler.Free();
 }
 
+HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Out_ RECORDING_SOURCE* pNativeSource)
+{
+	HRESULT hr = E_FAIL;
+	RECORDING_SOURCE nativeSource{};
+	if (managedSource->OutputSize
+		&& managedSource->OutputSize != ScreenSize::Empty
+		&& managedSource->OutputSize->Width > 0
+		&& managedSource->OutputSize->Height > 0) {
+		nativeSource.OutputSize = SIZE{
+			(long)managedSource->OutputSize->Width,
+			(long)managedSource->OutputSize->Height
+		};
+	}
+	if (managedSource->Position && managedSource->Position != ScreenPoint::Empty) {
+		nativeSource.Position = POINT
+		{
+			(long)managedSource->Position->Left,
+			(long)managedSource->Position->Top
+		};
+	}
+
+	if (isinst<DisplayRecordingSource^>(managedSource)) {
+		DisplayRecordingSource^ displaySource = (DisplayRecordingSource^)managedSource;
+		if (!String::IsNullOrEmpty(displaySource->DeviceName)) {
+			std::wstring deviceName = msclr::interop::marshal_as<std::wstring>(displaySource->DeviceName);
+			CComPtr<IDXGIOutput> output;
+			hr = GetOutputForDeviceName(deviceName, &output);
+			if (SUCCEEDED(hr)) {
+				DXGI_OUTPUT_DESC desc;
+				hr = output->GetDesc(&desc);
+				nativeSource.Type = RecordingSourceType::Display;
+				nativeSource.SourcePath = desc.DeviceName;
+				nativeSource.IsCursorCaptureEnabled = displaySource->IsCursorCaptureEnabled;
+
+				if (displaySource->SourceRect
+						&& displaySource->SourceRect != ScreenRect::Empty
+						&& displaySource->SourceRect->Right > displaySource->SourceRect->Left
+						&& displaySource->SourceRect->Bottom > displaySource->SourceRect->Top) {
+					nativeSource.SourceRect = RECT{
+						(long)displaySource->SourceRect->Left,
+						(long)displaySource->SourceRect->Top,
+						(long)displaySource->SourceRect->Right,
+						(long)displaySource->SourceRect->Bottom };
+				}
+
+				switch (displaySource->RecorderApi)
+				{
+					case RecorderApi::DesktopDuplication: {
+						nativeSource.SourceApi = RecordingSourceApi::DesktopDuplication;
+						break;
+					}
+					case RecorderApi::WindowsGraphicsCapture: {
+						nativeSource.SourceApi = RecordingSourceApi::WindowsGraphicsCapture;
+						break;
+					}
+					default:
+						break;
+				}
+				hr = S_OK;
+			}
+		}
+	}
+	else if (isinst<WindowRecordingSource^>(managedSource)) {
+		WindowRecordingSource^ windowSource = (WindowRecordingSource^)managedSource;
+		if (windowSource->Handle != IntPtr::Zero) {
+			HWND windowHandle = (HWND)(windowSource->Handle.ToPointer());
+			if (!IsIconic(windowHandle) && IsWindow(windowHandle)) {
+				nativeSource.Type = RecordingSourceType::Window;
+				nativeSource.SourceWindow = windowHandle;
+				nativeSource.IsCursorCaptureEnabled = windowSource->IsCursorCaptureEnabled;
+				nativeSource.SourceApi = RecordingSourceApi::WindowsGraphicsCapture;
+				hr = S_OK;
+			}
+		}
+	}
+	else if (isinst<VideoCaptureRecordingSource^>(managedSource)) {
+		VideoCaptureRecordingSource^ videoCaptureSource = (VideoCaptureRecordingSource^)managedSource;
+		if (!String::IsNullOrEmpty(videoCaptureSource->DeviceName)) {
+			std::wstring deviceName = msclr::interop::marshal_as<std::wstring>(videoCaptureSource->DeviceName);
+			nativeSource.Type = RecordingSourceType::CameraCapture;
+			nativeSource.SourcePath = deviceName;
+			hr = S_OK;
+		}
+	}
+	else if (isinst<VideoRecordingSource^>(managedSource)) {
+		VideoRecordingSource^ videoSource = (VideoRecordingSource^)managedSource;
+		if (!String::IsNullOrEmpty(videoSource->SourcePath)) {
+			std::wstring sourcePath = msclr::interop::marshal_as<std::wstring>(videoSource->SourcePath);
+			nativeSource.Type = RecordingSourceType::Video;
+			nativeSource.SourcePath = sourcePath;
+			hr = S_OK;
+		}
+	}
+	else if (isinst<ImageRecordingSource^>(managedSource)) {
+		ImageRecordingSource^ imageSource = (ImageRecordingSource^)managedSource;
+		if (!String::IsNullOrEmpty(imageSource->SourcePath)) {
+			std::wstring sourcePath = msclr::interop::marshal_as<std::wstring>(imageSource->SourcePath);
+			nativeSource.Type = RecordingSourceType::Picture;
+			nativeSource.SourcePath = sourcePath;
+			hr = S_OK;
+		}
+	}
+	else {
+		return E_NOTIMPL;
+	}
+	*pNativeSource = nativeSource;
+	return hr;
+}
+
 std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(IEnumerable<RecordingSourceBase^>^ managedSources) {
 	std::vector<RECORDING_SOURCE> sources{};
 	if (managedSources) {
 		for each (RecordingSourceBase ^ source in managedSources)
 		{
-			if (isinst<DisplayRecordingSource^>(source)) {
-				DisplayRecordingSource^ displaySource = (DisplayRecordingSource^)source;
-				if (!String::IsNullOrEmpty(displaySource->DeviceName)) {
-					std::wstring deviceName = msclr::interop::marshal_as<std::wstring>(displaySource->DeviceName);
-					CComPtr<IDXGIOutput> output;
-					HRESULT hr = GetOutputForDeviceName(deviceName, &output);
-					if (SUCCEEDED(hr)) {
-						DXGI_OUTPUT_DESC desc;
-						hr = output->GetDesc(&desc);
-						if (SUCCEEDED(hr)) {
-							RECORDING_SOURCE source{};
-							source.Type = RecordingSourceType::Display;
-							source.Source = new std::wstring(desc.DeviceName);
-							if (displaySource->SourceRect
-								&& displaySource->SourceRect != ScreenRect::Empty
-								&& displaySource->SourceRect->Right > displaySource->SourceRect->Left
-								&& displaySource->SourceRect->Bottom > displaySource->SourceRect->Top) {
-								source.SourceRect = RECT{
-									(long)displaySource->SourceRect->Left,
-									(long)displaySource->SourceRect->Top,
-									(long)displaySource->SourceRect->Right,
-									(long)displaySource->SourceRect->Bottom };
-							}
-							if (displaySource->OutputSize
-								&& displaySource->OutputSize != ScreenSize::Empty
-								&& displaySource->OutputSize->Width > 0
-								&& displaySource->OutputSize->Height > 0) {
-								source.OutputSize = SIZE{
-									(long)displaySource->OutputSize->Width,
-									(long)displaySource->OutputSize->Height
-								};
-							}
-							if (displaySource->Position && displaySource->Position != ScreenPoint::Empty) {
-								source.Position = POINT
-								{
-									(long)displaySource->Position->Left,
-									(long)displaySource->Position->Top
-								};
-							}
-							source.IsCursorCaptureEnabled = displaySource->IsCursorCaptureEnabled;
-							if (std::find(sources.begin(), sources.end(), source) == sources.end()) {
-								sources.insert(sources.end(), source);
-							}
-						}
-					}
-				}
-			}
-			else if (isinst<WindowRecordingSource^>(source)) {
-				WindowRecordingSource^ windowSource = (WindowRecordingSource^)source;
-				if (windowSource->Handle != IntPtr::Zero) {
-					HWND windowHandle = (HWND)(windowSource->Handle.ToPointer());
-					if (!IsIconic(windowHandle) && IsWindow(windowHandle)) {
-						RECORDING_SOURCE source{};
-						source.Type = RecordingSourceType::Window;
-						source.Source = windowHandle;
-						if (windowSource->OutputSize
-							&& windowSource->OutputSize != ScreenSize::Empty
-							&& windowSource->OutputSize->Width > 0
-							&& windowSource->OutputSize->Height > 0) {
-							source.OutputSize = SIZE{
-								(long)windowSource->OutputSize->Width,
-								(long)windowSource->OutputSize->Height
-							};
-						}
-						if (windowSource->Position && windowSource->Position != ScreenPoint::Empty) {
-							source.Position = POINT
-							{
-								(long)windowSource->Position->Left,
-								(long)windowSource->Position->Top
-							};
-						}
-						source.IsCursorCaptureEnabled = windowSource->IsCursorCaptureEnabled;
-						if (std::find(sources.begin(), sources.end(), source) == sources.end()) {
-							sources.insert(sources.end(), source);
-						}
-					}
+			RECORDING_SOURCE nativeSource{};
+			HRESULT hr = CreateNativeRecordingSource(source, &nativeSource); 
+			if (SUCCEEDED(hr)) {
+				if (std::find(sources.begin(), sources.end(), nativeSource) == sources.end()) {
+					sources.insert(sources.end(), nativeSource);
 				}
 			}
 		}
@@ -476,47 +556,66 @@ std::vector<RECORDING_OVERLAY> Recorder::CreateOverlayList(IEnumerable<Recording
 		for each (RecordingOverlayBase ^ managedOverlay in managedOverlays)
 		{
 			RECORDING_OVERLAY overlay{};
-			overlay.Offset = POINT{ managedOverlay->OffsetX, managedOverlay->OffsetY };
-			overlay.Size = SIZE{ managedOverlay->Width, managedOverlay->Height };
+			overlay.Offset = SIZE{ static_cast<long>(managedOverlay->Offset->Width), static_cast<long>(managedOverlay->Offset->Height) };
+			overlay.OutputSize = SIZE{ static_cast<long>(managedOverlay->Size->Width), static_cast<long>(managedOverlay->Size->Height) };
 			switch (managedOverlay->AnchorPosition)
 			{
-			case Anchor::BottomLeft:
-				overlay.Anchor = OverlayAnchor::BottomLeft;
-				break;
-			case Anchor::BottomRight:
-				overlay.Anchor = OverlayAnchor::BottomRight;
-				break;
-			case Anchor::TopLeft:
-				overlay.Anchor = OverlayAnchor::TopLeft;
-				break;
-			case Anchor::TopRight:
-				overlay.Anchor = OverlayAnchor::TopRight;
-				break;
-			default:
-				break;
+				case Anchor::BottomLeft:
+					overlay.Anchor = OverlayAnchor::BottomLeft;
+					break;
+				case Anchor::BottomRight:
+					overlay.Anchor = OverlayAnchor::BottomRight;
+					break;
+				case Anchor::TopLeft:
+					overlay.Anchor = OverlayAnchor::TopLeft;
+					break;
+				case Anchor::TopRight:
+					overlay.Anchor = OverlayAnchor::TopRight;
+					break;
+				default:
+					break;
 			}
 
-			if (isinst<CameraCaptureOverlay^>(managedOverlay)) {
-				CameraCaptureOverlay^ videoCaptureOverlay = (CameraCaptureOverlay^)managedOverlay;
-				overlay.Type = RecordingOverlayType::CameraCapture;
-				if (videoCaptureOverlay->CaptureDeviceName != nullptr) {
-					overlay.Source = msclr::interop::marshal_as<std::wstring>(videoCaptureOverlay->CaptureDeviceName);
+			if (isinst<VideoCaptureOverlay^>(managedOverlay)) {
+				VideoCaptureOverlay^ videoCaptureOverlay = (VideoCaptureOverlay^)managedOverlay;
+				overlay.Type = RecordingSourceType::CameraCapture;
+				if (!String::IsNullOrEmpty(videoCaptureOverlay->DeviceName)) {
+					overlay.SourcePath = msclr::interop::marshal_as<std::wstring>(videoCaptureOverlay->DeviceName);
 				}
 				overlays.push_back(overlay);
 			}
-			else if (isinst<PictureOverlay^>(managedOverlay)) {
-				PictureOverlay^ pictureOverlay = (PictureOverlay^)managedOverlay;
-				overlay.Type = RecordingOverlayType::Picture;
-				if (pictureOverlay->FilePath != nullptr) {
-					overlay.Source = msclr::interop::marshal_as<std::wstring>(pictureOverlay->FilePath);
+			else if (isinst<ImageOverlay^>(managedOverlay)) {
+				ImageOverlay^ pictureOverlay = (ImageOverlay^)managedOverlay;
+				overlay.Type = RecordingSourceType::Picture;
+				if (!String::IsNullOrEmpty(pictureOverlay->SourcePath)) {
+					overlay.SourcePath = msclr::interop::marshal_as<std::wstring>(pictureOverlay->SourcePath);
 				}
 				overlays.push_back(overlay);
 			}
 			else if (isinst<VideoOverlay^>(managedOverlay)) {
 				VideoOverlay^ videoOverlay = (VideoOverlay^)managedOverlay;
-				overlay.Type = RecordingOverlayType::Video;
-				if (videoOverlay->FilePath != nullptr) {
-					overlay.Source = msclr::interop::marshal_as<std::wstring>(videoOverlay->FilePath);
+				overlay.Type = RecordingSourceType::Video;
+				if (!String::IsNullOrEmpty(videoOverlay->SourcePath)) {
+					overlay.SourcePath = msclr::interop::marshal_as<std::wstring>(videoOverlay->SourcePath);
+				}
+				overlays.push_back(overlay);
+			}
+			else if (isinst<DisplayOverlay^>(managedOverlay)) {
+				DisplayOverlay^ displayOverlay = (DisplayOverlay^)managedOverlay;
+				overlay.Type = RecordingSourceType::Display;
+				if (!String::IsNullOrEmpty(displayOverlay->DeviceName)) {
+					overlay.SourcePath = msclr::interop::marshal_as<std::wstring>(displayOverlay->DeviceName);
+				}
+				overlays.push_back(overlay);
+			}
+			else if (isinst<WindowOverlay^>(managedOverlay)) {
+				WindowOverlay^ windowOverlay = (WindowOverlay^)managedOverlay;
+				overlay.Type = RecordingSourceType::Window;
+				if (windowOverlay->Handle != IntPtr::Zero) {
+					HWND windowHandle = (HWND)(windowOverlay->Handle.ToPointer());
+					if (!IsIconic(windowHandle) && IsWindow(windowHandle)) {
+						overlay.SourceWindow = windowHandle;
+					}
 				}
 				overlays.push_back(overlay);
 			}

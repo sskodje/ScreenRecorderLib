@@ -1,15 +1,13 @@
 ﻿using ScreenRecorderLib;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using System.Windows;
 
-namespace TestApp
+namespace TestApp.Sources
 {
-    public class CheckableRecordableWindow : RecordableWindow, ICheckableRecordingSource
+   public class CheckableRecordableVideo : VideoRecordingSource, ICheckableRecordingSource
     {
         private bool _isSelected;
         public bool IsSelected
@@ -25,7 +23,8 @@ namespace TestApp
             }
         }
 
-        private bool _isCheckable;
+
+        private bool _isCheckable = true;
         public bool IsCheckable
         {
             get { return _isCheckable; }
@@ -67,40 +66,52 @@ namespace TestApp
             }
         }
 
+        private bool _isCustomOutputSourceRectEnabled;
+        public bool IsCustomOutputSourceRectEnabled
+        {
+            get { return _isCustomOutputSourceRectEnabled; }
+            set
+            {
+                if (_isCustomOutputSourceRectEnabled != value)
+                {
+                    _isCustomOutputSourceRectEnabled = value;
+                    OnPropertyChanged(nameof(IsCustomOutputSourceRectEnabled));
+                }
+            }
+        }
 
-        public CheckableRecordableWindow(string title, IntPtr handle) : base(title, handle)
+
+        public CheckableRecordableVideo() : base()
         {
-            ScreenRect coord = GetScreenCoordinates();
-            UpdateScreenCoordinates(new ScreenPoint(0, 0), new ScreenSize(coord.Width, coord.Height));
+
         }
-        public CheckableRecordableWindow(RecordableWindow window) : base(window.Title, window.Handle)
+        public CheckableRecordableVideo(string filePath) : base(filePath)
         {
-            ScreenRect coord = GetScreenCoordinates();
-            UpdateScreenCoordinates(new ScreenPoint(0, 0), new ScreenSize(coord.Width, coord.Height));
+
         }
+        public CheckableRecordableVideo(VideoRecordingSource video) : base(video.SourcePath)
+        {
+
+        }
+
         public override string ToString()
         {
-            return $"{Title}";
+            return System.IO.Path.GetFileName(SourcePath);
         }
 
         public void UpdateScreenCoordinates(ScreenPoint position, ScreenSize size)
         {
-            if (!IsMinmimized() && IsValidWindow())
+            if (!IsCustomOutputSourceRectEnabled)
             {
-                if (!IsCustomOutputSizeEnabled)
-                {
-                    OutputSize = size;
-                }
-                if (!IsCustomPositionEnabled)
-                {
-                    Position = position;
-                }
+                SourceRect = new ScreenRect(0, 0, size.Width, size.Height);
             }
-            else
+            if (!IsCustomOutputSizeEnabled)
             {
-                OutputSize = ScreenSize.Empty;
-                Position = ScreenPoint.Empty;
-
+                OutputSize = size;
+            }
+            if (!IsCustomPositionEnabled)
+            {
+                Position = position;
             }
         }
     }

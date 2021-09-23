@@ -77,7 +77,17 @@ bool IsAltTabWindow(Window const& window)
 	{
 		return false;
 	}
+	TITLEBARINFO info{};
+	info.cbSize = sizeof(TITLEBARINFO);
+	GetTitleBarInfo(hwnd, &info);
+	if ((info.rgstate[0] & STATE_SYSTEM_INVISIBLE) == STATE_SYSTEM_INVISIBLE)
+		return false;
 
+	if ((info.rgstate[0] & STATE_SYSTEM_UNAVAILABLE) == STATE_SYSTEM_UNAVAILABLE)
+		return false;
+
+	if ((info.rgstate[0] & STATE_SYSTEM_OFFSCREEN) == STATE_SYSTEM_OFFSCREEN)
+		return false;
 	DWORD cloaked = FALSE;
 	HRESULT hrTemp = DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
 	if (SUCCEEDED(hrTemp) &&

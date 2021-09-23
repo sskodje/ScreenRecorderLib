@@ -1,6 +1,7 @@
 #include "VideoReader.h"
 #include "Cleanup.h"
 #include "LogMediaType.h"
+using namespace ScreenRecorderLib::Overlays;
 VideoReader::VideoReader() :SourceReaderBase()
 {
 }

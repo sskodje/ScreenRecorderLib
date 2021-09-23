@@ -21,10 +21,12 @@
   <ItemGroup>
     <ClInclude Include="AudioManager.h" />
     <ClInclude Include="CMFSinkWriterCallback.h" />
+    <ClInclude Include="ImageReader.h" />
     <ClInclude Include="OutputManager.h" />
     <ClInclude Include="OverlayManager.h" />
-    <ClInclude Include="TextureManager.h" />
     <ClInclude Include="ScreenCaptureBase.h" />
+    <ClInclude Include="TextureManager.h" />
+    <ClInclude Include="ScreenCaptureManager.h" />
     <ClInclude Include="CameraCapture.h" />
     <ClInclude Include="GifReader.h" />
     <ClInclude Include="LogMediaType.h" />
@@ -54,11 +56,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AudioManager.cpp" />
+    <ClCompile Include="ImageReader.cpp" />
     <ClCompile Include="Log.cpp" />
     <ClCompile Include="OutputManager.cpp" />
     <ClCompile Include="OverlayManager.cpp" />
     <ClCompile Include="TextureManager.cpp" />
-    <ClCompile Include="ScreenCaptureBase.cpp" />
+    <ClCompile Include="ScreenCaptureManager.cpp" />
     <ClCompile Include="CameraCapture.cpp" />
     <ClCompile Include="GifReader.cpp" />
     <ClCompile Include="LogMediaType.cpp" />

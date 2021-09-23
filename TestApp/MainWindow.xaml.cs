@@ -13,7 +13,7 @@ using System.Windows.Data;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
-
+using TestApp.Sources;
 
 namespace TestApp
 {
@@ -24,7 +24,8 @@ namespace TestApp
     {
         private Recorder _rec;
         private DispatcherTimer _progressTimer;
-        private int _secondsElapsed;
+        private DateTimeOffset? _recordingStartTime = null;
+        private DateTimeOffset? _recordingPauseTime = null;
         private Stream _outputStream;
         private bool _isRecording;
 
@@ -56,9 +57,9 @@ namespace TestApp
         public string MouseRightClickColor { get; set; } = "#006aff";
         public int MouseClickRadius { get; set; } = 20;
         public int MouseClickDuration { get; set; } = 50;
-        public Dictionary<string, string> AudioInputsList { get; set; } = new Dictionary<string, string>();
-        public Dictionary<string, string> AudioOutputsList { get; set; } = new Dictionary<string, string>();
-        public ObservableCollection<MediaDevice> VideoCaptureDevices { get; set; } = new ObservableCollection<MediaDevice>();
+        public ObservableCollection<AudioDevice> AudioInputsList { get; set; } = new ObservableCollection<AudioDevice>();
+        public ObservableCollection<AudioDevice> AudioOutputsList { get; set; } = new ObservableCollection<AudioDevice>();
+        public ObservableCollection<RecordableCamera> VideoCaptureDevices { get; set; } = new ObservableCollection<RecordableCamera>();
         public bool IsAudioInEnabled { get; set; } = false;
         public bool IsAudioOutEnabled { get; set; } = true;
         public string LogFilePath { get; set; } = "log.txt";
@@ -131,20 +132,6 @@ namespace TestApp
                 {
                     _currentRecordingMode = value;
                     RaisePropertyChanged("CurrentRecordingMode");
-                }
-            }
-        }
-
-        private RecorderApi _currentRecordingApi;
-        public RecorderApi CurrentRecordingApi
-        {
-            get { return _currentRecordingApi; }
-            set
-            {
-                if (_currentRecordingApi != value)
-                {
-                    _currentRecordingApi = value;
-                    RaisePropertyChanged("CurrentRecordingApi");
                 }
             }
         }
@@ -291,13 +278,12 @@ namespace TestApp
             Overlays.Clear();
             Overlays.Add(new OverlayModel
             {
-                Overlay = new CameraCaptureOverlay
+                Overlay = new VideoCaptureOverlay
                 {
                     AnchorPosition = Anchor.TopLeft,
-                    Width = 0,
-                    Height = 250,
-                    OffsetX = 100,
-                    OffsetY = 100
+                    Offset = new ScreenSize(100, 100),
+                    Size = new ScreenSize(0, 250)
+
                 },
                 IsEnabled = true
             });
@@ -306,36 +292,54 @@ namespace TestApp
                 Overlay = new VideoOverlay
                 {
                     AnchorPosition = Anchor.TopRight,
-                    FilePath = @"testmedia\cat.mp4",
-                    Height = 200,
-                    OffsetX = 50,
-                    OffsetY = 50
+                    SourcePath = @"testmedia\cat.mp4",
+                    Offset = new ScreenSize(50, 50),
+                    Size = new ScreenSize(0, 200)
+
                 },
-                IsEnabled = true
+                IsEnabled = false
             });
             Overlays.Add(new OverlayModel
             {
-                Overlay = new PictureOverlay
+                Overlay = new ImageOverlay
                 {
                     AnchorPosition = Anchor.BottomLeft,
-                    FilePath = @"testmedia\alphatest.png",
-                    Height = 300,
-                    OffsetX = 0,
-                    OffsetY = 0
+                    SourcePath = @"testmedia\alphatest.png",
+                    Offset = new ScreenSize(0, 100),
+                    Size = new ScreenSize(0, 300)
                 },
-                IsEnabled = true
+                IsEnabled = false
             });
             Overlays.Add(new OverlayModel
             {
-                Overlay = new PictureOverlay
+                Overlay = new ImageOverlay()
                 {
                     AnchorPosition = Anchor.BottomRight,
-                    FilePath = @"testmedia\giftest.gif",
-                    Height = 300,
-                    OffsetX = 75,
-                    OffsetY = 25
+                    SourcePath = @"testmedia\giftest.gif",
+                    Offset = new ScreenSize(0, 0),
+                    Size = new ScreenSize(0, 300)
                 },
-                IsEnabled = true
+                IsEnabled = false
+            });
+            Overlays.Add(new OverlayModel
+            {
+                Overlay = new DisplayOverlay()
+                {
+                    AnchorPosition = Anchor.TopLeft,
+                    Offset = new ScreenSize(400, 100),
+                    Size = new ScreenSize(300, 0)
+                },
+                IsEnabled = false
+            });
+            Overlays.Add(new OverlayModel
+            {
+                Overlay = new WindowOverlay()
+                {
+                    AnchorPosition = Anchor.BottomLeft,
+                    Offset = new ScreenSize(400, 100),
+                    Size = new ScreenSize(300, 0)
+                },
+                IsEnabled = false
             });
         }
 
@@ -353,7 +357,6 @@ namespace TestApp
                 _rec.Stop();
                 _progressTimer?.Stop();
                 _progressTimer = null;
-                _secondsElapsed = 0;
                 RecordButton.IsEnabled = false;
                 return;
             }
@@ -378,7 +381,7 @@ namespace TestApp
             }
             _progressTimer = new DispatcherTimer();
             _progressTimer.Tick += ProgressTimer_Tick;
-            _progressTimer.Interval = TimeSpan.FromSeconds(1);
+            _progressTimer.Interval = TimeSpan.FromMilliseconds(30);
             _progressTimer.Start();
 
             var selectedDisplay = this.ScreenComboBox.SelectedItem as CheckableRecordableDisplay;
@@ -386,13 +389,7 @@ namespace TestApp
             string audioOutputDevice = AudioOutputsComboBox.SelectedValue as string;
             string audioInputDevice = AudioInputsComboBox.SelectedValue as string;
 
-            var sourcesToRecord = RecordingSources.Where(x => x.IsSelected).ToList();
-            if (sourcesToRecord.Count == 0
-                && SelectedRecordingSource != null
-                && SelectedRecordingSource.IsCheckable)
-            {
-                sourcesToRecord.Add(SelectedRecordingSource);
-            }
+
 
             IVideoEncoder videoEncoder;
             switch (CurrentVideoEncoderFormat)
@@ -409,7 +406,6 @@ namespace TestApp
             RecorderOptions options = new RecorderOptions
             {
                 RecorderMode = CurrentRecordingMode,
-                RecorderApi = CurrentRecordingApi,
 
                 LogOptions = new LogOptions
                 {
@@ -451,33 +447,7 @@ namespace TestApp
                 },
                 SourceOptions = new SourceOptions
                 {
-                    //RecordingSources = sourcesToRecord.Cast<RecordingSourceBase>().ToList(),
-                    RecordingSources = sourcesToRecord.Select(x =>
-                    {
-                        if (x is WindowRecordingSource win)
-                        {
-                            return new WindowRecordingSource(win.Handle)
-                            {
-                                IsCursorCaptureEnabled = win.IsCursorCaptureEnabled,
-                                OutputSize = x.IsCustomOutputSizeEnabled ? x.OutputSize : null,
-                                Position = x.IsCustomPositionEnabled ? x.Position : null
-                            };
-                        }
-                        else if (x is CheckableRecordableDisplay disp)
-                        {
-                            return new DisplayRecordingSource(disp.DeviceName)
-                            {
-                                IsCursorCaptureEnabled = disp.IsCursorCaptureEnabled,
-                                OutputSize = x.IsCustomOutputSizeEnabled ? x.OutputSize : null,
-                                SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
-                                Position = x.IsCustomPositionEnabled ? x.Position : null
-                            };
-                        }
-                        else
-                        {
-                            return null as RecordingSourceBase;
-                        }
-                    }).ToList(),
+                    RecordingSources = CreateSelectedRecordingSources(),
                     SourceRect = IsCustomOutputSourceRectEnabled ? this.SourceRect : null
                 },
                 MouseOptions = new MouseOptions
@@ -518,8 +488,72 @@ namespace TestApp
             {
                 _rec.Record(videoPath);
             }
-            _secondsElapsed = 0;
+            _recordingStartTime = DateTimeOffset.Now;
             IsRecording = true;
+        }
+
+        private List<RecordingSourceBase> CreateSelectedRecordingSources()
+        {
+            var sourcesToRecord = RecordingSources.Where(x => x.IsSelected).ToList();
+            if (sourcesToRecord.Count == 0
+                && SelectedRecordingSource != null
+                && SelectedRecordingSource.IsCheckable)
+            {
+                sourcesToRecord.Add(SelectedRecordingSource);
+            }
+            //We could pass in the sources directly, but since the models have been used for custom dimensions and positions, 
+            //we create new ones to pass in, with null values for non-modified values.
+            return sourcesToRecord.Select(x =>
+            {
+                if (x is CheckableRecordableWindow win)
+                {
+                    return new WindowRecordingSource(win.Handle)
+                    {
+                        IsCursorCaptureEnabled = win.IsCursorCaptureEnabled,
+                        OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
+                        Position = win.IsCustomPositionEnabled ? win.Position : null
+                    };
+                }
+                else if (x is CheckableRecordableDisplay disp)
+                {
+                    return new DisplayRecordingSource(disp.DeviceName)
+                    {
+                        IsCursorCaptureEnabled = disp.IsCursorCaptureEnabled,
+                        OutputSize = disp.IsCustomOutputSizeEnabled ? disp.OutputSize : null,
+                        SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
+                        Position = disp.IsCustomPositionEnabled ? disp.Position : null,
+                        RecorderApi = disp.RecorderApi
+                    };
+                }
+                else if (x is CheckableRecordableCamera cam)
+                {
+                    return new VideoCaptureRecordingSource(cam.DeviceName)
+                    {
+                        OutputSize = cam.IsCustomOutputSizeEnabled ? cam.OutputSize : null,
+                        Position = cam.IsCustomPositionEnabled ? cam.Position : null,
+                    };
+                }
+                else if (x is CheckableRecordableImage img)
+                {
+                    return new ImageRecordingSource(img.SourcePath)
+                    {
+                        OutputSize = img.IsCustomOutputSizeEnabled ? img.OutputSize : null,
+                        Position = img.IsCustomPositionEnabled ? img.Position : null,
+                    };
+                }
+                else if (x is CheckableRecordableVideo vid)
+                {
+                    return new VideoRecordingSource(vid.SourcePath)
+                    {
+                        OutputSize = vid.IsCustomOutputSizeEnabled ? vid.OutputSize : null,
+                        Position = vid.IsCustomPositionEnabled ? vid.Position : null,
+                    };
+                }
+                else
+                {
+                    return null as RecordingSourceBase;
+                }
+            }).ToList();
         }
 
         private string GetImageExtension()
@@ -583,7 +617,6 @@ namespace TestApp
 
             _progressTimer?.Stop();
             _progressTimer = null;
-            _secondsElapsed = 0;
 
             _rec?.Dispose();
             _rec = null;
@@ -604,6 +637,11 @@ namespace TestApp
                         PauseButton.Visibility = Visibility.Visible;
                         if (_progressTimer != null)
                             _progressTimer.IsEnabled = true;
+                        if(_recordingPauseTime!= null)
+                        {
+                            _recordingStartTime = _recordingStartTime.Value.AddTicks((DateTimeOffset.Now.Subtract(_recordingPauseTime.Value)).Ticks);
+                            _recordingPauseTime = null;
+                        }
                         RecordButton.Content = "Stop";
                         PauseButton.Content = "Pause";
                         this.StatusTextBlock.Text = "Recording";
@@ -612,6 +650,7 @@ namespace TestApp
                     case RecorderStatus.Paused:
                         if (_progressTimer != null)
                             _progressTimer.IsEnabled = false;
+                        _recordingPauseTime = DateTimeOffset.Now;
                         PauseButton.Content = "Resume";
                         this.StatusTextBlock.Text = "Paused";
                         break;
@@ -627,12 +666,14 @@ namespace TestApp
 
         private void ProgressTimer_Tick(object sender, EventArgs e)
         {
-            _secondsElapsed++;
             UpdateProgress();
         }
         private void UpdateProgress()
         {
-            TimeStampTextBlock.Text = TimeSpan.FromSeconds(_secondsElapsed).ToString();
+            if (_recordingStartTime != null)
+            {
+                TimeStampTextBlock.Text = DateTimeOffset.Now.Subtract(_recordingStartTime.Value).ToString("hh\\:mm\\:ss");
+            }
         }
         private void PauseButton_Click(object sender, RoutedEventArgs e)
         {
@@ -736,10 +777,26 @@ namespace TestApp
 
         private void RecordingApiComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            UpdateUiState();
-            if (this.IsLoaded)
+            if (e.AddedItems.Count > 0)
             {
-                RefreshCaptureTargetItems();
+                RecorderApi api = (RecorderApi)e.AddedItems[0];
+                switch (api)
+                {
+                    case RecorderApi.DesktopDuplication:
+                        this.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
+                        {
+                            ((ComboBox)sender).Text = "DD";
+                        }));
+                        break;
+                    case RecorderApi.WindowsGraphicsCapture:
+                        this.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
+                        {
+                            ((ComboBox)sender).Text = "WGC";
+                        }));
+                        break;
+                    default:
+                        break;
+                }
             }
         }
 
@@ -804,15 +861,15 @@ namespace TestApp
         private void RefreshCaptureTargetItems()
         {
             RefreshVideoCaptureItems();
-            RefreshScreenComboBox();
+            RefreshSourceComboBox();
             RefreshAudioComboBoxes();
         }
 
         private void RefreshVideoCaptureItems()
         {
             VideoCaptureDevices.Clear();
-            VideoCaptureDevices.Add(new MediaDevice { ID = null, Name = "Default capture device" });
-            var devices = Recorder.GetSystemVideoCaptureDevices().Select(x => new MediaDevice { ID = x.Key, Name = x.Value });
+            VideoCaptureDevices.Add(new RecordableCamera { DeviceName = null, FriendlyName = "Default capture device" });
+            var devices = Recorder.GetSystemVideoCaptureDevices().ToList();
             foreach (var device in devices)
             {
                 VideoCaptureDevices.Add(device);
@@ -820,25 +877,48 @@ namespace TestApp
             (this.Resources["MediaDeviceToDeviceIdConverter"] as MediaDeviceToDeviceIdConverter).MediaDevices = VideoCaptureDevices.ToList();
         }
 
-        private void RefreshScreenComboBox()
+        private void RefreshSourceComboBox()
         {
-            foreach (CheckableRecordableDisplay display in RecordingSources.ToList().Where(x => x is CheckableRecordableDisplay))
-            {
-                RecordingSources.Remove(display);
-            }
-
+            RecordingSources.Clear();
             foreach (var target in Recorder.GetDisplays())
             {
                 RecordingSources.Add(new CheckableRecordableDisplay(target));
             }
 
-            foreach (CheckableRecordableWindow window in RecordingSources.ToList().Where(x => x is CheckableRecordableWindow))
-            {
-                RecordingSources.Remove(window);
-            }
             foreach (RecordableWindow window in Recorder.GetWindows())
             {
                 RecordingSources.Add(new CheckableRecordableWindow(window));
+            }
+
+            foreach (RecordableCamera cam in Recorder.GetSystemVideoCaptureDevices())
+            {
+                RecordingSources.Add(new CheckableRecordableCamera(cam));
+            }
+
+            RecordingSources.Add(new CheckableRecordableVideo(@"testmedia\cat.mp4"));
+            RecordingSources.Add(new CheckableRecordableImage(@"testmedia\renault.png"));
+            RecordingSources.Add(new CheckableRecordableImage(@"testmedia\earth.gif"));
+
+            (this.Resources["RecordableDisplayToDeviceIdConverter"] as RecordableDisplayToDeviceIdConverter).Displays = RecordingSources.Where(x => x is RecordableDisplay).Cast<RecordableDisplay>().ToList();
+            (this.Resources["RecordableWindowToHandleConverter"] as RecordableWindowToHandleConverter).Windows = RecordingSources.Where(x => x is RecordableWindow).Cast<RecordableWindow>().ToList();
+
+            var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(RecordingSources.Cast<RecordingSourceBase>());
+            foreach (var source in RecordingSources)
+            {
+                var sourceCoord = outputDimens.OutputCoordinates.FirstOrDefault(x => x.Source == source);
+                ScreenPoint position;
+                ScreenSize size;
+                if (sourceCoord != null)
+                {
+                    position = source is CheckableRecordableDisplay ? new ScreenPoint(sourceCoord.Coordinates.Left, sourceCoord.Coordinates.Top) : new ScreenPoint(0, 0);
+                    size = new ScreenSize(sourceCoord.Coordinates.Width, sourceCoord.Coordinates.Height);
+                }
+                else
+                {
+                    position = new ScreenPoint();
+                    size = new ScreenSize();
+                }
+                source.UpdateScreenCoordinates(position, size);
             }
             RefreshWindowSizeAndAvailability();
 
@@ -847,34 +927,22 @@ namespace TestApp
 
         private void RefreshWindowSizeAndAvailability()
         {
-            //var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(RecordingSources.Cast<RecordingSourceBase>());
+            var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(RecordingSources.Where(x => x is CheckableRecordableWindow).Cast<RecordingSourceBase>());
+            foreach (var source in RecordingSources)
+            {
+                var sourceCoord = outputDimens.OutputCoordinates.FirstOrDefault(x => x.Source == source);
+
+                if (sourceCoord != null)
+                {
+                    var position = new ScreenPoint(0, 0);
+                    var size = new ScreenSize(sourceCoord.Coordinates.Width, sourceCoord.Coordinates.Height);
+                    source.UpdateScreenCoordinates(position, size);
+                }
+            }
             foreach (CheckableRecordableWindow window in RecordingSources.Where(x => x is CheckableRecordableWindow))
             {
-                //var dimens = outputDimens.OutputCoordinates.FirstOrDefault(x => x.Source == window);
-                //if (dimens != null)
-                //{
-                if (!window.IsCustomPositionEnabled && !window.IsCustomOutputSizeEnabled)
-                {
-                    var dimens = window.GetScreenCoordinates();
-                    window.UpdateScreenCoordinates(new ScreenPoint(0, 0), new ScreenSize(dimens.Width, dimens.Height));
-                }
                 window.IsCheckable = window.OutputSize != ScreenSize.Empty;
-                //}
             }
-            //var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(RecordingSources.Where(x => !x.IsSelected).Cast<RecordingSourceBase>());
-            //foreach (CheckableRecordableWindow window in RecordingSources.Where(x => x is CheckableRecordableWindow && !x.IsSelected))
-            //{
-            //    var dimens = outputDimens.OutputCoordinates.FirstOrDefault(x => x.Source == window);
-            //    if (dimens != null)
-            //    {
-            //        window.UpdateScreenCoordinates(new ScreenRect(0, 0, dimens.Coordinates.Width, dimens.Coordinates.Height));
-            //    }
-            //    else
-            //    {
-            //        window.UpdateScreenCoordinates(ScreenRect.Empty);
-            //    }
-            //    window.IsCheckable = window.OutputSize != ScreenSize.Empty;
-            //}
         }
 
         private void RefreshAudioComboBoxes()
@@ -882,23 +950,16 @@ namespace TestApp
             AudioOutputsList.Clear();
             AudioInputsList.Clear();
 
-            AudioOutputsList.Add("", "Default playback device");
-            AudioInputsList.Add("", "Default recording device");
-            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices))
+            AudioOutputsList.Add(new AudioDevice("", "Default playback device"));
+            AudioInputsList.Add(new AudioDevice("", "Default recording device"));
+            foreach (var outputDevice in Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices))
             {
-                AudioOutputsList.Add(kvp.Key, kvp.Value);
+                AudioOutputsList.Add(outputDevice);
             }
-            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices))
+            foreach (var inputDevice in Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices))
             {
-                AudioInputsList.Add(kvp.Key, kvp.Value);
+                AudioInputsList.Add(inputDevice);
             }
-
-            // Since Dictionary is not "observable", reset the reference.
-            AudioOutputsComboBox.ItemsSource = null;
-            AudioInputsComboBox.ItemsSource = null;
-
-            AudioOutputsComboBox.ItemsSource = AudioOutputsList;
-            AudioInputsComboBox.ItemsSource = AudioInputsList;
 
             AudioOutputsComboBox.SelectedIndex = 0;
             AudioInputsComboBox.SelectedIndex = 0;
@@ -963,26 +1024,6 @@ namespace TestApp
                 }
             }
         }
-        private void RecordingSourcesViewSource_Filter(object sender, System.Windows.Data.FilterEventArgs e)
-        {
-            if (CurrentRecordingApi == RecorderApi.DesktopDuplication)
-            {
-                e.Accepted = e.Item is DisplayRecordingSource;
-            }
-            else if (CurrentRecordingApi == RecorderApi.WindowsGraphicsCapture)
-            {
-                e.Accepted = true;
-            }
-            else
-            {
-                e.Accepted = false;
-            }
-        }
-
-        private void WindowRecordingSourcesViewSource_Filter(object sender, System.Windows.Data.FilterEventArgs e)
-        {
-            e.Accepted = e.Item is WindowRecordingSource;
-        }
 
         private void SelectedRecordingSourcesViewSource_Filter(object sender, System.Windows.Data.FilterEventArgs e)
         {
@@ -997,7 +1038,14 @@ namespace TestApp
                     && ((ICheckableRecordingSource)e.Item).IsCheckable;
             }
         }
-
+        private void DisplaysViewSource_Filter(object sender, FilterEventArgs e)
+        {
+            e.Accepted = e.Item is DisplayRecordingSource;
+        }
+        private void WindowsViewSource_Filter(object sender, FilterEventArgs e)
+        {
+            e.Accepted = e.Item is RecordableWindow && ((RecordableWindow)e.Item).IsValidWindow() && !((RecordableWindow)e.Item).IsMinmimized();
+        }
         private void MainWin_Activated(object sender, EventArgs e)
         {
             RefreshWindowSizeAndAvailability();
@@ -1007,7 +1055,10 @@ namespace TestApp
 
         private void UserInput_TextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
         {
-             SetOutputDimensions();
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, (Action)(() =>
+            {
+                SetOutputDimensions();
+            }));
         }
 
         private void CustomCoordinates_CheckedChanged(object sender, RoutedEventArgs e)

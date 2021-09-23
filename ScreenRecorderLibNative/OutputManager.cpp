@@ -1,4 +1,5 @@
 #include "OutputManager.h"
+#include "screengrab.h"
 #include <ppltasks.h> 
 #include <concrt.h>
 #include <filesystem>
@@ -170,26 +171,26 @@ HRESULT OutputManager::WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopI
 void OutputManager::WriteTextureToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath, _In_opt_ std::function<void(HRESULT)> onCompletion)
 {
 	pAcquiredDesktopImage->AddRef();
-	 Concurrency::create_task([this, pAcquiredDesktopImage, filePath, onCompletion]() {
+	Concurrency::create_task([this, pAcquiredDesktopImage, filePath, onCompletion]() {
 		return WriteFrameToImage(pAcquiredDesktopImage, filePath);
-		}).then([this, filePath, pAcquiredDesktopImage, onCompletion](concurrency::task<HRESULT> t)
-			{
-				HRESULT hr;
-				try {
-					hr = t.get();
-					// if .get() didn't throw and the HRESULT succeeded, there are no errors.
-				}
-				catch (const exception &e) {
-					// handle error
-					LOG_ERROR(L"Exception saving snapshot: %s", e.what());
-					hr = E_FAIL;
-				}
-				pAcquiredDesktopImage->Release();
-				if (onCompletion) {
-					std::invoke(onCompletion,hr);
-				}
-				return hr;
-			});
+	   }).then([this, filePath, pAcquiredDesktopImage, onCompletion](concurrency::task<HRESULT> t)
+		   {
+			  HRESULT hr;
+			  try {
+				  hr = t.get();
+				  // if .get() didn't throw and the HRESULT succeeded, there are no errors.
+			  }
+			  catch (const exception &e) {
+				  // handle error
+				  LOG_ERROR(L"Exception saving snapshot: %s", e.what());
+				  hr = E_FAIL;
+			  }
+			  pAcquiredDesktopImage->Release();
+			  if (onCompletion) {
+				  std::invoke(onCompletion, hr);
+			  }
+			  return hr;
+		   });
 }
 
 
@@ -252,7 +253,6 @@ HRESULT OutputManager::ConfigureInputMediaTypes(
 	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_SUBTYPE, GetEncoderOptions()->GetVideoInputFormat()));
 	// Uncompressed means all samples are independent.
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE));
-	//CreateInputMediaTypeFromOutput(pVideoMediaTypeOut, GetEncoderOptions()->GetVideoInputFormat(), &pVideoMediaType);
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
 	pVideoMediaType->SetUINT32(MF_MT_VIDEO_ROTATION, rotationFormat);
 
@@ -343,9 +343,8 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 	}
 	pAudioMediaTypeOut.Release();
 
-	// Passing 6 as the argument to save re-allocations
 	RETURN_ON_BAD_HR(MFCreateAttributes(&pAttributes, 7));
-	RETURN_ON_BAD_HR(pAttributes->SetGUID(MF_TRANSCODE_CONTAINERTYPE, MFTranscodeContainerType_MPEG4));
+	RETURN_ON_BAD_HR(pAttributes->SetGUID(MF_TRANSCODE_CONTAINERTYPE, GetEncoderOptions()->GetIsFragmentedMp4Enabled() ? MFTranscodeContainerType_FMPEG4 : MFTranscodeContainerType_MPEG4));
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, GetEncoderOptions()->GetIsHardwareEncodingEnabled()));
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_MPEG4SINK_MOOV_BEFORE_MDAT, GetEncoderOptions()->GetIsFastStartEnabled()));
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, GetEncoderOptions()->GetIsLowLatencyModeEnabled()));
@@ -376,11 +375,11 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 	if (encoder) {
 		RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, GetEncoderOptions()->GetVideoBitrateMode()));
 		switch (GetEncoderOptions()->GetVideoBitrateMode()) {
-		case eAVEncCommonRateControlMode_Quality:
-			RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonQuality, GetEncoderOptions()->GetVideoQuality()));
-			break;
-		default:
-			break;
+			case eAVEncCommonRateControlMode_Quality:
+				RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonQuality, GetEncoderOptions()->GetVideoQuality()));
+				break;
+			default:
+				break;
 		}
 	}
 
@@ -453,9 +452,8 @@ HRESULT OutputManager::WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ I
 	//so, just check, wait and try again if necessary
 	int counter = 0;
 	while (!SUCCEEDED(hr) && counter++ < 100) {
-		Sleep(100);
+		Sleep(10);
 		hr = MFCreateMemoryBuffer(cbData, &pBuffer);
-
 	}
 	// Lock the buffer to get a pointer to the memory.
 	if (SUCCEEDED(hr))

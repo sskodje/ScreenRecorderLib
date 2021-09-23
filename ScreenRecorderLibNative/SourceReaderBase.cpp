@@ -3,6 +3,7 @@
 #include "Cleanup.h"
 
 using namespace std;
+using namespace ScreenRecorderLib::Overlays;
 
 SourceReaderBase::SourceReaderBase() :
 	m_Sample{ nullptr },
@@ -49,11 +50,11 @@ SourceReaderBase::~SourceReaderBase()
 	m_PtrFrameBuffer = nullptr;
 }
 
-HRESULT SourceReaderBase::StartCapture(_In_ std::wstring source)
+HRESULT SourceReaderBase::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSource)
 {
 	HRESULT hr;
 	long streamIndex;
-	RETURN_ON_BAD_HR(hr = InitializeSourceReader(source, &streamIndex, &m_SourceReader, &m_InputMediaType, &m_OutputMediaType, &m_MediaTransform));
+	RETURN_ON_BAD_HR(hr = InitializeSourceReader(recordingSource.SourcePath, &streamIndex, &m_SourceReader, &m_InputMediaType, &m_OutputMediaType, &m_MediaTransform));
 	RETURN_ON_BAD_HR(GetDefaultStride(m_OutputMediaType, &m_Stride));
 	RETURN_ON_BAD_HR(GetFrameRate(m_InputMediaType, &m_FrameRate));
 	RETURN_ON_BAD_HR(GetFrameSize(m_InputMediaType, &m_FrameSize));
@@ -66,11 +67,13 @@ HRESULT SourceReaderBase::StartCapture(_In_ std::wstring source)
 	return hr;
 }
 
-HRESULT SourceReaderBase::GetNativeSize(_In_ std::wstring source, _Out_ SIZE *nativeMediaSize)
+HRESULT SourceReaderBase::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize)
 {
 	if (!m_InputMediaType) {
 		long streamIndex;
-		RETURN_ON_BAD_HR(InitializeSourceReader(source, &streamIndex, &m_SourceReader, &m_InputMediaType, &m_OutputMediaType, &m_MediaTransform));
+		RETURN_ON_BAD_HR(MFStartup(MF_VERSION, MFSTARTUP_LITE));
+		RETURN_ON_BAD_HR(InitializeSourceReader(recordingSource.SourcePath, &streamIndex, &m_SourceReader, &m_InputMediaType, &m_OutputMediaType, &m_MediaTransform));
+		RETURN_ON_BAD_HR(MFShutdown());
 	}
 	return GetFrameSize(m_InputMediaType, nativeMediaSize);
 }
@@ -93,52 +96,51 @@ void SourceReaderBase::Close()
 	LOG_DEBUG("Closed source reader");
 }
 
-HRESULT SourceReaderBase::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_ ID3D11Texture2D **ppFrame)
+HRESULT SourceReaderBase::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame)
 {
-	DWORD result = WaitForSingleObject(m_NewFrameEvent, timeoutMillis);
-	HRESULT hr;
-	if (result == WAIT_OBJECT_0) {
-		EnterCriticalSection(&m_CriticalSection);
-		LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"GetFrameBuffer");
+	DWORD result = WAIT_OBJECT_0;
+
+	if (m_LastGrabTimeStamp.QuadPart >= m_LastSampleReceivedTimeStamp.QuadPart) {
+		result = WaitForSingleObject(m_NewFrameEvent, timeoutMillis);
+	}
+	HRESULT hr = S_OK;
+	if (result == WAIT_OBJECT_0) {	
+		//Only create frame if the caller accepts one.
+		if (ppFrame) {
+			EnterCriticalSection(&m_CriticalSection);
+			LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"GetFrameBuffer");
 
 
-		DWORD len;
-		BYTE *data;
-		hr = m_Sample->Lock(&data, NULL, &len);
-		if (FAILED(hr))
-		{
-			delete[] m_PtrFrameBuffer;
-			m_PtrFrameBuffer = nullptr;
-			return hr;
-		}
-		if (SUCCEEDED(hr)) {
-			hr = ResizeFrameBuffer(len);
-
-			//if (SUCCEEDED(hr)) {
-			QueryPerformanceCounter(&m_LastGrabTimeStamp);
-			int bytesPerPixel = abs(m_Stride) / m_FrameSize.cx;
-			//Copy the bitmap buffer, with handling of negative stride. https://docs.microsoft.com/en-us/windows/win32/medfound/image-stride
-			hr = MFCopyImage(
-				m_PtrFrameBuffer,       // Destination buffer.
-				abs(m_Stride),                    // Destination stride. We use the absolute value to flip bitmaps with negative stride. 
-				m_Stride > 0 ? data : data + (m_FrameSize.cy - 1) * abs(m_Stride), // First row in source image with positive stride, or the last row with negative stride.
-				m_Stride,						  // Source stride.
-				bytesPerPixel * m_FrameSize.cx,	      // Image width in bytes.
-				m_FrameSize.cy						  // Image height in pixels.
-			);
-
-			//pFrameInfo->Stride = abs(m_Stride);
-			//pFrame->Timestamp = m_LastGrabTimeStamp;
-			//pFrameInfo->Width = m_FrameSize.cx;
-			//pFrameInfo->Height = m_FrameSize.cy;
-			//SafeRelease(&pFrame->Frame);
-			CComPtr<ID3D11Texture2D> pTexture;
-			hr = m_TextureManager->CreateTextureFromBuffer(m_PtrFrameBuffer, m_Stride, m_FrameSize.cx, m_FrameSize.cy, &pTexture);
-			if (SUCCEEDED(hr)) {
-				*ppFrame = pTexture;
-				(*ppFrame)->AddRef();
+			DWORD len;
+			BYTE *data;
+			hr = m_Sample->Lock(&data, NULL, &len);
+			if (FAILED(hr))
+			{
+				delete[] m_PtrFrameBuffer;
+				m_PtrFrameBuffer = nullptr;
+				return hr;
 			}
-			//}
+			if (SUCCEEDED(hr)) {
+				hr = ResizeFrameBuffer(len);
+				int bytesPerPixel = abs(m_Stride) / m_FrameSize.cx;
+				//Copy the bitmap buffer, with handling of negative stride. https://docs.microsoft.com/en-us/windows/win32/medfound/image-stride
+				hr = MFCopyImage(
+					m_PtrFrameBuffer,       // Destination buffer.
+					abs(m_Stride),                    // Destination stride. We use the absolute value to flip bitmaps with negative stride. 
+					m_Stride > 0 ? data : data + (m_FrameSize.cy - 1) * abs(m_Stride), // First row in source image with positive stride, or the last row with negative stride.
+					m_Stride,						  // Source stride.
+					bytesPerPixel * m_FrameSize.cx,	      // Image width in bytes.
+					m_FrameSize.cy						  // Image height in pixels.
+				);
+
+				CComPtr<ID3D11Texture2D> pTexture;
+				hr = m_TextureManager->CreateTextureFromBuffer(m_PtrFrameBuffer, m_Stride, m_FrameSize.cx, m_FrameSize.cy, &pTexture);
+				if (SUCCEEDED(hr)) {
+					*ppFrame = pTexture;
+					(*ppFrame)->AddRef();
+					QueryPerformanceCounter(&m_LastGrabTimeStamp);
+				}
+			}
 		}
 	}
 	else if (result == WAIT_TIMEOUT) {
@@ -186,6 +188,61 @@ HRESULT SourceReaderBase::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _
 	m_TextureManager = make_unique<TextureManager>();
 	m_TextureManager->Initialize(m_DeviceContext, m_Device);
 	return S_OK;
+}
+
+HRESULT SourceReaderBase::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ const std::optional<RECT> &sourceRect)
+{
+	CComPtr<ID3D11Texture2D> processedTexture;
+	HRESULT hr = AcquireNextFrame(timeoutMillis, &processedTexture);
+	RETURN_ON_BAD_HR(hr);
+	D3D11_TEXTURE2D_DESC frameDesc;
+	processedTexture->GetDesc(&frameDesc);
+
+	if (sourceRect.has_value()
+		&& IsValidRect(sourceRect.value())
+		&& (RectWidth(sourceRect.value()) != frameDesc.Width || (RectHeight(sourceRect.value()) != frameDesc.Height))) {
+		ID3D11Texture2D *pCroppedTexture;
+		RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(processedTexture, sourceRect.value(), &pCroppedTexture));
+		processedTexture.Release();
+		processedTexture.Attach(pCroppedTexture);
+	}
+	processedTexture->GetDesc(&frameDesc);
+
+	int leftMargin = 0;
+	int topMargin = 0;
+	if ((RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height)) {
+		double widthRatio = (double)RectWidth(destinationRect) / frameDesc.Width;
+		double heightRatio = (double)RectHeight(destinationRect) / frameDesc.Height;
+
+		double resizeRatio = min(widthRatio, heightRatio);
+		UINT resizedWidth = (UINT)MakeEven((LONG)round(frameDesc.Width * resizeRatio));
+		UINT resizedHeight = (UINT)MakeEven((LONG)round(frameDesc.Height * resizeRatio));
+		ID3D11Texture2D *resizedTexture = nullptr;
+		RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(processedTexture, &resizedTexture, SIZE{ static_cast<LONG>(resizedWidth), static_cast<LONG>(resizedHeight) }));
+		processedTexture.Release();
+		processedTexture.Attach(resizedTexture);
+		leftMargin = (int)max(0, round(((double)RectWidth(destinationRect) - (double)resizedWidth)) / 2);
+		topMargin = (int)max(0, round(((double)RectHeight(destinationRect) - (double)resizedHeight)) / 2);
+	}
+
+	processedTexture->GetDesc(&frameDesc);
+
+	long left = destinationRect.left + offsetX + leftMargin;
+	long top = destinationRect.top + offsetY + topMargin;
+	long right = left + MakeEven(frameDesc.Width);
+	long bottom = top + MakeEven(frameDesc.Height);
+
+	//D3D11_BOX Box;
+	//Box.front = 0;
+	//Box.back = 1;
+	//Box.left = 0;
+	//Box.top = 0;
+	//Box.right = MakeEven(frameDesc.Width);
+	//Box.bottom = MakeEven(frameDesc.Height);
+
+	//m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, destinationRect.left + offsetX + leftMargin, destinationRect.top + offsetY + topMargin, 0, processedTexture, 0, &Box);
+	m_TextureManager->DrawTexture(pSharedSurf, processedTexture, RECT{ left,top,right,bottom });
+	return hr;
 }
 
 HRESULT SourceReaderBase::GetFrameSize(_In_ IMFMediaType *pMediaType, _Out_ SIZE *pFrameSize)

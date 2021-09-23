@@ -10,6 +10,7 @@
 #include "Coordinates.h"
 #include "Options.h"
 #include "Callback.h"
+#include "AudioDevice.h"
 
 using namespace System;
 using namespace System::Runtime::InteropServices;
@@ -62,6 +63,7 @@ namespace ScreenRecorderLib {
 		void EventSnapshotCreated(std::wstring str);
 		void SetupCallbacks();
 		void ClearCallbacks();
+		static HRESULT CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Out_ RECORDING_SOURCE* pNativeSource);
 		static std::vector<RECORDING_SOURCE> CreateRecordingSourceList(IEnumerable<RecordingSourceBase^>^ options);
 		static std::vector<RECORDING_OVERLAY> CreateOverlayList(IEnumerable<RecordingOverlayBase^>^ managedOverlays);
 
@@ -110,8 +112,8 @@ namespace ScreenRecorderLib {
 		static Recorder^ CreateRecorder();
 		static Recorder^ CreateRecorder(RecorderOptions^ options);
 		static List<RecordableWindow^>^ GetWindows();
-		static Dictionary<String^, String^>^ GetSystemAudioDevices(AudioDeviceSource source);
-		static Dictionary<String^, String^>^ GetSystemVideoCaptureDevices();
+		static List<AudioDevice^>^ GetSystemAudioDevices(AudioDeviceSource source);
+		static List<RecordableCamera^>^ GetSystemVideoCaptureDevices();
 		static List<RecordableDisplay^>^ GetDisplays();
 		static OutputDimensions^ GetOutputDimensionsForRecordingSources(IEnumerable<RecordingSourceBase^>^ recordingSources);
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;

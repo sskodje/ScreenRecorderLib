@@ -1,20 +1,26 @@
 #include "GifReader.h"
 #include "Cleanup.h"
 
+using namespace ScreenRecorderLib::Overlays;
+using namespace std;
+
 GifReader::GifReader()
 	:
-	m_RenderTarget(NULL),
-	m_RenderTexture(NULL),
-	m_pD2DFactory(NULL),
-	m_pFrameComposeRT(NULL),
-	m_pRawFrame(NULL),
-	m_pSavedFrame(NULL),
-	m_pIWICFactory(NULL),
-	m_pDecoder(NULL),
-	m_FramerateTimer(NULL),
-	m_Device(NULL),
-	m_DeviceContext(NULL),
-	m_LastGrabTimeStamp{}
+	m_RenderTarget(nullptr),
+	m_RenderTexture(nullptr),
+	m_pD2DFactory(nullptr),
+	m_pFrameComposeRT(nullptr),
+	m_pRawFrame(nullptr),
+	m_pSavedFrame(nullptr),
+	m_pIWICFactory(nullptr),
+	m_pDecoder(nullptr),
+	m_FramerateTimer(nullptr),
+	m_Device(nullptr),
+	m_DeviceContext(nullptr),
+	m_LastSampleReceivedTimeStamp{ 0 },
+	m_LastGrabTimeStamp{ 0 },
+	m_cxGifImage(0),
+	m_cyGifImage(0)
 {
 	InitializeCriticalSection(&m_CriticalSection);
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -33,16 +39,16 @@ GifReader::~GifReader()
 	SafeRelease(&m_RenderTexture);
 	SafeRelease(&m_Device);
 	SafeRelease(&m_DeviceContext);
-	delete m_FramerateTimer;
 	CloseHandle(m_NewFrameEvent);
 	DeleteCriticalSection(&m_CriticalSection);
 }
 
-HRESULT GifReader::StartCapture(_In_ std::wstring source)
+HRESULT GifReader::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSource)
 {
 	HRESULT hr;
-	RETURN_ON_BAD_HR(hr = InitializeDecoder(source));
 
+	RETURN_ON_BAD_HR(hr = InitializeDecoder(recordingSource.SourcePath));
+	RETURN_ON_BAD_HR(hr = CreateDeviceResources());
 	// If we have at least one frame, start playing
 	// the animation from the first frame
 	if (m_cFrames > 0)
@@ -53,11 +59,11 @@ HRESULT GifReader::StartCapture(_In_ std::wstring source)
 	return hr;
 }
 
-HRESULT GifReader::GetNativeSize(_In_ std::wstring source, _Out_ SIZE *nativeMediaSize)
+HRESULT GifReader::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize)
 {
 	HRESULT hr = S_OK;
 	if (m_cxGifImage == 0 || m_cyGifImage == 0) {
-		RETURN_ON_BAD_HR(hr = InitializeDecoder(source));
+		RETURN_ON_BAD_HR(hr = InitializeDecoder(recordingSource.SourcePath));
 	}
 	*nativeMediaSize = SIZE{ static_cast<LONG>(m_cxGifImage) , static_cast<LONG>(m_cyGifImage) };
 	return hr;
@@ -76,62 +82,32 @@ HRESULT GifReader::StopCapture()
 	return S_OK;
 }
 
-HRESULT GifReader::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_ ID3D11Texture2D **ppFrame)
+HRESULT GifReader::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame)
 {
-	DWORD result = WaitForSingleObject(m_NewFrameEvent, timeoutMillis);
-	HRESULT hr;
+	DWORD result = WAIT_OBJECT_0;
+
+	if (m_LastGrabTimeStamp.QuadPart >= m_LastSampleReceivedTimeStamp.QuadPart) {
+		result = WaitForSingleObject(m_NewFrameEvent, timeoutMillis);
+	}
+	HRESULT hr = S_OK;
 	if (result == WAIT_OBJECT_0) {
-		EnterCriticalSection(&m_CriticalSection);
-		LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"GetFrameBuffer");
-		CComPtr<ID3D11Texture2D> pStagingTexture = nullptr;
-		D3D11_TEXTURE2D_DESC desc;
-		m_RenderTexture->GetDesc(&desc);
-		desc.BindFlags = 0;
-		desc.MiscFlags = 0;
-		//desc.MiscFlags &= D3D11_RESOURCE_MISC_TEXTURECUBE;
-		//desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-		desc.Usage = D3D11_USAGE_DEFAULT;
-		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pStagingTexture));
-		m_DeviceContext->CopyResource(pStagingTexture, m_RenderTexture);
+		if (ppFrame) {
+			EnterCriticalSection(&m_CriticalSection);
+			LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"GetFrameBuffer");
+			CComPtr<ID3D11Texture2D> pStagingTexture = nullptr;
+			D3D11_TEXTURE2D_DESC desc;
+			m_RenderTexture->GetDesc(&desc);
+			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+			desc.MiscFlags = 0;
+			desc.Usage = D3D11_USAGE_DEFAULT;
 
-		//D3D11_MAPPED_SUBRESOURCE mapped;
-		//RETURN_ON_BAD_HR(hr = m_DeviceContext->Map(pStagingTexture, 0, D3D11_MAP_READ, 0, &mapped));
-		//auto data = (BYTE *)mapped.pData;
-		//auto stride = mapped.RowPitch;
-		//UINT len = m_cyGifImagePixel * stride;
-		//if (FAILED(hr))
-		//{
-		//	delete[] pFrameInfo->PtrFrameBuffer;
-		//	pFrameInfo->PtrFrameBuffer = nullptr;
-		//}
-		//if (SUCCEEDED(hr)) {
-		//	hr = ResizeFrameBuffer(pFrameInfo, len);
-		//}
-		//if (SUCCEEDED(hr)) {
-		//	double bytesPerPixel = stride / (double)m_cxGifImagePixel;
-		//	//Copy the bitmap buffer, with handling of negative stride. https://docs.microsoft.com/en-us/windows/win32/medfound/image-stride
-		//	hr = MFCopyImage(
-		//		pFrameInfo->PtrFrameBuffer,       // Destination buffer.
-		//		stride,                    // Destination stride. We use the absolute value to flip bitmaps with negative stride. 
-		//		stride > 0 ? (BYTE *)data : (BYTE *)data + (m_cyGifImagePixel - 1) * stride, // First row in source image with positive stride, or the last row with negative stride.
-		//		stride,						  // Source stride.
-		//		round(bytesPerPixel * m_cxGifImagePixel),	      // Image width in bytes.
-		//		m_cyGifImagePixel						  // Image height in pixels.
-		//	);
+			RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pStagingTexture));
 
-		//	QueryPerformanceCounter(&m_LastGrabTimeStamp);
-		//	pFrameInfo->Stride = stride;
-		//	pFrameInfo->LastTimeStamp = m_LastGrabTimeStamp;
-		//	pFrameInfo->Width = m_cxGifImagePixel;
-		//	pFrameInfo->Height = m_cyGifImagePixel;
-		//}
-		//m_DeviceContext->Unmap(pStagingTexture, 0);
-
-		//SafeRelease(&pFrame->Frame);
-		//pFrame->Timestamp = m_LastGrabTimeStamp;
-		*ppFrame = pStagingTexture;
-		(*ppFrame)->AddRef();
-		LOG_TRACE("Got GIF frame buffer");
+			m_DeviceContext->CopyResource(pStagingTexture, m_RenderTexture);
+			*ppFrame = pStagingTexture;
+			(*ppFrame)->AddRef();
+			QueryPerformanceCounter(&m_LastGrabTimeStamp);
+		}
 	}
 	else if (result == WAIT_TIMEOUT) {
 		hr = DXGI_ERROR_WAIT_TIMEOUT;
@@ -144,28 +120,72 @@ HRESULT GifReader::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_ ID3D11Tex
 	return hr;
 }
 
-//HRESULT GifReader::ResizeFrameBuffer(FRAME_INFO *FrameInfo, int bufferSize) {
-//	// Old buffer too small
-//	if (bufferSize > (int)FrameInfo->BufferSize)
-//	{
-//		if (FrameInfo->PtrFrameBuffer)
-//		{
-//			delete[] FrameInfo->PtrFrameBuffer;
-//			FrameInfo->PtrFrameBuffer = nullptr;
-//		}
-//		FrameInfo->PtrFrameBuffer = new (std::nothrow) BYTE[bufferSize];
-//		if (!FrameInfo->PtrFrameBuffer)
-//		{
-//			FrameInfo->BufferSize = 0;
-//			LOG_ERROR(L"Failed to allocate memory for frame");
-//			return E_OUTOFMEMORY;
-//		}
-//
-//		// Update buffer size
-//		FrameInfo->BufferSize = bufferSize;
-//	}
-//	return S_OK;
-//}
+HRESULT GifReader::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ const std::optional<RECT> &sourceRect)
+{
+	CComPtr<ID3D11Texture2D> processedTexture;
+	HRESULT hr = AcquireNextFrame(timeoutMillis, &processedTexture);
+	if (FAILED(hr)) {
+		return hr;
+	}
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"WriteNextFrameToSharedSurface");
+	D3D11_TEXTURE2D_DESC frameDesc;
+	processedTexture->GetDesc(&frameDesc);
+
+	if (sourceRect.has_value()
+		&& IsValidRect(sourceRect.value())
+		&& (RectWidth(sourceRect.value()) != frameDesc.Width || (RectHeight(sourceRect.value()) != frameDesc.Height))) {
+		ID3D11Texture2D *pCroppedTexture;
+		RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(processedTexture, sourceRect.value(), &pCroppedTexture));
+		processedTexture.Release();
+		processedTexture.Attach(pCroppedTexture);
+	}
+	processedTexture->GetDesc(&frameDesc);
+
+	int leftMargin = 0;
+	int topMargin = 0;
+	if ((RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height)) {
+		double widthRatio = (double)RectWidth(destinationRect) / frameDesc.Width;
+		double heightRatio = (double)RectHeight(destinationRect) / frameDesc.Height;
+
+		double resizeRatio = min(widthRatio, heightRatio);
+		UINT resizedWidth = (UINT)MakeEven((LONG)round(frameDesc.Width * resizeRatio));
+		UINT resizedHeight = (UINT)MakeEven((LONG)round(frameDesc.Height * resizeRatio));
+		ID3D11Texture2D *resizedTexture = nullptr;
+		RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(processedTexture, &resizedTexture, SIZE{ static_cast<LONG>(resizedWidth), static_cast<LONG>(resizedHeight) }));
+		processedTexture.Release();
+		processedTexture.Attach(resizedTexture);
+		leftMargin = (int)max(0, round(((double)RectWidth(destinationRect) - (double)resizedWidth)) / 2);
+		topMargin = (int)max(0, round(((double)RectHeight(destinationRect) - (double)resizedHeight)) / 2);
+	}
+
+	processedTexture->GetDesc(&frameDesc);
+
+
+	long left = destinationRect.left + offsetX + leftMargin;
+	long top = destinationRect.top + offsetY + topMargin;
+	long right = left + MakeEven(frameDesc.Width);
+	long bottom = top + MakeEven(frameDesc.Height);
+
+	D3D11_BOX Box{};
+	// Copy back to shared surface
+	Box.right = right-left;
+	Box.bottom = bottom-top;
+	Box.back = 1;
+
+	CComPtr<ID3D11Texture2D> pBlankFrame;
+	D3D11_TEXTURE2D_DESC desc;
+	pSharedSurf->GetDesc(&desc);
+	desc.MiscFlags = 0;
+	desc.Width = right - left;
+	desc.Height = bottom - top;
+	hr = m_Device->CreateTexture2D(&desc, nullptr, &pBlankFrame);
+	if (SUCCEEDED(hr)) {
+		m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, left, top, 0, pBlankFrame, 0, &Box);
+	}
+	m_TextureManager->DrawTexture(pSharedSurf, processedTexture, RECT{ left,top,right,bottom });
+	return hr;
+}
 
 HRESULT GifReader::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice)
 {
@@ -174,7 +194,10 @@ HRESULT GifReader::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3
 
 	m_Device->AddRef();
 	m_DeviceContext->AddRef();
-	return S_OK;
+
+	m_TextureManager = make_unique<TextureManager>();
+	HRESULT hr = m_TextureManager->Initialize(m_DeviceContext, m_Device);
+	return hr;
 }
 
 HRESULT GifReader::InitializeDecoder(_In_ std::wstring source)
@@ -213,11 +236,6 @@ HRESULT GifReader::InitializeDecoder(_In_ std::wstring source)
 	if (SUCCEEDED(hr))
 	{
 		hr = GetGlobalMetadata();
-	}
-
-	if (SUCCEEDED(hr))
-	{
-		hr = CreateDeviceResources();
 	}
 
 	return hr;
@@ -722,23 +740,23 @@ HRESULT GifReader::DisposeCurrentFrame()
 
 	switch (m_uFrameDisposal)
 	{
-	case DM_UNDEFINED:
-	case DM_NONE:
-		// We simply draw on the previous frames. Do nothing here.
-		break;
-	case DM_BACKGROUND:
-		// Dispose background
-		// Clear the area covered by the current raw frame with background color
-		hr = ClearCurrentFrameArea();
-		break;
-	case DM_PREVIOUS:
-		// Dispose previous
-		// We restore the previous composed frame first
-		hr = RestoreSavedFrame();
-		break;
-	default:
-		// Invalid disposal method
-		hr = E_FAIL;
+		case DM_UNDEFINED:
+		case DM_NONE:
+			// We simply draw on the previous frames. Do nothing here.
+			break;
+		case DM_BACKGROUND:
+			// Dispose background
+			// Clear the area covered by the current raw frame with background color
+			hr = ClearCurrentFrameArea();
+			break;
+		case DM_PREVIOUS:
+			// Dispose previous
+			// We restore the previous composed frame first
+			hr = RestoreSavedFrame();
+			break;
+		default:
+			// Invalid disposal method
+			hr = E_FAIL;
 	}
 
 	return hr;
@@ -831,7 +849,7 @@ HRESULT GifReader::StartCaptureLoop()
 {
 	m_CaptureTask = concurrency::create_task([this]() {
 		if (!m_FramerateTimer) {
-			m_FramerateTimer = new HighresTimer();
+			m_FramerateTimer = make_unique<HighresTimer>();
 		}
 		do
 		{
@@ -846,6 +864,8 @@ HRESULT GifReader::StartCaptureLoop()
 				m_RenderTarget->EndDraw();
 			}
 			LeaveCriticalSection(&m_CriticalSection);
+			//Update timestamp and notify that there is a new sample available
+			QueryPerformanceCounter(&m_LastSampleReceivedTimeStamp);
 			SetEvent(m_NewFrameEvent);
 			hr = m_FramerateTimer->WaitFor(MillisToHundredNanos(m_uFrameDelay));
 			if (FAILED(hr)) {

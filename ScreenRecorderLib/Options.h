@@ -57,14 +57,6 @@ namespace ScreenRecorderLib {
 	};
 
 
-	public enum class RecorderApi {
-		///<summary>Desktop Duplication is supported on all Windows 8 and 10 versions. This API supports recording of screens.</summary>
-		DesktopDuplication = 0,
-		///<summary>WindowsGraphicsCapture requires Windows 10 version 1803 or higher. This API supports recording windows in addition to screens.</summary>
-		WindowsGraphicsCapture = 1,
-	};
-
-
 	public ref class SourceOptions {
 	public:
 		static property SourceOptions^ MainMonitor {
@@ -302,12 +294,8 @@ namespace ScreenRecorderLib {
 		}
 		RecorderOptions() {
 			RecorderMode = ScreenRecorderLib::RecorderMode::Video;
-			RecorderApi = ScreenRecorderLib::RecorderApi::DesktopDuplication;
 		}
 		property RecorderMode RecorderMode;
-		property RecorderApi RecorderApi;
-
-
 
 		property VideoEncoderOptions^ VideoEncoderOptions;
 		property SourceOptions^ SourceOptions;

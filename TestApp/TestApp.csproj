@@ -116,16 +116,18 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="CheckableRecordableWindow.cs" />
-    <Compile Include="CheckableRecordableDisplay.cs" />
-    <Compile Include="ICheckableRecordingSource.cs" />
+    <Compile Include="Sources\CheckableRecordableCamera.cs" />
+    <Compile Include="Sources\CheckableRecordableImage.cs" />
+    <Compile Include="Sources\CheckableRecordableVideo.cs" />
+    <Compile Include="Sources\CheckableRecordableWindow.cs" />
+    <Compile Include="Sources\CheckableRecordableDisplay.cs" />
+    <Compile Include="Sources\ICheckableRecordingSource.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="MediaDevice.cs" />
     <Compile Include="OverlayModel.cs" />
     <Compile Include="OverlayTemplateSelector.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
@@ -171,6 +173,14 @@
     </Content>
     <Content Include="..\Testmedia\cat.mp4">
       <Link>Testmedia\cat.mp4</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Testmedia\renault.png">
+      <Link>Testmedia\renault.png</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Testmedia\earth.gif">
+      <Link>Testmedia\earth.gif</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="..\Testmedia\giftest.gif">

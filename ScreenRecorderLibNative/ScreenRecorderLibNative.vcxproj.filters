@@ -28,32 +28,38 @@
     <Filter Include="Header Files\Video Capture">
       <UniqueIdentifier>{76e03253-eed9-412d-9886-5ee391fc25ed}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\Video Capture\Desktop Duplication">
-      <UniqueIdentifier>{40c9cd37-b2e6-486b-8f0d-07fc35bd2182}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\Video Capture\Overlay Capture">
       <UniqueIdentifier>{54efde93-78da-487a-89f9-61bcfd3429d8}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Header Files\Video Capture\Windows Graphics Capture">
-      <UniqueIdentifier>{27c3db9c-28ea-4920-af79-6f2bfc391243}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\Video Capture">
       <UniqueIdentifier>{8e74841b-8de0-49e2-96d6-be25fa5e73d1}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Video Capture\Desktop Duplication">
-      <UniqueIdentifier>{29441b45-a801-4d72-9359-1697dfbdbcf2}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\Video Capture\Overlay Capture">
       <UniqueIdentifier>{487a11ca-9316-4baf-91e6-c29497e8e869}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\Video Capture\Windows Graphics Capture">
-      <UniqueIdentifier>{ffb79b04-1db6-4269-925b-0e02cda62b66}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\Video Capture\Output">
-      <UniqueIdentifier>{8b6d7873-5318-4449-a554-4ab576529af4}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\Output">
       <UniqueIdentifier>{e961d185-4b6f-4ac7-aa65-c0c7836538c5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Video Capture\Screen Capture">
+      <UniqueIdentifier>{ab624966-984f-4f70-b2d6-6f97b9e7a38b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Video Capture\Screen Capture\Desktop Duplication">
+      <UniqueIdentifier>{40c9cd37-b2e6-486b-8f0d-07fc35bd2182}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Video Capture\Screen Capture\Windows Graphics Capture">
+      <UniqueIdentifier>{27c3db9c-28ea-4920-af79-6f2bfc391243}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Video Capture\Screen Capture">
+      <UniqueIdentifier>{9ef3844d-2669-4c35-80c8-63a2a3fd3ec5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Video Capture\Screen Capture\Desktop Duplication">
+      <UniqueIdentifier>{29441b45-a801-4d72-9359-1697dfbdbcf2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Video Capture\Screen Capture\Windows Graphics Capture">
+      <UniqueIdentifier>{ffb79b04-1db6-4269-925b-0e02cda62b66}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Output">
+      <UniqueIdentifier>{8b6d7873-5318-4449-a554-4ab576529af4}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -73,19 +79,19 @@
       <Filter>Header Files\Audio Capture</Filter>
     </ClInclude>
     <ClInclude Include="DesktopDuplicationManager.h">
-      <Filter>Header Files\Video Capture\Desktop Duplication</Filter>
+      <Filter>Header Files\Video Capture\Screen Capture\Desktop Duplication</Filter>
     </ClInclude>
     <ClInclude Include="DesktopDuplicationCapture.h">
-      <Filter>Header Files\Video Capture\Desktop Duplication</Filter>
+      <Filter>Header Files\Video Capture\Screen Capture\Desktop Duplication</Filter>
     </ClInclude>
     <ClInclude Include="WindowsGraphicsManager.h">
-      <Filter>Header Files\Video Capture\Windows Graphics Capture</Filter>
+      <Filter>Header Files\Video Capture\Screen Capture\Windows Graphics Capture</Filter>
     </ClInclude>
     <ClInclude Include="WindowsGraphicsCapture.util.h">
-      <Filter>Header Files\Video Capture\Windows Graphics Capture</Filter>
+      <Filter>Header Files\Video Capture\Screen Capture\Windows Graphics Capture</Filter>
     </ClInclude>
     <ClInclude Include="WindowsGraphicsCapture.h">
-      <Filter>Header Files\Video Capture\Windows Graphics Capture</Filter>
+      <Filter>Header Files\Video Capture\Screen Capture\Windows Graphics Capture</Filter>
     </ClInclude>
     <ClInclude Include="SourceReaderBase.h">
       <Filter>Header Files\Video Capture\Overlay Capture</Filter>
@@ -108,7 +114,7 @@
     <ClInclude Include="Cleanup.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
-    <ClInclude Include="ScreenCaptureBase.h">
+    <ClInclude Include="ScreenCaptureManager.h">
       <Filter>Header Files\Video Capture</Filter>
     </ClInclude>
     <ClInclude Include="MouseManager.h">
@@ -132,9 +138,6 @@
     <ClInclude Include="GifReader.h">
       <Filter>Header Files\Video Capture\Overlay Capture</Filter>
     </ClInclude>
-    <ClInclude Include="CaptureBase.h">
-      <Filter>Header Files\Video Capture\Overlay Capture</Filter>
-    </ClInclude>
     <ClInclude Include="AudioManager.h">
       <Filter>Header Files\Audio Capture</Filter>
     </ClInclude>
@@ -153,6 +156,15 @@
     <ClInclude Include="OverlayManager.h">
       <Filter>Header Files\Video Capture\Overlay Capture</Filter>
     </ClInclude>
+    <ClInclude Include="CaptureBase.h">
+      <Filter>Header Files\Video Capture</Filter>
+    </ClInclude>
+    <ClInclude Include="ScreenCaptureBase.h">
+      <Filter>Header Files\Video Capture\Screen Capture</Filter>
+    </ClInclude>
+    <ClInclude Include="ImageReader.h">
+      <Filter>Header Files\Video Capture\Overlay Capture</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RecordingManager.cpp">
@@ -168,16 +180,16 @@
       <Filter>Source Files\Audio Capture</Filter>
     </ClCompile>
     <ClCompile Include="DesktopDuplicationManager.cpp">
-      <Filter>Source Files\Video Capture\Desktop Duplication</Filter>
+      <Filter>Source Files\Video Capture\Screen Capture\Desktop Duplication</Filter>
     </ClCompile>
     <ClCompile Include="DesktopDuplicationCapture.cpp">
-      <Filter>Source Files\Video Capture\Desktop Duplication</Filter>
+      <Filter>Source Files\Video Capture\Screen Capture\Desktop Duplication</Filter>
     </ClCompile>
     <ClCompile Include="WindowsGraphicsManager.cpp">
-      <Filter>Source Files\Video Capture\Windows Graphics Capture</Filter>
+      <Filter>Source Files\Video Capture\Screen Capture\Windows Graphics Capture</Filter>
     </ClCompile>
     <ClCompile Include="WindowsGraphicsCapture.cpp">
-      <Filter>Source Files\Video Capture\Windows Graphics Capture</Filter>
+      <Filter>Source Files\Video Capture\Screen Capture\Windows Graphics Capture</Filter>
     </ClCompile>
     <ClCompile Include="SourceReaderBase.cpp">
       <Filter>Source Files\Video Capture\Overlay Capture</Filter>
@@ -188,7 +200,7 @@
     <ClCompile Include="Screengrab.cpp">
       <Filter>Source Files\Utils</Filter>
     </ClCompile>
-    <ClCompile Include="ScreenCaptureBase.cpp">
+    <ClCompile Include="ScreenCaptureManager.cpp">
       <Filter>Source Files\Video Capture</Filter>
     </ClCompile>
     <ClCompile Include="MouseManager.cpp">
@@ -222,9 +234,12 @@
       <Filter>Source Files\Video Capture</Filter>
     </ClCompile>
     <ClCompile Include="OutputManager.cpp">
-      <Filter>Source Files\Video Capture\Output</Filter>
+      <Filter>Source Files\Output</Filter>
     </ClCompile>
     <ClCompile Include="OverlayManager.cpp">
+      <Filter>Source Files\Video Capture\Overlay Capture</Filter>
+    </ClCompile>
+    <ClCompile Include="ImageReader.cpp">
       <Filter>Source Files\Video Capture\Overlay Capture</Filter>
     </ClCompile>
   </ItemGroup>
