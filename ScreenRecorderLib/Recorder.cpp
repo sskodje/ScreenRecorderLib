@@ -424,8 +424,7 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 	RECORDING_SOURCE nativeSource{};
 	if (managedSource->OutputSize
 		&& managedSource->OutputSize != ScreenSize::Empty
-		&& managedSource->OutputSize->Width > 0
-		&& managedSource->OutputSize->Height > 0) {
+		&& (managedSource->OutputSize->Width > 0 || managedSource->OutputSize->Height > 0)) {
 		nativeSource.OutputSize = SIZE{
 			(long)managedSource->OutputSize->Width,
 			(long)managedSource->OutputSize->Height

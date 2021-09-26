@@ -642,15 +642,15 @@ HRESULT RecordingManager::ProcessTextureTransforms(_In_ ID3D11Texture2D *pTextur
 	pTexture->GetDesc(&desc);
 	HRESULT hr = S_OK;
 	CComPtr<ID3D11Texture2D> pProcessedTexture = pTexture;
-	if (RectWidth(videoInputFrameRect) != desc.Width
-		|| RectHeight(videoInputFrameRect) != desc.Height) {
+	if (RectWidth(videoInputFrameRect) < desc.Width
+		|| RectHeight(videoInputFrameRect) < desc.Height) {
 		ID3D11Texture2D *pCroppedFrameCopy;
 		RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(pTexture, videoInputFrameRect, &pCroppedFrameCopy));
 		pProcessedTexture.Release();
 		pProcessedTexture.Attach(pCroppedFrameCopy);
 	}
-	if (RectWidth(videoInputFrameRect) < videoOutputFrameSize.cx
-		|| RectHeight(videoInputFrameRect) < videoOutputFrameSize.cy) {
+	if (RectWidth(videoInputFrameRect) != videoOutputFrameSize.cx
+		|| RectHeight(videoInputFrameRect) != videoOutputFrameSize.cy) {
 		CComPtr<ID3D11Texture2D> pResizedFrameCopy;
 		double widthRatio = (double)videoOutputFrameSize.cx / RectWidth(videoInputFrameRect);
 		double heightRatio = (double)videoOutputFrameSize.cy / RectHeight(videoInputFrameRect);

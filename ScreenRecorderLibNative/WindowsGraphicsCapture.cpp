@@ -64,8 +64,10 @@ HRESULT WindowsGraphicsCapture::Initialize(_In_ ID3D11DeviceContext *pDeviceCont
 	m_DeviceContext->AddRef();
 
 	m_MouseManager = make_unique<MouseManager>();
-	m_MouseManager->Initialize(pDeviceContext, pDevice, std::make_shared<MOUSE_OPTIONS>());
+	HRESULT hr = m_MouseManager->Initialize(pDeviceContext, pDevice, std::make_shared<MOUSE_OPTIONS>());
 
+	m_TextureManager = make_unique<TextureManager>();
+	hr = m_TextureManager->Initialize(pDeviceContext, pDevice);
 
 	if (m_Device && m_DeviceContext) {
 		m_IsInitialized = true;
@@ -75,6 +77,7 @@ HRESULT WindowsGraphicsCapture::Initialize(_In_ ID3D11DeviceContext *pDeviceCont
 		LOG_ERROR(L"WindowsGraphicsCapture initialization failed");
 		return E_FAIL;
 	}
+	return hr;
 }
 
 HRESULT WindowsGraphicsCapture::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame)
@@ -100,6 +103,9 @@ HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeout
 	HRESULT hr = S_OK;
 	if (m_LastSampleReceivedTimeStamp.QuadPart >= m_CurrentData.Timestamp.QuadPart) {
 		hr = GetNextFrame(timeoutMillis, &m_CurrentData);
+	}
+	if (m_closed) {
+		return E_ABORT;
 	}
 	//Must check for S_OK as the result can be S_FALSE for no updates
 	if (hr == S_OK) {
@@ -317,7 +323,7 @@ HRESULT WindowsGraphicsCapture::WriteFrameUpdatesToSurface(_Inout_ GRAPHICS_FRAM
 
 	int leftMargin = 0;
 	int topMargin = 0;
-	if ((RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height)) {
+	if (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height) {
 		double widthRatio = (double)RectWidth(destinationRect) / frameDesc.Width;
 		double heightRatio = (double)RectHeight(destinationRect) / frameDesc.Height;
 

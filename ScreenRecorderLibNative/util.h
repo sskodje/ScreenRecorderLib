@@ -165,10 +165,6 @@ inline bool IsValidRect(RECT rc) {
 	return rc.right > rc.left && rc.bottom > rc.top;
 }
 
-inline bool IsValidSize(SIZE size) {
-	return size.cx > 0 && size.cy > 0;
-}
-
 enum class ImageFileType
 {
 	IMAGE_FILE_JPG,      // joint photographic experts group - .jpeg or .jpg

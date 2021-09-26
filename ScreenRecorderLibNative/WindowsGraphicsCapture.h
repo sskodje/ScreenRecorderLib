@@ -21,13 +21,6 @@ public:
 	virtual inline std::wstring Name() override { return L"WindowsGraphicsCapture"; };
 
 private:
-	inline void CheckClosed()
-	{
-		if (m_closed.load() == true)
-		{
-			throw winrt::hresult_error(RO_E_CLOSED);
-		}
-	}
 	void OnFrameArrived(winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &args);
 	HRESULT BlankFrame(_Inout_ ID3D11Texture2D *pSharedSurf, _In_ RECT rect, _In_ INT OffsetX, _In_  INT OffsetY);
 	HRESULT WriteFrameUpdatesToSurface(_Inout_ GRAPHICS_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, _In_  INT OffsetX, _In_  INT OffsetY, _In_ RECT &destinationRect, _In_opt_ const std::optional<RECT> &sourceRect = std::nullopt);

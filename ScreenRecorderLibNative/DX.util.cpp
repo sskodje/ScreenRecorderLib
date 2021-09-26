@@ -120,15 +120,23 @@ HRESULT GetOutputRectsForRecordingSources(_In_ std::vector<RECORDING_SOURCE> sou
 				}
 			}
 		}
-		if (source.OutputSize.has_value() && IsValidSize(source.OutputSize.value())) {
-			offsetSourceRect.right = offsetSourceRect.left + source.OutputSize.value().cx;
-			offsetSourceRect.bottom = offsetSourceRect.top + source.OutputSize.value().cy;
+		if (source.OutputSize.has_value() && (source.OutputSize.value().cx > 0 || source.OutputSize.value().cy > 0)) {
+			long cx = source.OutputSize.value().cx;
+			long cy = source.OutputSize.value().cy;
+			if (cx > 0 && cy == 0) {
+				cy = static_cast<long>(round((static_cast<double>(RectHeight(originalSourceRect)) / static_cast<double>(RectWidth(originalSourceRect))) * cx));
+			}
+			else if (cx == 0 && cy > 0) {
+				cx = static_cast<long>(round((static_cast<double>(RectWidth(originalSourceRect)) / static_cast<double>(RectHeight(originalSourceRect))) * cy));
+			}
+			offsetSourceRect.right = offsetSourceRect.left + cx;
+			offsetSourceRect.bottom = offsetSourceRect.top + cy;
 		}
 		else if (IsValidRect(source.SourceRect.value_or(RECT{}))) {
 			offsetSourceRect = source.SourceRect.value();
 		}
 		return offsetSourceRect;
-	});
+		});
 
 	for each (RECORDING_SOURCE source in sources)
 	{
