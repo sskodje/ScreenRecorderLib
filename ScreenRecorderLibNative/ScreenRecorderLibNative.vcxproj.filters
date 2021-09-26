@@ -78,14 +78,8 @@
     <ClInclude Include="LoopbackCapture.h">
       <Filter>Header Files\Audio Capture</Filter>
     </ClInclude>
-    <ClInclude Include="DesktopDuplicationManager.h">
-      <Filter>Header Files\Video Capture\Screen Capture\Desktop Duplication</Filter>
-    </ClInclude>
     <ClInclude Include="DesktopDuplicationCapture.h">
       <Filter>Header Files\Video Capture\Screen Capture\Desktop Duplication</Filter>
-    </ClInclude>
-    <ClInclude Include="WindowsGraphicsManager.h">
-      <Filter>Header Files\Video Capture\Screen Capture\Windows Graphics Capture</Filter>
     </ClInclude>
     <ClInclude Include="WindowsGraphicsCapture.util.h">
       <Filter>Header Files\Video Capture\Screen Capture\Windows Graphics Capture</Filter>
@@ -179,14 +173,8 @@
     <ClCompile Include="LoopbackCapture.cpp">
       <Filter>Source Files\Audio Capture</Filter>
     </ClCompile>
-    <ClCompile Include="DesktopDuplicationManager.cpp">
-      <Filter>Source Files\Video Capture\Screen Capture\Desktop Duplication</Filter>
-    </ClCompile>
     <ClCompile Include="DesktopDuplicationCapture.cpp">
       <Filter>Source Files\Video Capture\Screen Capture\Desktop Duplication</Filter>
-    </ClCompile>
-    <ClCompile Include="WindowsGraphicsManager.cpp">
-      <Filter>Source Files\Video Capture\Screen Capture\Windows Graphics Capture</Filter>
     </ClCompile>
     <ClCompile Include="WindowsGraphicsCapture.cpp">
       <Filter>Source Files\Video Capture\Screen Capture\Windows Graphics Capture</Filter>

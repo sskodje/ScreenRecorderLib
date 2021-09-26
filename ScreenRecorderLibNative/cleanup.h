@@ -4,7 +4,6 @@
 #include "WWMFResampler.h"
 #include "Log.h"
 #include "ScreenCaptureManager.h"
-#include "DesktopDuplicationManager.h"
 #include "SourceReaderBase.h"
 //#include <mutex>
 template <class T> void SafeRelease(T **ppT)
@@ -290,20 +289,6 @@ public:
 
 private:
 	HANDLE m_p;
-};
-
-class ReleaseDuplicationManagerFrameOnExit {
-public:
-	ReleaseDuplicationManagerFrameOnExit(DesktopDuplicationManager *manager) : m_p(manager) {}
-	~ReleaseDuplicationManagerFrameOnExit() {
-
-		if (m_p) {
-			m_p->ReleaseFrame();
-		}
-	}
-
-private:
-	DesktopDuplicationManager *m_p;
 };
 
 class CloseMediaReaderOnExit {

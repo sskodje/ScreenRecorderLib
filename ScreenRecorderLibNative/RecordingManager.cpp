@@ -478,6 +478,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 			wait(10);
 			pCapture.reset(new ScreenCaptureManager());
 			stopCaptureOnExit.Reset(pCapture.get());
+			pCapture->Initialize(m_DeviceContext, m_Device);
 			ResetEvent(UnexpectedErrorEvent);
 			ResetEvent(ExpectedErrorEvent);
 			RETURN_ON_BAD_HR(hr = pCapture->StartCapture(sources, overlays, UnexpectedErrorEvent, ExpectedErrorEvent));

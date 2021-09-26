@@ -58,6 +58,7 @@ struct GRAPHICS_FRAME_DATA
 	SIZE ContentSize;
 	bool IsWindow;
 	bool IsIconic;
+	LARGE_INTEGER Timestamp;
 };
 
 //

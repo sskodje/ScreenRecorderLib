@@ -35,9 +35,7 @@
     <ClInclude Include="SourceReaderBase.h" />
     <ClInclude Include="CommonTypes.h" />
     <ClInclude Include="DesktopDuplicationCapture.h" />
-    <ClInclude Include="DesktopDuplicationManager.h" />
     <ClInclude Include="DX.util.h" />
-    <ClInclude Include="WindowsGraphicsManager.h" />
     <ClInclude Include="CaptureBase.h" />
     <ClInclude Include="Screengrab.h" />
     <ClInclude Include="AudioPrefs.h" />
@@ -69,9 +67,7 @@
     <ClCompile Include="HighresTimer.cpp" />
     <ClCompile Include="SourceReaderBase.cpp" />
     <ClCompile Include="DesktopDuplicationCapture.cpp" />
-    <ClCompile Include="DesktopDuplicationManager.cpp" />
     <ClCompile Include="DX.util.cpp" />
-    <ClCompile Include="WindowsGraphicsManager.cpp" />
     <ClCompile Include="Screengrab.cpp" />
     <ClCompile Include="AudioPrefs.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>

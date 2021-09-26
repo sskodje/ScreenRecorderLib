@@ -136,7 +136,6 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout
 
 		bool haveNewFrameData = (IsUpdatedFramesAvailable() || m_OverlayManager->IsUpdatedFramesAvailable()) && IsInitialFrameWriteComplete();
 		if (!haveNewFrameData) {
-			LOG_TRACE("No new frames available");
 			return DXGI_ERROR_WAIT_TIMEOUT;
 		}
 		MeasureExecutionTime measure(L"AcquireNextFrame lock");
@@ -517,7 +516,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			if (FAILED(hr)) {
 				LOG_ERROR("Failed to get mouse data");
 			}
-			hr = pRecordingSource->WriteNextFrameToSharedSurface(100, SharedSurf, pSource->OffsetX, pSource->OffsetY, pSource->FrameCoordinates, pSource->SourceRect);
+			hr = pRecordingSource->WriteNextFrameToSharedSurface(0, SharedSurf, pSource->OffsetX, pSource->OffsetY, pSource->FrameCoordinates, pSource->SourceRect);
 			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 				continue;
 			}
