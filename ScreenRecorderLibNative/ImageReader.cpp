@@ -3,7 +3,6 @@
 #include "util.h"
 #include "cleanup.h"
 
-using namespace ScreenRecorderLib::Overlays;
 using namespace std;
 
 ImageReader::ImageReader() :

@@ -4,9 +4,8 @@
 #include "DX.util.h"
 #include "Screengrab.h"
 #include "TextureManager.h"
-#include "OverlayManager.h"
 #include "Util.h"
-using namespace ScreenRecorderLib::Overlays;
+
 
 class ScreenCaptureManager
 {
@@ -42,15 +41,20 @@ private:
 	HANDLE m_TerminateThreadsEvent;
 
 	std::unique_ptr<TextureManager> m_TextureManager;
-	std::unique_ptr<OverlayManager> m_OverlayManager;
 
 	UINT m_CaptureThreadCount;
 	_Field_size_(m_CaptureThreadCount) HANDLE *m_CaptureThreadHandles;
 	_Field_size_(m_CaptureThreadCount) CAPTURE_THREAD_DATA *m_CaptureThreadData;
 
+	UINT m_OverlayThreadCount;
+	_Field_size_(m_OverlayThreadCount) HANDLE *m_OverlayThreadHandles;
+	_Field_size_(m_OverlayThreadCount) OVERLAY_THREAD_DATA *m_OverlayThreadData;
+
 	void Clean();
 	void WaitForThreadTermination();
 	_Ret_maybenull_ CAPTURE_THREAD_DATA *GetCaptureDataForRect(RECT rect);
 	RECT GetSourceRect(_In_ SIZE canvasSize, _In_ RECORDING_SOURCE_DATA *pSource);
+	RECT GetOverlayRect(_In_ SIZE canvasSize, _In_ SIZE overlayTextureSize, _In_ RECORDING_OVERLAY_DATA *pOverlay);
+	HRESULT ProcessOverlays(_Inout_ ID3D11Texture2D *pBackgroundFrame, _Out_ int *updateCount);
 };
 

@@ -147,9 +147,6 @@
     <ClInclude Include="CommonTypes.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="OverlayManager.h">
-      <Filter>Header Files\Video Capture\Overlay Capture</Filter>
-    </ClInclude>
     <ClInclude Include="CaptureBase.h">
       <Filter>Header Files\Video Capture</Filter>
     </ClInclude>
@@ -223,9 +220,6 @@
     </ClCompile>
     <ClCompile Include="OutputManager.cpp">
       <Filter>Source Files\Output</Filter>
-    </ClCompile>
-    <ClCompile Include="OverlayManager.cpp">
-      <Filter>Source Files\Video Capture\Overlay Capture</Filter>
     </ClCompile>
     <ClCompile Include="ImageReader.cpp">
       <Filter>Source Files\Video Capture\Overlay Capture</Filter>

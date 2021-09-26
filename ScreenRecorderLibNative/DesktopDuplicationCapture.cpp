@@ -1,7 +1,6 @@
 #include "DesktopDuplicationCapture.h"
 #include "Cleanup.h"
 #include "MouseManager.h"
-#include "OverlayManager.h"
 using namespace std::chrono;
 using namespace std;
 using namespace DirectX;

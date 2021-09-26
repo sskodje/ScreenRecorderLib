@@ -11,8 +11,8 @@
 using namespace DirectX;
 using namespace std::chrono;
 using namespace std;
-
 DWORD WINAPI CaptureThreadProc(_In_ void *Param);
+DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param);
 
 ScreenCaptureManager::ScreenCaptureManager() :
 	m_Device(nullptr),
@@ -26,7 +26,6 @@ ScreenCaptureManager::ScreenCaptureManager() :
 	m_CaptureThreadHandles(nullptr),
 	m_CaptureThreadData(nullptr),
 	m_TextureManager(nullptr),
-	m_OverlayManager(nullptr),
 	m_IsCapturing(false)
 {
 	RtlZeroMemory(&m_PtrInfo, sizeof(m_PtrInfo));
@@ -36,6 +35,9 @@ ScreenCaptureManager::ScreenCaptureManager() :
 
 ScreenCaptureManager::~ScreenCaptureManager()
 {
+	if (m_IsCapturing) {
+		StopCapture();
+	}
 	Clean();
 }
 
@@ -49,9 +51,7 @@ HRESULT ScreenCaptureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContex
 	m_DeviceContext = pDeviceContext;
 
 	m_TextureManager = make_unique<TextureManager>();
-	m_OverlayManager = make_unique<OverlayManager>();
 	RETURN_ON_BAD_HR(hr = m_TextureManager->Initialize(m_DeviceContext, m_Device));
-	RETURN_ON_BAD_HR(hr = m_OverlayManager->Initialize(m_DeviceContext, m_Device));
 	return hr;
 }
 
@@ -96,7 +96,35 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ std::vector<RECORDING_SOURCE> so
 			return E_FAIL;
 		}
 	}
-	m_OverlayManager->StartCapture(sharedHandle, overlays, hUnexpectedErrorEvent, hExpectedErrorEvent);
+	m_OverlayThreadCount = (UINT)(overlays.size());
+	m_OverlayThreadHandles = new (std::nothrow) HANDLE[m_OverlayThreadCount]{};
+	m_OverlayThreadData = new (std::nothrow) OVERLAY_THREAD_DATA[m_OverlayThreadCount]{};
+	if (!m_OverlayThreadHandles || !m_OverlayThreadData)
+	{
+		return E_OUTOFMEMORY;
+	}
+	for (UINT i = 0; i < m_OverlayThreadCount; i++)
+	{
+		auto overlay = overlays.at(i);
+		m_OverlayThreadData[i].CanvasTexSharedHandle = sharedHandle;
+		m_OverlayThreadData[i].UnexpectedErrorEvent = hUnexpectedErrorEvent;
+		m_OverlayThreadData[i].ExpectedErrorEvent = hExpectedErrorEvent;
+		m_OverlayThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
+		m_OverlayThreadData[i].RecordingOverlay = new RECORDING_OVERLAY_DATA(overlay);
+		RtlZeroMemory(&m_OverlayThreadData[i].RecordingOverlay->DxRes, sizeof(DX_RESOURCES));
+		hr = InitializeDx(nullptr, &m_OverlayThreadData[i].RecordingOverlay->DxRes);
+		if (FAILED(hr))
+		{
+			return hr;
+		}
+
+		DWORD ThreadId;
+		m_OverlayThreadHandles[i] = CreateThread(nullptr, 0, OverlayCaptureThreadProc, &m_OverlayThreadData[i], 0, &ThreadId);
+		if (m_OverlayThreadHandles[i] == nullptr)
+		{
+			return E_FAIL;
+		}
+	}
 	m_IsCapturing = true;
 	return hr;
 }
@@ -134,7 +162,7 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout
 	{
 		ReleaseKeyedMutexOnExit releaseMutex(m_KeyMutex, 0);
 
-		bool haveNewFrameData = (IsUpdatedFramesAvailable() || m_OverlayManager->IsUpdatedFramesAvailable()) && IsInitialFrameWriteComplete();
+		bool haveNewFrameData = IsUpdatedFramesAvailable() && IsInitialFrameWriteComplete();
 		if (!haveNewFrameData) {
 			return DXGI_ERROR_WAIT_TIMEOUT;
 		}
@@ -149,7 +177,7 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout
 		m_DeviceContext->CopyResource(pDesktopFrame, m_SharedSurf);
 
 		int updatedOverlaysCount = 0;
-		m_OverlayManager->ProcessOverlays(pDesktopFrame, &updatedOverlaysCount);
+		ProcessOverlays(pDesktopFrame, &updatedOverlaysCount);
 
 		if (updatedFrameCount > 0 || updatedOverlaysCount > 0) {
 			QueryPerformanceCounter(&m_LastAcquiredFrameTimeStamp);
@@ -212,6 +240,34 @@ void ScreenCaptureManager::Clean()
 
 	m_CaptureThreadCount = 0;
 
+	if (m_OverlayThreadHandles) {
+		for (UINT i = 0; i < m_OverlayThreadCount; ++i)
+		{
+			if (m_OverlayThreadHandles[i])
+			{
+				CloseHandle(m_OverlayThreadHandles[i]);
+			}
+		}
+		delete[] m_OverlayThreadHandles;
+		m_OverlayThreadHandles = nullptr;
+	}
+
+	if (m_OverlayThreadData)
+	{
+		for (UINT i = 0; i < m_OverlayThreadCount; ++i)
+		{
+			if (m_OverlayThreadData[i].RecordingOverlay) {
+				CleanDx(&m_OverlayThreadData[i].RecordingOverlay->DxRes);
+				delete m_OverlayThreadData[i].RecordingOverlay;
+				m_OverlayThreadData[i].RecordingOverlay = nullptr;
+			}
+		}
+		delete[] m_OverlayThreadData;
+		m_OverlayThreadData = nullptr;
+	}
+
+	m_OverlayThreadCount = 0;
+
 	CloseHandle(m_TerminateThreadsEvent);
 }
 
@@ -220,10 +276,10 @@ void ScreenCaptureManager::Clean()
 //
 void ScreenCaptureManager::WaitForThreadTermination()
 {
-	//if (m_OverlayThreadCount != 0)
-	//{
-	//	WaitForMultipleObjectsEx(m_OverlayThreadCount, m_OverlayThreadHandles, TRUE, INFINITE, FALSE);
-	//}
+	if (m_OverlayThreadCount != 0)
+	{
+		WaitForMultipleObjectsEx(m_OverlayThreadCount, m_OverlayThreadHandles, TRUE, INFINITE, FALSE);
+	}
 	if (m_CaptureThreadCount != 0) {
 		WaitForMultipleObjectsEx(m_CaptureThreadCount, m_CaptureThreadHandles, TRUE, INFINITE, FALSE);
 	}
@@ -258,6 +314,12 @@ bool ScreenCaptureManager::IsUpdatedFramesAvailable()
 			return true;
 		}
 	}
+	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
+	{
+		if (m_OverlayThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
+			return true;
+		}
+	}
 	return false;
 }
 
@@ -289,6 +351,91 @@ UINT ScreenCaptureManager::GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCount
 		}
 	}
 	return updatedFrameCount;
+}
+
+RECT ScreenCaptureManager::GetOverlayRect(_In_ SIZE canvasSize, _In_ SIZE overlayTextureSize, _In_ RECORDING_OVERLAY_DATA *pOverlay)
+{
+	LONG backgroundWidth = canvasSize.cx;
+	LONG backgroundHeight = canvasSize.cy;
+	// Clipping adjusted coordinates / dimensions
+	LONG overlayWidth = (pOverlay->OutputSize.value_or(SIZE{ 0 })).cx;
+	LONG overlayHeight = (pOverlay->OutputSize.value_or(SIZE{ 0 })).cy;
+	if (overlayWidth == 0 && overlayHeight == 0) {
+		overlayWidth = overlayTextureSize.cx;
+		overlayHeight = overlayTextureSize.cy;
+	}
+	if (overlayWidth == 0) {
+		overlayWidth = (LONG)(overlayTextureSize.cx * ((FLOAT)overlayHeight / overlayTextureSize.cy));
+	}
+	if (overlayHeight == 0) {
+		overlayHeight = (LONG)(overlayTextureSize.cy * ((FLOAT)overlayWidth / overlayTextureSize.cx));
+	}
+	LONG overlayPositionX = (pOverlay->Offset.value_or(SIZE{ 0 })).cx;
+	LONG overlayPositionY = (pOverlay->Offset.value_or(SIZE{ 0 })).cy;
+
+	LONG overlayLeft = 0;
+	LONG overlayTop = 0;
+
+	switch (pOverlay->Anchor)
+	{
+		case OverlayAnchor::TopLeft: {
+			overlayLeft = overlayPositionX;
+			overlayTop = overlayPositionY;
+			break;
+		}
+		case OverlayAnchor::TopRight: {
+			overlayLeft = backgroundWidth - overlayWidth - overlayPositionX;
+			overlayTop = overlayPositionY;
+			break;
+		}
+		case OverlayAnchor::BottomLeft: {
+			overlayLeft = overlayPositionX;
+			overlayTop = backgroundHeight - overlayHeight - overlayPositionY;
+			break;
+		}
+		case OverlayAnchor::BottomRight: {
+			overlayLeft = backgroundWidth - overlayWidth - overlayPositionX;
+			overlayTop = backgroundHeight - overlayHeight - overlayPositionY;
+			break;
+		}
+		default:
+			break;
+	}
+	return RECT{ overlayLeft,overlayTop,overlayLeft + overlayWidth,overlayTop + overlayHeight };
+}
+
+HRESULT ScreenCaptureManager::ProcessOverlays(_Inout_ ID3D11Texture2D *pCanvasTexture, _Out_ int *updateCount)
+{
+	HRESULT hr = S_FALSE;
+	int count = 0;
+
+	D3D11_TEXTURE2D_DESC desc;
+	pCanvasTexture->GetDesc(&desc);
+	SIZE canvasSize = SIZE{ static_cast<LONG>(desc.Width),static_cast<LONG>(desc.Height) };
+
+	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
+	{
+		if (m_OverlayThreadData[i].RecordingOverlay) {
+			RECORDING_OVERLAY_DATA *pOverlayData = m_OverlayThreadData[i].RecordingOverlay;
+			HANDLE sharedHandle = m_OverlayThreadData[i].OverlayTexSharedHandle;
+			if (pOverlayData && sharedHandle) {
+				CComPtr<ID3D11Texture2D> pOverlayTexture;
+				CONTINUE_ON_BAD_HR(hr = m_Device->OpenSharedResource(sharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&pOverlayTexture)));
+				D3D11_TEXTURE2D_DESC overlayDesc;
+				pOverlayTexture->GetDesc(&overlayDesc);
+				SIZE textureSize = SIZE{ static_cast<LONG>(overlayDesc.Width),static_cast<LONG>(overlayDesc.Height) };
+				CONTINUE_ON_BAD_HR(hr = m_TextureManager->DrawTexture(pCanvasTexture, pOverlayTexture, GetOverlayRect(canvasSize, textureSize, pOverlayData)));
+				if (m_OverlayThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
+					count++;
+				}
+			}
+		}
+	}
+	if (count > 0) {
+		QueryPerformanceCounter(&m_LastAcquiredFrameTimeStamp);
+	}
+	*updateCount = count;
+	return hr;
 }
 
 HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds)
@@ -377,7 +524,7 @@ HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ RECT desktopRect, _Outptr_ I
 
 DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 {
-	HRESULT hr = S_OK;
+	HRESULT hr = E_FAIL;
 	// D3D objects
 	CComPtr<ID3D11Texture2D> SharedSurf = nullptr;
 	CComPtr<IDXGIKeyedMutex> KeyMutex = nullptr;
@@ -432,6 +579,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 
 		if (!pRecordingSource) {
 			LOG_ERROR(L"Failed to create recording source");
+			hr = E_FAIL;
 			goto Exit;
 		}
 
@@ -579,5 +727,146 @@ Exit:
 		SetEvent(pData->UnexpectedErrorEvent);
 	}
 
+	return 0;
+}
+
+
+DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
+	HRESULT hr = E_FAIL;
+	// Data passed in from thread creation
+	OVERLAY_THREAD_DATA *pData = reinterpret_cast<OVERLAY_THREAD_DATA *>(Param);
+
+	bool isExpectedError = false;
+	bool isUnexpectedError = false;
+	RECORDING_OVERLAY_DATA *pOverlay = pData->RecordingOverlay;
+	unique_ptr<CaptureBase> overlayCapture = nullptr;
+
+	// D3D objects
+	CComPtr<ID3D11Texture2D> pSharedTexture = nullptr;
+	CComPtr<ID3D11Texture2D> pCurrentFrame = nullptr;
+	CComPtr<ID3D11Texture2D> SharedSurf = nullptr;
+	CComPtr<IDXGIKeyedMutex> KeyMutex = nullptr;
+
+	switch (pOverlay->Type)
+	{
+		case RecordingSourceType::Picture: {
+			std::string signature = ReadFileSignature(pData->RecordingOverlay->SourcePath.c_str());
+			ImageFileType imageType = getImageTypeByMagic(signature.c_str());
+			if (imageType == ImageFileType::IMAGE_FILE_GIF) {
+				overlayCapture = make_unique<GifReader>();
+			}
+			else {
+				overlayCapture = make_unique<ImageReader>();
+			}
+			break;
+		}
+		case RecordingSourceType::Video: {
+			overlayCapture = make_unique<VideoReader>();
+			break;
+		}
+		case RecordingSourceType::CameraCapture: {
+			overlayCapture = make_unique<CameraCapture>();
+			break;
+		}
+		case RecordingSourceType::Display: {
+			overlayCapture = make_unique<WindowsGraphicsCapture>();
+			break;
+		}
+		case RecordingSourceType::Window: {
+			overlayCapture = make_unique<WindowsGraphicsCapture>();
+			break;
+		}
+		default:
+			break;
+	}
+
+	if (!overlayCapture) {
+		LOG_ERROR(L"Failed to create recording source");
+		goto Exit;
+	}
+
+	hr = overlayCapture->Initialize(pOverlay->DxRes.Context, pOverlay->DxRes.Device);
+	hr = overlayCapture->StartCapture(*pOverlay);
+	if (FAILED(hr))
+	{
+		goto Exit;
+	}
+
+	// Obtain handle to sync shared Surface
+	hr = pOverlay->DxRes.Device->OpenSharedResource(pData->CanvasTexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
+	if (FAILED(hr))
+	{
+		LOG_ERROR(L"Opening shared texture failed");
+		goto Exit;
+	}
+	hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&KeyMutex));
+	if (FAILED(hr))
+	{
+		LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");
+		goto Exit;
+	}
+
+	bool WaitToProcessCurrentFrame = false;
+	// Main capture loop
+	while (true)
+	{
+		if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
+			hr = S_OK;
+			break;
+		}
+
+		if (!WaitToProcessCurrentFrame)
+		{
+			pCurrentFrame.Release();
+			// Get new frame from video capture
+			hr = overlayCapture->AcquireNextFrame(10, &pCurrentFrame);
+			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+				continue;
+			}
+			else if (FAILED(hr)) {
+				break;
+			}
+		}
+
+		// Try to acquire keyed mutex in order to access shared surface. The timeout value is 0, and we just continue if we don't get a lock.
+		// This is just used to notify the rendering loop about updated overlays, so no reason to wait around if it's already updating.
+		hr = KeyMutex->AcquireSync(0, 0);
+
+		bool haveLock = SUCCEEDED(hr);
+		if (haveLock) {
+			LOG_TRACE(L"OverlayCapture %ls acquired mutex lock", overlayCapture->Name().c_str());
+		}
+
+		WaitToProcessCurrentFrame = false;
+		if (pSharedTexture == nullptr) {
+			D3D11_TEXTURE2D_DESC desc;
+			pCurrentFrame->GetDesc(&desc);
+			desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+			desc.SampleDesc.Count = 1;
+			desc.Usage = D3D11_USAGE_DEFAULT;
+			desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+			desc.CPUAccessFlags = 0;
+			desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+			pOverlay->DxRes.Device->CreateTexture2D(&desc, nullptr, &pSharedTexture);
+			HANDLE sharedHandle = GetSharedHandle(pSharedTexture);
+			pData->OverlayTexSharedHandle = sharedHandle;
+		}
+		pOverlay->DxRes.Context->CopyResource(pSharedTexture, pCurrentFrame);
+		//If a shared texture is updated on one device ID3D11DeviceContext::Flush must be called on that device. 
+		//https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-opensharedresource
+		pOverlay->DxRes.Context->Flush();
+		QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
+		if (haveLock) {
+			KeyMutex->ReleaseSync(1);
+		}
+	}
+Exit:
+	pData->ThreadResult = hr;
+	if (isExpectedError) {
+		SetEvent(pData->ExpectedErrorEvent);
+	}
+	else if (isUnexpectedError) {
+		SetEvent(pData->UnexpectedErrorEvent);
+	}
 	return 0;
 }

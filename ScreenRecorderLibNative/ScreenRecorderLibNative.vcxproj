@@ -23,7 +23,6 @@
     <ClInclude Include="CMFSinkWriterCallback.h" />
     <ClInclude Include="ImageReader.h" />
     <ClInclude Include="OutputManager.h" />
-    <ClInclude Include="OverlayManager.h" />
     <ClInclude Include="ScreenCaptureBase.h" />
     <ClInclude Include="TextureManager.h" />
     <ClInclude Include="ScreenCaptureManager.h" />
@@ -57,7 +56,6 @@
     <ClCompile Include="ImageReader.cpp" />
     <ClCompile Include="Log.cpp" />
     <ClCompile Include="OutputManager.cpp" />
-    <ClCompile Include="OverlayManager.cpp" />
     <ClCompile Include="TextureManager.cpp" />
     <ClCompile Include="ScreenCaptureManager.cpp" />
     <ClCompile Include="CameraCapture.cpp" />

@@ -1,7 +1,6 @@
 #include "GifReader.h"
 #include "Cleanup.h"
 
-using namespace ScreenRecorderLib::Overlays;
 using namespace std;
 
 GifReader::GifReader()

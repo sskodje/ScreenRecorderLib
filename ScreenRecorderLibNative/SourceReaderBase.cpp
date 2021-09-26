@@ -3,7 +3,6 @@
 #include "Cleanup.h"
 
 using namespace std;
-using namespace ScreenRecorderLib::Overlays;
 
 SourceReaderBase::SourceReaderBase() :
 	m_Sample{ nullptr },
@@ -232,15 +231,6 @@ HRESULT SourceReaderBase::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis
 	long right = left + MakeEven(frameDesc.Width);
 	long bottom = top + MakeEven(frameDesc.Height);
 
-	//D3D11_BOX Box;
-	//Box.front = 0;
-	//Box.back = 1;
-	//Box.left = 0;
-	//Box.top = 0;
-	//Box.right = MakeEven(frameDesc.Width);
-	//Box.bottom = MakeEven(frameDesc.Height);
-
-	//m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, destinationRect.left + offsetX + leftMargin, destinationRect.top + offsetY + topMargin, 0, processedTexture, 0, &Box);
 	m_TextureManager->DrawTexture(pSharedSurf, processedTexture, RECT{ left,top,right,bottom });
 	return hr;
 }

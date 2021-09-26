@@ -1,8 +1,6 @@
 #include "CameraCapture.h"
 #include "Cleanup.h"
 
-using namespace ScreenRecorderLib::Overlays;
-
 CameraCapture::CameraCapture() :SourceReaderBase()
 {
 }

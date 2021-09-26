@@ -8,7 +8,7 @@
 #include "HighresTimer.h"
 #include "CaptureBase.h"
 #include "TextureManager.h"
-namespace ScreenRecorderLib::Overlays {
+
 	class GifReader : public CaptureBase
 	{
 	public:
@@ -95,4 +95,3 @@ namespace ScreenRecorderLib::Overlays {
 		UINT    m_cyGifImagePixel;  // Height of the displayed image in pixel calculated using pixel aspect ratio
 		D2D1_RECT_F m_framePosition;
 	};
-}
