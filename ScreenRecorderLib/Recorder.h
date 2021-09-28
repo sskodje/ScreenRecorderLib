@@ -399,6 +399,7 @@ namespace ScreenRecorderLib {
 		GCHandle _errorDelegateGcHandler;
 		GCHandle _completedDelegateGcHandler;
 		GCHandle _snapshotDelegateGcHandler;
+		GCHandle _frameNumberDelegateGcHandler;
 	public:
 		property RecorderStatus Status {
 			RecorderStatus get() {
