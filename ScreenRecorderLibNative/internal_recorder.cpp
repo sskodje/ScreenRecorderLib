@@ -706,6 +706,9 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 			break;
 		}
 		frameNr++;
+		if (RecordingFrameNumberChangedCallback != nullptr) {
+			RecordingFrameNumberChangedCallback(frameNr);
+		}
 		lastFrameStartPos += durationSinceLastFrame100Nanos;
 		if (m_IsFixedFramerate)
 		{
@@ -1015,6 +1018,9 @@ HRESULT internal_recorder::StartDesktopDuplicationRecorderLoop(IStream *pStream,
 				break;
 			}
 			frameNr++;
+			if (RecordingFrameNumberChangedCallback != nullptr) {
+				RecordingFrameNumberChangedCallback(frameNr);
+			}
 			lastFrameStartPos += durationSinceLastFrame100Nanos;
 			if (m_IsFixedFramerate)
 			{
