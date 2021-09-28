@@ -382,6 +382,7 @@ namespace ScreenRecorderLib {
 		~Recorder();
 		!Recorder();
 		RecorderStatus _status;
+		int _frameNumber;
 		void CreateErrorCallback();
 		void CreateCompletionCallback();
 		void CreateStatusCallback();
@@ -404,6 +405,16 @@ namespace ScreenRecorderLib {
 	private:
 		void set(RecorderStatus value) {
 			_status = value;
+		}
+		}
+
+		property int FrameNumber {
+			int get() {
+				return _frameNumber;
+			}
+	private:
+		void set(int value) {
+			_frameNumber = value;
 		}
 		}
 		internal_recorder *lRec;
