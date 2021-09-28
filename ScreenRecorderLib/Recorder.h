@@ -391,6 +391,7 @@ namespace ScreenRecorderLib {
 		void EventFailed(std::wstring str);
 		void EventStatusChanged(int status);
 		void EventSnapshotCreated(std::wstring str);
+		void FrameNumberChanged(int newFrameNumber);
 		void SetupCallbacks();
 		void ClearCallbacks();
 		GCHandle _statusChangedDelegateGcHandler;

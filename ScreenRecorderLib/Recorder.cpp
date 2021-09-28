@@ -294,3 +294,8 @@ void ScreenRecorderLib::Recorder::EventSnapshotCreated(std::wstring str)
 {
 	OnSnapshotSaved(this, gcnew SnapshotSavedEventArgs(gcnew String(str.c_str())));
 }
+
+void Recorder::FrameNumberChanged(int newFrameNumber)
+{
+	FrameNumber = newFrameNumber;
+}
