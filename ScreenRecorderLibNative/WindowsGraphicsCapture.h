@@ -22,7 +22,6 @@ public:
 
 private:
 	void OnFrameArrived(winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &args);
-	HRESULT BlankFrame(_Inout_ ID3D11Texture2D *pSharedSurf, _In_ RECT rect, _In_ INT OffsetX, _In_  INT OffsetY);
 	HRESULT WriteFrameUpdatesToSurface(_Inout_ GRAPHICS_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, _In_  INT OffsetX, _In_  INT OffsetY, _In_ RECT &destinationRect, _In_opt_ const std::optional<RECT> &sourceRect = std::nullopt);
 	HRESULT GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ GRAPHICS_FRAME_DATA *pData);
 private:
@@ -35,13 +34,13 @@ private:
 	ID3D11DeviceContext *m_DeviceContext;
 	std::unique_ptr<TextureManager> m_TextureManager;
 	std::unique_ptr<MouseManager> m_MouseManager;
+	RECORDING_SOURCE_BASE *m_RecordingSource;
 	bool m_IsCursorCaptureEnabled;
 	bool m_IsInitialized;
 	HANDLE m_NewFrameEvent;
 	bool m_HaveDeliveredFirstFrame;
 	std::atomic<bool> m_closed;
 	RECT m_LastFrameRect;
-	RecordingSourceType m_SourceType;
 	GRAPHICS_FRAME_DATA m_CurrentData;
 	LARGE_INTEGER m_LastSampleReceivedTimeStamp;
 	LARGE_INTEGER m_LastGrabTimeStamp;

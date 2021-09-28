@@ -1,5 +1,6 @@
 #include "WindowsGraphicsCapture.h"
 #include "Util.h"
+#include <dwmapi.h>
 #include "Cleanup.h"
 #include "MouseManager.h"
 
@@ -22,8 +23,7 @@ namespace winrt
 WindowsGraphicsCapture::WindowsGraphicsCapture() :
 	CaptureBase(),
 	m_CaptureItem(nullptr),
-	m_SourceType(RecordingSourceType::Display),
-	m_closed{ false },
+	m_closed{ true },
 	m_framePool(nullptr),
 	m_session(nullptr),
 	m_LastFrameRect{},
@@ -35,7 +35,8 @@ WindowsGraphicsCapture::WindowsGraphicsCapture() :
 	m_IsCursorCaptureEnabled(false),
 	m_MouseManager(nullptr),
 	m_LastSampleReceivedTimeStamp{ 0 },
-	m_LastGrabTimeStamp{ 0 }
+	m_LastGrabTimeStamp{ 0 },
+	m_RecordingSource(nullptr)
 {
 	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -123,8 +124,7 @@ HRESULT WindowsGraphicsCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordi
 		return E_FAIL;
 	}
 	m_CaptureItem = GetCaptureItem(recordingSource);
-	m_SourceType = recordingSource.Type;
-
+	m_RecordingSource = &recordingSource;
 	if (m_CaptureItem) {
 		// Get DXGI device
 		CComPtr<IDXGIDevice> DxgiDevice = nullptr;
@@ -147,6 +147,7 @@ HRESULT WindowsGraphicsCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordi
 		WINRT_ASSERT(m_session != nullptr);
 		m_session.IsCursorCaptureEnabled(m_IsCursorCaptureEnabled);
 		m_session.StartCapture();
+		m_closed.store(false);
 	}
 	else {
 		LOG_ERROR("Failed to create capture item");
@@ -171,14 +172,60 @@ HRESULT WindowsGraphicsCapture::StopCapture()
 
 HRESULT WindowsGraphicsCapture::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize)
 {
-	if (!m_CaptureItem) {
-		m_CaptureItem = GetCaptureItem(recordingSource);
+	switch (recordingSource.Type)
+	{
+		case RecordingSourceType::Window:
+		{
+			RECT windowRect{};
+			if (IsIconic(recordingSource.SourceWindow)) {
+				WINDOWPLACEMENT placement;
+				placement.length = sizeof(WINDOWPLACEMENT);
+				if (GetWindowPlacement(recordingSource.SourceWindow, &placement)) {
+					windowRect = placement.rcNormalPosition;
+					RECT rcWind;
+					//While GetWindowPlacement gets us the dimensions of the minimized window, they include invisible borders we don't want.
+					//To remove the borders, we check the difference between DwmGetWindowAttribute and GetWindowRect, which gives us the combined left and right borders.
+					//Then the border offset is removed from the left,right and bottom of the window rect.
+					GetWindowRect(recordingSource.SourceWindow, &rcWind);
+					RECT windowAttrRect{};
+					long offset = 0;
+					if (SUCCEEDED(DwmGetWindowAttribute(recordingSource.SourceWindow, DWMWA_EXTENDED_FRAME_BOUNDS, &windowAttrRect, sizeof(windowRect))))
+					{
+						offset = RectWidth(windowAttrRect) - RectWidth(rcWind);
+					}
+					windowRect.bottom += offset / 2;
+					windowRect.right += offset;
+					//Offset the window rect to start at[0,0] instead of screen coordinates.
+					OffsetRect(&windowRect, -windowRect.left, -windowRect.top);
+				}
+			}
+			else
+			{
+				if (SUCCEEDED(DwmGetWindowAttribute(recordingSource.SourceWindow, DWMWA_EXTENDED_FRAME_BOUNDS, &windowRect, sizeof(windowRect))))
+				{
+					//Offset the window rect to start at[0,0] instead of screen coordinates.
+					OffsetRect(&windowRect, -windowRect.left, -windowRect.top);
+				}
+			}
+			*nativeMediaSize = SIZE{ RectWidth(windowRect),RectHeight(windowRect) };
+			break;
+		}
+		case RecordingSourceType::Display: {
+			if (!m_CaptureItem) {
+				m_CaptureItem = GetCaptureItem(recordingSource);
+			}
+			if (!m_CaptureItem) {
+				LOG_ERROR("GraphicsCaptureItem was NULL when a non-null value was expected");
+				return E_FAIL;
+			}
+			*nativeMediaSize = SIZE{ m_CaptureItem.Size().Width,m_CaptureItem.Size().Height };
+			break;
+		}
+		default:
+			*nativeMediaSize = SIZE{};
+			break;
 	}
-	if (!m_CaptureItem) {
-		LOG_ERROR("GraphicsCaptureItem was NULL when a non-null value was expected");
-		return E_FAIL;
-	}
-	*nativeMediaSize = SIZE{ m_CaptureItem.Size().Width,m_CaptureItem.Size().Height };
+
 	return S_OK;
 }
 
@@ -231,11 +278,6 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 			D3D11_TEXTURE2D_DESC desc;
 			surfaceTexture->GetDesc(&desc);
 
-			if (FAILED(hr))
-			{
-				LOG_ERROR(L"Failed to create texture");
-				return hr;
-			}
 			if (frame.ContentSize().Width != pData->ContentSize.cx
 					|| frame.ContentSize().Height != pData->ContentSize.cy) {
 				//The source has changed size, so we must recreate the frame pool with the new size.
@@ -248,27 +290,69 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 				}
 				SafeRelease(&pData->Frame);
 				hr = m_Device->CreateTexture2D(&desc, nullptr, &pData->Frame);
+				if (FAILED(hr))
+				{
+					LOG_ERROR(L"Failed to create texture");
+					return hr;
+				}
 				measureGetFrame.SetName(L"WindowsGraphicsManager::GetNextFrame recreated");
 				auto direct3DDevice = Graphics::Capture::Util::CreateDirect3DDevice(DxgiDevice);
-				m_framePool.Recreate(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, frame.ContentSize());
+				/*
+				* If the recording is started on a minimized window, we will have guesstimated a size for it when starting the recording.
+				* In this instance we continue to use this size instead of the Direct3D11CaptureFrame::ContentSize(), as it may differ by a few pixels 
+				* due to windows 10 window borders and trigger a resize, which leads to blurry recordings.
+				*/				
+				winrt::SizeInt32 newSize = pData->ContentSize.cx > 0 ? winrt::SizeInt32{ pData->ContentSize.cx,pData->ContentSize.cy } : frame.ContentSize();
+				m_framePool.Recreate(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, newSize);
 				//Some times the size of the first frame is wrong when recording windows, so we just skip it and get a new after resizing the frame pool.
-				if (pData->IsWindow
+				if (m_RecordingSource->Type == RecordingSourceType::Window
 					&& !m_HaveDeliveredFirstFrame) {
 					m_HaveDeliveredFirstFrame = true;
 					frame.Close();
 					return GetNextFrame(timeoutMillis, pData);
 				}
+				pData->ContentSize.cx = frame.ContentSize().Width;
+				pData->ContentSize.cy = frame.ContentSize().Height;
 			}
+
 			m_DeviceContext->CopyResource(pData->Frame, surfaceTexture.get());
-			pData->ContentSize.cx = frame.ContentSize().Width;
-			pData->ContentSize.cy = frame.ContentSize().Height;
 			m_HaveDeliveredFirstFrame = true;
 			QueryPerformanceCounter(&pData->Timestamp);
 			frame.Close();
 		}
 	}
 	else if (result == WAIT_TIMEOUT) {
-		hr = DXGI_ERROR_WAIT_TIMEOUT;
+		if (m_RecordingSource->Type == RecordingSourceType::Window && IsIconic(m_RecordingSource->SourceWindow)) {
+			RECT frameRect;
+			if (!pData->Frame) {
+				std::vector<std::pair<RECORDING_SOURCE, RECT>> validOutputs{};
+				RETURN_ON_BAD_HR(hr = GetOutputRectsForRecordingSources({ RECORDING_SOURCE(*m_RecordingSource) }, &validOutputs));
+				frameRect = RECT{ 0,0,RectWidth(validOutputs.at(0).second),RectHeight(validOutputs.at(0).second) };
+
+				D3D11_TEXTURE2D_DESC desc;
+				RtlZeroMemory(&desc, sizeof(D3D11_TEXTURE2D_DESC));
+				desc.Width = RectWidth(frameRect);
+				desc.Height = RectHeight(frameRect);
+				desc.MipLevels = 1;
+				desc.ArraySize = 1;
+				desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+				desc.SampleDesc.Count = 1;
+				desc.Usage = D3D11_USAGE_DEFAULT;
+				RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pData->Frame));
+			}
+			else {
+				D3D11_TEXTURE2D_DESC desc;
+				pData->Frame->GetDesc(&desc);
+				frameRect = RECT{ 0,0,static_cast<long>(desc.Width),static_cast<long>(desc.Height) };
+			}
+			pData->ContentSize = SIZE{ static_cast<long>(RectWidth(frameRect)),static_cast<long>(RectHeight(frameRect)) };
+			m_TextureManager->BlankTexture(pData->Frame, frameRect, 0, 0);
+			QueryPerformanceCounter(&pData->Timestamp);
+			hr = S_OK;
+		}
+		else {
+			hr = DXGI_ERROR_WAIT_TIMEOUT;
+		}
 	}
 	else {
 		DWORD dwErr = GetLastError();
@@ -278,35 +362,10 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 	return hr;
 }
 
-HRESULT WindowsGraphicsCapture::BlankFrame(_Inout_ ID3D11Texture2D *pSharedSurf, _In_ RECT rect, _In_ INT offsetX, _In_  INT offsetY) {
-	int width = RectWidth(rect);
-	int height = RectHeight(rect);
-	D3D11_BOX Box{};
-	// Copy back to shared surface
-	Box.right = width;
-	Box.bottom = height;
-	Box.back = 1;
-
-	CComPtr<ID3D11Texture2D> pBlankFrame;
-	D3D11_TEXTURE2D_DESC desc;
-	pSharedSurf->GetDesc(&desc);
-	desc.MiscFlags = 0;
-	desc.Width = width;
-	desc.Height = height;
-	HRESULT hr = m_Device->CreateTexture2D(&desc, nullptr, &pBlankFrame);
-	if (SUCCEEDED(hr)) {
-		m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, rect.left + offsetX, rect.top + offsetY, 0, pBlankFrame, 0, &Box);
-	}
-	return S_OK;
-}
-
 HRESULT WindowsGraphicsCapture::WriteFrameUpdatesToSurface(_Inout_ GRAPHICS_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, _In_ INT offsetX, _In_  INT offsetY, _In_ RECT &destinationRect, _In_opt_ const std::optional<RECT> &sourceRect)
 {
 	HRESULT hr = S_FALSE;
-	if (pData->IsIconic) {
-		BlankFrame(pSharedSurf, MakeRectEven(destinationRect), offsetX, offsetY);
-		return hr;
-	}
+
 	CComPtr<ID3D11Texture2D> processedTexture = pData->Frame;
 	D3D11_TEXTURE2D_DESC frameDesc;
 	processedTexture->GetDesc(&frameDesc);
@@ -349,7 +408,7 @@ HRESULT WindowsGraphicsCapture::WriteFrameUpdatesToSurface(_Inout_ GRAPHICS_FRAM
 		});
 
 	if (!IsRectEmpty(&m_LastFrameRect) && !EqualRect(&finalFrameRect, &m_LastFrameRect)) {
-		BlankFrame(pSharedSurf, m_LastFrameRect, offsetX, offsetY);
+		m_TextureManager->BlankTexture(pSharedSurf, m_LastFrameRect, offsetX, offsetY);
 	}
 
 	D3D11_BOX Box;

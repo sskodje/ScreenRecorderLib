@@ -20,6 +20,7 @@ public:
 	/// <param name="ppTextureCopy">The copied texture</param>
 	HRESULT CopyTextureWithCPU(_In_ ID3D11Device *pDevice, _In_ ID3D11Texture2D *pTexture, _Outptr_ ID3D11Texture2D **ppTextureCopy);
 	HRESULT CreateTextureFromBuffer(_In_ BYTE *pFrameBuffer, _In_ LONG stride, _In_ UINT width, _In_ UINT height, _Outptr_ ID3D11Texture2D **ppTexture, std::optional<D3D11_RESOURCE_MISC_FLAG> miscFlag = std::nullopt);
+	HRESULT BlankTexture(_Inout_ ID3D11Texture2D *pTexture, _In_ RECT rect, _In_ INT OffsetX, _In_  INT OffsetY);
 private:
 	//HRESULT InitShaders();
 	HRESULT InitializeDesc(_In_ UINT width, _In_ UINT height, _Out_ D3D11_TEXTURE2D_DESC *pTargetDesc);

@@ -6,6 +6,7 @@
 #include "CameraCapture.h"
 #include "ImageReader.h"
 #include "GifReader.h"
+#include "WindowsGraphicsCapture.h"
 using namespace DirectX;
 //
 // Get DX_RESOURCES
@@ -159,13 +160,14 @@ HRESULT GetOutputRectsForRecordingSources(_In_ std::vector<RECORDING_SOURCE> sou
 				break;
 			}
 			case RecordingSourceType::Window: {
-				RECT windowRect;
-				if (SUCCEEDED(DwmGetWindowAttribute(source.SourceWindow, DWMWA_EXTENDED_FRAME_BOUNDS, &windowRect, sizeof(windowRect))))
-				{
-					//Offset the window rect to start at[0,0] instead of screen coordinates.
-					OffsetRect(&windowRect, -windowRect.left, -windowRect.top);
+				WindowsGraphicsCapture capture;
+				RECT windowRect{};
+				SIZE windowSize;
+				if (SUCCEEDED(capture.GetNativeSize(source, &windowSize))) {
+					windowRect.right = windowSize.cx;
+					windowRect.bottom = windowSize.cy;
+
 					RECT sourceRect = GetOffsetSourceRect(windowRect, source);
-					LONG width = RectWidth(sourceRect);
 					std::pair<RECORDING_SOURCE, RECT> tuple(source, sourceRect);
 					validOutputs.push_back(tuple);
 				}

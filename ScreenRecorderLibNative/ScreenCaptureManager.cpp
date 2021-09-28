@@ -25,6 +25,9 @@ ScreenCaptureManager::ScreenCaptureManager() :
 	m_CaptureThreadCount(0),
 	m_CaptureThreadHandles(nullptr),
 	m_CaptureThreadData(nullptr),
+	m_OverlayThreadCount(0),
+	m_OverlayThreadHandles(nullptr),
+	m_OverlayThreadData(nullptr),
 	m_TextureManager(nullptr),
 	m_IsCapturing(false)
 {

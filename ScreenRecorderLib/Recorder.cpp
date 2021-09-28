@@ -483,7 +483,7 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 		WindowRecordingSource^ windowSource = (WindowRecordingSource^)managedSource;
 		if (windowSource->Handle != IntPtr::Zero) {
 			HWND windowHandle = (HWND)(windowSource->Handle.ToPointer());
-			if (!IsIconic(windowHandle) && IsWindow(windowHandle)) {
+			if ( IsWindow(windowHandle)) {
 				nativeSource.Type = RecordingSourceType::Window;
 				nativeSource.SourceWindow = windowHandle;
 				nativeSource.IsCursorCaptureEnabled = windowSource->IsCursorCaptureEnabled;

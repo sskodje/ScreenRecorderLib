@@ -927,8 +927,9 @@ namespace TestApp
 
         private void RefreshWindowSizeAndAvailability()
         {
-            var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(RecordingSources.Where(x => x is CheckableRecordableWindow).Cast<RecordingSourceBase>());
-            foreach (var source in RecordingSources)
+            var windowSources = RecordingSources.Where(x => x is CheckableRecordableWindow).Cast<CheckableRecordableWindow>();
+            var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(windowSources);
+            foreach (var source in windowSources)
             {
                 var sourceCoord = outputDimens.OutputCoordinates.FirstOrDefault(x => x.Source == source);
 
@@ -938,11 +939,12 @@ namespace TestApp
                     var size = new ScreenSize(sourceCoord.Coordinates.Width, sourceCoord.Coordinates.Height);
                     source.UpdateScreenCoordinates(position, size);
                 }
+                else {
+                    source.UpdateScreenCoordinates(new ScreenPoint(), new ScreenSize());
+                }
+                source.IsCheckable = true;
             }
-            foreach (CheckableRecordableWindow window in RecordingSources.Where(x => x is CheckableRecordableWindow))
-            {
-                window.IsCheckable = window.OutputSize != ScreenSize.Empty;
-            }
+
         }
 
         private void RefreshAudioComboBoxes()
@@ -1050,7 +1052,6 @@ namespace TestApp
         {
             RefreshWindowSizeAndAvailability();
             SetOutputDimensions();
-            ((CollectionViewSource)Resources["SelectedRecordingSourcesViewSource"]).View.Refresh();
         }
 
         private void UserInput_TextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)

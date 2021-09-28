@@ -118,8 +118,6 @@ namespace TestApp.Sources
 
         public void UpdateScreenCoordinates(ScreenPoint position, ScreenSize size)
         {
-            if (!IsMinmimized() && IsValidWindow())
-            {
                 if (!IsCustomOutputSizeEnabled)
                 {
                     OutputSize = size;
@@ -128,13 +126,6 @@ namespace TestApp.Sources
                 {
                     Position = position;
                 }
-            }
-            else
-            {
-                OutputSize = ScreenSize.Empty;
-                Position = ScreenPoint.Empty;
-
-            }
         }
     }
 }

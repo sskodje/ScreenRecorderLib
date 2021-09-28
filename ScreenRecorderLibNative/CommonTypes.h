@@ -56,8 +56,6 @@ struct GRAPHICS_FRAME_DATA
 {
 	ID3D11Texture2D *Frame;
 	SIZE ContentSize;
-	bool IsWindow;
-	bool IsIconic;
 	LARGE_INTEGER Timestamp;
 };
 
@@ -190,7 +188,7 @@ struct RECORDING_SOURCE : RECORDING_SOURCE_BASE
 		Position{ std::nullopt },
 		SourceApi(std::nullopt)
 	{
-		Type = RecordingSourceType::Display;
+
 	}
 
 	RECORDING_SOURCE(const RECORDING_SOURCE &source) :
@@ -199,6 +197,16 @@ struct RECORDING_SOURCE : RECORDING_SOURCE_BASE
 		SourceRect(source.SourceRect),
 		Position(source.Position),
 		SourceApi(source.SourceApi)
+	{
+	}
+
+
+	RECORDING_SOURCE(const RECORDING_SOURCE_BASE &source) :
+		RECORDING_SOURCE_BASE(source),
+		IsCursorCaptureEnabled(std::nullopt),
+		SourceRect{ std::nullopt },
+		Position{ std::nullopt },
+		SourceApi(std::nullopt)
 	{
 	}
 

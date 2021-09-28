@@ -661,6 +661,28 @@ HRESULT TextureManager::CreateTextureFromBuffer(_In_ BYTE *pFrameBuffer, _In_ LO
 	return hr;
 }
 
+HRESULT TextureManager::BlankTexture(_Inout_ ID3D11Texture2D *pTexture, _In_ RECT rect, _In_ INT offsetX, _In_  INT offsetY) {
+	int width = RectWidth(rect);
+	int height = RectHeight(rect);
+	D3D11_BOX Box{};
+	// Copy back to shared surface
+	Box.right = width;
+	Box.bottom = height;
+	Box.back = 1;
+
+	CComPtr<ID3D11Texture2D> pBlankFrame;
+	D3D11_TEXTURE2D_DESC desc;
+	pTexture->GetDesc(&desc);
+	desc.MiscFlags = 0;
+	desc.Width = width;
+	desc.Height = height;
+	HRESULT hr = m_Device->CreateTexture2D(&desc, nullptr, &pBlankFrame);
+	if (SUCCEEDED(hr)) {
+		m_DeviceContext->CopySubresourceRegion(pTexture, 0, rect.left + offsetX, rect.top + offsetY, 0, pBlankFrame, 0, &Box);
+	}
+	return S_OK;
+}
+
 //
 // Releases all references
 //
