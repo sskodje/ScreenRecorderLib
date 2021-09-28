@@ -228,6 +228,8 @@ void Recorder::ClearCallbacks() {
 		_completedDelegateGcHandler.Free();
 	if (_snapshotDelegateGcHandler.IsAllocated)
 		_snapshotDelegateGcHandler.Free();
+	if (_frameNumberDelegateGcHandler.IsAllocated)
+		_frameNumberDelegateGcHandler.Free();
 }
 
 void Recorder::CreateErrorCallback() {
