@@ -16,6 +16,7 @@ delegate void InternalStatusCallbackDelegate(int status);
 delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fifo_map<std::wstring, int>);
 delegate void InternalErrorCallbackDelegate(std::wstring path);
 delegate void InternalSnapshotCallbackDelegate(std::wstring path);
+delegate void InternalFrameNumberCallbackDelegate(int newFrameNumber);
 
 namespace ScreenRecorderLib {
 	public enum class LogLevel
