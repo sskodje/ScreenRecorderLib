@@ -258,6 +258,13 @@ void Recorder::CreateSnapshotCallback() {
 	CallbackSnapshotFunction cb = static_cast<CallbackSnapshotFunction>(ip.ToPointer());
 	lRec->RecordingSnapshotCreatedCallback = cb;
 }
+void Recorder::CreateFrameNumberCallback() {
+	InternalFrameNumberCallbackDelegate^ fp = gcnew InternalFrameNumberCallbackDelegate(this, &Recorder::FrameNumberChanged);
+	_frameNumberDelegateGcHandler = GCHandle::Alloc(fp);
+	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
+	CallbackFrameNumberChangedFunction cb = static_cast<CallbackFrameNumberChangedFunction>(ip.ToPointer());
+	lRec->RecordingFrameNumberChangedCallback = cb;
+}
 void Recorder::EventComplete(std::wstring str, fifo_map<std::wstring, int> delays)
 {
 	ClearCallbacks();

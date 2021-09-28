@@ -388,6 +388,7 @@ namespace ScreenRecorderLib {
 		void CreateCompletionCallback();
 		void CreateStatusCallback();
 		void CreateSnapshotCallback();
+		void CreateFrameNumberCallback();
 		void EventComplete(std::wstring str, nlohmann::fifo_map<std::wstring, int> delays);
 		void EventFailed(std::wstring str);
 		void EventStatusChanged(int status);
