@@ -216,6 +216,7 @@ void Recorder::SetupCallbacks() {
 	CreateCompletionCallback();
 	CreateStatusCallback();
 	CreateSnapshotCallback();
+	CreateFrameNumberCallback();
 }
 
 void Recorder::ClearCallbacks() {
