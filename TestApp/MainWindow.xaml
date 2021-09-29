@@ -1097,6 +1097,13 @@
                                HorizontalAlignment="Center"
                                x:Name="TimeStampTextBlock"
                                Margin="10,0" />
+                    <TextBlock FontSize="18"
+                               Text="{Binding ElementName=MainWin,Path=CurrentFrameNumber, StringFormat={}Frame: {0}}"
+                               Margin="10,0"
+                               TextWrapping="NoWrap"
+                               HorizontalAlignment="Center"
+                               Visibility="Collapsed"
+                               x:Name="FrameNumberTextBlock" />
                     <TextBlock FontSize="32"
                                Text="Idle"
                                HorizontalAlignment="Center"

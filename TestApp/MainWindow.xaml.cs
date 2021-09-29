@@ -262,6 +262,19 @@ namespace TestApp
             }
         }
 
+        private int _currentFrameNumber;
+        public int CurrentFrameNumber
+        {
+            get { return _currentFrameNumber; }
+            set
+            {
+                if (_currentFrameNumber != value)
+                {
+                    _currentFrameNumber = value;
+                    RaisePropertyChanged(nameof(CurrentFrameNumber));
+                }
+            }
+        }
 
         public H264Profile CurrentH264Profile { get; set; } = H264Profile.High;
         public H265Profile CurrentH265Profile { get; set; } = H265Profile.Main;
@@ -360,6 +373,8 @@ namespace TestApp
                 RecordButton.IsEnabled = false;
                 return;
             }
+            CurrentFrameNumber = 0;
+            _recordingStartTime = DateTimeOffset.Now;
             OutputResultTextBlock.Text = "";
             UpdateProgress();
             string videoPath = "";
@@ -473,6 +488,7 @@ namespace TestApp
                 _rec.OnRecordingFailed += Rec_OnRecordingFailed;
                 _rec.OnStatusChanged += Rec_OnStatusChanged;
                 _rec.OnSnapshotSaved += Rec_OnSnapshotSaved;
+                _rec.OnFrameRecorded += _rec_OnFrameRecorded;
             }
             else
             {
@@ -488,8 +504,12 @@ namespace TestApp
             {
                 _rec.Record(videoPath);
             }
-            _recordingStartTime = DateTimeOffset.Now;
             IsRecording = true;
+        }
+
+        private void _rec_OnFrameRecorded(object sender, FrameRecordedEventArgs e)
+        {
+            CurrentFrameNumber = e.FrameNumber;
         }
 
         private List<RecordingSourceBase> CreateSelectedRecordingSources()
@@ -635,6 +655,7 @@ namespace TestApp
                         break;
                     case RecorderStatus.Recording:
                         PauseButton.Visibility = Visibility.Visible;
+                        this.FrameNumberTextBlock.Visibility = Visibility.Visible;
                         if (_progressTimer != null)
                             _progressTimer.IsEnabled = true;
                         if(_recordingPauseTime!= null)
