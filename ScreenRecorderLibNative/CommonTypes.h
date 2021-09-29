@@ -238,7 +238,6 @@ struct RECORDING_SOURCE_DATA :RECORDING_SOURCE {
 	/// </summary>
 	RECT FrameCoordinates;
 	DX_RESOURCES DxRes;
-	//FRAME_BASE *FrameInfo;
 
 	RECORDING_SOURCE_DATA() :
 		OffsetX(0),

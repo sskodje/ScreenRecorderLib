@@ -119,8 +119,7 @@ WWMFResampler::ConvertWWSampleDataToMFSample(WWMFSampleData &sampleData, IMFSamp
 
 	CComPtr<IMFMediaBuffer> spBuffer;
 	BYTE *pByteBufferTo = NULL;
-	//LONGLONG hnsSampleDuration;
-	//LONGLONG hnsSampleTime;
+
 	int frameCount;
 
 	assert(ppSample);
@@ -139,12 +138,6 @@ WWMFResampler::ConvertWWSampleDataToMFSample(WWMFSampleData &sampleData, IMFSamp
 	RETURN_ON_BAD_HR(pSample->AddBuffer(spBuffer));
 
 	frameCount = sampleData.bytes / m_inputFormat.FrameBytes();
-	/*
-	hnsSampleDuration = (LONGLONG)(10.0 * 1000 * 1000 * frameCount        / m_inputFormat.sampleRate);
-	hnsSampleTime     = (LONGLONG)(10.0 * 1000 * 1000 * m_inputFrameTotal / m_inputFormat.sampleRate);
-	RETURN_ON_BAD_HR(pSample->SetSampleDuration(hnsSampleDuration));
-	RETURN_ON_BAD_HR(pSample->SetSampleTime(hnsSampleTime));
-	*/
 
 	m_inputFrameTotal += frameCount;
 

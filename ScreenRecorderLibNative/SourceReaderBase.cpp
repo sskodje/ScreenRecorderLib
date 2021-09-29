@@ -351,7 +351,6 @@ HRESULT SourceReaderBase::CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMed
 	//Get width and height
 	RETURN_ON_BAD_HR(hr = MFGetAttributeSize(pInputMediaType, MF_MT_FRAME_SIZE, &width, &height));
 
-	//IMFMediaType *pOutputMediaType;
 	LONG stride;
 	CreateOutputMediaType(SIZE{ (LONG)width,(LONG)height }, &pOutputMediaType, &stride);
 
@@ -466,7 +465,6 @@ HRESULT SourceReaderBase::OnReadSample(HRESULT status, DWORD streamIndex, DWORD 
 				if (m_FrameRate > 0) {
 					auto t1 = std::chrono::high_resolution_clock::now();
 					auto sleepTime = m_FramerateTimer->GetMillisUntilNextTick();
-					//LOG_TRACE("OnReadSample waiting for %.2f ms", sleepTime);
 					MeasureExecutionTime measureNextTick(L"OnReadSample scheduled delay");
 					hr = m_FramerateTimer->WaitForNextTick();
 					if (SUCCEEDED(hr)) {

@@ -10,7 +10,6 @@
 #define IF_EQUAL_RETURN(param, val) if(val == param) return L#val
 #endif
 
-//extern int logSeverityLevel;
 LPCWSTR GetGUIDNameConst(const GUID &guid);
 HRESULT GetGUIDName(const GUID &guid, WCHAR **ppwsz);
 
