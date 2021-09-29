@@ -307,5 +307,6 @@ void ScreenRecorderLib::Recorder::EventSnapshotCreated(std::wstring str)
 
 void Recorder::FrameNumberChanged(int newFrameNumber)
 {
-	FrameNumber = newFrameNumber;
+	OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber));
+	CurrentFrameNumber = newFrameNumber;
 }

@@ -377,13 +377,21 @@ namespace ScreenRecorderLib {
 		}
 	};
 
+	public ref class FrameRecordedEventArgs :System::EventArgs {
+	public:
+		property int FrameNumber;
+		FrameRecordedEventArgs(int frameNumber) {
+			FrameNumber = frameNumber;
+		}
+	};
+	
 	public ref class Recorder {
 	private:
 		Recorder(RecorderOptions^ options);
 		~Recorder();
 		!Recorder();
 		RecorderStatus _status;
-		int _frameNumber;
+		int _currentFrameNumber;
 		void CreateErrorCallback();
 		void CreateCompletionCallback();
 		void CreateStatusCallback();
@@ -412,13 +420,13 @@ namespace ScreenRecorderLib {
 		}
 		}
 
-		property int FrameNumber {
+		property int CurrentFrameNumber {
 			int get() {
-				return _frameNumber;
+				return _currentFrameNumber;
 			}
 	private:
 		void set(int value) {
-			_frameNumber = value;
+			_currentFrameNumber = value;
 		}
 		}
 		internal_recorder *lRec;
@@ -440,6 +448,7 @@ namespace ScreenRecorderLib {
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;
 		event EventHandler<SnapshotSavedEventArgs^>^ OnSnapshotSaved;
+		event EventHandler<FrameRecordedEventArgs ^> ^OnFrameRecorded;
 		ManagedIStream *m_ManagedStream;
 	};
 }
