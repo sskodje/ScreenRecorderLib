@@ -76,7 +76,8 @@ RecordingManager::RecordingManager() :
 	m_AudioOptions(new AUDIO_OPTIONS),
 	m_MouseOptions(new MOUSE_OPTIONS),
 	m_SnapshotOptions(new SNAPSHOT_OPTIONS),
-	m_RecorderMode(RecorderModeInternal::Video)
+	m_RecorderMode(RecorderModeInternal::Video),
+	m_IsDestructing(false)
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 }
@@ -84,6 +85,7 @@ RecordingManager::RecordingManager() :
 RecordingManager::~RecordingManager()
 {
 	if (!m_TaskWrapperImpl->m_RecordTask.is_done()) {
+		m_IsDestructing = true;
 		LOG_WARN("Recording is in progress while destructing, cancelling recording task and waiting for completion.");
 		m_TaskWrapperImpl->m_RecordTaskCts.cancel();
 		m_TaskWrapperImpl->m_RecordTask.wait();
@@ -226,13 +228,8 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		LOG_INFO("Exiting recording task");
 		return hr;
 		}).then([this](HRESULT recordingResult) {
-			if (RecordingStatusChangedCallback != nullptr) {
-				try {
-					RecordingStatusChangedCallback(STATUS_FINALIZING);
-				}
-				catch (...) {
-					LOG_ERROR(L"Exception when calling callback");
-				}
+			if (RecordingStatusChangedCallback != nullptr && !m_IsDestructing) {
+				RecordingStatusChangedCallback(STATUS_FINALIZING);
 			}
 			HRESULT finalizeResult = m_OutputManager->FinalizeRecording();
 			if (SUCCEEDED(recordingResult) && FAILED(finalizeResult))
@@ -254,7 +251,9 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 					catch (...) {
 						LOG_ERROR(L"Exception in RecordTask");
 					}
-					SetRecordingCompleteStatus(hr, m_OutputManager->GetFrameDelays());
+					if (!m_IsDestructing) {
+						SetRecordingCompleteStatus(hr, m_OutputManager->GetFrameDelays());
+					}
 					CleanupResourcesAndShutDownMF();
 					m_OutputManager.reset();
 					LOG_DEBUG("Released OutputManager");
@@ -456,7 +455,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		model.Audio = pAudioManager->GrabAudioFrame();
 		RETURN_ON_BAD_HR(renderHr = m_EncoderResult = m_OutputManager->RenderFrame(model));
 		frameNr++;
-		if (RecordingFrameNumberChangedCallback != nullptr) {
+		if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
 			RecordingFrameNumberChangedCallback(frameNr);
 		}
 		havePrematureFrame = false;
