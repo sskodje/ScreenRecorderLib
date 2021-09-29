@@ -390,31 +390,6 @@ HRESULT DesktopDuplicationCapture::WriteFrameUpdatesToSurface(_In_ DUPL_FRAME_DA
 
 			processedTexture->GetDesc(&frameDesc);
 
-			//CComPtr<ID3D11Texture2D> pCroppedTexture = nullptr;
-			//RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(processedTexture, sourceRect.value(), &pCroppedTexture));
-			//D3D11_TEXTURE2D_DESC croppedFrameDesc;
-			//pCroppedTexture->GetDesc(&croppedFrameDesc);
-
-			//int leftMargin = 0;
-			//int topMargin = 0;
-
-			//double widthRatio = (double)RectWidth(destinationRect) / croppedFrameDesc.Width;
-			//double heightRatio = (double)RectHeight(destinationRect) / croppedFrameDesc.Height;
-			//double resizeRatio = min(widthRatio, heightRatio);
-			//if (resizeRatio != 1) {
-			//	UINT resizedWidth = (UINT)MakeEven((LONG)round(croppedFrameDesc.Width * resizeRatio));
-			//	UINT resizedHeight = (UINT)MakeEven((LONG)round(croppedFrameDesc.Height * resizeRatio));
-			//	ID3D11Texture2D *resizedTexture = nullptr;
-			//	RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pCroppedTexture, &resizedTexture, SIZE{ static_cast<LONG>(resizedWidth), static_cast<LONG>(resizedHeight) }));
-			//	processedTexture.Attach(resizedTexture);
-			//	leftMargin = (int)max(0, round(((double)RectWidth(destinationRect) - (double)resizedWidth)) / 2);
-			//	topMargin = (int)max(0, round(((double)RectHeight(destinationRect) - (double)resizedHeight)) / 2);
-			//}
-			//else {
-			//	processedTexture = pCroppedTexture;
-			//}
-
-
 			D3D11_TEXTURE2D_DESC processedFrameDesc;
 			processedTexture->GetDesc(&processedFrameDesc);
 
