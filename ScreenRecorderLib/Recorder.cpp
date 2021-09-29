@@ -344,6 +344,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 	}
 	RECT deskBounds;
 	GetCombinedRects(outputRects, &deskBounds, nullptr);
+	deskBounds = MakeRectEven(deskBounds);
 	outputDimensions->CombinedOutputSize = gcnew ScreenSize(RectWidth(deskBounds), RectHeight(deskBounds));
 	return outputDimensions;
 }
