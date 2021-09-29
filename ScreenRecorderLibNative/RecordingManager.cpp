@@ -242,7 +242,6 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 			}).then([this](concurrency::task<HRESULT> t)
 				{
 					m_IsRecording = false;
-					CleanupResourcesAndShutDownMF();
 					HRESULT hr = E_FAIL;
 					try {
 						hr = t.get();
@@ -256,6 +255,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 						LOG_ERROR(L"Exception in RecordTask");
 					}
 					SetRecordingCompleteStatus(hr, m_OutputManager->GetFrameDelays());
+					CleanupResourcesAndShutDownMF();
 					m_OutputManager.reset();
 					LOG_DEBUG("Released OutputManager");
 					m_TextureManager.reset();

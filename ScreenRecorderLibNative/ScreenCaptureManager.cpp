@@ -627,7 +627,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 
 			if (!WaitToProcessCurrentFrame)
 			{
-				hr = pRecordingSource->AcquireNextFrame(100, nullptr);
+				hr = pRecordingSource->AcquireNextFrame(10, nullptr);
 
 				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 					continue;
@@ -729,7 +729,7 @@ Exit:
 	else if (isUnexpectedError) {
 		SetEvent(pData->UnexpectedErrorEvent);
 	}
-
+	LOG_DEBUG("Exiting CaptureThreadProc");
 	return 0;
 }
 
@@ -871,5 +871,6 @@ Exit:
 	else if (isUnexpectedError) {
 		SetEvent(pData->UnexpectedErrorEvent);
 	}
+	LOG_DEBUG("Exiting OverlayCaptureThreadProc");
 	return 0;
 }
