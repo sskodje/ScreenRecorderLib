@@ -259,16 +259,23 @@ HRESULT DesktopDuplicationCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout
 
 	// If holding old frame, release it
 	if (pData->Frame) {
-		m_DeskDupl->ReleaseFrame();
 		pData->Frame->Release();
 		pData->Frame = nullptr;
 	}
+	HRESULT hr = m_DeskDupl->ReleaseFrame();
+	//DXGI_ERROR_INVALID_CALL means the frame is already released, so just ignore it. Return on other errors.
+	if (FAILED(hr) && hr != DXGI_ERROR_INVALID_CALL)
+	{
+		return hr;
+	}
+
 	// Get new frame
-	HRESULT hr = m_DeskDupl->AcquireNextFrame(timeoutMillis, &FrameInfo, &DesktopResource);
+	hr = m_DeskDupl->AcquireNextFrame(timeoutMillis, &FrameInfo, &DesktopResource);
 	if (FAILED(hr))
 	{
 		return hr;
 	}
+
 	ID3D11Texture2D *pAcquiredDesktopImage;
 	// QI for IDXGIResource
 	hr = DesktopResource->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&pAcquiredDesktopImage));
