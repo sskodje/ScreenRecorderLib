@@ -406,6 +406,7 @@ void Recorder::SetupCallbacks() {
 	CreateCompletionCallback();
 	CreateStatusCallback();
 	CreateSnapshotCallback();
+	CreateFrameNumberCallback();
 }
 
 void Recorder::ClearCallbacks() {
@@ -417,6 +418,8 @@ void Recorder::ClearCallbacks() {
 		_completedDelegateGcHandler.Free();
 	if (_snapshotDelegateGcHandler.IsAllocated)
 		_snapshotDelegateGcHandler.Free();
+	if (_frameNumberDelegateGcHandler.IsAllocated)
+		_frameNumberDelegateGcHandler.Free();
 }
 
 HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Out_ RECORDING_SOURCE* pNativeSource)
@@ -653,6 +656,13 @@ void Recorder::CreateSnapshotCallback() {
 	CallbackSnapshotFunction cb = static_cast<CallbackSnapshotFunction>(ip.ToPointer());
 	m_Rec->RecordingSnapshotCreatedCallback = cb;
 }
+void Recorder::CreateFrameNumberCallback() {
+	InternalFrameNumberCallbackDelegate^ fp = gcnew InternalFrameNumberCallbackDelegate(this, &Recorder::FrameNumberChanged);
+	_frameNumberDelegateGcHandler = GCHandle::Alloc(fp);
+	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
+	CallbackFrameNumberChangedFunction cb = static_cast<CallbackFrameNumberChangedFunction>(ip.ToPointer());
+	m_Rec->RecordingFrameNumberChangedCallback = cb;
+}
 void Recorder::EventComplete(std::wstring str, fifo_map<std::wstring, int> delays)
 {
 	ClearCallbacks();
@@ -688,4 +698,10 @@ void Recorder::EventStatusChanged(int status)
 void ScreenRecorderLib::Recorder::EventSnapshotCreated(std::wstring str)
 {
 	OnSnapshotSaved(this, gcnew SnapshotSavedEventArgs(gcnew String(str.c_str())));
+}
+
+void Recorder::FrameNumberChanged(int newFrameNumber)
+{
+	OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber));
+	CurrentFrameNumber = newFrameNumber;
 }

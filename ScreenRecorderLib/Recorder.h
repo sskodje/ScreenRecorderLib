@@ -21,6 +21,7 @@ delegate void InternalStatusCallbackDelegate(int status);
 delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fifo_map<std::wstring, int>);
 delegate void InternalErrorCallbackDelegate(std::wstring path);
 delegate void InternalSnapshotCallbackDelegate(std::wstring path);
+delegate void InternalFrameNumberCallbackDelegate(int newFrameNumber);
 
 namespace ScreenRecorderLib {
 
@@ -53,14 +54,17 @@ namespace ScreenRecorderLib {
 		Recorder(RecorderOptions^ options);
 		~Recorder();
 		!Recorder();
+		int _currentFrameNumber;
 		void CreateErrorCallback();
 		void CreateCompletionCallback();
 		void CreateStatusCallback();
 		void CreateSnapshotCallback();
+		void CreateFrameNumberCallback();
 		void EventComplete(std::wstring str, nlohmann::fifo_map<std::wstring, int> delays);
 		void EventFailed(std::wstring str);
 		void EventStatusChanged(int status);
 		void EventSnapshotCreated(std::wstring str);
+		void FrameNumberChanged(int newFrameNumber);
 		void SetupCallbacks();
 		void ClearCallbacks();
 		static HRESULT CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Out_ RECORDING_SOURCE* pNativeSource);
@@ -74,7 +78,7 @@ namespace ScreenRecorderLib {
 		GCHandle _errorDelegateGcHandler;
 		GCHandle _completedDelegateGcHandler;
 		GCHandle _snapshotDelegateGcHandler;
-
+		GCHandle _frameNumberDelegateGcHandler;
 	public:
 		property RecorderStatus Status {
 			RecorderStatus get() {
@@ -84,6 +88,16 @@ namespace ScreenRecorderLib {
 			void set(RecorderStatus value) {
 				_status = value;
 			}
+		}
+
+		property int CurrentFrameNumber {
+			int get() {
+				return _currentFrameNumber;
+			}
+	private:
+		void set(int value) {
+			_currentFrameNumber = value;
+		}
 		}
 		void Record(System::String^ path);
 		void Record(System::Runtime::InteropServices::ComTypes::IStream^ stream);
@@ -120,5 +134,6 @@ namespace ScreenRecorderLib {
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;
 		event EventHandler<SnapshotSavedEventArgs^>^ OnSnapshotSaved;
+		event EventHandler<FrameRecordedEventArgs ^> ^OnFrameRecorded;
 	};
 }

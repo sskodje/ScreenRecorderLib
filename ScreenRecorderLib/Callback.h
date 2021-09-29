@@ -52,4 +52,12 @@ namespace ScreenRecorderLib {
 			SnapshotPath = path;
 		}
 	};
+
+	public ref class FrameRecordedEventArgs :System::EventArgs {
+	public:
+		property int FrameNumber;
+		FrameRecordedEventArgs(int frameNumber) {
+			FrameNumber = frameNumber;
+		}
+	};
 }

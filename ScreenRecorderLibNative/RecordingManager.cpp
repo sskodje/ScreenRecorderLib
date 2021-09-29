@@ -411,6 +411,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 	}
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 
+	int frameNr = 0;
 	INT64 lastFrameStartPos = 0;
 	bool havePrematureFrame = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
@@ -454,6 +455,10 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ std::vector<RECORDING_SOURCE> s
 		model.StartPos = lastFrameStartPos;
 		model.Audio = pAudioManager->GrabAudioFrame();
 		RETURN_ON_BAD_HR(renderHr = m_EncoderResult = m_OutputManager->RenderFrame(model));
+		frameNr++;
+		if (RecordingFrameNumberChangedCallback != nullptr) {
+			RecordingFrameNumberChangedCallback(frameNr);
+		}
 		havePrematureFrame = false;
 		lastFrameStartPos += duration100Nanos;
 		return renderHr;

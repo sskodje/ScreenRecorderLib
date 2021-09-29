@@ -15,6 +15,7 @@ typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_m
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
 typedef void(__stdcall *CallbackErrorFunction)(std::wstring);
 typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
+typedef void(__stdcall *CallbackFrameNumberChangedFunction)(int);
 
 #define STATUS_IDLE 0
 #define STATUS_RECORDING 1
@@ -33,6 +34,7 @@ public:
 	CallbackCompleteFunction RecordingCompleteCallback;
 	CallbackStatusChangedFunction RecordingStatusChangedCallback;
 	CallbackSnapshotFunction RecordingSnapshotCreatedCallback;
+	CallbackFrameNumberChangedFunction RecordingFrameNumberChangedCallback;
 	HRESULT BeginRecording(_In_opt_ std::wstring path);
 	HRESULT BeginRecording(_In_opt_ std::wstring path, _In_opt_ IStream *stream);
 	HRESULT BeginRecording(_In_opt_ IStream *stream);
