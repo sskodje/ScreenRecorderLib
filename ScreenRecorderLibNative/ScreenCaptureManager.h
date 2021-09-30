@@ -19,7 +19,7 @@ public:
 	virtual RECT GetOutputRect() { return m_OutputRect; }
 	virtual SIZE GetOutputSize() { return SIZE{ RectWidth(m_OutputRect),RectHeight(m_OutputRect) }; }
 	virtual HRESULT AcquireNextFrame(_In_ DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame);
-	virtual HRESULT StartCapture(_In_ std::vector<RECORDING_SOURCE> sources, _In_ std::vector<RECORDING_OVERLAY> overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent);
+	virtual HRESULT StartCapture(_In_ const std::vector<RECORDING_SOURCE> &sources, _In_ const std::vector<RECORDING_OVERLAY> &overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent);
 	virtual HRESULT StopCapture();
 	virtual bool IsUpdatedFramesAvailable();
 	virtual bool IsInitialFrameWriteComplete();
@@ -35,7 +35,7 @@ protected:
 	PTR_INFO m_PtrInfo;
 
 	virtual HRESULT CreateSharedSurf(_In_ RECT desktopRect, _Outptr_ ID3D11Texture2D **ppSharedTexture, _Outptr_ IDXGIKeyedMutex **ppKeyedMutex);
-	virtual HRESULT CreateSharedSurf(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds);
+	virtual HRESULT CreateSharedSurf(_In_ const std::vector<RECORDING_SOURCE> &sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds);
 private:
 	bool m_IsCapturing;
 	HANDLE m_TerminateThreadsEvent;

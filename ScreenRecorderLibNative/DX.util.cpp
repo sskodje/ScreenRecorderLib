@@ -94,7 +94,7 @@ HRESULT GetAdapterForDevice(_In_ ID3D11Device *pDevice, _Outptr_ IDXGIAdapter **
 }
 
 
-HRESULT GetOutputRectsForRecordingSources(_In_ std::vector<RECORDING_SOURCE> sources, _Out_ std::vector<std::pair<RECORDING_SOURCE, RECT>> *outputs)
+HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURCE> &sources, _Out_ std::vector<std::pair<RECORDING_SOURCE, RECT>> *outputs)
 {
 	std::vector<std::pair<RECORDING_SOURCE, RECT>> validOutputs{};
 
