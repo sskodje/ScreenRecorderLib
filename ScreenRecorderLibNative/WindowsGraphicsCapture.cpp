@@ -299,9 +299,9 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 				auto direct3DDevice = Graphics::Capture::Util::CreateDirect3DDevice(DxgiDevice);
 				/*
 				* If the recording is started on a minimized window, we will have guesstimated a size for it when starting the recording.
-				* In this instance we continue to use this size instead of the Direct3D11CaptureFrame::ContentSize(), as it may differ by a few pixels 
+				* In this instance we continue to use this size instead of the Direct3D11CaptureFrame::ContentSize(), as it may differ by a few pixels
 				* due to windows 10 window borders and trigger a resize, which leads to blurry recordings.
-				*/				
+				*/
 				winrt::SizeInt32 newSize = pData->ContentSize.cx > 0 ? winrt::SizeInt32{ pData->ContentSize.cx,pData->ContentSize.cy } : frame.ContentSize();
 				m_framePool.Recreate(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, newSize);
 				//Some times the size of the first frame is wrong when recording windows, so we just skip it and get a new after resizing the frame pool.
@@ -323,16 +323,13 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 	}
 	else if (result == WAIT_TIMEOUT) {
 		if (m_RecordingSource->Type == RecordingSourceType::Window && IsIconic(m_RecordingSource->SourceWindow)) {
-			RECT frameRect;
+			SIZE frameSize;
 			if (!pData->Frame) {
-				std::vector<std::pair<RECORDING_SOURCE, RECT>> validOutputs{};
-				RETURN_ON_BAD_HR(hr = GetOutputRectsForRecordingSources({ RECORDING_SOURCE(*m_RecordingSource) }, &validOutputs));
-				frameRect = RECT{ 0,0,RectWidth(validOutputs.at(0).second),RectHeight(validOutputs.at(0).second) };
-
+				RETURN_ON_BAD_HR(GetNativeSize(*m_RecordingSource, &frameSize));
 				D3D11_TEXTURE2D_DESC desc;
 				RtlZeroMemory(&desc, sizeof(D3D11_TEXTURE2D_DESC));
-				desc.Width = RectWidth(frameRect);
-				desc.Height = RectHeight(frameRect);
+				desc.Width = frameSize.cx;
+				desc.Height = frameSize.cy;
 				desc.MipLevels = 1;
 				desc.ArraySize = 1;
 				desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -343,10 +340,10 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 			else {
 				D3D11_TEXTURE2D_DESC desc;
 				pData->Frame->GetDesc(&desc);
-				frameRect = RECT{ 0,0,static_cast<long>(desc.Width),static_cast<long>(desc.Height) };
+				frameSize = SIZE{ static_cast<long>(desc.Width),static_cast<long>(desc.Height) };
 			}
-			pData->ContentSize = SIZE{ static_cast<long>(RectWidth(frameRect)),static_cast<long>(RectHeight(frameRect)) };
-			m_TextureManager->BlankTexture(pData->Frame, frameRect, 0, 0);
+			pData->ContentSize = frameSize;
+			m_TextureManager->BlankTexture(pData->Frame, RECT{ 0,0,frameSize.cx,frameSize.cy }, 0, 0);
 			QueryPerformanceCounter(&pData->Timestamp);
 			hr = S_OK;
 		}
