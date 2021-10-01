@@ -77,7 +77,8 @@ RecordingManager::RecordingManager() :
 	m_MouseOptions(new MOUSE_OPTIONS),
 	m_SnapshotOptions(new SNAPSHOT_OPTIONS),
 	m_RecorderMode(RecorderModeInternal::Video),
-	m_IsDestructing(false)
+	m_IsDestructing(false),
+	m_RecordingSources{}
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 }
@@ -90,6 +91,10 @@ RecordingManager::~RecordingManager()
 		m_TaskWrapperImpl->m_RecordTaskCts.cancel();
 		m_TaskWrapperImpl->m_RecordTask.wait();
 		LOG_DEBUG("Wait for recording task completed.");
+	}
+	for each (RECORDING_SOURCE *source in m_RecordingSources)
+	{
+		delete source;
 	}
 }
 
@@ -354,7 +359,7 @@ void RecordingManager::SetRecordingCompleteStatus(_In_ HRESULT hr, nlohmann::fif
 	}
 }
 
-HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE> &sources, _In_ const std::vector<RECORDING_OVERLAY> &overlays, _In_opt_ IStream *pStream)
+HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE*> &sources, _In_ const std::vector<RECORDING_OVERLAY> &overlays, _In_opt_ IStream *pStream)
 {
 	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 	CComPtr<ID3D11Texture2D> pCurrentFrameCopy = nullptr;
@@ -701,14 +706,14 @@ bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
 		result = false;
 	}
 	else {
-		for each (auto source in m_RecordingSources)
+		for each (auto *source in m_RecordingSources)
 		{
-			if (source.SourceApi.has_value() && source.SourceApi == RecordingSourceApi::DesktopDuplication && !IsWindows8OrGreater()) {
+			if (source->SourceApi.has_value() && source->SourceApi == RecordingSourceApi::DesktopDuplication && !IsWindows8OrGreater()) {
 				errorText = L"Desktop Duplication requires Windows 8 or greater.";
 				result = false;
 				break;
 			}
-			else if (source.SourceApi.has_value() && source.SourceApi == RecordingSourceApi::WindowsGraphicsCapture && !Graphics::Capture::Util::IsGraphicsCaptureAvailable())
+			else if (source->SourceApi.has_value() && source->SourceApi == RecordingSourceApi::WindowsGraphicsCapture && !Graphics::Capture::Util::IsGraphicsCaptureAvailable())
 			{
 				errorText = L"Windows Graphics Capture requires Windows 10 version 1803 or greater.";
 				result = false;

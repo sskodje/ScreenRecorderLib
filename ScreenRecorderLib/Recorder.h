@@ -94,10 +94,10 @@ namespace ScreenRecorderLib {
 			int get() {
 				return _currentFrameNumber;
 			}
-	private:
-		void set(int value) {
-			_currentFrameNumber = value;
-		}
+		private:
+			void set(int value) {
+				_currentFrameNumber = value;
+			}
 		}
 		void Record(System::String^ path);
 		void Record(System::Runtime::InteropServices::ComTypes::IStream^ stream);

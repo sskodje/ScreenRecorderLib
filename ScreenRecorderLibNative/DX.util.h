@@ -17,7 +17,7 @@ HRESULT GetMainOutput(_Outptr_result_maybenull_ IDXGIOutput **ppOutput);
 /// </summary>
 /// <param name="sources">The recording sources to process</param>
 /// <param name="outputs">A vector of pairs, containing the source and corresponding rectangle.</param>
-HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURCE> &sources, _Out_ std::vector<std::pair<RECORDING_SOURCE, RECT>> *outputs);
+HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURCE*> &sources, _Out_ std::vector<std::pair<RECORDING_SOURCE*, RECT>> *outputs);
 
 /// <summary>
 /// Initialize shaders for drawing to screen

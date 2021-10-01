@@ -230,7 +230,7 @@ struct RECORDING_SOURCE : RECORDING_SOURCE_BASE
 	}
 };
 
-struct RECORDING_SOURCE_DATA :RECORDING_SOURCE {
+struct RECORDING_SOURCE_DATA {
 	INT OffsetX;
 	INT OffsetY;
 	/// <summary>
@@ -238,23 +238,13 @@ struct RECORDING_SOURCE_DATA :RECORDING_SOURCE {
 	/// </summary>
 	RECT FrameCoordinates;
 	DX_RESOURCES DxRes;
-
-	RECORDING_SOURCE_DATA() :
+	RECORDING_SOURCE *RecordingSource;
+	RECORDING_SOURCE_DATA(RECORDING_SOURCE *recordingSource) :
 		OffsetX(0),
 		OffsetY(0),
 		DxRes{},
-		FrameCoordinates{}
-		//FrameInfo{ nullptr }
-	{
-
-	}
-	RECORDING_SOURCE_DATA(const RECORDING_SOURCE &source) :
-		RECORDING_SOURCE(source),
-		OffsetX(0),
-		OffsetY(0),
-		DxRes{},
-		FrameCoordinates{}
-		//FrameInfo{ nullptr }{}
+		FrameCoordinates{},
+		RecordingSource{ recordingSource }
 	{
 
 	}

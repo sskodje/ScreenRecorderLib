@@ -61,7 +61,7 @@ HRESULT ScreenCaptureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContex
 //
 // Start up threads for video capture
 //
-HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOURCE> &sources, _In_ const std::vector<RECORDING_OVERLAY> &overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
+HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY> &overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
 {
 	ResetEvent(m_TerminateThreadsEvent);
 
@@ -441,10 +441,10 @@ HRESULT ScreenCaptureManager::ProcessOverlays(_Inout_ ID3D11Texture2D *pCanvasTe
 	return hr;
 }
 
-HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ const std::vector<RECORDING_SOURCE> &sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds)
+HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ const std::vector<RECORDING_SOURCE *> &sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds)
 {
 	*pCreatedOutputs = std::vector<RECORDING_SOURCE_DATA *>();
-	std::vector<std::pair<RECORDING_SOURCE, RECT>> validOutputs;
+	std::vector<std::pair<RECORDING_SOURCE *, RECT>> validOutputs;
 	HRESULT hr = GetOutputRectsForRecordingSources(sources, &validOutputs);
 	if (FAILED(hr)) {
 		LOG_ERROR(L"Failed to calculate output rects for recording sources");
@@ -462,11 +462,11 @@ HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ const std::vector<RECORDING_
 	pDeskBounds = &MakeRectEven(*pDeskBounds);
 	for (int i = 0; i < validOutputs.size(); i++)
 	{
-		RECORDING_SOURCE source = validOutputs.at(i).first;
+		RECORDING_SOURCE *source = validOutputs.at(i).first;
 		RECT sourceRect = validOutputs.at(i).second;
 		RECORDING_SOURCE_DATA *data = new RECORDING_SOURCE_DATA(source);
 
-		if (source.Type == RecordingSourceType::Display) {
+		if (source->Type == RecordingSourceType::Display) {
 			data->OffsetX -= pDeskBounds->left;
 			data->OffsetY -= pDeskBounds->top;
 
@@ -537,7 +537,8 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 
 	// Data passed in from thread creation
 	CAPTURE_THREAD_DATA *pData = reinterpret_cast<CAPTURE_THREAD_DATA *>(Param);
-	RECORDING_SOURCE_DATA *pSource = pData->RecordingSource;
+	RECORDING_SOURCE_DATA *pSourceData = pData->RecordingSource;
+	RECORDING_SOURCE *pSource = pSourceData->RecordingSource;
 
 	//This scope must be here for ReleaseOnExit to work.
 	{
@@ -587,7 +588,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 		}
 
 		// Obtain handle to sync shared Surface
-		hr = pSource->DxRes.Device->OpenSharedResource(pData->CanvasTexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
+		hr = pSourceData->DxRes.Device->OpenSharedResource(pData->CanvasTexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
 		if (FAILED(hr))
 		{
 			LOG_ERROR(L"Opening shared texture failed");
@@ -601,7 +602,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 		}
 
 		// Make duplication
-		hr = pRecordingSource->Initialize(pSource->DxRes.Context, pSource->DxRes.Device);
+		hr = pRecordingSource->Initialize(pSourceData->DxRes.Context, pSourceData->DxRes.Device);
 
 		if (FAILED(hr))
 		{
@@ -663,11 +664,11 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			WaitToProcessCurrentFrame = false;
 
 			// Get mouse info
-			hr = pRecordingSource->GetMouse(pData->PtrInfo, pSource->IsCursorCaptureEnabled.value_or(false), pSource->FrameCoordinates, pSource->OffsetX, pSource->OffsetY);
+			hr = pRecordingSource->GetMouse(pData->PtrInfo, pSource->IsCursorCaptureEnabled.value_or(false), pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
 			if (FAILED(hr)) {
 				LOG_ERROR("Failed to get mouse data");
 			}
-			hr = pRecordingSource->WriteNextFrameToSharedSurface(0, SharedSurf, pSource->OffsetX, pSource->OffsetY, pSource->FrameCoordinates, pSource->SourceRect);
+			hr = pRecordingSource->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates, pSource->SourceRect);
 			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 				continue;
 			}

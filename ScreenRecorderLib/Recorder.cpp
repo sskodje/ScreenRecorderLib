@@ -261,16 +261,23 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 	std::vector<RECORDING_SOURCE> sources = CreateRecordingSourceList(recordingSources);
 
 	std::vector<RECT> outputRects{};
-	std::vector<std::pair< RECORDING_SOURCE, RECT>> validOutputs{};
-	HRESULT hr = GetOutputRectsForRecordingSources(sources, &validOutputs);
+	std::vector<std::pair<RECORDING_SOURCE*, RECT>> validOutputs{};
+	std::vector<RECORDING_SOURCE*> sourcePtrs;
+	for each (RECORDING_SOURCE source in sources)
+	{
+		sourcePtrs.push_back(new RECORDING_SOURCE(source));
+	}
+	HRESULT hr = GetOutputRectsForRecordingSources(sourcePtrs, &validOutputs);
+
+
 
 	OutputDimensions^ outputDimensions = gcnew OutputDimensions();
 	outputDimensions->OutputCoordinates = gcnew List<SourceCoordinates^>();
 	for each (auto const& pair in validOutputs) {
-		RECORDING_SOURCE nativeSource = pair.first;
+		RECORDING_SOURCE *nativeSource = pair.first;
 		RECT nativeSourceRect = pair.second;
 		outputRects.push_back(nativeSourceRect);
-		switch (nativeSource.Type)
+		switch (nativeSource->Type)
 		{
 			case RecordingSourceType::Window: {
 				for each (RecordingSourceBase ^ recordingSource in recordingSources)
@@ -278,7 +285,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 					if (isinst<WindowRecordingSource^>(recordingSource)) {
 						WindowRecordingSource^ windowRecordingSource = (WindowRecordingSource^)recordingSource;
 						HWND hwnd = (HWND)windowRecordingSource->Handle.ToPointer();
-						if (hwnd == nativeSource.SourceWindow) {
+						if (hwnd == nativeSource->SourceWindow) {
 							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
 							break;
 						}
@@ -291,7 +298,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 				{
 					if (isinst<DisplayRecordingSource^>(recordingSource)) {
 						DisplayRecordingSource^ displayRecordingSource = (DisplayRecordingSource^)recordingSource;
-						if ((gcnew String(nativeSource.SourcePath.c_str()))->Equals(displayRecordingSource->DeviceName)) {
+						if ((gcnew String(nativeSource->SourcePath.c_str()))->Equals(displayRecordingSource->DeviceName)) {
 							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
 							break;
 						}
@@ -304,7 +311,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 				{
 					if (isinst<VideoRecordingSource^>(recordingSource)) {
 						VideoRecordingSource^ videoRecordingSource = (VideoRecordingSource^)recordingSource;
-						if ((gcnew String(nativeSource.SourcePath.c_str()))->Equals(videoRecordingSource->SourcePath)) {
+						if ((gcnew String(nativeSource->SourcePath.c_str()))->Equals(videoRecordingSource->SourcePath)) {
 							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
 							break;
 						}
@@ -317,7 +324,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 				{
 					if (isinst<VideoCaptureRecordingSource^>(recordingSource)) {
 						VideoCaptureRecordingSource^ cameraRecordingSource = (VideoCaptureRecordingSource^)recordingSource;
-						if ((gcnew String(nativeSource.SourcePath.c_str()))->Equals(cameraRecordingSource->DeviceName)) {
+						if ((gcnew String(nativeSource->SourcePath.c_str()))->Equals(cameraRecordingSource->DeviceName)) {
 							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
 							break;
 						}
@@ -330,7 +337,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 				{
 					if (isinst<ImageRecordingSource^>(recordingSource)) {
 						ImageRecordingSource^ videoRecordingSource = (ImageRecordingSource^)recordingSource;
-						if ((gcnew String(nativeSource.SourcePath.c_str()))->Equals(videoRecordingSource->SourcePath)) {
+						if ((gcnew String(nativeSource->SourcePath.c_str()))->Equals(videoRecordingSource->SourcePath)) {
 							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
 							break;
 						}
@@ -346,6 +353,10 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 	GetCombinedRects(outputRects, &deskBounds, nullptr);
 	deskBounds = MakeRectEven(deskBounds);
 	outputDimensions->CombinedOutputSize = gcnew ScreenSize(RectWidth(deskBounds), RectHeight(deskBounds));
+	for each (RECORDING_SOURCE * ptr in sourcePtrs)
+	{
+		delete ptr;
+	}
 	return outputDimensions;
 }
 
@@ -543,12 +554,8 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(IEnumerable<Re
 				}
 			}
 		}
-		std::vector<RECORDING_SOURCE> sourceVector{};
-		for each (auto obj in sources)
-		{
-			sourceVector.push_back(obj);
-		}
-		return sourceVector;
+
+		return sources;
 	}
 	return std::vector<RECORDING_SOURCE>();
 }

@@ -49,7 +49,17 @@ public:
 	}
 
 	static bool SetExcludeFromCapture(HWND hwnd, bool isExcluded);
-	void SetRecordingSources(std::vector<RECORDING_SOURCE> sources) { m_RecordingSources = sources; }
+	void SetRecordingSources(std::vector<RECORDING_SOURCE> sources) 
+	{
+		m_RecordingSources.clear();
+		for each (RECORDING_SOURCE source in sources)
+		{
+			m_RecordingSources.push_back(new RECORDING_SOURCE(source));
+		}
+	}
+	std::vector<RECORDING_SOURCE *> GetRecordingSources() {
+		return m_RecordingSources;
+	}
 	void SetRecorderMode(UINT32 mode) { m_RecorderMode = (RecorderModeInternal)mode; }
 	void SetIsLogEnabled(bool value);
 	void SetLogFilePath(std::wstring value);
@@ -84,7 +94,7 @@ private:
 	INT64 m_MaxFrameLength100Nanos = MillisToHundredNanos(500); //500 milliseconds in 100 nanoseconds measure.
 
 	RecorderModeInternal m_RecorderMode;
-	std::vector<RECORDING_SOURCE> m_RecordingSources{};
+	std::vector<RECORDING_SOURCE*> m_RecordingSources;
 	std::vector<RECORDING_OVERLAY> m_Overlays;
 	RECT m_SourceRect{};
 	bool m_IsPaused = false;
@@ -97,7 +107,7 @@ private:
 
 	bool CheckDependencies(_Out_ std::wstring *error);
 	HRESULT ConfigureOutputDir(_In_ std::wstring path);
-	HRESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE> &sources, _In_ const std::vector<RECORDING_OVERLAY> &overlays, _In_opt_ IStream *pStream);
+	HRESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE*> &sources, _In_ const std::vector<RECORDING_OVERLAY> &overlays, _In_opt_ IStream *pStream);
 
 	/// <summary>
 	/// Creates adjusted source and output rects from a recording frame rect. The source rect is normalized to start on [0,0], and the output is adjusted for any cropping.
