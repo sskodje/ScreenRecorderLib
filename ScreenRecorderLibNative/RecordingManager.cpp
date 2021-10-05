@@ -96,6 +96,10 @@ RecordingManager::~RecordingManager()
 	{
 		delete source;
 	}
+	for each (RECORDING_OVERLAY * overlay in m_Overlays)
+	{
+		delete overlay;
+	}
 }
 
 void RecordingManager::SetIsLogEnabled(bool value) {
@@ -359,7 +363,7 @@ void RecordingManager::SetRecordingCompleteStatus(_In_ HRESULT hr, nlohmann::fif
 	}
 }
 
-HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE*> &sources, _In_ const std::vector<RECORDING_OVERLAY> &overlays, _In_opt_ IStream *pStream)
+HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE*> &sources, _In_ const std::vector<RECORDING_OVERLAY*> &overlays, _In_opt_ IStream *pStream)
 {
 	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 	CComPtr<ID3D11Texture2D> pCurrentFrameCopy = nullptr;

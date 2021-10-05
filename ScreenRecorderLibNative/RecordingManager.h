@@ -49,7 +49,8 @@ public:
 	}
 
 	static bool SetExcludeFromCapture(HWND hwnd, bool isExcluded);
-	void SetRecordingSources(std::vector<RECORDING_SOURCE> sources) 
+
+	inline void SetRecordingSources(std::vector<RECORDING_SOURCE> sources) 
 	{
 		m_RecordingSources.clear();
 		for each (RECORDING_SOURCE source in sources)
@@ -57,15 +58,26 @@ public:
 			m_RecordingSources.push_back(new RECORDING_SOURCE(source));
 		}
 	}
-	std::vector<RECORDING_SOURCE *> GetRecordingSources() {
+	inline std::vector<RECORDING_SOURCE *> GetRecordingSources() {
 		return m_RecordingSources;
 	}
+
+	inline void SetOverlays(std::vector<RECORDING_OVERLAY> overlays) {
+		m_Overlays.clear();
+		for each (RECORDING_OVERLAY overlay in overlays)
+		{
+			m_Overlays.push_back(new RECORDING_OVERLAY(overlay));
+		}
+	}
+	inline std::vector<RECORDING_OVERLAY *> GetRecordingOverlays() {
+		return m_Overlays;
+	}
+
 	void SetRecorderMode(UINT32 mode) { m_RecorderMode = (RecorderModeInternal)mode; }
 	void SetIsLogEnabled(bool value);
 	void SetLogFilePath(std::wstring value);
 	void SetLogSeverityLevel(int value);
 
-	void SetOverlays(std::vector<RECORDING_OVERLAY> overlays) { m_Overlays = overlays; };
 	void SetEncoderOptions(ENCODER_OPTIONS *options) { m_EncoderOptions.reset(options); }
 	std::shared_ptr<ENCODER_OPTIONS> GetEncoderOptions() { return m_EncoderOptions; }
 	void SetAudioOptions(AUDIO_OPTIONS *options) { m_AudioOptions.reset(options); }
@@ -95,7 +107,7 @@ private:
 
 	RecorderModeInternal m_RecorderMode;
 	std::vector<RECORDING_SOURCE*> m_RecordingSources;
-	std::vector<RECORDING_OVERLAY> m_Overlays;
+	std::vector<RECORDING_OVERLAY*> m_Overlays;
 	RECT m_SourceRect{};
 	bool m_IsPaused = false;
 	bool m_IsRecording = false;
@@ -107,7 +119,7 @@ private:
 
 	bool CheckDependencies(_Out_ std::wstring *error);
 	HRESULT ConfigureOutputDir(_In_ std::wstring path);
-	HRESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE*> &sources, _In_ const std::vector<RECORDING_OVERLAY> &overlays, _In_opt_ IStream *pStream);
+	HRESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE*> &sources, _In_ const std::vector<RECORDING_OVERLAY*> &overlays, _In_opt_ IStream *pStream);
 
 	/// <summary>
 	/// Creates adjusted source and output rects from a recording frame rect. The source rect is normalized to start on [0,0], and the output is adjusted for any cropping.

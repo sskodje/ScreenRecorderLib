@@ -61,7 +61,7 @@ HRESULT ScreenCaptureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContex
 //
 // Start up threads for video capture
 //
-HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY> &overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
+HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
 {
 	ResetEvent(m_TerminateThreadsEvent);
 
@@ -356,7 +356,7 @@ UINT ScreenCaptureManager::GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCount
 	return updatedFrameCount;
 }
 
-RECT ScreenCaptureManager::GetOverlayRect(_In_ SIZE canvasSize, _In_ SIZE overlayTextureSize, _In_ RECORDING_OVERLAY_DATA *pOverlay)
+RECT ScreenCaptureManager::GetOverlayRect(_In_ SIZE canvasSize, _In_ SIZE overlayTextureSize, _In_ RECORDING_OVERLAY *pOverlay)
 {
 	LONG backgroundWidth = canvasSize.cx;
 	LONG backgroundHeight = canvasSize.cy;
@@ -427,7 +427,7 @@ HRESULT ScreenCaptureManager::ProcessOverlays(_Inout_ ID3D11Texture2D *pCanvasTe
 				D3D11_TEXTURE2D_DESC overlayDesc;
 				pOverlayTexture->GetDesc(&overlayDesc);
 				SIZE textureSize = SIZE{ static_cast<LONG>(overlayDesc.Width),static_cast<LONG>(overlayDesc.Height) };
-				CONTINUE_ON_BAD_HR(hr = m_TextureManager->DrawTexture(pCanvasTexture, pOverlayTexture, GetOverlayRect(canvasSize, textureSize, pOverlayData)));
+				CONTINUE_ON_BAD_HR(hr = m_TextureManager->DrawTexture(pCanvasTexture, pOverlayTexture, GetOverlayRect(canvasSize, textureSize, pOverlayData->RecordingOverlay)));
 				if (m_OverlayThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
 					count++;
 				}
@@ -742,7 +742,8 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 
 	bool isExpectedError = false;
 	bool isUnexpectedError = false;
-	RECORDING_OVERLAY_DATA *pOverlay = pData->RecordingOverlay;
+	RECORDING_OVERLAY_DATA *pOverlayData = pData->RecordingOverlay;
+	RECORDING_OVERLAY *pOverlay = pOverlayData->RecordingOverlay;
 	unique_ptr<CaptureBase> overlayCapture = nullptr;
 
 	// D3D objects
@@ -754,7 +755,7 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 	switch (pOverlay->Type)
 	{
 		case RecordingSourceType::Picture: {
-			std::string signature = ReadFileSignature(pData->RecordingOverlay->SourcePath.c_str());
+			std::string signature = ReadFileSignature(pOverlay->SourcePath.c_str());
 			ImageFileType imageType = getImageTypeByMagic(signature.c_str());
 			if (imageType == ImageFileType::IMAGE_FILE_GIF) {
 				overlayCapture = make_unique<GifReader>();
@@ -789,7 +790,7 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 		goto Exit;
 	}
 
-	hr = overlayCapture->Initialize(pOverlay->DxRes.Context, pOverlay->DxRes.Device);
+	hr = overlayCapture->Initialize(pOverlayData->DxRes.Context, pOverlayData->DxRes.Device);
 	hr = overlayCapture->StartCapture(*pOverlay);
 	if (FAILED(hr))
 	{
@@ -797,7 +798,7 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 	}
 
 	// Obtain handle to sync shared Surface
-	hr = pOverlay->DxRes.Device->OpenSharedResource(pData->CanvasTexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
+	hr = pOverlayData->DxRes.Device->OpenSharedResource(pData->CanvasTexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
 	if (FAILED(hr))
 	{
 		LOG_ERROR(L"Opening shared texture failed");
@@ -851,14 +852,14 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 			desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 			desc.CPUAccessFlags = 0;
 			desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
-			pOverlay->DxRes.Device->CreateTexture2D(&desc, nullptr, &pSharedTexture);
+			pOverlayData->DxRes.Device->CreateTexture2D(&desc, nullptr, &pSharedTexture);
 			HANDLE sharedHandle = GetSharedHandle(pSharedTexture);
 			pData->OverlayTexSharedHandle = sharedHandle;
 		}
-		pOverlay->DxRes.Context->CopyResource(pSharedTexture, pCurrentFrame);
+		pOverlayData->DxRes.Context->CopyResource(pSharedTexture, pCurrentFrame);
 		//If a shared texture is updated on one device ID3D11DeviceContext::Flush must be called on that device. 
 		//https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-opensharedresource
-		pOverlay->DxRes.Context->Flush();
+		pOverlayData->DxRes.Context->Flush();
 		QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
 		if (haveLock) {
 			KeyMutex->ReleaseSync(1);
