@@ -5,6 +5,13 @@ using namespace System::ComponentModel;
 namespace ScreenRecorderLib {
 
 	public ref class ScreenPoint : public INotifyPropertyChanged {
+	internal:
+		POINT ToPOINT() {
+			POINT pt;
+			pt.x = Left;
+			pt.y = Top;
+			return pt;
+		}
 	public:
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
 		property double Left;
@@ -40,6 +47,13 @@ namespace ScreenRecorderLib {
 	};
 
 	public ref class ScreenSize : public INotifyPropertyChanged {
+	internal:
+		SIZE ToSIZE() {
+			SIZE size;
+			size.cx = Width;
+			size.cy = Height;
+			return size;
+		}
 	public:
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
 		property double Width;
@@ -80,6 +94,16 @@ namespace ScreenRecorderLib {
 		double _top;
 		double _right;
 		double _bottom;
+
+	internal:
+		RECT ToRECT() {
+			RECT rect;
+			rect.left = (LONG)round(Left);
+			rect.top = (LONG)round(Top);
+			rect.right = (LONG)round(Right);
+			rect.bottom = (LONG)round(Bottom);
+			return rect;
+		}
 
 	public:
 		virtual event PropertyChangedEventHandler^ PropertyChanged;

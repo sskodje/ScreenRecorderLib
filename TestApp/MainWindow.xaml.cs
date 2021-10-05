@@ -374,7 +374,6 @@ namespace TestApp
                 return;
             }
             CurrentFrameNumber = 0;
-            _recordingStartTime = DateTimeOffset.Now;
             OutputResultTextBlock.Text = "";
             UpdateProgress();
             string videoPath = "";
@@ -469,7 +468,7 @@ namespace TestApp
                 {
                     IsMouseClicksDetected = this.IsMouseClicksDetected,
                     IsMousePointerEnabled = this.IsMousePointerEnabled,
-                    MouseClickDetectionColor = this.MouseLeftClickColor,
+                    MouseLeftClickDetectionColor = this.MouseLeftClickColor,
                     MouseRightClickDetectionColor = this.MouseRightClickColor,
                     MouseClickDetectionRadius = this.MouseClickRadius,
                     MouseClickDetectionDuration = this.MouseClickDuration,
@@ -527,7 +526,7 @@ namespace TestApp
             {
                 if (x is CheckableRecordableWindow win)
                 {
-                    return new WindowRecordingSource(win.Handle)
+                    return new WindowRecordingSource(win)
                     {
                         IsCursorCaptureEnabled = win.IsCursorCaptureEnabled,
                         OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
@@ -536,7 +535,7 @@ namespace TestApp
                 }
                 else if (x is CheckableRecordableDisplay disp)
                 {
-                    return new DisplayRecordingSource(disp.DeviceName)
+                    return new DisplayRecordingSource(disp)
                     {
                         IsCursorCaptureEnabled = disp.IsCursorCaptureEnabled,
                         OutputSize = disp.IsCustomOutputSizeEnabled ? disp.OutputSize : null,
@@ -547,7 +546,7 @@ namespace TestApp
                 }
                 else if (x is CheckableRecordableCamera cam)
                 {
-                    return new VideoCaptureRecordingSource(cam.DeviceName)
+                    return new VideoCaptureRecordingSource(cam)
                     {
                         OutputSize = cam.IsCustomOutputSizeEnabled ? cam.OutputSize : null,
                         Position = cam.IsCustomPositionEnabled ? cam.Position : null,
@@ -555,7 +554,7 @@ namespace TestApp
                 }
                 else if (x is CheckableRecordableImage img)
                 {
-                    return new ImageRecordingSource(img.SourcePath)
+                    return new ImageRecordingSource(img)
                     {
                         OutputSize = img.IsCustomOutputSizeEnabled ? img.OutputSize : null,
                         Position = img.IsCustomPositionEnabled ? img.Position : null,
@@ -563,7 +562,7 @@ namespace TestApp
                 }
                 else if (x is CheckableRecordableVideo vid)
                 {
-                    return new VideoRecordingSource(vid.SourcePath)
+                    return new VideoRecordingSource(vid)
                     {
                         OutputSize = vid.IsCustomOutputSizeEnabled ? vid.OutputSize : null,
                         Position = vid.IsCustomPositionEnabled ? vid.Position : null,
@@ -654,11 +653,12 @@ namespace TestApp
                         this.SettingsPanel.IsEnabled = true;
                         break;
                     case RecorderStatus.Recording:
+                        _recordingStartTime = DateTimeOffset.Now;
                         PauseButton.Visibility = Visibility.Visible;
                         this.FrameNumberTextBlock.Visibility = Visibility.Visible;
                         if (_progressTimer != null)
                             _progressTimer.IsEnabled = true;
-                        if(_recordingPauseTime!= null)
+                        if (_recordingPauseTime != null)
                         {
                             _recordingStartTime = _recordingStartTime.Value.AddTicks((DateTimeOffset.Now.Subtract(_recordingPauseTime.Value)).Ticks);
                             _recordingPauseTime = null;
@@ -783,16 +783,19 @@ namespace TestApp
         {
             if (_rec != null)
             {
-                _rec.SetInputVolume((float)e.NewValue);
+                _rec.GetDynamicOptionsBuilder()
+                    .SetDynamicAudioOptions(new DynamicAudioOptions { InputVolume = (float)e.NewValue })
+                    .Apply();
             }
-
         }
 
         private void OnOutputVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (_rec != null)
             {
-                _rec.SetOutputVolume((float)e.NewValue);
+                _rec.GetDynamicOptionsBuilder()
+                    .SetDynamicAudioOptions(new DynamicAudioOptions { OutputVolume = (float)e.NewValue })
+                    .Apply();
             }
         }
 
@@ -960,7 +963,8 @@ namespace TestApp
                     var size = new ScreenSize(sourceCoord.Coordinates.Width, sourceCoord.Coordinates.Height);
                     source.UpdateScreenCoordinates(position, size);
                 }
-                else {
+                else
+                {
                     source.UpdateScreenCoordinates(new ScreenPoint(), new ScreenSize());
                 }
                 source.IsCheckable = true;

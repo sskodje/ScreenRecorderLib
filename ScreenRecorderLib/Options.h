@@ -163,28 +163,51 @@ namespace ScreenRecorderLib {
 		property String^ SnapshotsDirectory;
 	};
 
-	public ref class AudioOptions {
+	public ref class DynamicAudioOptions {
 	public:
-		AudioOptions() {
-			IsAudioEnabled = false;
-			IsOutputDeviceEnabled = true;
-			IsInputDeviceEnabled = false;
-			Bitrate = AudioBitrate::bitrate_96kbps;
-			Channels = AudioChannels::Stereo;
-			InputVolume = 1.0f;
-			OutputVolume = 1.0f;
+		DynamicAudioOptions() {
+
 		}
-		property bool IsAudioEnabled;
 		/// <summary>
 		///Enable to record system audio output.
 		/// </summary>
-		property bool IsOutputDeviceEnabled;
+		property Nullable<bool> IsOutputDeviceEnabled;
 		/// <summary>
 		///Enable to record system audio input (e.g. microphone)
 		/// </summary>
-		property bool IsInputDeviceEnabled;
-		property AudioBitrate Bitrate;
-		property AudioChannels Channels;
+		property Nullable<bool> IsInputDeviceEnabled;
+		/// <summary>
+		/// Volume if the input stream. Recommended values are between 0 and 1.
+		/// Value of 0 mutes the stream and value of 1 makes it original volume.
+		/// This value can be changed after the recording is started with SetInputVolume() method.
+		/// </summary>
+		property Nullable<float> InputVolume;
+
+		/// <summary>
+		/// Volume if the output stream. Recommended values are between 0 and 1.
+		/// Value of 0 mutes the stream and value of 1 makes it original volume.
+		/// This value can be changed after the recording is started with SetOutputVolume() method.
+		/// </summary>
+		property Nullable<float> OutputVolume;
+	};
+
+	public ref class AudioOptions :DynamicAudioOptions {
+	public:
+		AudioOptions() :DynamicAudioOptions() {
+			Bitrate = AudioBitrate::bitrate_96kbps;
+			Channels = AudioChannels::Stereo;
+			IsAudioEnabled = false;
+			IsOutputDeviceEnabled = true;
+			IsInputDeviceEnabled = false;
+			InputVolume = 1.0f;
+			OutputVolume = 1.0f;
+		}
+		/// <summary>
+		/// Enable or disable the writing of an audio track for the recording.
+		/// </summary>
+		property Nullable<bool> IsAudioEnabled;
+		property  Nullable<AudioBitrate> Bitrate;
+		property  Nullable<AudioChannels> Channels;
 		/// <summary>
 		///Audio device to capture system audio from via loopback capture. Pass null or empty string to select system default.
 		/// </summary>
@@ -194,56 +217,50 @@ namespace ScreenRecorderLib {
 		/// </summary>
 		property String^ AudioInputDevice;
 
-		/// <summary>
-		/// Volume if the input stream. Recommended values are between 0 and 1.
-		/// Value of 0 mutes the stream and value of 1 makes it original volume.
-		/// This value can be changed after the recording is started with SetInputVolume() method.
-		/// </summary>
-		property float InputVolume;
 
-		/// <summary>
-		/// Volume if the output stream. Recommended values are between 0 and 1.
-		/// Value of 0 mutes the stream and value of 1 makes it original volume.
-		/// This value can be changed after the recording is started with SetOutputVolume() method.
-		/// </summary>
-		property float OutputVolume;
 	};
 
-	public ref class MouseOptions {
+	public ref class DynamicMouseOptions {
 	public:
-		MouseOptions() {
+		DynamicMouseOptions() {
 			IsMousePointerEnabled = true;
 			IsMouseClicksDetected = false;
-			MouseClickDetectionColor = "#FFFF00";
+			MouseLeftClickDetectionColor = "#FFFF00";
 			MouseRightClickDetectionColor = "#FFFF00";
 			MouseClickDetectionRadius = 20;
 			MouseClickDetectionDuration = 150;
-			MouseClickDetectionMode = MouseDetectionMode::Polling;
 		}
 		/// <summary>
 		///Display the mouse cursor on the recording
 		/// </summary>
-		property bool IsMousePointerEnabled;
+		property Nullable<bool> IsMousePointerEnabled;
 		/// <summary>
 		/// Display a colored dot where the left mouse button is pressed.
 		/// </summary>
-		property bool IsMouseClicksDetected;
+		property Nullable<bool> IsMouseClicksDetected;
 		/// <summary>
 		/// The color of the dot where the left mouse button is pressed, in hex format. Default is Yellow (#FFFF00).
 		/// </summary>
-		property String^ MouseClickDetectionColor;
+		property String^ MouseLeftClickDetectionColor;
 		/// <summary>
 		/// The color of the dot where the right mouse button is pressed, in hex format. Default is Yellow (#FFFF00).
 		/// </summary>
 		property String^ MouseRightClickDetectionColor;
 		/// <summary>
-		/// The radius of the dot where the left mouse button is pressed. Default is 20.
+		/// The radius of the dot where the mouse button is pressed. Default is 20.
 		/// </summary>
-		property int MouseClickDetectionRadius;
+		property Nullable<int> MouseClickDetectionRadius;
 		/// <summary>
-		/// The duration of the dot shown where the left mouse button is pressed, in milliseconds. Default is 150.
+		/// The duration of the dot shown where the mouse button is pressed, in milliseconds. Default is 150.
 		/// </summary>
-		property int MouseClickDetectionDuration;
+		property Nullable<int> MouseClickDetectionDuration;
+	};
+
+	public ref class MouseOptions :DynamicMouseOptions {
+	public:
+		MouseOptions() :DynamicMouseOptions() {
+			MouseClickDetectionMode = MouseDetectionMode::Polling;
+		}
 		/// <summary>
 		/// The mode for detecting mouse clicks. Default is Polling.
 		/// </summary>
@@ -258,6 +275,7 @@ namespace ScreenRecorderLib {
 		}
 		property List<RecordingOverlayBase^>^ Overlays;
 	};
+
 	public ref class LogOptions {
 	public:
 		LogOptions() {
@@ -304,5 +322,18 @@ namespace ScreenRecorderLib {
 		property OverLayOptions^ OverlayOptions;
 		property SnapshotOptions^ SnapshotOptions;
 		property LogOptions^ LogOptions;
+	};
+
+
+	private ref class DynamicOptions {
+	public:
+		property DynamicAudioOptions^ AudioOptions;
+		property DynamicMouseOptions^ MouseOptions;
+		property Dictionary<String^, ScreenRect^>^ SourceRects;
+		property Dictionary<String^, bool>^ SourceCursorCaptures;
+		property ScreenRect^ GlobalSourceRect;
+		property Dictionary<String^, ScreenSize^>^ OverlaySizes;
+		property Dictionary<String^, ScreenSize^>^ OverlayOffsets;
+		property Dictionary<String^, Anchor>^ OverlayAnchors;
 	};
 }

@@ -81,42 +81,63 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		}
 		if (options->SourceOptions) {
 			if (options->SourceOptions->SourceRect && options->SourceOptions->SourceRect != ScreenRect::Empty) {
-				RECT rect;
-				rect.left = (LONG)round(options->SourceOptions->SourceRect->Left);
-				rect.top = (LONG)round(options->SourceOptions->SourceRect->Top);
-				rect.right = (LONG)round(options->SourceOptions->SourceRect->Right);
-				rect.bottom = (LONG)round(options->SourceOptions->SourceRect->Bottom);
-				m_Rec->SetSourceRectangle(rect);
+				m_Rec->SetSourceRectangle(options->SourceOptions->SourceRect->ToRECT());
 			}
 			m_Rec->SetRecordingSources(CreateRecordingSourceList(options->SourceOptions->RecordingSources));
 		}
 		if (options->AudioOptions) {
 			AUDIO_OPTIONS* audioOptions = new AUDIO_OPTIONS();
 
-			audioOptions->SetAudioEnabled(options->AudioOptions->IsAudioEnabled);
-			audioOptions->SetOutputDeviceEnabled(options->AudioOptions->IsOutputDeviceEnabled);
-			audioOptions->SetInputDeviceEnabled(options->AudioOptions->IsInputDeviceEnabled);
-			audioOptions->SetAudioBitrate((UINT32)options->AudioOptions->Bitrate);
-			audioOptions->SetAudioChannels((UINT32)options->AudioOptions->Channels);
+			if (options->AudioOptions->IsAudioEnabled.HasValue) {
+				audioOptions->SetAudioEnabled(options->AudioOptions->IsAudioEnabled.Value);
+			}
+			if (options->AudioOptions->IsOutputDeviceEnabled.HasValue) {
+				audioOptions->SetOutputDeviceEnabled(options->AudioOptions->IsOutputDeviceEnabled.Value);
+			}
+			if (options->AudioOptions->IsInputDeviceEnabled.HasValue) {
+				audioOptions->SetInputDeviceEnabled(options->AudioOptions->IsInputDeviceEnabled.Value);
+			}
+			if (options->AudioOptions->Bitrate.HasValue) {
+				audioOptions->SetAudioBitrate((UINT32)options->AudioOptions->Bitrate.Value);
+			}
+			if (options->AudioOptions->Channels.HasValue) {
+				audioOptions->SetAudioChannels((UINT32)options->AudioOptions->Channels.Value);
+			}
 			if (options->AudioOptions->AudioOutputDevice != nullptr) {
 				audioOptions->SetOutputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioOutputDevice));
 			}
 			if (options->AudioOptions->AudioInputDevice != nullptr) {
 				audioOptions->SetInputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioInputDevice));
 			}
-			audioOptions->SetInputVolume(options->AudioOptions->InputVolume);
-			audioOptions->SetOutputVolume(options->AudioOptions->OutputVolume);
+			if (options->AudioOptions->InputVolume.HasValue) {
+				audioOptions->SetInputVolume(options->AudioOptions->InputVolume.Value);
+			}
+			if (options->AudioOptions->OutputVolume.HasValue) {
+				audioOptions->SetOutputVolume(options->AudioOptions->OutputVolume.Value);
+			}
 			m_Rec->SetAudioOptions(audioOptions);
 		}
 		if (options->MouseOptions) {
 			MOUSE_OPTIONS* mouseOptions = new MOUSE_OPTIONS();
 
-			mouseOptions->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled);
-			mouseOptions->SetDetectMouseClicks(options->MouseOptions->IsMouseClicksDetected);
-			mouseOptions->SetMouseClickDetectionLMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseClickDetectionColor));
-			mouseOptions->SetMouseClickDetectionRMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseRightClickDetectionColor));
-			mouseOptions->SetMouseClickDetectionRadius(options->MouseOptions->MouseClickDetectionRadius);
-			mouseOptions->SetMouseClickDetectionDuration(options->MouseOptions->MouseClickDetectionDuration);
+			if (options->MouseOptions->IsMousePointerEnabled.HasValue) {
+				mouseOptions->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled.Value);
+			}
+			if (options->MouseOptions->IsMouseClicksDetected.HasValue) {
+				mouseOptions->SetDetectMouseClicks(options->MouseOptions->IsMouseClicksDetected.Value);
+			}
+			if (!String::IsNullOrEmpty(options->MouseOptions->MouseLeftClickDetectionColor)) {
+				mouseOptions->SetMouseClickDetectionLMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseLeftClickDetectionColor));
+			}
+			if (!String::IsNullOrEmpty(options->MouseOptions->MouseRightClickDetectionColor)) {
+				mouseOptions->SetMouseClickDetectionRMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseRightClickDetectionColor));
+			}
+			if (options->MouseOptions->MouseClickDetectionRadius.HasValue) {
+				mouseOptions->SetMouseClickDetectionRadius(options->MouseOptions->MouseClickDetectionRadius.Value);
+			}
+			if (options->MouseOptions->MouseClickDetectionDuration.HasValue) {
+				mouseOptions->SetMouseClickDetectionDuration(options->MouseOptions->MouseClickDetectionDuration.Value);
+			}
 			mouseOptions->SetMouseClickDetectionMode((UINT32)options->MouseOptions->MouseClickDetectionMode);
 			m_Rec->SetMouseOptions(mouseOptions);
 		}
@@ -135,32 +156,109 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 	}
 }
 
-void Recorder::SetSourceRect(ScreenRect sourceRect)
+DynamicOptionsBuilder^ ScreenRecorderLib::Recorder::GetDynamicOptionsBuilder()
 {
-	if (m_Rec)
-	{
-		RECT rect;
-		rect.left = (LONG)round(sourceRect.Left);
-		rect.top = (LONG)round(sourceRect.Top);
-		rect.right = (LONG)round(sourceRect.Right);
-		rect.bottom = (LONG)round(sourceRect.Bottom);
-		m_Rec->SetSourceRectangle(rect);
-	}
+	return gcnew DynamicOptionsBuilder(this);
 }
 
-void Recorder::SetInputVolume(float volume)
+void Recorder::SetDynamicOptions(DynamicOptions^ options)
 {
-	if (m_Rec)
-	{
-		m_Rec->GetAudioOptions()->SetInputVolume(volume);
+	if (options->AudioOptions) {
+		if (options->AudioOptions->IsOutputDeviceEnabled.HasValue) {
+			m_Rec->GetAudioOptions()->SetOutputDeviceEnabled(options->AudioOptions->IsOutputDeviceEnabled.Value);
+		}
+		if (options->AudioOptions->IsInputDeviceEnabled.HasValue) {
+			m_Rec->GetAudioOptions()->SetInputDeviceEnabled(options->AudioOptions->IsInputDeviceEnabled.Value);
+		}
+		if (options->AudioOptions->InputVolume.HasValue) {
+			m_Rec->GetAudioOptions()->SetInputVolume(options->AudioOptions->InputVolume.Value);
+		}
+		if (options->AudioOptions->OutputVolume.HasValue) {
+			m_Rec->GetAudioOptions()->SetOutputVolume(options->AudioOptions->OutputVolume.Value);
+		}
 	}
-}
-
-void Recorder::SetOutputVolume(float volume)
-{
-	if (m_Rec)
-	{
-		m_Rec->GetAudioOptions()->SetOutputVolume(volume);
+	if (options->MouseOptions) {
+		if (options->MouseOptions->IsMouseClicksDetected.HasValue) {
+			m_Rec->GetMouseOptions()->SetDetectMouseClicks(options->MouseOptions->IsMouseClicksDetected.Value);
+		}
+		if (options->MouseOptions->IsMousePointerEnabled.HasValue) {
+			m_Rec->GetMouseOptions()->SetMousePointerEnabled(options->MouseOptions->IsMousePointerEnabled.Value);
+		}
+		if (!String::IsNullOrEmpty(options->MouseOptions->MouseLeftClickDetectionColor)) {
+			m_Rec->GetMouseOptions()->SetMouseClickDetectionLMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseLeftClickDetectionColor));
+		}
+		if (!String::IsNullOrEmpty(options->MouseOptions->MouseRightClickDetectionColor)) {
+			m_Rec->GetMouseOptions()->SetMouseClickDetectionRMBColor(msclr::interop::marshal_as<std::string>(options->MouseOptions->MouseRightClickDetectionColor));
+		}
+		if (options->MouseOptions->MouseClickDetectionRadius.HasValue) {
+			m_Rec->GetMouseOptions()->SetMouseClickDetectionRadius(options->MouseOptions->MouseClickDetectionRadius.Value);
+		}
+		if (options->MouseOptions->MouseClickDetectionDuration.HasValue) {
+			m_Rec->GetMouseOptions()->SetMouseClickDetectionDuration(options->MouseOptions->MouseClickDetectionDuration.Value);
+		}
+	}
+	if (options->SourceRects) {
+		for each (KeyValuePair<String^, ScreenRect^> ^ kvp in options->SourceRects)
+		{
+			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
+			for each (RECORDING_SOURCE * nativeSource in m_Rec->GetRecordingSources())
+			{
+				if (nativeSource->ID == id) {
+					nativeSource->SourceRect = kvp->Value->ToRECT();
+				}
+			}
+		}
+	}
+	if (options->GlobalSourceRect) {
+		m_Rec->SetSourceRectangle(options->GlobalSourceRect->ToRECT());
+	}
+	if (options->SourceCursorCaptures) {
+		for each (KeyValuePair<String^, bool> ^ kvp in options->SourceCursorCaptures)
+		{
+			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
+			for each (RECORDING_SOURCE * nativeSource in m_Rec->GetRecordingSources())
+			{
+				if (nativeSource->ID == id) {
+					nativeSource->IsCursorCaptureEnabled = kvp->Value;
+				}
+			}
+		}
+	}
+	if (options->OverlayAnchors) {
+		for each (KeyValuePair<String^, Anchor> ^ kvp in options->OverlayAnchors)
+		{
+			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
+			for each (RECORDING_OVERLAY * nativeOverlay in m_Rec->GetRecordingOverlays())
+			{
+				if (nativeOverlay->ID == id) {
+					nativeOverlay->Anchor = static_cast<OverlayAnchor>(kvp->Value);
+				}
+			}
+		}
+	}
+	if (options->OverlayOffsets) {
+		for each (KeyValuePair<String^, ScreenSize^> ^ kvp in options->OverlayOffsets)
+		{
+			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
+			for each (RECORDING_OVERLAY * nativeOverlay in m_Rec->GetRecordingOverlays())
+			{
+				if (nativeOverlay->ID == id) {
+					nativeOverlay->Offset = kvp->Value->ToSIZE();
+				}
+			}
+		}
+	}
+	if (options->OverlaySizes) {
+		for each (KeyValuePair<String^, ScreenSize^> ^ kvp in options->OverlaySizes)
+		{
+			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
+			for each (RECORDING_OVERLAY * nativeOverlay in m_Rec->GetRecordingOverlays())
+			{
+				if (nativeOverlay->ID == id) {
+					nativeOverlay->OutputSize = kvp->Value->ToSIZE();
+				}
+			}
+		}
 	}
 }
 
@@ -188,7 +286,7 @@ List<AudioDevice^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
 			break;
 	}
 
-	auto devices = gcnew List<AudioDevice^> ();
+	auto devices = gcnew List<AudioDevice^>();
 
 	HRESULT hr = AudioPrefs::list_devices(dFlow, &map);
 
@@ -274,7 +372,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 	OutputDimensions^ outputDimensions = gcnew OutputDimensions();
 	outputDimensions->OutputCoordinates = gcnew List<SourceCoordinates^>();
 	for each (auto const& pair in validOutputs) {
-		RECORDING_SOURCE *nativeSource = pair.first;
+		RECORDING_SOURCE* nativeSource = pair.first;
 		RECT nativeSourceRect = pair.second;
 		outputRects.push_back(nativeSourceRect);
 		switch (nativeSource->Type)
@@ -437,20 +535,15 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 {
 	HRESULT hr = E_FAIL;
 	RECORDING_SOURCE nativeSource{};
+	nativeSource.ID = msclr::interop::marshal_as<std::wstring>(managedSource->ID);
 	if (managedSource->OutputSize
 		&& managedSource->OutputSize != ScreenSize::Empty
 		&& (managedSource->OutputSize->Width > 0 || managedSource->OutputSize->Height > 0)) {
-		nativeSource.OutputSize = SIZE{
-			(long)managedSource->OutputSize->Width,
-			(long)managedSource->OutputSize->Height
-		};
+		nativeSource.OutputSize = managedSource->OutputSize->ToSIZE();
 	}
+
 	if (managedSource->Position && managedSource->Position != ScreenPoint::Empty) {
-		nativeSource.Position = POINT
-		{
-			(long)managedSource->Position->Left,
-			(long)managedSource->Position->Top
-		};
+		nativeSource.Position = managedSource->Position->ToPOINT();
 	}
 
 	if (isinst<DisplayRecordingSource^>(managedSource)) {
@@ -470,11 +563,7 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 						&& displaySource->SourceRect != ScreenRect::Empty
 						&& displaySource->SourceRect->Right > displaySource->SourceRect->Left
 						&& displaySource->SourceRect->Bottom > displaySource->SourceRect->Top) {
-					nativeSource.SourceRect = RECT{
-						(long)displaySource->SourceRect->Left,
-						(long)displaySource->SourceRect->Top,
-						(long)displaySource->SourceRect->Right,
-						(long)displaySource->SourceRect->Bottom };
+					nativeSource.SourceRect = displaySource->SourceRect->ToRECT();
 				}
 
 				switch (displaySource->RecorderApi)
@@ -498,7 +587,7 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 		WindowRecordingSource^ windowSource = (WindowRecordingSource^)managedSource;
 		if (windowSource->Handle != IntPtr::Zero) {
 			HWND windowHandle = (HWND)(windowSource->Handle.ToPointer());
-			if ( IsWindow(windowHandle)) {
+			if (IsWindow(windowHandle)) {
 				nativeSource.Type = RecordingSourceType::Window;
 				nativeSource.SourceWindow = windowHandle;
 				nativeSource.IsCursorCaptureEnabled = windowSource->IsCursorCaptureEnabled;
@@ -547,7 +636,7 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(IEnumerable<Re
 		for each (RecordingSourceBase ^ source in managedSources)
 		{
 			RECORDING_SOURCE nativeSource{};
-			HRESULT hr = CreateNativeRecordingSource(source, &nativeSource); 
+			HRESULT hr = CreateNativeRecordingSource(source, &nativeSource);
 			if (SUCCEEDED(hr)) {
 				if (std::find(sources.begin(), sources.end(), nativeSource) == sources.end()) {
 					sources.insert(sources.end(), nativeSource);
@@ -566,26 +655,10 @@ std::vector<RECORDING_OVERLAY> Recorder::CreateOverlayList(IEnumerable<Recording
 		for each (RecordingOverlayBase ^ managedOverlay in managedOverlays)
 		{
 			RECORDING_OVERLAY overlay{};
+			overlay.ID = msclr::interop::marshal_as<std::wstring>(managedOverlay->ID);
 			overlay.Offset = SIZE{ static_cast<long>(managedOverlay->Offset->Width), static_cast<long>(managedOverlay->Offset->Height) };
 			overlay.OutputSize = SIZE{ static_cast<long>(managedOverlay->Size->Width), static_cast<long>(managedOverlay->Size->Height) };
-			switch (managedOverlay->AnchorPosition)
-			{
-				case Anchor::BottomLeft:
-					overlay.Anchor = OverlayAnchor::BottomLeft;
-					break;
-				case Anchor::BottomRight:
-					overlay.Anchor = OverlayAnchor::BottomRight;
-					break;
-				case Anchor::TopLeft:
-					overlay.Anchor = OverlayAnchor::TopLeft;
-					break;
-				case Anchor::TopRight:
-					overlay.Anchor = OverlayAnchor::TopRight;
-					break;
-				default:
-					break;
-			}
-
+			overlay.Anchor = static_cast<OverlayAnchor>(managedOverlay->AnchorPosition);
 			if (isinst<VideoCaptureOverlay^>(managedOverlay)) {
 				VideoCaptureOverlay^ videoCaptureOverlay = (VideoCaptureOverlay^)managedOverlay;
 				overlay.Type = RecordingSourceType::CameraCapture;

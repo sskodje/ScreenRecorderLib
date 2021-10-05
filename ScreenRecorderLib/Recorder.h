@@ -25,6 +25,8 @@ delegate void InternalFrameNumberCallbackDelegate(int newFrameNumber);
 
 namespace ScreenRecorderLib {
 
+	ref class DynamicOptionsBuilder;
+
 	public ref class SourceCoordinates {
 	public:
 		SourceCoordinates() { };
@@ -54,7 +56,6 @@ namespace ScreenRecorderLib {
 		Recorder(RecorderOptions^ options);
 		~Recorder();
 		!Recorder();
-		int _currentFrameNumber;
 		void CreateErrorCallback();
 		void CreateCompletionCallback();
 		void CreateStatusCallback();
@@ -71,6 +72,7 @@ namespace ScreenRecorderLib {
 		static std::vector<RECORDING_SOURCE> CreateRecordingSourceList(IEnumerable<RecordingSourceBase^>^ options);
 		static std::vector<RECORDING_OVERLAY> CreateOverlayList(IEnumerable<RecordingOverlayBase^>^ managedOverlays);
 
+		int _currentFrameNumber;
 		RecorderStatus _status;
 		RecordingManager* m_Rec;
 		ManagedIStream* m_ManagedStream;
@@ -79,6 +81,10 @@ namespace ScreenRecorderLib {
 		GCHandle _completedDelegateGcHandler;
 		GCHandle _snapshotDelegateGcHandler;
 		GCHandle _frameNumberDelegateGcHandler;
+
+	internal:
+		void SetDynamicOptions(DynamicOptions^ options);
+
 	public:
 		property RecorderStatus Status {
 			RecorderStatus get() {
@@ -107,20 +113,10 @@ namespace ScreenRecorderLib {
 		void Stop();
 		void SetOptions(RecorderOptions^ options);
 		/// <summary>
-		/// This method can be used to set the recording source rectangle while a recording is in progress.
+		/// DynamicOptionsBuilder can be used to update a subset of options while a recording is in progress.
 		/// </summary>
-		/// <param name="rect"></param>
-		void SetSourceRect(ScreenRect rect);
-		/// <summary>
-		/// This method can be used to set the audio input device (e.g. microphone) volume while a recording is in progress.
-		/// </summary>
-		/// <param name="volume"></param>
-		void SetInputVolume(float volume);
-		/// <summary>
-		/// This method can be used to set the audio output device (i.e. system audio) volume while a recording is in progress.
-		/// </summary>
-		/// <param name="volume"></param>
-		void SetOutputVolume(float volume);
+		/// <returns></returns>
+		DynamicOptionsBuilder^ GetDynamicOptionsBuilder();
 
 		static bool SetExcludeFromCapture(System::IntPtr hwnd, bool isExcluded);
 		static Recorder^ CreateRecorder();
@@ -134,6 +130,115 @@ namespace ScreenRecorderLib {
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;
 		event EventHandler<SnapshotSavedEventArgs^>^ OnSnapshotSaved;
-		event EventHandler<FrameRecordedEventArgs ^> ^OnFrameRecorded;
+		event EventHandler<FrameRecordedEventArgs^>^ OnFrameRecorded;
+	};
+
+	public ref class DynamicOptionsBuilder {
+	public:
+		DynamicOptionsBuilder^ SetDynamicAudioOptions(DynamicAudioOptions^ options) {
+			_options->AudioOptions = options;
+			return this;
+		}
+
+		DynamicOptionsBuilder^ SetDynamicMouseOptions(DynamicMouseOptions^ options) {
+			_options->MouseOptions = options;
+			return this;
+		}
+		/// <summary>
+		/// Set the source rect (crop) for a recording source with the given ID.
+		/// </summary>
+		/// <param name="recordingSourceID"></param>
+		/// <param name="sourceRect"></param>
+		/// <returns></returns>
+		DynamicOptionsBuilder^ SetSourceRectForRecordingSource(String^ recordingSourceID, ScreenRect^ sourceRect) {
+			if (!_options->SourceRects) {
+				_options->SourceRects = gcnew Dictionary<String^, ScreenRect^>();
+			}
+			_options->SourceRects[recordingSourceID] = sourceRect;
+			return this;
+		}
+		/// <summary>
+		/// Enable or disable mouse cursor capture for the recording source with the given ID.
+		/// </summary>
+		/// <param name="recordingSourceID"></param>
+		/// <param name="isCursorCaptureEnabled"></param>
+		/// <returns></returns>
+		DynamicOptionsBuilder^ SetCursorCaptureForRecordingSource(String^ recordingSourceID, bool isCursorCaptureEnabled) {
+			if (!_options->SourceRects) {
+				_options->SourceRects = gcnew Dictionary<String^, ScreenRect^>();
+			}
+			_options->SourceCursorCaptures[recordingSourceID] = isCursorCaptureEnabled;
+			return this;
+		}
+		/// <summary>
+		/// Set the source rect (crop) for the entire recording.
+		/// </summary>
+		/// <param name="sourceRect"></param>
+		/// <returns></returns>
+		DynamicOptionsBuilder^ SetGlobalSourceRect(ScreenRect^ sourceRect) {
+			_options->GlobalSourceRect = sourceRect;
+			return this;
+		}
+		/// <summary>
+		/// Set the size of the overlay with the given ID.
+		/// </summary>
+		/// <param name="overlayID"></param>
+		/// <param name="size"></param>
+		/// <returns></returns>
+		DynamicOptionsBuilder^ SetSizeForOverlay(String^ overlayID, ScreenSize^ size) {
+			if (!_options->OverlaySizes) {
+				_options->OverlaySizes = gcnew Dictionary<String^, ScreenSize^>();
+			}
+			_options->OverlaySizes[overlayID] = size;
+			return this;
+		}
+		/// <summary>
+		/// Set the position offset of the overlay with the given ID.
+		/// </summary>
+		/// <param name="overlayID"></param>
+		/// <param name="size"></param>
+		/// <returns></returns>
+		DynamicOptionsBuilder^ SetOffsetForOverlay(String^ overlayID, ScreenSize^ offset) {
+			if (!_options->OverlayOffsets) {
+				_options->OverlayOffsets = gcnew Dictionary<String^, ScreenSize^>();
+			}
+			_options->OverlayOffsets[overlayID] = offset;
+			return this;
+		}
+		/// <summary>
+		/// Set the position anchor for the overlay with the given ID.
+		/// </summary>
+		/// <param name="overlayID"></param>
+		/// <param name="anchor"></param>
+		/// <returns></returns>
+		DynamicOptionsBuilder^ SetAnchorForOverlay(String^ overlayID, Anchor anchor) {
+			if (!_options->OverlayAnchors) {
+				_options->OverlayAnchors = gcnew Dictionary<String^, Anchor>();
+			}
+			_options->OverlayAnchors[overlayID] = anchor;
+			return this;
+		}
+		/// <summary>
+		/// Apply the changes to the current active recording. Fails if no recording is in progress.
+		/// </summary>
+		/// <returns>True if successfully applied changes to a recording in progress, else false</returns>
+		bool Apply() {
+			if (_rec && _rec->Status == RecorderStatus::Recording) {
+				_rec->SetDynamicOptions(_options);
+				return true;
+			}
+			else {
+				return false;
+			}
+		}
+
+	internal:
+		DynamicOptionsBuilder(Recorder^ recorder) {
+			_options = gcnew DynamicOptions();
+			_rec = recorder;
+		}
+	private:
+		DynamicOptions^ _options;
+		Recorder^ _rec;
 	};
 }

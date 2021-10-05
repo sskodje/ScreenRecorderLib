@@ -18,12 +18,30 @@ namespace ScreenRecorderLib {
 	private:
 		ScreenSize^ _outputSize;
 		ScreenPoint^ _position;
+		String^ _id;
 	internal:
 		RecordingSourceBase() {
-
+			ID = Guid::NewGuid().ToString();
+		}
+		RecordingSourceBase(RecordingSourceBase^ base) :RecordingSourceBase() {
+			ID = base->ID;
+			Position = base->Position;
+			OutputSize = base->OutputSize;
 		}
 	public:
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
+		/// <summary>
+		/// A unique generated ID for this recording source.
+		/// </summary>
+		property String^ ID {
+			String^ get() {
+				return _id;
+			}
+	private:
+		void set(String^ id) {
+			_id = id;
+		}
+		}
 
 		/// <summary>
 		/// This option can be configured to set the frame size of this source in pixels.
@@ -57,23 +75,48 @@ namespace ScreenRecorderLib {
 		}
 	};
 
+	public ref class CroppableRecordingSource abstract :RecordingSourceBase {
+	private:
+		ScreenRect^ _sourceRect;
+	internal:
+		CroppableRecordingSource() :RecordingSourceBase() {
+
+		}
+		CroppableRecordingSource(CroppableRecordingSource^ base) :RecordingSourceBase(base) {
+			SourceRect = base->SourceRect;
+		}
+	public:
+		virtual property ScreenRect^ SourceRect {
+			ScreenRect^ get() {
+				return _sourceRect;
+			}
+			void set(ScreenRect^ rect) {
+				_sourceRect = rect;
+				OnPropertyChanged("SourceRect");
+			}
+		}
+
+	};
+
 	public ref class WindowRecordingSource : public RecordingSourceBase {
 	private:
-		bool _isCursorCaptureEnabled;
+		bool _isCursorCaptureEnabled = true;
 	public:
 		/// <summary>
 		/// The handle to the window to record.
 		/// </summary>
 		property IntPtr Handle;
 
-		WindowRecordingSource()
+		WindowRecordingSource() :RecordingSourceBase()
 		{
-			IsCursorCaptureEnabled = true;
+
 		}
 		WindowRecordingSource(IntPtr windowHandle) :WindowRecordingSource() {
 			Handle = windowHandle;
 		}
-
+		WindowRecordingSource(WindowRecordingSource^ source) :RecordingSourceBase(source) {
+			Handle = source->Handle;
+		}
 		virtual property RecorderApi RecorderApi {
 			ScreenRecorderLib::RecorderApi get() {
 				return ScreenRecorderLib::RecorderApi::WindowsGraphicsCapture;
@@ -93,11 +136,10 @@ namespace ScreenRecorderLib {
 		}
 	};
 
-	public ref class DisplayRecordingSource : public RecordingSourceBase {
+	public ref class DisplayRecordingSource : public CroppableRecordingSource {
 	private:
-		ScreenRect^ _sourceRect;
-		RecorderApi _recorderApi;
-		bool _isCursorCaptureEnabled;
+		RecorderApi _recorderApi = ScreenRecorderLib::RecorderApi::DesktopDuplication;
+		bool _isCursorCaptureEnabled = true;
 	public:
 		static property DisplayRecordingSource^ MainMonitor {
 			DisplayRecordingSource^ get() {
@@ -117,21 +159,13 @@ namespace ScreenRecorderLib {
 
 		DisplayRecordingSource()
 		{
-			RecorderApi = ScreenRecorderLib::RecorderApi::DesktopDuplication;
-			IsCursorCaptureEnabled = true;
+
 		}
 		DisplayRecordingSource(String^ deviceName) :DisplayRecordingSource() {
 			DeviceName = deviceName;
 		}
-
-		virtual property ScreenRect^ SourceRect {
-			ScreenRect^ get() {
-				return _sourceRect;
-			}
-			void set(ScreenRect^ rect) {
-				_sourceRect = rect;
-				OnPropertyChanged("SourceRect");
-			}
+		DisplayRecordingSource(DisplayRecordingSource^ source) :CroppableRecordingSource(source) {
+			DeviceName = source->DeviceName;
 		}
 
 		virtual property RecorderApi RecorderApi {
@@ -157,38 +191,27 @@ namespace ScreenRecorderLib {
 		}
 	};
 
-	public ref class VideoCaptureRecordingSource : public RecordingSourceBase {
-	private:
-		ScreenRect^ _sourceRect;
+	public ref class VideoCaptureRecordingSource : public CroppableRecordingSource {
 	public:
 		/// <summary>
 		/// The device name to record
 		/// </summary>
 		property String^ DeviceName;
 
-		VideoCaptureRecordingSource()
+		VideoCaptureRecordingSource() :CroppableRecordingSource()
 		{
 
 		}
 		VideoCaptureRecordingSource(String^ deviceName) :VideoCaptureRecordingSource() {
 			DeviceName = deviceName;
 		}
-
-		virtual property ScreenRect^ SourceRect {
-			ScreenRect^ get() {
-				return _sourceRect;
-			}
-			void set(ScreenRect^ rect) {
-				_sourceRect = rect;
-				OnPropertyChanged("SourceRect");
-			}
+		VideoCaptureRecordingSource(VideoCaptureRecordingSource^ source) :CroppableRecordingSource(source) {
+			DeviceName = source->DeviceName;
 		}
 	};
 
 
-	public ref class VideoRecordingSource : public RecordingSourceBase {
-	private:
-		ScreenRect^ _sourceRect;
+	public ref class VideoRecordingSource : public CroppableRecordingSource {
 	public:
 		/// <summary>
 		/// The file path to the video
@@ -202,21 +225,12 @@ namespace ScreenRecorderLib {
 		VideoRecordingSource(String^ path) :VideoRecordingSource() {
 			SourcePath = path;
 		}
-
-		virtual property ScreenRect^ SourceRect {
-			ScreenRect^ get() {
-				return _sourceRect;
-			}
-			void set(ScreenRect^ rect) {
-				_sourceRect = rect;
-				OnPropertyChanged("SourceRect");
-			}
+		VideoRecordingSource(VideoRecordingSource^ source) :CroppableRecordingSource(source) {
+			SourcePath = source->SourcePath;
 		}
 	};
 
-	public ref class ImageRecordingSource : public RecordingSourceBase {
-	private:
-		ScreenRect^ _sourceRect;
+	public ref class ImageRecordingSource : public CroppableRecordingSource {
 	public:
 		/// <summary>
 		/// The file path to the video
@@ -230,15 +244,8 @@ namespace ScreenRecorderLib {
 		ImageRecordingSource(String^ path) :ImageRecordingSource() {
 			SourcePath = path;
 		}
-
-		virtual property ScreenRect^ SourceRect {
-			ScreenRect^ get() {
-				return _sourceRect;
-			}
-			void set(ScreenRect^ rect) {
-				_sourceRect = rect;
-				OnPropertyChanged("SourceRect");
-			}
+		ImageRecordingSource(ImageRecordingSource^ source) :CroppableRecordingSource(source) {
+			SourcePath = source->SourcePath;
 		}
 	};
 

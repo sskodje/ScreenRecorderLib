@@ -116,7 +116,7 @@ struct RECORDING_SOURCE_BASE abstract {
 	std::wstring SourcePath;
 	HWND SourceWindow;
 	RecordingSourceType Type;
-
+	std::wstring ID;
 	/// <summary>
 	/// Optional custom output size of the source frame. May be both smaller or larger than the source.
 	/// </summary>
@@ -125,21 +125,16 @@ struct RECORDING_SOURCE_BASE abstract {
 		Type(RecordingSourceType::Display),
 		SourceWindow(nullptr),
 		SourcePath(L""),
-		OutputSize{ std::nullopt }
+		OutputSize{ std::nullopt },
+		ID(L"")
 	{
 
-	}
-	RECORDING_SOURCE_BASE(const RECORDING_SOURCE_BASE &otherSource) :RECORDING_SOURCE_BASE()
-	{
-		SourcePath = otherSource.SourcePath;
-		SourceWindow = otherSource.SourceWindow;
-		Type = otherSource.Type;
-		OutputSize = otherSource.OutputSize;
 	}
 };
 
 struct RECORDING_OVERLAY :RECORDING_SOURCE_BASE
 {
+	std::wstring ID;
 	OverlayAnchor Anchor;
 	/// <summary>
 	/// Optional custom offset for the source frame.
@@ -148,9 +143,13 @@ struct RECORDING_OVERLAY :RECORDING_SOURCE_BASE
 	RECORDING_OVERLAY() :
 		RECORDING_SOURCE_BASE(),
 		Anchor(OverlayAnchor::BottomLeft),
-		Offset{ std::nullopt }
+		Offset{ std::nullopt },
+		ID(L"")
 	{
 
+	}
+	friend bool operator== (const RECORDING_OVERLAY &a, const RECORDING_OVERLAY &b) {
+		return a.ID == b.ID;
 	}
 };
 
@@ -188,42 +187,11 @@ struct RECORDING_SOURCE : RECORDING_SOURCE_BASE
 
 	}
 
-	RECORDING_SOURCE(const RECORDING_SOURCE &source) :
-		RECORDING_SOURCE_BASE(source),
-		IsCursorCaptureEnabled(source.IsCursorCaptureEnabled),
-		SourceRect(source.SourceRect),
-		Position(source.Position),
-		SourceApi(source.SourceApi)
-	{
-	}
-
-
-	RECORDING_SOURCE(const RECORDING_SOURCE_BASE &source) :
-		RECORDING_SOURCE_BASE(source),
-		IsCursorCaptureEnabled(std::nullopt),
-		SourceRect{ std::nullopt },
-		Position{ std::nullopt },
-		SourceApi(std::nullopt)
-	{
-	}
-
 	friend bool operator< (const RECORDING_SOURCE &a, const RECORDING_SOURCE &b) {
 		return std::tie(a.Type, a.SourceWindow, a.SourcePath) < std::tie(b.Type, b.SourceWindow, b.SourcePath);
 	}
 	friend bool operator== (const RECORDING_SOURCE &a, const RECORDING_SOURCE &b) {
-		switch (a.Type)
-		{
-			case RecordingSourceType::Window: {
-				return a.Type == b.Type && a.SourceWindow == b.SourceWindow;
-			}
-			case RecordingSourceType::Display:
-			case RecordingSourceType::CameraCapture:
-			case RecordingSourceType::Picture:
-			case RecordingSourceType::Video:
-			default:
-				return a.Type == b.Type && a.SourcePath == b.SourcePath;
-				break;
-		}
+		return a.ID == b.ID;
 	}
 };
 

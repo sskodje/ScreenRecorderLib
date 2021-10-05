@@ -14,17 +14,47 @@ namespace ScreenRecorderLib {
 	private:
 		ScreenSize^ _size;
 		ScreenSize^ _offset;
+		Anchor _anchorPosition;
+		String^ _id;
 	internal:
 		RecordingOverlayBase()
 		{
+			ID = Guid::NewGuid().ToString();
 			AnchorPosition = Anchor::TopLeft;
 			Offset = nullptr;
 			Size = nullptr;
 		}
+		RecordingOverlayBase(RecordingOverlayBase^ base) :RecordingOverlayBase() {
+			ID = base->ID;
+			Offset = base->Offset;
+			Size = base->Size;
+			AnchorPosition = base->AnchorPosition;
+		}
 	public:
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
 
-		virtual property Anchor AnchorPosition;
+		/// <summary>
+		/// A unique generated ID for this recording source.
+		/// </summary>
+		property String^ ID {
+			String^ get() {
+				return _id;
+			}
+		private:
+			void set(String^ id) {
+				_id = id;
+			}
+		}
+
+		virtual property Anchor AnchorPosition {
+			Anchor get() {
+				return _anchorPosition;
+			}
+			void set(Anchor anchor) {
+				_anchorPosition = anchor;
+				OnPropertyChanged("AnchorPosition");
+			}
+		}
 
 		/// <summary>
 		/// This option can be configured to set the size of this overlay in pixels.
@@ -35,7 +65,7 @@ namespace ScreenRecorderLib {
 			}
 			void set(ScreenSize^ rect) {
 				_size = rect;
-				OnPropertyChanged("OutputSize");
+				OnPropertyChanged("Size");
 			}
 		}
 
