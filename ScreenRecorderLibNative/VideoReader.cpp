@@ -15,7 +15,7 @@ HRESULT VideoReader::InitializeSourceReader(
 	_Out_ long *pStreamIndex,
 	_Outptr_ IMFSourceReader **ppSourceReader,
 	_Outptr_ IMFMediaType **ppInputMediaType,
-	_Outptr_ IMFMediaType **ppOutputMediaType,
+	_Outptr_opt_ IMFMediaType **ppOutputMediaType,
 	_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform)
 {
 	if (ppSourceReader) {
@@ -73,39 +73,40 @@ HRESULT VideoReader::InitializeSourceReader(
 				GUID inputSubType;
 				pInputMediaType->GetGUID(MF_MT_SUBTYPE, &inputSubType);
 				LogMediaType(pInputMediaType);
-
-				SafeRelease(&pMediaTransform);
-				hr = CreateIMFTransform(streamIndex, pInputMediaType, &pMediaTransform, &pOutputMediaType);
-				if (FAILED(hr)) {
-					LOG_INFO("Failed to create a valid media output type for video reader, attempting to create an intermediate transform");
-					CComPtr<IMFTransform> pConverter = NULL;
-					CONTINUE_ON_BAD_HR(hr = FindVideoDecoder(&inputSubType, nullptr, false, true, true, &pConverter));
-					CONTINUE_ON_BAD_HR(pConverter->SetInputType(streamIndex, pInputMediaType, 0));
-					GUID guidMinor;
-					GUID guidMajor;
-					for (int i = 0;; i++)
-					{
-						SafeRelease(&pMediaTransform);
-						IMFMediaType *mediaType;
-						hr = pConverter->GetOutputAvailableType(streamIndex, i, &mediaType);
-						if (FAILED(hr))
+				if (ppOutputMediaType) {
+					SafeRelease(&pMediaTransform);
+					hr = CreateIMFTransform(streamIndex, pInputMediaType, &pMediaTransform, &pOutputMediaType);
+					if (FAILED(hr)) {
+						LOG_INFO("Failed to create a valid media output type for video reader, attempting to create an intermediate transform");
+						CComPtr<IMFTransform> pConverter = NULL;
+						CONTINUE_ON_BAD_HR(hr = FindVideoDecoder(&inputSubType, nullptr, false, true, true, &pConverter));
+						CONTINUE_ON_BAD_HR(pConverter->SetInputType(streamIndex, pInputMediaType, 0));
+						GUID guidMinor;
+						GUID guidMajor;
+						for (int i = 0;; i++)
 						{
-							break;
-						}
-						hr = mediaType->GetGUID(MF_MT_MAJOR_TYPE, &guidMajor);
-						if (guidMajor == MFMediaType_Video) {
-							hr = mediaType->GetGUID(MF_MT_SUBTYPE, &guidMinor);
-							IMFMediaType *pIntermediateMediaType;
-							// Define the output type.
-							CONTINUE_ON_BAD_HR(hr = MFCreateMediaType(&pIntermediateMediaType));
-							CONTINUE_ON_BAD_HR(hr = pInputMediaType->CopyAllItems(pIntermediateMediaType));
-							CONTINUE_ON_BAD_HR(hr = pIntermediateMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
-							CONTINUE_ON_BAD_HR(hr = pIntermediateMediaType->SetGUID(MF_MT_SUBTYPE, guidMinor));
-							CONTINUE_ON_BAD_HR(hr = pSourceReader->SetCurrentMediaType(streamIndex, NULL, pIntermediateMediaType));
-							CONTINUE_ON_BAD_HR(hr = CreateIMFTransform(streamIndex, pIntermediateMediaType, &pMediaTransform, &pOutputMediaType));
-							LOG_DEBUG("Successfully created video reader intermediate media transform:");
-							LogMediaType(pIntermediateMediaType);
-							break;
+							SafeRelease(&pMediaTransform);
+							IMFMediaType *mediaType;
+							hr = pConverter->GetOutputAvailableType(streamIndex, i, &mediaType);
+							if (FAILED(hr))
+							{
+								break;
+							}
+							hr = mediaType->GetGUID(MF_MT_MAJOR_TYPE, &guidMajor);
+							if (guidMajor == MFMediaType_Video) {
+								hr = mediaType->GetGUID(MF_MT_SUBTYPE, &guidMinor);
+								IMFMediaType *pIntermediateMediaType;
+								// Define the output type.
+								CONTINUE_ON_BAD_HR(hr = MFCreateMediaType(&pIntermediateMediaType));
+								CONTINUE_ON_BAD_HR(hr = pInputMediaType->CopyAllItems(pIntermediateMediaType));
+								CONTINUE_ON_BAD_HR(hr = pIntermediateMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
+								CONTINUE_ON_BAD_HR(hr = pIntermediateMediaType->SetGUID(MF_MT_SUBTYPE, guidMinor));
+								CONTINUE_ON_BAD_HR(hr = pSourceReader->SetCurrentMediaType(streamIndex, NULL, pIntermediateMediaType));
+								CONTINUE_ON_BAD_HR(hr = CreateIMFTransform(streamIndex, pIntermediateMediaType, &pMediaTransform, &pOutputMediaType));
+								LOG_DEBUG("Successfully created video reader intermediate media transform:");
+								LogMediaType(pIntermediateMediaType);
+								break;
+							}
 						}
 					}
 				}

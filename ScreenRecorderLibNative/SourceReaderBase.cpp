@@ -69,12 +69,17 @@ HRESULT SourceReaderBase::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSour
 HRESULT SourceReaderBase::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize)
 {
 	if (!m_InputMediaType) {
+		MeasureExecutionTime measure(L"SourceReaderBase GetNativeSize");
 		long streamIndex;
 		RETURN_ON_BAD_HR(MFStartup(MF_VERSION, MFSTARTUP_LITE));
-		RETURN_ON_BAD_HR(InitializeSourceReader(recordingSource.SourcePath, &streamIndex, &m_SourceReader, &m_InputMediaType, &m_OutputMediaType, &m_MediaTransform));
+		CComPtr<IMFMediaType> pInputMediaType;
+		RETURN_ON_BAD_HR(InitializeSourceReader(recordingSource.SourcePath, &streamIndex, &m_SourceReader, &pInputMediaType, nullptr, nullptr));
 		RETURN_ON_BAD_HR(MFShutdown());
+		return GetFrameSize(pInputMediaType, nativeMediaSize);
 	}
-	return GetFrameSize(m_InputMediaType, nativeMediaSize);
+	else {
+		return GetFrameSize(m_InputMediaType, nativeMediaSize);
+	}
 }
 
 void SourceReaderBase::Close()
@@ -103,7 +108,7 @@ HRESULT SourceReaderBase::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt
 		result = WaitForSingleObject(m_NewFrameEvent, timeoutMillis);
 	}
 	HRESULT hr = S_OK;
-	if (result == WAIT_OBJECT_0) {	
+	if (result == WAIT_OBJECT_0) {
 		//Only create frame if the caller accepts one.
 		if (ppFrame) {
 			EnterCriticalSection(&m_CriticalSection);
@@ -235,7 +240,7 @@ HRESULT SourceReaderBase::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis
 	return hr;
 }
 
-HRESULT SourceReaderBase::GetFrameSize(_In_ IMFMediaType *pMediaType, _Out_ SIZE *pFrameSize)
+HRESULT SourceReaderBase::GetFrameSize(_In_ IMFAttributes *pMediaType, _Out_ SIZE *pFrameSize)
 {
 	UINT32 width;
 	UINT32 height;

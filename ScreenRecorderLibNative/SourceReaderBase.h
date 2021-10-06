@@ -43,10 +43,10 @@ protected:
 		_Out_ long *pStreamIndex,
 		_Outptr_ IMFSourceReader **ppSourceReader,
 		_Outptr_ IMFMediaType **ppInputMediaType,
-		_Outptr_ IMFMediaType **ppOutputMediaType,
+		_Outptr_opt_ IMFMediaType **ppOutputMediaType,
 		_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform) abstract;
 	virtual HRESULT GetFrameRate(_In_ IMFMediaType *pMediaType, _Out_ double *pFramerate);
-	virtual HRESULT GetFrameSize(_In_ IMFMediaType *pMediaType, _Out_ SIZE *pFrameSize);
+	virtual HRESULT GetFrameSize(_In_ IMFAttributes *pMediaType, _Out_ SIZE *pFrameSize);
 	virtual HRESULT GetDefaultStride(_In_ IMFMediaType *pType, _Out_ LONG *plStride);
 	virtual HRESULT CreateOutputMediaType(_In_ SIZE frameSize, _Outptr_ IMFMediaType **pType, _Out_ LONG *stride);
 	virtual HRESULT CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMediaType, _Outptr_ IMFTransform **pColorConverter, _Outptr_ IMFMediaType **ppOutputMediaType);

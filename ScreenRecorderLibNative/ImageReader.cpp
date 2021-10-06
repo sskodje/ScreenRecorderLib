@@ -41,6 +41,7 @@ HRESULT ImageReader::StartCapture(_In_ RECORDING_SOURCE_BASE &source)
 HRESULT ImageReader::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize)
 {
 	HRESULT hr = S_OK;
+	MeasureExecutionTime measure(L"ImageReader GetNativeSize");
 	if (!m_Texture) {
 		CComPtr<IWICBitmapSource> pBitmap;
 		HRESULT hr = CreateWICBitmapFromFile(recordingSource.SourcePath.c_str(), GUID_WICPixelFormat32bppBGRA, &pBitmap);

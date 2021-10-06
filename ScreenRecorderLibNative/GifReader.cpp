@@ -61,6 +61,7 @@ HRESULT GifReader::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSource)
 HRESULT GifReader::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize)
 {
 	HRESULT hr = S_OK;
+	MeasureExecutionTime measure(L"GifReader GetNativeSize");
 	if (m_cxGifImage == 0 || m_cyGifImage == 0) {
 		RETURN_ON_BAD_HR(hr = InitializeDecoder(recordingSource.SourcePath));
 	}

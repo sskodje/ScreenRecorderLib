@@ -14,7 +14,7 @@ protected:
 		_Out_ long *pStreamIndex,
 		_Outptr_ IMFSourceReader **ppSourceReader,
 		_Outptr_ IMFMediaType **ppInputMediaType,
-		_Outptr_ IMFMediaType **ppOutputMediaType,
+		_Outptr_opt_ IMFMediaType **ppOutputMediaType,
 		_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform) override;
 private:
 	HRESULT InitializeMediaSource(
@@ -22,7 +22,7 @@ private:
 		_Out_ long *pStreamIndex,
 		_Outptr_ IMFSourceReader **ppSourceReader,
 		_Outptr_ IMFMediaType **ppInputMediaType,
-		_Outptr_ IMFMediaType **ppOutputMediaType,
+		_Outptr_opt_ IMFMediaType **ppOutputMediaType,
 		_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform
 	);
 	std::wstring m_DeviceName;
