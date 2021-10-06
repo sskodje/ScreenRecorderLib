@@ -560,7 +560,8 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <StackPanel Margin="0,0,25,5">
+                        <StackPanel Margin="0,0,25,5"
+                                    x:Name="VideoSettingsPanel">
                             <StackPanel Orientation="Horizontal">
                                 <Label Content="Mode"
                                        Width="85"
@@ -742,7 +743,8 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
-                            <StackPanel Margin="0,5,0,0">
+                            <StackPanel Margin="0,5,0,0"
+                                        x:Name="MouseSettingsPanel">
                                 <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsMousePointerEnabled}"
                                           Content="Show mouse pointer" />
                                 <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsMouseClicksDetected}"
@@ -854,6 +856,7 @@
                             <ColumnDefinition Width="0.5*" />
                         </Grid.ColumnDefinitions>
                         <CheckBox IsChecked="{Binding ElementName=MainWin,Path=IsAudioEnabled}"
+                                  x:Name="CheckBoxIsAudioEnabled"
                                   VerticalAlignment="Center"
                                   Content="Record audio" />
                         <StackPanel Orientation="Horizontal"

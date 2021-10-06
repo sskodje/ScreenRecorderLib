@@ -92,7 +92,7 @@ RecordingManager::~RecordingManager()
 		m_TaskWrapperImpl->m_RecordTask.wait();
 		LOG_DEBUG("Wait for recording task completed.");
 	}
-	for each (RECORDING_SOURCE *source in m_RecordingSources)
+	for each (RECORDING_SOURCE * source in m_RecordingSources)
 	{
 		delete source;
 	}
@@ -363,7 +363,7 @@ void RecordingManager::SetRecordingCompleteStatus(_In_ HRESULT hr, nlohmann::fif
 	}
 }
 
-HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE*> &sources, _In_ const std::vector<RECORDING_OVERLAY*> &overlays, _In_opt_ IStream *pStream)
+HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_opt_ IStream *pStream)
 {
 	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 	CComPtr<ID3D11Texture2D> pCurrentFrameCopy = nullptr;
@@ -405,7 +405,10 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 	SetViewPort(m_DeviceContext, videoOutputFrameSize.cx, videoOutputFrameSize.cy);
 
 	if (m_RecorderMode == RecorderModeInternal::Video) {
-		pAudioManager->Initialize(GetAudioOptions());
+		hr = pAudioManager->Initialize(GetAudioOptions());
+		if (FAILED(hr)) {
+			LOG_ERROR(L"Audio capture failed to start: hr = 0x%08x", hr);
+		}
 	}
 
 	std::chrono::steady_clock::time_point lastFrame = std::chrono::steady_clock::now();
@@ -443,7 +446,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 			}
 		}
 		ID3D11Texture2D *processedTexture;
-		RETURN_ON_BAD_HR(hr = ProcessTextureTransforms(pTexture, &processedTexture, videoInputFrameRect, videoOutputFrameSize));
+		RETURN_ON_BAD_HR(renderHr = ProcessTextureTransforms(pTexture, &processedTexture, videoInputFrameRect, videoOutputFrameSize));
 		pTexture.Release();
 		pTexture.Attach(processedTexture);
 
@@ -710,7 +713,7 @@ bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
 		result = false;
 	}
 	else {
-		for each (auto *source in m_RecordingSources)
+		for each (auto * source in m_RecordingSources)
 		{
 			if (source->SourceApi.has_value() && source->SourceApi == RecordingSourceApi::DesktopDuplication && !IsWindows8OrGreater()) {
 				errorText = L"Desktop Duplication requires Windows 8 or greater.";

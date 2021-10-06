@@ -320,7 +320,6 @@ public:
 	float GetInputVolume() { return m_InputVolumeModifier; }
 	bool IsOutputDeviceEnabled() { return m_IsOutputDeviceEnabled; }
 	bool IsInputDeviceEnabled() { return m_IsInputDeviceEnabled; }
-	bool IsAnyAudioDeviceEnabled() { return IsAudioEnabled() && (IsOutputDeviceEnabled() || IsInputDeviceEnabled()); }
 	GUID GetAudioEncoderFormat() { return AUDIO_ENCODING_FORMAT; }
 	UINT32 GetAudioBitsPerSample() { return AUDIO_BITS_PER_SAMPLE; }
 	UINT32 GetAudioSamplesPerSecond() { return AUDIO_SAMPLES_PER_SECOND; }

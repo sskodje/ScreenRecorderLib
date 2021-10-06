@@ -229,7 +229,7 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 	AudioClientStopOnExit stopAudioClient(pAudioClient);
 
 	SetEvent(hStartedEvent);
-
+	m_IsCapturing = true;
 	// loopback capture loop
 	HANDLE waitArray[2] = { hStopEvent, hWakeUp };
 	DWORD dwWaitResult;
@@ -250,7 +250,7 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 			UINT32 nNumFramesToRead;
 			DWORD dwFlags;
 			UINT64 nDevicePosition;
-			m_IsCapturing = true;
+
 			hr = pAudioCaptureClient->GetBuffer(
 				&pData,
 				&nNumFramesToRead,
@@ -318,7 +318,7 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 			bFirstPacket = false;
 			nLastDevicePosition = nDevicePosition;
 		}
-		m_IsCapturing = false;
+
 		if (FAILED(hr)) {
 			LOG_ERROR(L"IAudioCaptureClient::GetNextPacketSize failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, m_Tag.c_str(), hr);
 			bDone = true;
@@ -343,6 +343,7 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 			continue; // exits loop
 		}
 	} // capture loop
+	m_IsCapturing = false;
 	return hr;
 }
 std::vector<BYTE> LoopbackCapture::PeakRecordedBytes()

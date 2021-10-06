@@ -111,7 +111,7 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 		 * If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
 		 * We ignore every instance where the last frame had audio, due to sometimes very short frame durations due to mouse cursor changes have zero audio length,
 		 * and inserting silence between two frames that has audio leads to glitching. */
-		if (GetAudioOptions()->IsAnyAudioDeviceEnabled() && model.Audio.size() == 0 && model.Duration > 0) {
+		if (GetAudioOptions()->IsAudioEnabled() &&  model.Audio.size() == 0 && model.Duration > 0) {
 			if (!m_LastFrameHadAudio) {
 				int frameCount = int(ceil(GetAudioOptions()->GetAudioSamplesPerSecond() * HundredNanosToMillis(model.Duration) / 1000));
 				int byteCount = frameCount * (GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels();
@@ -175,21 +175,21 @@ void OutputManager::WriteTextureToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesk
 		return WriteFrameToImage(pAcquiredDesktopImage, filePath);
 	   }).then([this, filePath, pAcquiredDesktopImage, onCompletion](concurrency::task<HRESULT> t)
 		   {
-			  HRESULT hr;
-			  try {
-				  hr = t.get();
-				  // if .get() didn't throw and the HRESULT succeeded, there are no errors.
-			  }
-			  catch (const exception &e) {
-				  // handle error
-				  LOG_ERROR(L"Exception saving snapshot: %s", e.what());
-				  hr = E_FAIL;
-			  }
-			  pAcquiredDesktopImage->Release();
-			  if (onCompletion) {
-				  std::invoke(onCompletion, hr);
-			  }
-			  return hr;
+			   HRESULT hr;
+			   try {
+				   hr = t.get();
+				   // if .get() didn't throw and the HRESULT succeeded, there are no errors.
+			   }
+			   catch (const exception &e) {
+				   // handle error
+				   LOG_ERROR(L"Exception saving snapshot: %s", e.what());
+				   hr = E_FAIL;
+			   }
+			   pAcquiredDesktopImage->Release();
+			   if (onCompletion) {
+				   std::invoke(onCompletion, hr);
+			   }
+			   return hr;
 		   });
 }
 
@@ -216,7 +216,7 @@ HRESULT OutputManager::ConfigureOutputMediaTypes(
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, GetEncoderOptions()->GetVideoFps(), 1));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
 
-	if (GetAudioOptions()->IsAnyAudioDeviceEnabled()) {
+	if (GetAudioOptions()->IsAudioEnabled()) {
 		// Set the output audio type.
 		RETURN_ON_BAD_HR(MFCreateMediaType(&pAudioMediaType));
 		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
@@ -256,7 +256,7 @@ HRESULT OutputManager::ConfigureInputMediaTypes(
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
 	pVideoMediaType->SetUINT32(MF_MT_VIDEO_ROTATION, rotationFormat);
 
-	if (GetAudioOptions()->IsAnyAudioDeviceEnabled()) {
+	if (GetAudioOptions()->IsAudioEnabled()) {
 		// Set the input audio type.
 		RETURN_ON_BAD_HR(MFCreateMediaType(&pAudioMediaType));
 		RETURN_ON_BAD_HR(pAudioMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));

@@ -1,30 +1,22 @@
 #include "AudioManager.h"
+#include "cleanup.h"
 
-
+using namespace std;
 AudioManager::AudioManager() :
 	m_AudioOptions(nullptr)
 {
-
+	InitializeCriticalSection(&m_CriticalSection);
 }
 
 AudioManager::~AudioManager()
 {
+	DeleteCriticalSection(&m_CriticalSection);
 }
 
 HRESULT AudioManager::Initialize(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptions)
 {
 	m_AudioOptions = audioOptions;
-	LoopbackCapture *outputCapture = nullptr;
-	LoopbackCapture *inputCapture = nullptr;
-	HRESULT hr = InitializeAudioCapture(&outputCapture, &inputCapture);
-	if (SUCCEEDED(hr)) {
-		m_LoopbackCaptureOutputDevice = std::unique_ptr<LoopbackCapture>(outputCapture);
-		m_LoopbackCaptureInputDevice = std::unique_ptr<LoopbackCapture>(inputCapture);
-	}
-	else {
-		LOG_ERROR(L"Audio capture failed to start: hr = 0x%08x", hr);
-	}
-	return hr;
+	return InitializeAudioCapture();
 }
 
 void AudioManager::ClearRecordedBytes()
@@ -35,31 +27,56 @@ void AudioManager::ClearRecordedBytes()
 		m_LoopbackCaptureInputDevice->ClearRecordedBytes();
 }
 
-HRESULT AudioManager::InitializeAudioCapture(_Outptr_result_maybenull_ LoopbackCapture **outputAudioCapture, _Outptr_result_maybenull_ LoopbackCapture **inputAudioCapture)
+HRESULT AudioManager::InitializeAudioCapture()
 {
-	LoopbackCapture *pLoopbackCaptureOutputDevice = nullptr;
-	LoopbackCapture *pLoopbackCaptureInputDevice = nullptr;
 	HRESULT hr = S_FALSE;
-	if (GetAudioOptions()->IsAudioEnabled()) {
-		if (GetAudioOptions()->IsOutputDeviceEnabled())
-		{
-			pLoopbackCaptureOutputDevice = new LoopbackCapture(L"AudioOutputDevice");
-			hr = pLoopbackCaptureOutputDevice->StartCapture(GetAudioOptions()->GetAudioSamplesPerSecond(), GetAudioOptions()->GetAudioChannels(), GetAudioOptions()->GetAudioOutputDevice(), eRender);
+	if (GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsOutputDeviceEnabled())
+	{
+		if (!m_LoopbackCaptureOutputDevice) {
+			m_LoopbackCaptureOutputDevice = make_unique<LoopbackCapture>(L"AudioOutputDevice");
+			LOG_DEBUG("Created audio capture AudioOutputDevice");
 		}
-
-		if (GetAudioOptions()->IsInputDeviceEnabled())
-		{
-			pLoopbackCaptureInputDevice = new LoopbackCapture(L"AudioInputDevice");
-			hr = pLoopbackCaptureInputDevice->StartCapture(GetAudioOptions()->GetAudioSamplesPerSecond(), GetAudioOptions()->GetAudioChannels(), GetAudioOptions()->GetAudioInputDevice(), eCapture);
+		if (!m_LoopbackCaptureOutputDevice->IsCapturing()) {
+			hr = m_LoopbackCaptureOutputDevice->StartCapture(GetAudioOptions()->GetAudioSamplesPerSecond(), GetAudioOptions()->GetAudioChannels(), GetAudioOptions()->GetAudioOutputDevice(), eRender);
+			if (SUCCEEDED(hr)) {
+				LOG_DEBUG("Started audio capture on AudioOutputDevice");
+			}
 		}
 	}
-	*outputAudioCapture = pLoopbackCaptureOutputDevice;
-	*inputAudioCapture = pLoopbackCaptureInputDevice;
+	else {
+		if (m_LoopbackCaptureOutputDevice && m_LoopbackCaptureOutputDevice->IsCapturing()) {
+			m_LoopbackCaptureOutputDevice->StopCapture();
+			LOG_DEBUG("Stopped audio capture on AudioOutputDevice");
+		}
+	}
+
+	if (GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsInputDeviceEnabled())
+	{
+		if (!m_LoopbackCaptureInputDevice) {
+			m_LoopbackCaptureInputDevice = make_unique<LoopbackCapture>(L"AudioInputDevice");
+			LOG_DEBUG("Created audio capture AudioInputDevice");
+		}
+		if (!m_LoopbackCaptureInputDevice->IsCapturing()) {
+			hr = m_LoopbackCaptureInputDevice->StartCapture(GetAudioOptions()->GetAudioSamplesPerSecond(), GetAudioOptions()->GetAudioChannels(), GetAudioOptions()->GetAudioInputDevice(), eCapture);
+			if (SUCCEEDED(hr)) {
+				LOG_DEBUG("started audio capture on AudioInputDevice");
+			}
+		}
+	}
+	else {
+		if (m_LoopbackCaptureInputDevice && m_LoopbackCaptureInputDevice->IsCapturing()) {
+			m_LoopbackCaptureInputDevice->StopCapture();
+			LOG_DEBUG("Stopped audio capture on AudioInputDevice");
+		}
+	}
 	return hr;
 }
 
 std::vector<BYTE> AudioManager::GrabAudioFrame()
 {
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
+	InitializeAudioCapture();
 	if (m_LoopbackCaptureOutputDevice && m_LoopbackCaptureInputDevice) {
 
 		auto returnAudioOverflowToBuffer = [&](auto &outputDeviceData, auto &inputDeviceData) {

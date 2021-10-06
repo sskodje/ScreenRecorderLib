@@ -60,13 +60,47 @@ namespace TestApp
         public ObservableCollection<AudioDevice> AudioInputsList { get; set; } = new ObservableCollection<AudioDevice>();
         public ObservableCollection<AudioDevice> AudioOutputsList { get; set; } = new ObservableCollection<AudioDevice>();
         public ObservableCollection<RecordableCamera> VideoCaptureDevices { get; set; } = new ObservableCollection<RecordableCamera>();
-        public bool IsAudioInEnabled { get; set; } = false;
-        public bool IsAudioOutEnabled { get; set; } = true;
         public string LogFilePath { get; set; } = "log.txt";
         public bool IsLogToFileEnabled { get; set; }
         public bool IsLogEnabled { get; set; } = true;
 
         public LogLevel LogSeverityLevel { get; set; } = LogLevel.Debug;
+
+
+        private bool _isAudioInEnabled;
+        public bool IsAudioInEnabled
+        {
+            get { return _isAudioInEnabled; }
+            set
+            {
+                if (_isAudioInEnabled != value)
+                {
+                    _isAudioInEnabled = value;
+                    RaisePropertyChanged(nameof(IsAudioInEnabled));
+                    _rec?.GetDynamicOptionsBuilder()
+                         .SetDynamicAudioOptions(new DynamicAudioOptions { IsInputDeviceEnabled = value })
+                         .Apply();
+                }
+            }
+        }
+
+        private bool _isAudioOutEnabled = true;
+        public bool IsAudioOutEnabled
+        {
+            get { return _isAudioOutEnabled; }
+            set
+            {
+                if (_isAudioOutEnabled != value)
+                {
+                    _isAudioOutEnabled = value;
+                    RaisePropertyChanged(nameof(IsAudioOutEnabled));
+                    _rec?.GetDynamicOptionsBuilder()
+                         .SetDynamicAudioOptions(new DynamicAudioOptions { IsOutputDeviceEnabled = value })
+                         .Apply();
+                }
+            }
+        }
+
 
         private bool _recordToStream;
         public bool RecordToStream
@@ -651,6 +685,7 @@ namespace TestApp
                     case RecorderStatus.Idle:
                         this.StatusTextBlock.Text = "Idle";
                         this.SettingsPanel.IsEnabled = true;
+                        this.CheckBoxIsAudioEnabled.IsEnabled = true;
                         break;
                     case RecorderStatus.Recording:
                         _recordingStartTime = DateTimeOffset.Now;
@@ -667,6 +702,7 @@ namespace TestApp
                         PauseButton.Content = "Pause";
                         this.StatusTextBlock.Text = "Recording";
                         this.SettingsPanel.IsEnabled = false;
+                        this.CheckBoxIsAudioEnabled.IsEnabled = false;
                         break;
                     case RecorderStatus.Paused:
                         if (_progressTimer != null)
@@ -781,22 +817,16 @@ namespace TestApp
 
         private void OnInputVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (_rec != null)
-            {
-                _rec.GetDynamicOptionsBuilder()
-                    .SetDynamicAudioOptions(new DynamicAudioOptions { InputVolume = (float)e.NewValue })
-                    .Apply();
-            }
+            _rec?.GetDynamicOptionsBuilder()
+                .SetDynamicAudioOptions(new DynamicAudioOptions { InputVolume = (float)e.NewValue })
+                .Apply();
         }
 
         private void OnOutputVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
-            if (_rec != null)
-            {
-                _rec.GetDynamicOptionsBuilder()
-                    .SetDynamicAudioOptions(new DynamicAudioOptions { OutputVolume = (float)e.NewValue })
-                    .Apply();
-            }
+            _rec?.GetDynamicOptionsBuilder()
+                .SetDynamicAudioOptions(new DynamicAudioOptions { OutputVolume = (float)e.NewValue })
+                .Apply();
         }
 
         private void RecordingApiComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
