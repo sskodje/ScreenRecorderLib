@@ -76,7 +76,9 @@ std::vector<BYTE> AudioManager::GrabAudioFrame()
 {
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
-	InitializeAudioCapture();
+	if (m_AudioOptions) {
+		InitializeAudioCapture();
+	}
 	if (m_LoopbackCaptureOutputDevice && m_LoopbackCaptureInputDevice) {
 
 		auto returnAudioOverflowToBuffer = [&](auto &outputDeviceData, auto &inputDeviceData) {
