@@ -88,11 +88,13 @@ HRESULT WindowsGraphicsCapture::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outp
 	if (SUCCEEDED(hr) && ppFrame) {
 		D3D11_TEXTURE2D_DESC desc;
 		m_CurrentData.Frame->GetDesc(&desc);
-		ID3D11Texture2D *pFrame;
-		m_Device->CreateTexture2D(&desc, nullptr, &pFrame);
-		m_DeviceContext->CopyResource(pFrame, m_CurrentData.Frame);
+		ID3D11Texture2D *pFrame= nullptr;
+		hr = m_Device->CreateTexture2D(&desc, nullptr, &pFrame);
+		if (SUCCEEDED(hr)) {
+			m_DeviceContext->CopyResource(pFrame, m_CurrentData.Frame);
+			QueryPerformanceCounter(&m_LastGrabTimeStamp);
+		}
 		*ppFrame = pFrame;
-		QueryPerformanceCounter(&m_LastGrabTimeStamp);
 	}
 
 	return hr;
@@ -227,7 +229,7 @@ HRESULT WindowsGraphicsCapture::GetNativeSize(_In_ RECORDING_SOURCE_BASE &record
 	return S_OK;
 }
 
-HRESULT WindowsGraphicsCapture::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuffer, _In_ RECT frameCoordinates, _In_ int offsetX, _In_ int offsetY)
+HRESULT WindowsGraphicsCapture::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ RECT frameCoordinates, _In_ int offsetX, _In_ int offsetY)
 {
 	// Windows Graphics Capture includes the mouse cursor on the texture, so we only get the positioning info for mouse click draws.
 	return m_MouseManager->GetMouse(pPtrInfo, false, offsetX, offsetY);

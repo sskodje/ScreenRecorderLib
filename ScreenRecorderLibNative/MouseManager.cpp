@@ -8,9 +8,12 @@
 
 using namespace DirectX;
 using namespace Concurrency;
+using namespace std;
 
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "D2d1.lib")
+
+#define ET_QUITLOOP WM_USER+1
 
 INT64 g_LastMouseClickDurationRemaining = 0;
 INT g_MouseClickDetectionDurationMillis = 50;
@@ -18,6 +21,19 @@ UINT g_LastMouseClickButton = 0;
 
 concurrency::task<void> pollingTask = concurrency::task_from_result();
 
+DWORD WINAPI MouseHookThreadProc(_In_ void *Param) {
+	HHOOK mouseHook = SetWindowsHookEx(WH_MOUSE_LL, MouseHookProc, nullptr, 0);
+	MSG msg;
+	while (true) {
+		GetMessage(&msg, NULL, 0, 0);
+		if (msg.message == ET_QUITLOOP) {
+			break;
+		}
+	}
+	UnhookWindowsHookEx(mouseHook);
+	LOG_INFO("Exiting mouse click hook thread");
+	return 0;
+}
 LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam)
 {
 	// MB1 click
@@ -38,19 +54,20 @@ MouseManager::MouseManager() :
 	m_MouseOptions(nullptr),
 	m_DeviceContext(nullptr),
 	m_Device(nullptr),
-	m_Mousehook(nullptr),
 	m_StopPollingTaskEvent(nullptr),
-	m_LastMouseDrawTimeStamp(std::chrono::steady_clock::now())
+	m_LastMouseDrawTimeStamp(std::chrono::steady_clock::now()),
+	m_IsCapturingMouseClicks(false),
+	m_MouseHookThread(nullptr),
+	m_MouseHookThreadId(0)
 {
-
+	InitializeCriticalSection(&m_CriticalSection);
 }
 
 MouseManager::~MouseManager()
 {
-	UnhookWindowsHookEx(m_Mousehook);
-	SetEvent(m_StopPollingTaskEvent);
-	pollingTask.wait();
+	StopMouseClickDetection();
 	CloseHandle(m_StopPollingTaskEvent);
+	DeleteCriticalSection(&m_CriticalSection);
 }
 
 HRESULT MouseManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<MOUSE_OPTIONS> &pOptions)
@@ -99,41 +116,66 @@ HRESULT MouseManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ 
 void MouseManager::InitializeMouseClickDetection()
 {
 	if (m_MouseOptions->IsMouseClicksDetected()) {
-		switch (m_MouseOptions->GetMouseClickDetectionMode())
-		{
-		default:
-		case MOUSE_OPTIONS::MOUSE_DETECTION_MODE_POLLING: {
-			pollingTask = create_task([this]() {
-				LOG_INFO("Starting mouse click polling task");
-				while (true) {
-					if (GetKeyState(VK_LBUTTON) < 0)
-					{
-						//If left mouse button is held, reset the duration of click duration
-						g_LastMouseClickButton = VK_LBUTTON;
-						g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-					}
-					else if (GetKeyState(VK_RBUTTON) < 0)
-					{
-						//If right mouse button is held, reset the duration of click duration
-						g_LastMouseClickButton = VK_RBUTTON;
-						g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-					}
+		if (!m_IsCapturingMouseClicks) {
+			switch (m_MouseOptions->GetMouseClickDetectionMode())
+			{
+				default:
+				case MOUSE_OPTIONS::MOUSE_DETECTION_MODE_POLLING: {
+					ResetEvent(m_StopPollingTaskEvent);
+					pollingTask = create_task([this]() {
+						LOG_INFO("Starting mouse click polling task");
+						while (true) {
+							if (GetKeyState(VK_LBUTTON) < 0)
+							{
+								//If left mouse button is held, reset the duration of click duration
+								g_LastMouseClickButton = VK_LBUTTON;
+								g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
+							}
+							else if (GetKeyState(VK_RBUTTON) < 0)
+							{
+								//If right mouse button is held, reset the duration of click duration
+								g_LastMouseClickButton = VK_RBUTTON;
+								g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
+							}
 
-					if (WaitForSingleObjectEx(m_StopPollingTaskEvent, 0, FALSE) == WAIT_OBJECT_0) {
-						break;
-					}
-					wait(1);
+							if (WaitForSingleObjectEx(m_StopPollingTaskEvent, 0, FALSE) == WAIT_OBJECT_0) {
+								break;
+							}
+							wait(1);
+						}
+						LOG_INFO("Exiting mouse click polling task");
+
+						});
+					m_IsCapturingMouseClicks = true;
+					break;
 				}
-				LOG_INFO("Exiting mouse click polling task");
-				});
-			break;
-		}
-		case MOUSE_OPTIONS::MOUSE_DETECTION_MODE_HOOK: {
-			m_Mousehook = SetWindowsHookEx(WH_MOUSE_LL, MouseHookProc, nullptr, 0);
-			break;
-		}
+				case MOUSE_OPTIONS::MOUSE_DETECTION_MODE_HOOK: {
+					m_MouseHookThread = CreateThread(nullptr, 0, MouseHookThreadProc, nullptr, 0, &m_MouseHookThreadId);
+					m_IsCapturingMouseClicks = true;
+					LOG_INFO("Created mouse click detection hook");
+					break;
+				}
+			}
 		}
 	}
+	else if (m_IsCapturingMouseClicks) {
+		StopMouseClickDetection();
+	}
+}
+
+void MouseManager::StopMouseClickDetection()
+{
+	if (m_MouseHookThread) {
+		PostThreadMessageA(m_MouseHookThreadId, ET_QUITLOOP, 0, 0);
+		WaitForSingleObjectEx(m_MouseHookThread, INFINITE, false);
+		m_MouseHookThread = nullptr;
+		m_MouseHookThreadId = 0;
+	}
+	if (!pollingTask.is_done()) {
+		SetEvent(m_StopPollingTaskEvent);
+		pollingTask.wait();
+	}
+	m_IsCapturingMouseClicks = false;
 }
 
 HRESULT MouseManager::InitMouseClickTexture(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice) {
@@ -156,30 +198,33 @@ void MouseManager::GetPointerPosition(_In_ PTR_INFO *pPtrInfo, DXGI_MODE_ROTATIO
 {
 	switch (rotation)
 	{
-	default:
-	case DXGI_MODE_ROTATION_UNSPECIFIED:
-	case DXGI_MODE_ROTATION_IDENTITY:
-		*PtrLeft = pPtrInfo->Position.x;
-		*PtrTop = pPtrInfo->Position.y;
-		break;
-	case DXGI_MODE_ROTATION_ROTATE90:
-		*PtrLeft = pPtrInfo->Position.y;
-		*PtrTop = desktopHeight - pPtrInfo->Position.x - (pPtrInfo->ShapeInfo.Height);
-		break;
-	case DXGI_MODE_ROTATION_ROTATE180:
-		*PtrLeft = desktopWidth - pPtrInfo->Position.x - (pPtrInfo->ShapeInfo.Width);
-		*PtrTop = desktopHeight - pPtrInfo->Position.y - (pPtrInfo->ShapeInfo.Height);
-		break;
-	case DXGI_MODE_ROTATION_ROTATE270:
-		*PtrLeft = desktopWidth - pPtrInfo->Position.y - pPtrInfo->ShapeInfo.Height;
-		*PtrTop = pPtrInfo->Position.x;
-		break;
+		default:
+		case DXGI_MODE_ROTATION_UNSPECIFIED:
+		case DXGI_MODE_ROTATION_IDENTITY:
+			*PtrLeft = pPtrInfo->Position.x;
+			*PtrTop = pPtrInfo->Position.y;
+			break;
+		case DXGI_MODE_ROTATION_ROTATE90:
+			*PtrLeft = pPtrInfo->Position.y;
+			*PtrTop = desktopHeight - pPtrInfo->Position.x - (pPtrInfo->ShapeInfo.Height);
+			break;
+		case DXGI_MODE_ROTATION_ROTATE180:
+			*PtrLeft = desktopWidth - pPtrInfo->Position.x - (pPtrInfo->ShapeInfo.Width);
+			*PtrTop = desktopHeight - pPtrInfo->Position.y - (pPtrInfo->ShapeInfo.Height);
+			break;
+		case DXGI_MODE_ROTATION_ROTATE270:
+			*PtrLeft = desktopWidth - pPtrInfo->Position.y - pPtrInfo->ShapeInfo.Height;
+			*PtrTop = pPtrInfo->Position.x;
+			break;
 	}
 }
 
 HRESULT MouseManager::ProcessMousePointer(_In_ ID3D11Texture2D *pFrame, _In_ PTR_INFO *pPtrInfo)
 {
 	HRESULT hr = S_FALSE;
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
+	InitializeMouseClickDetection();
 	if (g_LastMouseClickDurationRemaining > 0
 		&& m_MouseOptions->IsMouseClicksDetected())
 	{
@@ -327,28 +372,28 @@ HRESULT MouseManager::DrawMousePointer(_In_ PTR_INFO *pPtrInfo, _Inout_ ID3D11Te
 
 	switch (pPtrInfo->ShapeInfo.Type)
 	{
-	case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
-	{
-		PtrWidth = static_cast<INT>(pPtrInfo->ShapeInfo.Width);
-		PtrHeight = static_cast<INT>(pPtrInfo->ShapeInfo.Height);
+		case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR:
+		{
+			PtrWidth = static_cast<INT>(pPtrInfo->ShapeInfo.Width);
+			PtrHeight = static_cast<INT>(pPtrInfo->ShapeInfo.Height);
 
-		GetPointerPosition(pPtrInfo, rotation, DesktopWidth, DesktopHeight, &PtrLeft, &PtrTop);
+			GetPointerPosition(pPtrInfo, rotation, DesktopWidth, DesktopHeight, &PtrLeft, &PtrTop);
 
-		break;
-	}
-	case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME:
-	{
-		ProcessMonoMask(pBgTexture, rotation, true, pPtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer);
-		break;
-	}
-	case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
-	{
-		ProcessMonoMask(pBgTexture, rotation, false, pPtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer);
-		break;
-	}
-	default:
-		LOG_ERROR("Unrecognized mouse pointer type");
-		return E_FAIL;
+			break;
+		}
+		case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME:
+		{
+			ProcessMonoMask(pBgTexture, rotation, true, pPtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer);
+			break;
+		}
+		case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MASKED_COLOR:
+		{
+			ProcessMonoMask(pBgTexture, rotation, false, pPtrInfo, &PtrWidth, &PtrHeight, &PtrLeft, &PtrTop, &InitBuffer);
+			break;
+		}
+		default:
+			LOG_ERROR("Unrecognized mouse pointer type");
+			return E_FAIL;
 	}
 	// VERTEX creation
 	if (rotation == DXGI_MODE_ROTATION_UNSPECIFIED
@@ -779,13 +824,13 @@ HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuf
 	// Make sure we don't update pointer position wrongly
 	// If pointer is invisible, make sure we did not get an update from another output that the last time that said pointer
 	// was visible, if so, don't set it to invisible or update.
-	if (!pFrameInfo->PointerPosition.Visible && (pPtrInfo->WhoUpdatedPositionLast != m_OutputNumber))
+	if (!pFrameInfo->PointerPosition.Visible && !EqualRect(&pPtrInfo->WhoUpdatedPositionLast, &screenRect))
 	{
 		UpdatePosition = false;
 	}
 
 	// If two outputs both say they have a visible, only update if new update has newer timestamp
-	if (pFrameInfo->PointerPosition.Visible && pPtrInfo->Visible && (pPtrInfo->WhoUpdatedPositionLast != m_OutputNumber) && (pPtrInfo->LastTimeStamp.QuadPart > pFrameInfo->LastMouseUpdateTime.QuadPart))
+	if (pFrameInfo->PointerPosition.Visible && pPtrInfo->Visible && !EqualRect(&pPtrInfo->WhoUpdatedPositionLast, &screenRect) && (pPtrInfo->LastTimeStamp.QuadPart > pFrameInfo->LastMouseUpdateTime.QuadPart))
 	{
 		UpdatePosition = false;
 	}
@@ -795,7 +840,7 @@ HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuf
 	{
 		pPtrInfo->Position.x = pFrameInfo->PointerPosition.Position.x + screenRect.left + offsetX;
 		pPtrInfo->Position.y = pFrameInfo->PointerPosition.Position.y + screenRect.top + offsetY;
-		pPtrInfo->WhoUpdatedPositionLast = m_OutputNumber;
+		pPtrInfo->WhoUpdatedPositionLast = screenRect;
 		pPtrInfo->LastTimeStamp = pFrameInfo->LastMouseUpdateTime;
 		pPtrInfo->Visible = pFrameInfo->PointerPosition.Visible != 0;
 	}

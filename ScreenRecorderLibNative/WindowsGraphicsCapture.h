@@ -17,7 +17,7 @@ public:
 	virtual HRESULT StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSource) override;
 	virtual HRESULT StopCapture();
 	virtual HRESULT GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize) override;
-	virtual HRESULT GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuffer, _In_ RECT frameCoordinates, _In_ int offsetX, _In_ int offsetY) override;
+	virtual HRESULT GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ RECT frameCoordinates, _In_ int offsetX, _In_ int offsetY) override;
 	virtual inline std::wstring Name() override { return L"WindowsGraphicsCapture"; };
 
 private:

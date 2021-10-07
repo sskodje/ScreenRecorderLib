@@ -663,10 +663,12 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			// We can now process the current frame
 			WaitToProcessCurrentFrame = false;
 
-			// Get mouse info
-			hr = pRecordingSource->GetMouse(pData->PtrInfo, pSource->IsCursorCaptureEnabled.value_or(false), pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-			if (FAILED(hr)) {
-				LOG_ERROR("Failed to get mouse data");
+			if (pSource->IsCursorCaptureEnabled.value_or(false)) {
+				// Get mouse info
+				hr = pRecordingSource->GetMouse(pData->PtrInfo, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+				if (FAILED(hr)) {
+					LOG_ERROR("Failed to get mouse data");
+				}
 			}
 			hr = pRecordingSource->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates, pSource->SourceRect);
 			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {

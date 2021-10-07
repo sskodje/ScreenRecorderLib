@@ -52,11 +52,6 @@ namespace TestApp
         public bool IsLowLatencyEnabled { get; set; } = false;
         public bool IsMp4FastStartEnabled { get; set; } = false;
         public bool IsFragmentedMp4Enabled { get; set; } = false;
-        public bool IsMouseClicksDetected { get; set; } = false;
-        public string MouseLeftClickColor { get; set; } = "#ffff00";
-        public string MouseRightClickColor { get; set; } = "#006aff";
-        public int MouseClickRadius { get; set; } = 20;
-        public int MouseClickDuration { get; set; } = 50;
         public ObservableCollection<AudioDevice> AudioInputsList { get; set; } = new ObservableCollection<AudioDevice>();
         public ObservableCollection<AudioDevice> AudioOutputsList { get; set; } = new ObservableCollection<AudioDevice>();
         public ObservableCollection<RecordableCamera> VideoCaptureDevices { get; set; } = new ObservableCollection<RecordableCamera>();
@@ -66,6 +61,85 @@ namespace TestApp
 
         public LogLevel LogSeverityLevel { get; set; } = LogLevel.Debug;
 
+        private int _mouseClickDuration = 50;
+        public int MouseClickDuration
+        {
+            get { return _mouseClickDuration; }
+            set
+            {
+                if (_mouseClickDuration != value)
+                {
+                    _mouseClickDuration = value;
+                    RaisePropertyChanged(nameof(MouseClickDuration));
+                }
+            }
+        }
+
+        private int _mouseClickRadius = 20;
+        public int MouseClickRadius
+        {
+            get { return _mouseClickRadius; }
+            set
+            {
+                if (_mouseClickRadius != value)
+                {
+                    _mouseClickRadius = value;
+                    RaisePropertyChanged(nameof(MouseClickRadius));
+                }
+            }
+        }
+
+        private string _mouseRightClickColor = "#006aff";
+        public string MouseRightClickColor
+        {
+            get { return _mouseRightClickColor; }
+            set
+            {
+                if (_mouseRightClickColor != value)
+                {
+                    _mouseRightClickColor = value;
+                    RaisePropertyChanged(nameof(MouseRightClickColor));
+                    _rec?.GetDynamicOptionsBuilder()
+                             .SetDynamicMouseOptions(new DynamicMouseOptions { MouseRightClickDetectionColor = value })
+                             .Apply();
+                }
+            }
+        }
+
+        private string _mouseLeftClickColor = "#ffff00";
+        public string MouseLeftClickColor
+        {
+            get { return _mouseLeftClickColor; }
+            set
+            {
+                if (_mouseLeftClickColor != value)
+                {
+                    _mouseLeftClickColor = value;
+                    RaisePropertyChanged(nameof(MouseLeftClickColor));
+                    _rec?.GetDynamicOptionsBuilder()
+                             .SetDynamicMouseOptions(new DynamicMouseOptions { MouseLeftClickDetectionColor = value })
+                             .Apply();
+                }
+            }
+        }
+
+
+        private bool _isMouseClicksDetected;
+        public bool IsMouseClicksDetected
+        {
+            get { return _isMouseClicksDetected; }
+            set
+            {
+                if (_isMouseClicksDetected != value)
+                {
+                    _isMouseClicksDetected = value;
+                    RaisePropertyChanged(nameof(IsMouseClicksDetected));
+                    _rec?.GetDynamicOptionsBuilder()
+                             .SetDynamicMouseOptions(new DynamicMouseOptions {  IsMouseClicksDetected = value })
+                             .Apply();
+                }
+            }
+        }
 
         private bool _isAudioInEnabled;
         public bool IsAudioInEnabled
@@ -318,6 +392,13 @@ namespace TestApp
             InitializeComponent();
             InitializeDefaultOverlays();
             RefreshCaptureTargetItems();
+
+            this.PropertyChanged += MainWindow_PropertyChanged;
+        }
+
+        private void MainWindow_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+     
         }
 
         private void InitializeDefaultOverlays()
@@ -684,8 +765,10 @@ namespace TestApp
                 {
                     case RecorderStatus.Idle:
                         this.StatusTextBlock.Text = "Idle";
-                        this.SettingsPanel.IsEnabled = true;
+                        this.VideoSettingsPanel.IsEnabled = true;
+                        this.LoggingPanel.IsEnabled = true;
                         this.CheckBoxIsAudioEnabled.IsEnabled = true;
+                        this.MouseClickModePanel.IsEnabled = true;
                         break;
                     case RecorderStatus.Recording:
                         _recordingStartTime = DateTimeOffset.Now;
@@ -701,7 +784,9 @@ namespace TestApp
                         RecordButton.Content = "Stop";
                         PauseButton.Content = "Pause";
                         this.StatusTextBlock.Text = "Recording";
-                        this.SettingsPanel.IsEnabled = false;
+                        this.VideoSettingsPanel.IsEnabled = false;
+                        this.LoggingPanel.IsEnabled = false;
+                        this.MouseClickModePanel.IsEnabled = false;
                         this.CheckBoxIsAudioEnabled.IsEnabled = false;
                         break;
                     case RecorderStatus.Paused:

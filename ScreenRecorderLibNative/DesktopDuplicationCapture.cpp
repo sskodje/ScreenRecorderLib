@@ -134,9 +134,9 @@ HRESULT DesktopDuplicationCapture::GetNativeSize(_In_ RECORDING_SOURCE_BASE &rec
 	}
 	return hr;
 }
-HRESULT DesktopDuplicationCapture::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuffer, _In_ RECT frameCoordinates, _In_ int offsetX, _In_ int offsetY)
+HRESULT DesktopDuplicationCapture::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ RECT frameCoordinates, _In_ int offsetX, _In_ int offsetY)
 {
-	return m_MouseManager->GetMouse(pPtrInfo, getShapeBuffer, &m_CurrentData.FrameInfo, frameCoordinates, m_DeskDupl, offsetX, offsetY);
+	return m_MouseManager->GetMouse(pPtrInfo, true, &m_CurrentData.FrameInfo, frameCoordinates, m_DeskDupl, offsetX, offsetY);
 }
 
 HRESULT DesktopDuplicationCapture::InitializeDesktopDuplication(std::wstring deviceName)

@@ -24,7 +24,7 @@ struct PTR_INFO
 	bool Visible;
 	bool IsPointerShapeUpdated;
 	UINT BufferSize;
-	UINT WhoUpdatedPositionLast;
+	RECT WhoUpdatedPositionLast;
 	LARGE_INTEGER LastTimeStamp;
 };
 

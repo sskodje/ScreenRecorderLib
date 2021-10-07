@@ -15,6 +15,7 @@ public:
 
 	HRESULT Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<MOUSE_OPTIONS> &pOptions);
 	void InitializeMouseClickDetection();
+	void StopMouseClickDetection();
 	HRESULT ProcessMousePointer(_In_ ID3D11Texture2D *pFrame, _In_ PTR_INFO *pPtrInfo);
 	HRESULT GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuffer, _In_ DXGI_OUTDUPL_FRAME_INFO *pFrameInfo, _In_ RECT screenRect, _In_ IDXGIOutputDuplication *pDeskDupl, _In_ int offsetX, _In_ int offsetY);
 	HRESULT GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuffer, _In_ int offsetX, _In_ int offsetY);
@@ -25,8 +26,6 @@ protected:
 private:
 	static const int NUMVERTICES = 6;
 	static const int BPP = 4;
-	//monitor that last updated mouse pointer
-	UINT m_OutputNumber = 0;
 	ATL::CComPtr<ID3D11SamplerState> m_SamplerLinear;
 	ATL::CComPtr<ID3D11BlendState> m_BlendState;
 	ATL::CComPtr<ID3D11VertexShader> m_VertexShader;
@@ -38,8 +37,11 @@ private:
 	ID3D11DeviceContext *m_DeviceContext;
 	ID3D11Device *m_Device;
 
+	CRITICAL_SECTION m_CriticalSection;
+	bool m_IsCapturingMouseClicks;
 	std::chrono::steady_clock::time_point m_LastMouseDrawTimeStamp;
-	HHOOK m_Mousehook;
+	HANDLE m_MouseHookThread;
+	DWORD m_MouseHookThreadId;
 	std::vector<BYTE> _InitBuffer;
 	std::vector<BYTE> _DesktopBuffer;
 	HANDLE m_StopPollingTaskEvent;
