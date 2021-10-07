@@ -223,12 +223,7 @@ namespace ScreenRecorderLib {
 	public ref class DynamicMouseOptions {
 	public:
 		DynamicMouseOptions() {
-			IsMousePointerEnabled = true;
-			IsMouseClicksDetected = false;
-			MouseLeftClickDetectionColor = "#FFFF00";
-			MouseRightClickDetectionColor = "#FFFF00";
-			MouseClickDetectionRadius = 20;
-			MouseClickDetectionDuration = 150;
+
 		}
 		/// <summary>
 		///Display the mouse cursor on the recording
@@ -260,6 +255,12 @@ namespace ScreenRecorderLib {
 	public:
 		MouseOptions() :DynamicMouseOptions() {
 			MouseClickDetectionMode = MouseDetectionMode::Polling;
+			IsMousePointerEnabled = true;
+			IsMouseClicksDetected = false;
+			MouseLeftClickDetectionColor = "#FFFF00";
+			MouseRightClickDetectionColor = "#FFFF00";
+			MouseClickDetectionRadius = 20;
+			MouseClickDetectionDuration = 150;
 		}
 		/// <summary>
 		/// The mode for detecting mouse clicks. Default is Polling.
