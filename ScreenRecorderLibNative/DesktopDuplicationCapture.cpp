@@ -107,8 +107,8 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 
 	if (SUCCEEDED(hr)) {
 		RETURN_ON_BAD_HR(hr = WriteFrameUpdatesToSurface(&m_CurrentData, pSharedSurf, offsetX, offsetY, destinationRect, sourceRect));
-		if (hr == S_OK
-		|| m_CurrentData.FrameInfo.LastPresentTime.QuadPart > 0 && m_CurrentData.FrameInfo.LastMouseUpdateTime.QuadPart > m_LastGrabTimeStamp.QuadPart)
+		if (hr == S_FALSE
+		&&  m_LastGrabTimeStamp.QuadPart > 0 && m_CurrentData.FrameInfo.LastMouseUpdateTime.QuadPart > m_LastGrabTimeStamp.QuadPart)
 		{
 			hr = S_OK;
 		};
