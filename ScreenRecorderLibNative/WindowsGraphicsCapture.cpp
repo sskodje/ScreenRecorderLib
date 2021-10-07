@@ -85,7 +85,6 @@ HRESULT WindowsGraphicsCapture::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outp
 {
 	HRESULT hr = GetNextFrame(timeoutMillis, &m_CurrentData);
 
-	//Must check for S_OK as the result can be S_FALSE for no updates
 	if (SUCCEEDED(hr) && ppFrame) {
 		D3D11_TEXTURE2D_DESC desc;
 		m_CurrentData.Frame->GetDesc(&desc);
@@ -108,8 +107,7 @@ HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeout
 	if (m_closed) {
 		return E_ABORT;
 	}
-	//Must check for S_OK as the result can be S_FALSE for no updates
-	if (hr == S_OK) {
+	if (SUCCEEDED(hr)) {
 		RETURN_ON_BAD_HR(hr = WriteFrameUpdatesToSurface(&m_CurrentData, pSharedSurf, offsetX, offsetY, destinationRect, sourceRect));
 		QueryPerformanceCounter(&m_LastGrabTimeStamp);
 	}
@@ -265,7 +263,7 @@ void WindowsGraphicsCapture::OnFrameArrived(winrt::Direct3D11CaptureFramePool co
 
 HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ GRAPHICS_FRAME_DATA *pData)
 {
-	HRESULT hr = S_FALSE;
+	HRESULT hr = E_FAIL;
 	DWORD result = WAIT_OBJECT_0;
 	if (pData->Timestamp.QuadPart >= m_LastSampleReceivedTimeStamp.QuadPart) {
 		result = WaitForSingleObject(m_NewFrameEvent, timeoutMillis);
@@ -319,6 +317,10 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 			m_HaveDeliveredFirstFrame = true;
 			QueryPerformanceCounter(&pData->Timestamp);
 			frame.Close();
+			hr = S_OK;
+		}
+		else {
+			hr = DXGI_ERROR_WAIT_TIMEOUT;
 		}
 	}
 	else if (result == WAIT_TIMEOUT) {
@@ -361,7 +363,7 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 
 HRESULT WindowsGraphicsCapture::WriteFrameUpdatesToSurface(_Inout_ GRAPHICS_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, _In_ INT offsetX, _In_  INT offsetY, _In_ RECT &destinationRect, _In_opt_ const std::optional<RECT> &sourceRect)
 {
-	HRESULT hr = S_FALSE;
+	HRESULT hr = S_OK;
 
 	CComPtr<ID3D11Texture2D> processedTexture = pData->Frame;
 	D3D11_TEXTURE2D_DESC frameDesc;
@@ -418,5 +420,5 @@ HRESULT WindowsGraphicsCapture::WriteFrameUpdatesToSurface(_Inout_ GRAPHICS_FRAM
 
 	m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, finalFrameRect.left + offsetX + leftMargin, finalFrameRect.top + offsetY + topMargin, 0, processedTexture, 0, &Box);
 	m_LastFrameRect = finalFrameRect;
-	return S_OK;
+	return hr;
 }
