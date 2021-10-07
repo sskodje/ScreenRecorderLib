@@ -8,8 +8,8 @@ namespace ScreenRecorderLib {
 	internal:
 		POINT ToPOINT() {
 			POINT pt;
-			pt.x = Left;
-			pt.y = Top;
+			pt.x = static_cast<long>(round(Left));
+			pt.y = static_cast<long>(round(Top));
 			return pt;
 		}
 	public:
@@ -50,8 +50,8 @@ namespace ScreenRecorderLib {
 	internal:
 		SIZE ToSIZE() {
 			SIZE size;
-			size.cx = Width;
-			size.cy = Height;
+			size.cx = static_cast<long>(round(Width));
+			size.cy = static_cast<long>(round(Height));
 			return size;
 		}
 	public:

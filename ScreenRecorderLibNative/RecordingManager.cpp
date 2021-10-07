@@ -658,8 +658,8 @@ HRESULT RecordingManager::ProcessTextureTransforms(_In_ ID3D11Texture2D *pTextur
 	pTexture->GetDesc(&desc);
 	HRESULT hr = S_OK;
 	CComPtr<ID3D11Texture2D> pProcessedTexture = pTexture;
-	if (RectWidth(videoInputFrameRect) < desc.Width
-		|| RectHeight(videoInputFrameRect) < desc.Height) {
+	if (RectWidth(videoInputFrameRect) < static_cast<long>(desc.Width)
+		|| RectHeight(videoInputFrameRect) < static_cast<long>(round(desc.Height))) {
 		ID3D11Texture2D *pCroppedFrameCopy;
 		RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(pTexture, videoInputFrameRect, &pCroppedFrameCopy));
 		pProcessedTexture.Release();
