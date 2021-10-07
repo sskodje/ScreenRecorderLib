@@ -196,7 +196,7 @@ namespace ScreenRecorderLib {
 		/// Set the position offset of the overlay with the given ID.
 		/// </summary>
 		/// <param name="overlayID"></param>
-		/// <param name="size"></param>
+		/// <param name="offset"></param>
 		/// <returns></returns>
 		DynamicOptionsBuilder^ SetOffsetForOverlay(String^ overlayID, ScreenSize^ offset) {
 			if (!_options->OverlayOffsets) {
