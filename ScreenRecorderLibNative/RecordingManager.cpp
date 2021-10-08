@@ -521,9 +521,9 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 			}
 		}
 		else {
-			if (m_RecorderMode == RecorderModeInternal::Slideshow
-			   || m_RecorderMode == RecorderModeInternal::Screenshot
-			   && (m_OutputManager->GetRenderedFrameCount() == 0 && (pCurrentFrameCopy == nullptr || capturedFrame.FrameUpdateCount == 0))) {
+			if ((m_RecorderMode == RecorderModeInternal::Slideshow
+				|| m_RecorderMode == RecorderModeInternal::Screenshot)
+			   && (!pCapture->IsInitialFrameWriteComplete() || !pCapture->IsInitialOverlayWriteComplete())) {
 				continue;
 			}
 			else if ((!pCurrentFrameCopy && !pPreviousFrameCopy)

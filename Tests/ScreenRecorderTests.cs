@@ -753,10 +753,13 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void ScreenshotTest()
+        [DataRow(RecorderApi.DesktopDuplication)]
+        [DataRow(RecorderApi.WindowsGraphicsCapture)]
+        public void ScreenshotTest(RecorderApi api)
         {
             RecorderOptions options = new RecorderOptions();
             options.RecorderMode = RecorderMode.Screenshot;
+            options.SourceOptions = new SourceOptions { RecordingSources = { new DisplayRecordingSource { DeviceName = DisplayRecordingSource.MainMonitor.DeviceName, RecorderApi = api } } };
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".png"));
             try
             {

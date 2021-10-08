@@ -23,6 +23,7 @@ public:
 	virtual HRESULT StopCapture();
 	virtual bool IsUpdatedFramesAvailable();
 	virtual bool IsInitialFrameWriteComplete();
+	virtual bool IsInitialOverlayWriteComplete();
 	virtual bool IsCapturing() { return m_IsCapturing; }
 	virtual UINT GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCounts);
 protected:

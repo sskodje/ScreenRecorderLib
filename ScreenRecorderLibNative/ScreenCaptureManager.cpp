@@ -82,6 +82,7 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 	for (UINT i = 0; i < m_CaptureThreadCount; i++)
 	{
 		RECORDING_SOURCE_DATA *data = CreatedOutputs.at(i);
+		m_CaptureThreadData[i].ThreadResult = S_FALSE;
 		m_CaptureThreadData[i].UnexpectedErrorEvent = hUnexpectedErrorEvent;
 		m_CaptureThreadData[i].ExpectedErrorEvent = hExpectedErrorEvent;
 		m_CaptureThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
@@ -109,6 +110,7 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 	for (UINT i = 0; i < m_OverlayThreadCount; i++)
 	{
 		auto overlay = overlays.at(i);
+		m_OverlayThreadData[i].ThreadResult = S_FALSE;
 		m_OverlayThreadData[i].CanvasTexSharedHandle = sharedHandle;
 		m_OverlayThreadData[i].UnexpectedErrorEvent = hUnexpectedErrorEvent;
 		m_OverlayThreadData[i].ExpectedErrorEvent = hExpectedErrorEvent;
@@ -165,8 +167,10 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout
 	{
 		ReleaseKeyedMutexOnExit releaseMutex(m_KeyMutex, 0);
 
-		bool haveNewFrameData = IsUpdatedFramesAvailable() && IsInitialFrameWriteComplete();
-		if (!haveNewFrameData) {
+		if (!IsInitialFrameWriteComplete()) {
+			return DXGI_ERROR_WAIT_TIMEOUT;
+		}
+		if (!IsUpdatedFramesAvailable()) {
 			return DXGI_ERROR_WAIT_TIMEOUT;
 		}
 		MeasureExecutionTime measure(L"AcquireNextFrame lock");
@@ -333,6 +337,20 @@ bool ScreenCaptureManager::IsInitialFrameWriteComplete()
 		if (m_CaptureThreadData[i].RecordingSource) {
 			if (m_CaptureThreadData[i].TotalUpdatedFrameCount == 0) {
 				//If any of the recordings have not yet written a frame, we return and wait for them.
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
+bool ScreenCaptureManager::IsInitialOverlayWriteComplete()
+{
+	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
+	{
+		if (m_OverlayThreadData[i].RecordingOverlay) {
+			if (!FAILED(m_OverlayThreadData[i].ThreadResult) && m_OverlayThreadData[i].LastUpdateTimeStamp.QuadPart == 0) {
+				//If any of the overlays have not yet written a frame, we return and wait for them.
 				return false;
 			}
 		}
@@ -542,19 +560,19 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 
 	//This scope must be here for ReleaseOnExit to work.
 	{
-		std::unique_ptr<CaptureBase> pRecordingSource = nullptr;
+		std::unique_ptr<CaptureBase> pRecordingSourceCapture = nullptr;
 		switch (pSource->Type)
 		{
 			case RecordingSourceType::CameraCapture: {
-				pRecordingSource = make_unique<CameraCapture>();
+				pRecordingSourceCapture = make_unique<CameraCapture>();
 				break;
 			}
 			case RecordingSourceType::Display: {
 				if (pSource->SourceApi == RecordingSourceApi::DesktopDuplication) {
-					pRecordingSource = make_unique<DesktopDuplicationCapture>(pSource->IsCursorCaptureEnabled.value_or(false));
+					pRecordingSourceCapture = make_unique<DesktopDuplicationCapture>(pSource->IsCursorCaptureEnabled.value_or(false));
 				}
 				else if (pSource->SourceApi == RecordingSourceApi::WindowsGraphicsCapture) {
-					pRecordingSource = make_unique<WindowsGraphicsCapture>(pSource->IsCursorCaptureEnabled.value_or(false));
+					pRecordingSourceCapture = make_unique<WindowsGraphicsCapture>(pSource->IsCursorCaptureEnabled.value_or(false));
 				}
 				break;
 			}
@@ -562,26 +580,26 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				std::string signature = ReadFileSignature(pSource->SourcePath.c_str());
 				ImageFileType imageType = getImageTypeByMagic(signature.c_str());
 				if (imageType == ImageFileType::IMAGE_FILE_GIF) {
-					pRecordingSource = make_unique<GifReader>();
+					pRecordingSourceCapture = make_unique<GifReader>();
 				}
 				else {
-					pRecordingSource = make_unique<ImageReader>();
+					pRecordingSourceCapture = make_unique<ImageReader>();
 				}
 				break;
 			}
 			case RecordingSourceType::Video: {
-				pRecordingSource = make_unique<VideoReader>();
+				pRecordingSourceCapture = make_unique<VideoReader>();
 				break;
 			}
 			case RecordingSourceType::Window: {
-				pRecordingSource = make_unique<WindowsGraphicsCapture>();
+				pRecordingSourceCapture = make_unique<WindowsGraphicsCapture>();
 				break;
 			}
 			default:
 				break;
 		}
 
-		if (!pRecordingSource) {
+		if (!pRecordingSourceCapture) {
 			LOG_ERROR(L"Failed to create recording source");
 			hr = E_FAIL;
 			goto Exit;
@@ -602,14 +620,14 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 		}
 
 		// Make duplication
-		hr = pRecordingSource->Initialize(pSourceData->DxRes.Context, pSourceData->DxRes.Device);
+		hr = pRecordingSourceCapture->Initialize(pSourceData->DxRes.Context, pSourceData->DxRes.Device);
 
 		if (FAILED(hr))
 		{
 			LOG_ERROR(L"Failed to initialize recording source");
 			goto Exit;
 		}
-		hr = pRecordingSource->StartCapture(*pSource);
+		hr = pRecordingSourceCapture->StartCapture(*pSource);
 
 		if (FAILED(hr))
 		{
@@ -628,7 +646,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 
 			if (!WaitToProcessCurrentFrame)
 			{
-				hr = pRecordingSource->AcquireNextFrame(10, nullptr);
+				hr = pRecordingSourceCapture->AcquireNextFrame(10, nullptr);
 
 				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 					continue;
@@ -641,11 +659,11 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				MeasureExecutionTime measure(L"CaptureThreadProc wait for sync");
 				// We have a new frame so try and process it
 				// Try to acquire keyed mutex in order to access shared surface
-				hr = KeyMutex->AcquireSync(0, 100);
+				hr = KeyMutex->AcquireSync(0, 1);
 			}
 			if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
 			{
-				LOG_TRACE(L"CaptureThreadProc shared surface is busy, retrying..");
+				LOG_TRACE(L"CaptureThreadProc shared surface is busy for %ls, retrying..", pRecordingSourceCapture->Name().c_str());
 				// Can't use shared surface right now, try again later
 				WaitToProcessCurrentFrame = true;
 				continue;
@@ -656,21 +674,14 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				LOG_ERROR(L"Unexpected error acquiring KeyMutex");
 				break;
 			}
+			{
+				MeasureExecutionTime measureLock(string_format(L"CaptureThreadProc sync lock for %ls", pRecordingSourceCapture->Name().c_str()));
+				ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
 
-			MeasureExecutionTime measureLock(L"CaptureThreadProc sync lock");
-			ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
-
-			// We can now process the current frame
-			WaitToProcessCurrentFrame = false;
-
-			if (pSource->IsCursorCaptureEnabled.value_or(false)) {
-				// Get mouse info
-				hr = pRecordingSource->GetMouse(pData->PtrInfo, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-				if (FAILED(hr)) {
-					LOG_ERROR("Failed to get mouse data");
-				}
+				// We can now process the current frame
+				WaitToProcessCurrentFrame = false;
+				hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates, pSource->SourceRect);
 			}
-			hr = pRecordingSource->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates, pSource->SourceRect);
 			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 				continue;
 			}
@@ -679,6 +690,13 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			}
 			else if (hr == S_FALSE) {
 				continue;
+			}
+			if (pSource->IsCursorCaptureEnabled.value_or(false)) {
+				// Get mouse info
+				hr = pRecordingSourceCapture->GetMouse(pData->PtrInfo, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+				if (FAILED(hr)) {
+					LOG_ERROR("Failed to get mouse data");
+				}
 			}
 			pData->UpdatedFrameCountSinceLastWrite++;
 			pData->TotalUpdatedFrameCount++;
@@ -835,15 +853,6 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 			}
 		}
 
-		// Try to acquire keyed mutex in order to access shared surface. The timeout value is 0, and we just continue if we don't get a lock.
-		// This is just used to notify the rendering loop about updated overlays, so no reason to wait around if it's already updating.
-		hr = KeyMutex->AcquireSync(0, 0);
-
-		bool haveLock = SUCCEEDED(hr);
-		if (haveLock) {
-			LOG_TRACE(L"OverlayCapture %ls acquired mutex lock", overlayCapture->Name().c_str());
-		}
-
 		WaitToProcessCurrentFrame = false;
 		if (pSharedTexture == nullptr) {
 			D3D11_TEXTURE2D_DESC desc;
@@ -863,7 +872,10 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 		//https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-opensharedresource
 		pOverlayData->DxRes.Context->Flush();
 		QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
-		if (haveLock) {
+		// Try to acquire keyed mutex in order to access shared surface. The timeout value is 0, and we just continue if we don't get a lock.
+		// This is just used to notify the rendering loop about updated overlays, so no reason to wait around if it's already updating.
+		if (KeyMutex->AcquireSync(0, 0) == S_OK) {
+			MeasureExecutionTime measureLock(string_format(L"OverlayCapture sync lock for %ls", overlayCapture->Name().c_str()));
 			KeyMutex->ReleaseSync(1);
 		}
 	}
