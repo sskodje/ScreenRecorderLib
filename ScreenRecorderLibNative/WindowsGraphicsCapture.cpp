@@ -409,7 +409,7 @@ HRESULT WindowsGraphicsCapture::WriteFrameUpdatesToSurface(_Inout_ GRAPHICS_FRAM
 		});
 
 	if (!IsRectEmpty(&m_LastFrameRect) && !EqualRect(&finalFrameRect, &m_LastFrameRect)) {
-		m_TextureManager->BlankTexture(pSharedSurf, m_LastFrameRect, offsetX, offsetY);
+		m_TextureManager->BlankTexture(pSharedSurf, MakeRectEven(destinationRect), offsetX, offsetY);
 	}
 
 	D3D11_BOX Box;
