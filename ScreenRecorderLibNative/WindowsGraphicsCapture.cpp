@@ -88,7 +88,7 @@ HRESULT WindowsGraphicsCapture::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outp
 	if (SUCCEEDED(hr) && ppFrame) {
 		D3D11_TEXTURE2D_DESC desc;
 		m_CurrentData.Frame->GetDesc(&desc);
-		ID3D11Texture2D *pFrame= nullptr;
+		ID3D11Texture2D *pFrame = nullptr;
 		hr = m_Device->CreateTexture2D(&desc, nullptr, &pFrame);
 		if (SUCCEEDED(hr)) {
 			m_DeviceContext->CopyResource(pFrame, m_CurrentData.Frame);
