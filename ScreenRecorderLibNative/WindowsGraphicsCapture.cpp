@@ -191,10 +191,10 @@ HRESULT WindowsGraphicsCapture::GetNativeSize(_In_ RECORDING_SOURCE_BASE &record
 					long offset = 0;
 					if (SUCCEEDED(DwmGetWindowAttribute(recordingSource.SourceWindow, DWMWA_EXTENDED_FRAME_BOUNDS, &windowAttrRect, sizeof(windowRect))))
 					{
-						offset = RectWidth(windowAttrRect) - RectWidth(rcWind);
+						offset = RectWidth(rcWind) - RectWidth(windowAttrRect);
 					}
-					windowRect.bottom += offset / 2;
-					windowRect.right += offset;
+					windowRect.bottom -= offset / 2;
+					windowRect.right -= offset;
 					//Offset the window rect to start at[0,0] instead of screen coordinates.
 					OffsetRect(&windowRect, -windowRect.left, -windowRect.top);
 				}
