@@ -275,8 +275,6 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 		if (frame) {
 			MeasureExecutionTime measureGetFrame(L"WindowsGraphicsManager::GetNextFrame");
 			auto surfaceTexture = Graphics::Capture::Util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
-			D3D11_TEXTURE2D_DESC newFrameDesc;
-			surfaceTexture->GetDesc(&newFrameDesc);
 
 			if (frame.ContentSize().Width != pData->ContentSize.cx
 					|| frame.ContentSize().Height != pData->ContentSize.cy) {
@@ -288,7 +286,19 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 					LOG_ERROR(L"Failed to QI for DXGI Device");
 					return hr;
 				}
+
+				/*
+				* If the recording is started on a minimized window, we will have guesstimated a size for it when starting the recording.
+				* In this instance we continue to use this size instead of the Direct3D11CaptureFrame::ContentSize(), as it may differ by a few pixels
+				* due to windows 10 window borders and trigger a resize, which leads to blurry recordings.
+				*/
+				winrt::SizeInt32 newSize = (!m_HaveDeliveredFirstFrame && pData->ContentSize.cx > 0) ? winrt::SizeInt32{ pData->ContentSize.cx,pData->ContentSize.cy }: frame.ContentSize();
 				SafeRelease(&pData->Frame);
+
+				D3D11_TEXTURE2D_DESC newFrameDesc;
+				surfaceTexture->GetDesc(&newFrameDesc);
+				newFrameDesc.Width = newSize.Width;
+				newFrameDesc.Height = newSize.Height;
 				hr = m_Device->CreateTexture2D(&newFrameDesc, nullptr, &pData->Frame);
 				if (FAILED(hr))
 				{
@@ -297,32 +307,39 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 				}
 				measureGetFrame.SetName(L"WindowsGraphicsManager::GetNextFrame recreated");
 				auto direct3DDevice = Graphics::Capture::Util::CreateDirect3DDevice(DxgiDevice);
-				/*
-				* If the recording is started on a minimized window, we will have guesstimated a size for it when starting the recording.
-				* In this instance we continue to use this size instead of the Direct3D11CaptureFrame::ContentSize(), as it may differ by a few pixels
-				* due to windows 10 window borders and trigger a resize, which leads to blurry recordings.
-				*/
-				winrt::SizeInt32 newSize = (!m_HaveDeliveredFirstFrame && pData->ContentSize.cx > 0) ? winrt::SizeInt32{ pData->ContentSize.cx,pData->ContentSize.cy } : frame.ContentSize();
-				m_framePool.Recreate(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, newSize);
+				winrt::SizeInt32 newFramePoolSize = frame.ContentSize();
+
+				/// If recording a window, make the frame pool return a slightly larger texture that we crop later.
+				/// This prevents issues with clipping when resizing windows.
+				if (m_RecordingSource->Type == RecordingSourceType::Window) {
+					newFramePoolSize.Width += 100;
+					newFramePoolSize.Height += 100;
+				}
+				m_framePool.Recreate(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, newFramePoolSize);
+				pData->ContentSize.cx = frame.ContentSize().Width;
+				pData->ContentSize.cy = frame.ContentSize().Height;
 				//Some times the size of the first frame is wrong when recording windows, so we just skip it and get a new after resizing the frame pool.
 				if (m_RecordingSource->Type == RecordingSourceType::Window
-					&& newFrameDesc.Width != newSize.Width || newFrameDesc.Height != newSize.Height)
+					&& !m_HaveDeliveredFirstFrame)
 				{
+					m_HaveDeliveredFirstFrame = true;
 					frame.Close();
 					return GetNextFrame(timeoutMillis, pData);
 				}
-				pData->ContentSize.cx = frame.ContentSize().Width;
-				pData->ContentSize.cy = frame.ContentSize().Height;
 			}
-			if (pData->ContentSize.cx != newFrameDesc.Width || pData->ContentSize.cy != newFrameDesc.Height) {
-				D3D11_TEXTURE2D_DESC desc;
-				pData->Frame->GetDesc(&desc);
-				RECT contentRect{ 0,0,desc.Width,desc.Height };
-				m_TextureManager->DrawTexture(pData->Frame, surfaceTexture.get(), contentRect);
-			}
-			else {
-				m_DeviceContext->CopyResource(pData->Frame, surfaceTexture.get());
-			}
+
+			D3D11_TEXTURE2D_DESC desc;
+			pData->Frame->GetDesc(&desc);
+
+			D3D11_BOX sourceRegion;
+			RtlZeroMemory(&sourceRegion, sizeof(sourceRegion));
+			sourceRegion.left = 0;
+			sourceRegion.right = min(frame.ContentSize().Width, desc.Width);
+			sourceRegion.top = 0;
+			sourceRegion.bottom = min(frame.ContentSize().Height, desc.Height);
+			sourceRegion.front = 0;
+			sourceRegion.back = 1;
+			m_DeviceContext->CopySubresourceRegion(pData->Frame, 0, 0, 0, 0, surfaceTexture.get(), 0, &sourceRegion);
 			m_HaveDeliveredFirstFrame = true;
 			QueryPerformanceCounter(&pData->Timestamp);
 			frame.Close();
