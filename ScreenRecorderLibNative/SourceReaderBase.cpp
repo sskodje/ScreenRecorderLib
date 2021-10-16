@@ -23,7 +23,8 @@ SourceReaderBase::SourceReaderBase() :
 	m_MediaTransform(nullptr),
 	m_TextureManager(nullptr),
 	m_BufferSize(0),
-	m_PtrFrameBuffer(nullptr)
+	m_PtrFrameBuffer(nullptr),
+	m_RecordingSource(nullptr)
 {
 	InitializeCriticalSection(&m_CriticalSection);
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -52,6 +53,7 @@ SourceReaderBase::~SourceReaderBase()
 HRESULT SourceReaderBase::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSource)
 {
 	HRESULT hr;
+	m_RecordingSource = &recordingSource;
 	long streamIndex;
 	RETURN_ON_BAD_HR(hr = InitializeSourceReader(recordingSource.SourcePath, &streamIndex, &m_SourceReader, &m_InputMediaType, &m_OutputMediaType, &m_MediaTransform));
 	RETURN_ON_BAD_HR(GetDefaultStride(m_OutputMediaType, &m_Stride));
@@ -193,50 +195,45 @@ HRESULT SourceReaderBase::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _
 	m_TextureManager->Initialize(m_DeviceContext, m_Device);
 	return S_OK;
 }
-
-HRESULT SourceReaderBase::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ const std::optional<RECT> &sourceRect)
+HRESULT SourceReaderBase::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect)
 {
-	CComPtr<ID3D11Texture2D> processedTexture;
-	HRESULT hr = AcquireNextFrame(timeoutMillis, &processedTexture);
+	CComPtr<ID3D11Texture2D> pProcessedTexture;
+	HRESULT hr = AcquireNextFrame(timeoutMillis, &pProcessedTexture);
 	RETURN_ON_BAD_HR(hr);
-	D3D11_TEXTURE2D_DESC frameDesc;
-	processedTexture->GetDesc(&frameDesc);
 
-	if (sourceRect.has_value()
-		&& IsValidRect(sourceRect.value())
-		&& (RectWidth(sourceRect.value()) != frameDesc.Width || (RectHeight(sourceRect.value()) != frameDesc.Height))) {
+	D3D11_TEXTURE2D_DESC frameDesc;
+	pProcessedTexture->GetDesc(&frameDesc);
+	RECORDING_SOURCE *recordingSource = dynamic_cast<RECORDING_SOURCE *>(m_RecordingSource);
+	if (recordingSource && recordingSource->SourceRect.has_value()
+		&& IsValidRect(recordingSource->SourceRect.value())
+		&& (RectWidth(recordingSource->SourceRect.value()) != frameDesc.Width || (RectHeight(recordingSource->SourceRect.value()) != frameDesc.Height))) {
 		ID3D11Texture2D *pCroppedTexture;
-		RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(processedTexture, sourceRect.value(), &pCroppedTexture));
-		processedTexture.Release();
-		processedTexture.Attach(pCroppedTexture);
+		RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(pProcessedTexture, recordingSource->SourceRect.value(), &pCroppedTexture));
+		if (hr == S_OK) {
+			pProcessedTexture.Release();
+			pProcessedTexture.Attach(pCroppedTexture);
+		}
 	}
-	processedTexture->GetDesc(&frameDesc);
+	pProcessedTexture->GetDesc(&frameDesc);
 
 	int leftMargin = 0;
 	int topMargin = 0;
-	if ((RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height)) {
-		double widthRatio = (double)RectWidth(destinationRect) / frameDesc.Width;
-		double heightRatio = (double)RectHeight(destinationRect) / frameDesc.Height;
-
-		double resizeRatio = min(widthRatio, heightRatio);
-		UINT resizedWidth = (UINT)MakeEven((LONG)round(frameDesc.Width * resizeRatio));
-		UINT resizedHeight = (UINT)MakeEven((LONG)round(frameDesc.Height * resizeRatio));
-		ID3D11Texture2D *resizedTexture = nullptr;
-		RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(processedTexture, &resizedTexture, SIZE{ static_cast<LONG>(resizedWidth), static_cast<LONG>(resizedHeight) }));
-		processedTexture.Release();
-		processedTexture.Attach(resizedTexture);
-		leftMargin = (int)max(0, round(((double)RectWidth(destinationRect) - (double)resizedWidth)) / 2);
-		topMargin = (int)max(0, round(((double)RectHeight(destinationRect) - (double)resizedHeight)) / 2);
+	RECT contentRect = destinationRect;
+	if (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height) {
+		ID3D11Texture2D *pResizedTexture;
+		RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pProcessedTexture, SIZE{ RectWidth(destinationRect),RectHeight(destinationRect) }, m_RecordingSource->Stretch, &pResizedTexture, &contentRect));
+		pProcessedTexture.Release();
+		pProcessedTexture.Attach(pResizedTexture);
 	}
 
-	processedTexture->GetDesc(&frameDesc);
+	pProcessedTexture->GetDesc(&frameDesc);
 
 	long left = destinationRect.left + offsetX + leftMargin;
 	long top = destinationRect.top + offsetY + topMargin;
 	long right = left + MakeEven(frameDesc.Width);
 	long bottom = top + MakeEven(frameDesc.Height);
 
-	m_TextureManager->DrawTexture(pSharedSurf, processedTexture, RECT{ left,top,right,bottom });
+	m_TextureManager->DrawTexture(pSharedSurf, pProcessedTexture, RECT{ left,top,right,bottom });
 	return hr;
 }
 

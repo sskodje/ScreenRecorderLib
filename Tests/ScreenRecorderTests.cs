@@ -417,9 +417,9 @@ namespace ScreenRecorderLib
                     RecorderOptions options = new RecorderOptions();
                     int frameWidth = 1000;
                     int frameHeight = 1000;
-                    options.VideoEncoderOptions = new VideoEncoderOptions
+                    options.OutputOptions = new OutputOptions
                     {
-                        FrameSize = new ScreenSize(frameWidth, frameHeight)
+                        OutputFrameSize = new ScreenSize(frameWidth, frameHeight)
                     };
                     using (var rec = Recorder.CreateRecorder(options))
                     {
@@ -474,14 +474,10 @@ namespace ScreenRecorderLib
                     int frameWidth = 1000;
                     int frameHeight = 1000;
                     var sourceRect = new ScreenRect(100, 100, 500, 500);
-                    options.SourceOptions = new SourceOptions
+                    options.OutputOptions = new OutputOptions
                     {
-                        RecordingSources = { DisplayRecordingSource.MainMonitor },
+                        OutputFrameSize = new ScreenSize(frameWidth, frameHeight),
                         SourceRect = sourceRect
-                    };
-                    options.VideoEncoderOptions = new VideoEncoderOptions
-                    {
-                        FrameSize = new ScreenSize(frameWidth, frameHeight),
                     };
                     using (var rec = Recorder.CreateRecorder(options))
                     {
@@ -807,9 +803,8 @@ namespace ScreenRecorderLib
         {
             RecorderOptions options = new RecorderOptions();
             options.RecorderMode = RecorderMode.Screenshot;
-            options.SourceOptions = new SourceOptions
+            options.OutputOptions = new OutputOptions
             {
-                RecordingSources = { DisplayRecordingSource.MainMonitor },
                 SourceRect = new ScreenRect(100, 100, 100, 100)
             };
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".png"));
@@ -846,8 +841,8 @@ namespace ScreenRecorderLib
                     Assert.IsTrue(new FileInfo(filePath).Length > 0);
                     using (var bitmap = System.Drawing.Bitmap.FromFile(filePath))
                     {
-                        Assert.IsTrue(bitmap.Width == options.SourceOptions.SourceRect.Width
-                            && bitmap.Height == options.SourceOptions.SourceRect.Height);
+                        Assert.IsTrue(bitmap.Width == options.OutputOptions.SourceRect.Width
+                            && bitmap.Height == options.OutputOptions.SourceRect.Height);
                     }
                 }
             }
@@ -1035,9 +1030,8 @@ namespace ScreenRecorderLib
             {
                 RecorderOptions options = new RecorderOptions();
                 options.SnapshotOptions = new SnapshotOptions { SnapshotsWithVideo = true, SnapshotsIntervalMillis = 2000, SnapshotFormat = ImageFormat.JPEG };
-                options.SourceOptions = new SourceOptions
+                options.OutputOptions = new OutputOptions
                 {
-                    RecordingSources = { DisplayRecordingSource.MainMonitor },
                     SourceRect = new ScreenRect(100, 100, 100, 100)
                 };
                 using (var rec = Recorder.CreateRecorder(options))
@@ -1075,7 +1069,7 @@ namespace ScreenRecorderLib
                     var mediaInfo = new MediaInfoWrapper(filePath);
                     Assert.IsTrue(mediaInfo.Format == "MPEG-4");
                     Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
-                    Assert.IsTrue(mediaInfo.Width == options.SourceOptions.SourceRect.Width && mediaInfo.Height == options.SourceOptions.SourceRect.Height, "Expected and actual output dimensions of video differs");
+                    Assert.IsTrue(mediaInfo.Width == options.OutputOptions.SourceRect.Width && mediaInfo.Height == options.OutputOptions.SourceRect.Height, "Expected and actual output dimensions of video differs");
                     var snapshotsOnDisk = Directory.GetFiles(snapshotsDir);
                     Assert.AreEqual(6, snapshotsOnDisk.Count());  // First snapshot taken at time 0.
                     Assert.IsTrue(Enumerable.SequenceEqual(snapshotCallbackList, snapshotsOnDisk));

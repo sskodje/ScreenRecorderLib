@@ -56,8 +56,9 @@ namespace ScreenRecorderLib {
 		Screenshot = (int)RecorderModeInternal::Screenshot
 	};
 
-
 	public ref class SourceOptions {
+	private:
+		StretchMode _stretch;
 	public:
 		static property SourceOptions^ MainMonitor {
 			SourceOptions^ get() {
@@ -67,15 +68,31 @@ namespace ScreenRecorderLib {
 			}
 		}
 		property List<RecordingSourceBase^>^ RecordingSources;
-		/// <summary>
-		/// The part of the combined source area to record. Null or empty records the entire source area.
-		/// </summary>
-		property ScreenRect^ SourceRect;
 
 		SourceOptions() {
 			RecordingSources = gcnew List<RecordingSourceBase^>();
+		}
+	};
+
+	public ref class OutputOptions {
+	public:
+		OutputOptions() {
+			Stretch = StretchMode::Uniform;
+			OutputFrameSize = ScreenSize::Empty;
 			SourceRect = ScreenRect::Empty;
 		}
+		/// <summary>
+		/// How the output should be stretched to fill the destination rectangle.
+		/// </summary>
+		property StretchMode Stretch;
+		/// <summary>
+		/// The frame size of the output in pixels.
+		/// </summary>
+		property ScreenSize^ OutputFrameSize;
+		/// <summary>
+		/// The part of the output to record. Null or empty records the entire source area, else the output is cropped to the rectangle.
+		/// </summary>
+		property ScreenRect^ SourceRect;
 	};
 
 	public ref class VideoEncoderOptions {
@@ -89,13 +106,9 @@ namespace ScreenRecorderLib {
 			IsLowLatencyEnabled = false;
 			IsHardwareEncodingEnabled = true;
 			IsMp4FastStartEnabled = true;
-			FrameSize = ScreenSize::Empty;
 			Encoder = gcnew H264VideoEncoder();
 		}
-		/// <summary>
-		/// The frame size of the video output in pixels.
-		/// </summary>
-		property ScreenSize^ FrameSize;
+
 		/// <summary>
 		///Framerate in frames per second.
 		/// </summary>
@@ -318,6 +331,7 @@ namespace ScreenRecorderLib {
 
 		property VideoEncoderOptions^ VideoEncoderOptions;
 		property SourceOptions^ SourceOptions;
+		property OutputOptions^ OutputOptions;
 		property AudioOptions^ AudioOptions;
 		property MouseOptions^ MouseOptions;
 		property OverLayOptions^ OverlayOptions;

@@ -69,6 +69,7 @@ namespace ScreenRecorderLib {
 		void SetupCallbacks();
 		void ClearCallbacks();
 		static HRESULT CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Out_ RECORDING_SOURCE* pNativeSource);
+		static HRESULT CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ managedOverlay, _Out_ RECORDING_OVERLAY* pNativeOverlay);
 		static std::vector<RECORDING_SOURCE> CreateRecordingSourceList(IEnumerable<RecordingSourceBase^>^ options);
 		static std::vector<RECORDING_OVERLAY> CreateOverlayList(IEnumerable<RecordingOverlayBase^>^ managedOverlays);
 

@@ -399,22 +399,27 @@ RECT ScreenCaptureManager::GetOverlayRect(_In_ SIZE canvasSize, _In_ SIZE overla
 
 	switch (pOverlay->Anchor)
 	{
-		case OverlayAnchor::TopLeft: {
+		case ContentAnchor::TopLeft: {
 			overlayLeft = overlayPositionX;
 			overlayTop = overlayPositionY;
 			break;
 		}
-		case OverlayAnchor::TopRight: {
+		case ContentAnchor::TopRight: {
 			overlayLeft = backgroundWidth - overlayWidth - overlayPositionX;
 			overlayTop = overlayPositionY;
 			break;
 		}
-		case OverlayAnchor::BottomLeft: {
+		case ContentAnchor::Center: {
+			overlayLeft = (backgroundWidth/2) - (overlayWidth/2) - overlayPositionX;
+			overlayTop = (backgroundHeight/2) - (overlayHeight/2) - overlayPositionY;
+			break;
+		}
+		case ContentAnchor::BottomLeft: {
 			overlayLeft = overlayPositionX;
 			overlayTop = backgroundHeight - overlayHeight - overlayPositionY;
 			break;
 		}
-		case OverlayAnchor::BottomRight: {
+		case ContentAnchor::BottomRight: {
 			overlayLeft = backgroundWidth - overlayWidth - overlayPositionX;
 			overlayTop = backgroundHeight - overlayHeight - overlayPositionY;
 			break;
@@ -680,7 +685,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 
 				// We can now process the current frame
 				WaitToProcessCurrentFrame = false;
-				hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates, pSource->SourceRect);
+				hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates);
 			}
 			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 				continue;

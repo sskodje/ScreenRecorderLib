@@ -38,9 +38,6 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 					break;
 				}
 			}
-			if (options->VideoEncoderOptions->FrameSize && options->VideoEncoderOptions->FrameSize != ScreenSize::Empty) {
-				encoderOptions->SetFrameSize(SIZE{ (long)round(options->VideoEncoderOptions->FrameSize->Width),(long)round(options->VideoEncoderOptions->FrameSize->Height) });
-			}
 			encoderOptions->SetVideoBitrateMode((UINT32)options->VideoEncoderOptions->Encoder->GetBitrateMode());
 			encoderOptions->SetEncoderProfile((UINT32)options->VideoEncoderOptions->Encoder->GetEncoderProfile());
 			encoderOptions->SetVideoBitrate(options->VideoEncoderOptions->Bitrate);
@@ -80,10 +77,18 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			m_Rec->SetSnapshotOptions(snapshotOptions);
 		}
 		if (options->SourceOptions) {
-			if (options->SourceOptions->SourceRect && options->SourceOptions->SourceRect != ScreenRect::Empty) {
-				m_Rec->SetSourceRectangle(options->SourceOptions->SourceRect->ToRECT());
-			}
 			m_Rec->SetRecordingSources(CreateRecordingSourceList(options->SourceOptions->RecordingSources));
+		}
+		if (options->OutputOptions) {
+			OUTPUT_OPTIONS* outputOptions = new OUTPUT_OPTIONS();
+			if (options->OutputOptions->SourceRect && options->OutputOptions->SourceRect != ScreenRect::Empty) {
+				outputOptions->SetSourceRectangle(options->OutputOptions->SourceRect->ToRECT());
+			}
+			if (options->OutputOptions->OutputFrameSize && options->OutputOptions->OutputFrameSize != ScreenSize::Empty) {
+				outputOptions->SetFrameSize(SIZE{ (long)round(options->OutputOptions->OutputFrameSize->Width),(long)round(options->OutputOptions->OutputFrameSize->Height) });
+			}
+			outputOptions->SetStretch(static_cast<TextureStretchMode>(options->OutputOptions->Stretch));
+			m_Rec->SetOutputOptions(outputOptions);
 		}
 		if (options->AudioOptions) {
 			AUDIO_OPTIONS* audioOptions = new AUDIO_OPTIONS();
@@ -210,7 +215,7 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 		}
 	}
 	if (options->GlobalSourceRect) {
-		m_Rec->SetSourceRectangle(options->GlobalSourceRect->ToRECT());
+		m_Rec->GetOutputOptions()->SetSourceRectangle(options->GlobalSourceRect->ToRECT());
 	}
 	if (options->SourceCursorCaptures) {
 		for each (KeyValuePair<String^, bool> ^ kvp in options->SourceCursorCaptures)
@@ -231,7 +236,7 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 			for each (RECORDING_OVERLAY * nativeOverlay in m_Rec->GetRecordingOverlays())
 			{
 				if (nativeOverlay->ID == id) {
-					nativeOverlay->Anchor = static_cast<OverlayAnchor>(kvp->Value);
+					nativeOverlay->Anchor = static_cast<ContentAnchor>(kvp->Value);
 				}
 			}
 		}
@@ -545,7 +550,7 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 	if (managedSource->Position && managedSource->Position != ScreenPoint::Empty) {
 		nativeSource.Position = managedSource->Position->ToPOINT();
 	}
-
+	nativeSource.Stretch = static_cast<TextureStretchMode>(managedSource->Stretch);
 	if (isinst<DisplayRecordingSource^>(managedSource)) {
 		DisplayRecordingSource^ displaySource = (DisplayRecordingSource^)managedSource;
 		if (!String::IsNullOrEmpty(displaySource->DeviceName)) {
@@ -630,6 +635,66 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 	return hr;
 }
 
+HRESULT ScreenRecorderLib::Recorder::CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ managedOverlay, _Out_ RECORDING_OVERLAY* pNativeOverlay)
+{
+	HRESULT hr = E_FAIL;
+	RECORDING_OVERLAY nativeOverlay{};
+	nativeOverlay.ID = msclr::interop::marshal_as<std::wstring>(managedOverlay->ID);
+	nativeOverlay.Offset = SIZE{ static_cast<long>(managedOverlay->Offset->Width), static_cast<long>(managedOverlay->Offset->Height) };
+	nativeOverlay.OutputSize = SIZE{ static_cast<long>(managedOverlay->Size->Width), static_cast<long>(managedOverlay->Size->Height) };
+	nativeOverlay.Anchor = static_cast<ContentAnchor>(managedOverlay->AnchorPosition);
+	nativeOverlay.Stretch = static_cast<TextureStretchMode>(managedOverlay->Stretch);
+	if (isinst<VideoCaptureOverlay^>(managedOverlay)) {
+		VideoCaptureOverlay^ videoCaptureOverlay = (VideoCaptureOverlay^)managedOverlay;
+		nativeOverlay.Type = RecordingSourceType::CameraCapture;
+		if (!String::IsNullOrEmpty(videoCaptureOverlay->DeviceName)) {
+			nativeOverlay.SourcePath = msclr::interop::marshal_as<std::wstring>(videoCaptureOverlay->DeviceName);
+			hr = S_OK;
+		}
+	}
+	else if (isinst<ImageOverlay^>(managedOverlay)) {
+		ImageOverlay^ pictureOverlay = (ImageOverlay^)managedOverlay;
+		nativeOverlay.Type = RecordingSourceType::Picture;
+		if (!String::IsNullOrEmpty(pictureOverlay->SourcePath)) {
+			nativeOverlay.SourcePath = msclr::interop::marshal_as<std::wstring>(pictureOverlay->SourcePath);
+			hr = S_OK;
+		}
+	}
+	else if (isinst<VideoOverlay^>(managedOverlay)) {
+		VideoOverlay^ videoOverlay = (VideoOverlay^)managedOverlay;
+		nativeOverlay.Type = RecordingSourceType::Video;
+		if (!String::IsNullOrEmpty(videoOverlay->SourcePath)) {
+			nativeOverlay.SourcePath = msclr::interop::marshal_as<std::wstring>(videoOverlay->SourcePath);
+			hr = S_OK;
+		}
+	}
+	else if (isinst<DisplayOverlay^>(managedOverlay)) {
+		DisplayOverlay^ displayOverlay = (DisplayOverlay^)managedOverlay;
+		nativeOverlay.Type = RecordingSourceType::Display;
+		if (!String::IsNullOrEmpty(displayOverlay->DeviceName)) {
+			nativeOverlay.SourcePath = msclr::interop::marshal_as<std::wstring>(displayOverlay->DeviceName);
+			hr = S_OK;
+		}
+	}
+	else if (isinst<WindowOverlay^>(managedOverlay)) {
+		WindowOverlay^ windowOverlay = (WindowOverlay^)managedOverlay;
+		nativeOverlay.Type = RecordingSourceType::Window;
+		if (windowOverlay->Handle != IntPtr::Zero) {
+			HWND windowHandle = (HWND)(windowOverlay->Handle.ToPointer());
+			if (!IsIconic(windowHandle) && IsWindow(windowHandle)) {
+				nativeOverlay.SourceWindow = windowHandle;
+				hr = S_OK;
+			}
+		}
+	}
+	else {
+		return E_NOTIMPL;
+	}
+	*pNativeOverlay = nativeOverlay;
+	return hr;
+}
+
+
 std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(IEnumerable<RecordingSourceBase^>^ managedSources) {
 	std::vector<RECORDING_SOURCE> sources{};
 	if (managedSources) {
@@ -652,55 +717,14 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(IEnumerable<Re
 std::vector<RECORDING_OVERLAY> Recorder::CreateOverlayList(IEnumerable<RecordingOverlayBase^>^ managedOverlays) {
 	std::vector<RECORDING_OVERLAY> overlays{};
 	if (managedOverlays) {
-		for each (RecordingOverlayBase ^ managedOverlay in managedOverlays)
+		for each (RecordingOverlayBase^ overlay in managedOverlays)
 		{
-			RECORDING_OVERLAY overlay{};
-			overlay.ID = msclr::interop::marshal_as<std::wstring>(managedOverlay->ID);
-			overlay.Offset = SIZE{ static_cast<long>(managedOverlay->Offset->Width), static_cast<long>(managedOverlay->Offset->Height) };
-			overlay.OutputSize = SIZE{ static_cast<long>(managedOverlay->Size->Width), static_cast<long>(managedOverlay->Size->Height) };
-			overlay.Anchor = static_cast<OverlayAnchor>(managedOverlay->AnchorPosition);
-			if (isinst<VideoCaptureOverlay^>(managedOverlay)) {
-				VideoCaptureOverlay^ videoCaptureOverlay = (VideoCaptureOverlay^)managedOverlay;
-				overlay.Type = RecordingSourceType::CameraCapture;
-				if (!String::IsNullOrEmpty(videoCaptureOverlay->DeviceName)) {
-					overlay.SourcePath = msclr::interop::marshal_as<std::wstring>(videoCaptureOverlay->DeviceName);
+			RECORDING_OVERLAY nativeOverlay{};
+			HRESULT hr = CreateNativeRecordingOverlay(overlay, &nativeOverlay);
+			if (SUCCEEDED(hr)) {
+				if (std::find(overlays.begin(), overlays.end(), nativeOverlay) == overlays.end()) {
+					overlays.insert(overlays.end(), nativeOverlay);
 				}
-				overlays.push_back(overlay);
-			}
-			else if (isinst<ImageOverlay^>(managedOverlay)) {
-				ImageOverlay^ pictureOverlay = (ImageOverlay^)managedOverlay;
-				overlay.Type = RecordingSourceType::Picture;
-				if (!String::IsNullOrEmpty(pictureOverlay->SourcePath)) {
-					overlay.SourcePath = msclr::interop::marshal_as<std::wstring>(pictureOverlay->SourcePath);
-				}
-				overlays.push_back(overlay);
-			}
-			else if (isinst<VideoOverlay^>(managedOverlay)) {
-				VideoOverlay^ videoOverlay = (VideoOverlay^)managedOverlay;
-				overlay.Type = RecordingSourceType::Video;
-				if (!String::IsNullOrEmpty(videoOverlay->SourcePath)) {
-					overlay.SourcePath = msclr::interop::marshal_as<std::wstring>(videoOverlay->SourcePath);
-				}
-				overlays.push_back(overlay);
-			}
-			else if (isinst<DisplayOverlay^>(managedOverlay)) {
-				DisplayOverlay^ displayOverlay = (DisplayOverlay^)managedOverlay;
-				overlay.Type = RecordingSourceType::Display;
-				if (!String::IsNullOrEmpty(displayOverlay->DeviceName)) {
-					overlay.SourcePath = msclr::interop::marshal_as<std::wstring>(displayOverlay->DeviceName);
-				}
-				overlays.push_back(overlay);
-			}
-			else if (isinst<WindowOverlay^>(managedOverlay)) {
-				WindowOverlay^ windowOverlay = (WindowOverlay^)managedOverlay;
-				overlay.Type = RecordingSourceType::Window;
-				if (windowOverlay->Handle != IntPtr::Zero) {
-					HWND windowHandle = (HWND)(windowOverlay->Handle.ToPointer());
-					if (!IsIconic(windowHandle) && IsWindow(windowHandle)) {
-						overlay.SourceWindow = windowHandle;
-					}
-				}
-				overlays.push_back(overlay);
 			}
 		}
 	}

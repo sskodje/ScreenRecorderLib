@@ -384,6 +384,21 @@ namespace TestApp
             }
         }
 
+        private StretchMode _outputStretchMode = StretchMode.Uniform;
+        public StretchMode OutputStretchMode
+        {
+            get { return _outputStretchMode; }
+            set
+            {
+                if (_outputStretchMode != value)
+                {
+                    _outputStretchMode = value;
+                    RaisePropertyChanged(nameof(OutputStretchMode));
+                }
+            }
+        }
+
+
         public H264Profile CurrentH264Profile { get; set; } = H264Profile.High;
         public H265Profile CurrentH265Profile { get; set; } = H265Profile.Main;
 
@@ -442,7 +457,7 @@ namespace TestApp
             {
                 Overlay = new ImageOverlay()
                 {
-                    AnchorPosition = Anchor.BottomRight,
+                    AnchorPosition = Anchor.Center,
                     SourcePath = @"testmedia\giftest.gif",
                     Offset = new ScreenSize(0, 0),
                     Size = new ScreenSize(0, 300)
@@ -463,8 +478,8 @@ namespace TestApp
             {
                 Overlay = new WindowOverlay()
                 {
-                    AnchorPosition = Anchor.BottomLeft,
-                    Offset = new ScreenSize(400, 100),
+                    AnchorPosition = Anchor.BottomRight,
+                    Offset = new ScreenSize(100, 100),
                     Size = new ScreenSize(300, 0)
                 },
                 IsEnabled = false
@@ -565,8 +580,7 @@ namespace TestApp
                     IsHardwareEncodingEnabled = this.IsHardwareEncodingEnabled,
                     IsLowLatencyEnabled = this.IsLowLatencyEnabled,
                     IsMp4FastStartEnabled = this.IsMp4FastStartEnabled,
-                    IsFragmentedMp4Enabled = this.IsFragmentedMp4Enabled,
-                    FrameSize = IsCustomOutputFrameSizeEnabled ? this.OutputSize : null
+                    IsFragmentedMp4Enabled = this.IsFragmentedMp4Enabled
                 },
                 SnapshotOptions = new SnapshotOptions
                 {
@@ -576,9 +590,14 @@ namespace TestApp
                 },
                 SourceOptions = new SourceOptions
                 {
-                    RecordingSources = CreateSelectedRecordingSources(),
-                    SourceRect = IsCustomOutputSourceRectEnabled ? this.SourceRect : null
+                    RecordingSources = CreateSelectedRecordingSources()
                 },
+                 OutputOptions = new OutputOptions
+                 {
+                     SourceRect = IsCustomOutputSourceRectEnabled ? this.SourceRect : null,
+                     Stretch = OutputStretchMode,
+                     OutputFrameSize = IsCustomOutputFrameSizeEnabled ? this.OutputSize : null
+                 },
                 MouseOptions = new MouseOptions
                 {
                     IsMouseClicksDetected = this.IsMouseClicksDetected,

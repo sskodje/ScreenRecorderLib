@@ -16,6 +16,8 @@ GifReader::GifReader()
 	m_FramerateTimer(nullptr),
 	m_Device(nullptr),
 	m_DeviceContext(nullptr),
+	m_TextureManager(nullptr),
+	m_RecordingSource(nullptr),
 	m_LastSampleReceivedTimeStamp{ 0 },
 	m_LastGrabTimeStamp{ 0 },
 	m_cxGifImage(0),
@@ -45,7 +47,7 @@ GifReader::~GifReader()
 HRESULT GifReader::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSource)
 {
 	HRESULT hr;
-
+	m_RecordingSource = &recordingSource;
 	RETURN_ON_BAD_HR(hr = InitializeDecoder(recordingSource.SourcePath));
 	RETURN_ON_BAD_HR(hr = CreateDeviceResources());
 	// If we have at least one frame, start playing
@@ -120,47 +122,42 @@ HRESULT GifReader::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D1
 	return hr;
 }
 
-HRESULT GifReader::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ const std::optional<RECT> &sourceRect)
+HRESULT GifReader::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect)
 {
-	CComPtr<ID3D11Texture2D> processedTexture;
-	HRESULT hr = AcquireNextFrame(timeoutMillis, &processedTexture);
+	CComPtr<ID3D11Texture2D> pProcessedTexture;
+	HRESULT hr = AcquireNextFrame(timeoutMillis, &pProcessedTexture);
 	if (FAILED(hr)) {
 		return hr;
 	}
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"WriteNextFrameToSharedSurface");
+	RECORDING_SOURCE *recordingSource = dynamic_cast<RECORDING_SOURCE *>(m_RecordingSource);
 	D3D11_TEXTURE2D_DESC frameDesc;
-	processedTexture->GetDesc(&frameDesc);
-
-	if (sourceRect.has_value()
-		&& IsValidRect(sourceRect.value())
-		&& (RectWidth(sourceRect.value()) != frameDesc.Width || (RectHeight(sourceRect.value()) != frameDesc.Height))) {
+	pProcessedTexture->GetDesc(&frameDesc);
+	
+	if (recordingSource && recordingSource->SourceRect.has_value()
+		&& IsValidRect(recordingSource->SourceRect.value())
+		&& (RectWidth(recordingSource->SourceRect.value()) != frameDesc.Width || (RectHeight(recordingSource->SourceRect.value()) != frameDesc.Height))) {
 		ID3D11Texture2D *pCroppedTexture;
-		RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(processedTexture, sourceRect.value(), &pCroppedTexture));
-		processedTexture.Release();
-		processedTexture.Attach(pCroppedTexture);
+		RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(pProcessedTexture, recordingSource->SourceRect.value(), &pCroppedTexture));
+		if (hr == S_OK) {
+			pProcessedTexture.Release();
+			pProcessedTexture.Attach(pCroppedTexture);
+		}
 	}
-	processedTexture->GetDesc(&frameDesc);
+	pProcessedTexture->GetDesc(&frameDesc);
 
 	int leftMargin = 0;
 	int topMargin = 0;
-	if ((RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height)) {
-		double widthRatio = (double)RectWidth(destinationRect) / frameDesc.Width;
-		double heightRatio = (double)RectHeight(destinationRect) / frameDesc.Height;
-
-		double resizeRatio = min(widthRatio, heightRatio);
-		UINT resizedWidth = (UINT)MakeEven((LONG)round(frameDesc.Width * resizeRatio));
-		UINT resizedHeight = (UINT)MakeEven((LONG)round(frameDesc.Height * resizeRatio));
-		ID3D11Texture2D *resizedTexture = nullptr;
-		RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(processedTexture, &resizedTexture, SIZE{ static_cast<LONG>(resizedWidth), static_cast<LONG>(resizedHeight) }));
-		processedTexture.Release();
-		processedTexture.Attach(resizedTexture);
-		leftMargin = (int)max(0, round(((double)RectWidth(destinationRect) - (double)resizedWidth)) / 2);
-		topMargin = (int)max(0, round(((double)RectHeight(destinationRect) - (double)resizedHeight)) / 2);
+	RECT contentRect = destinationRect;
+	if (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height) {
+		ID3D11Texture2D *pResizedTexture;
+		RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pProcessedTexture, SIZE{ RectWidth(destinationRect),RectHeight(destinationRect) }, m_RecordingSource->Stretch, &pResizedTexture, &contentRect));
+		pProcessedTexture.Release();
+		pProcessedTexture.Attach(pResizedTexture);
 	}
 
-	processedTexture->GetDesc(&frameDesc);
-
+	pProcessedTexture->GetDesc(&frameDesc);
 
 	long left = destinationRect.left + offsetX + leftMargin;
 	long top = destinationRect.top + offsetY + topMargin;
@@ -183,7 +180,7 @@ HRESULT GifReader::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inou
 	if (SUCCEEDED(hr)) {
 		m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, left, top, 0, pBlankFrame, 0, &Box);
 	}
-	m_TextureManager->DrawTexture(pSharedSurf, processedTexture, RECT{ left,top,right,bottom });
+	m_TextureManager->DrawTexture(pSharedSurf, pProcessedTexture, RECT{ left,top,right,bottom });
 	return hr;
 }
 

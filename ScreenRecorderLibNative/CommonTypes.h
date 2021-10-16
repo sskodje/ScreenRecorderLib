@@ -13,6 +13,7 @@
 #include <optional>
 #include <wincodec.h>
 #include <chrono>
+#include "util.h"
 //
 // Holds info about the pointer/cursor
 //
@@ -92,9 +93,25 @@ enum class RecorderModeInternal {
 	Screenshot = 2
 };
 
-enum class OverlayAnchor {
+enum class TextureStretchMode {
+	///<summary>The content preserves its original size. </summary>
+	None,
+	///<summary>The content is resized to fill the destination dimensions. The aspect ratio is not preserved. </summary>
+	Fill,
+	///<summary>The content is resized to fit in the destination dimensions while it preserves its native aspect ratio.</summary>
+	Uniform,
+	///<summary>
+	//     The content is resized to fill the destination dimensions while it preserves
+	//     its native aspect ratio. If the aspect ratio of the destination rectangle differs
+	//     from the source, the source content is clipped to fit in the destination dimensions.
+	///</summary>
+	UniformToFill
+};
+
+enum class ContentAnchor {
 	TopLeft,
 	TopRight,
+	Center,
 	BottomLeft,
 	BottomRight
 };
@@ -118,6 +135,10 @@ struct RECORDING_SOURCE_BASE abstract {
 	RecordingSourceType Type;
 	std::wstring ID;
 	/// <summary>
+	/// Stretch mode for the frame
+	/// </summary>
+	TextureStretchMode Stretch;
+	/// <summary>
 	/// Optional custom output size of the source frame. May be both smaller or larger than the source.
 	/// </summary>
 	std::optional<SIZE> OutputSize;
@@ -126,8 +147,12 @@ struct RECORDING_SOURCE_BASE abstract {
 		SourceWindow(nullptr),
 		SourcePath(L""),
 		OutputSize{ std::nullopt },
-		ID(L"")
+		ID(L""),
+		Stretch(TextureStretchMode::Uniform)
 	{
+
+	}
+	virtual ~RECORDING_SOURCE_BASE() {
 
 	}
 };
@@ -135,14 +160,14 @@ struct RECORDING_SOURCE_BASE abstract {
 struct RECORDING_OVERLAY :RECORDING_SOURCE_BASE
 {
 	std::wstring ID;
-	OverlayAnchor Anchor;
+	ContentAnchor Anchor;
 	/// <summary>
 	/// Optional custom offset for the source frame.
 	/// </summary>
 	std::optional<SIZE> Offset;
 	RECORDING_OVERLAY() :
 		RECORDING_SOURCE_BASE(),
-		Anchor(OverlayAnchor::BottomLeft),
+		Anchor(ContentAnchor::BottomLeft),
 		Offset{ std::nullopt },
 		ID(L"")
 	{
@@ -177,6 +202,7 @@ struct RECORDING_SOURCE : RECORDING_SOURCE_BASE
 	/// Optional custom position for the source frame.
 	/// </summary>
 	std::optional<POINT> Position;
+
 	RECORDING_SOURCE() :
 		RECORDING_SOURCE_BASE(),
 		IsCursorCaptureEnabled(std::nullopt),
@@ -325,6 +351,20 @@ public:
 	UINT32 GetAudioSamplesPerSecond() { return AUDIO_SAMPLES_PER_SECOND; }
 };
 
+struct OUTPUT_OPTIONS {
+protected:
+	SIZE m_FrameSize{};
+	RECT m_SourceRect{};
+	TextureStretchMode m_Stretch = TextureStretchMode::Uniform;
+public:
+	SIZE GetFrameSize() { return m_FrameSize; }
+	void SetFrameSize(SIZE size) { m_FrameSize = size; }
+	void SetSourceRectangle(RECT rect) { m_SourceRect = MakeRectEven(rect); }
+	RECT GetSourceRectangle() { return m_SourceRect; }
+	void SetStretch(TextureStretchMode stretch) { m_Stretch = stretch; }
+	TextureStretchMode GetStretch() { return m_Stretch; }
+};
+
 struct ENCODER_OPTIONS abstract {
 protected:
 #pragma region Format constants
@@ -341,7 +381,6 @@ protected:
 	bool m_IsHardwareEncodingEnabled = true;
 	UINT32 m_VideoBitrateControlMode = eAVEncCommonRateControlMode_Quality;
 	UINT32 m_EncoderProfile = eAVEncH264VProfile_High;
-	SIZE m_FrameSize = SIZE{ 0,0 };
 public:
 	void SetVideoFps(UINT32 fps) { m_VideoFps = fps; }
 	void SetVideoBitrate(UINT32 bitrate) { m_VideoBitrate = bitrate; }
@@ -354,7 +393,6 @@ public:
 	void SetIsLowLatencyModeEnabled(bool value) { m_IsLowLatencyModeEnabled = value; }
 	void SetVideoBitrateMode(UINT32 bitrateMode) { m_VideoBitrateControlMode = bitrateMode; }
 	void SetEncoderProfile(UINT32 profile) { m_EncoderProfile = profile; }
-	void SetFrameSize(SIZE size) { m_FrameSize = size; }
 
 	UINT32 GetVideoFps() { return m_VideoFps; }
 	UINT32 GetVideoBitrate() { return m_VideoBitrate; }
@@ -368,7 +406,6 @@ public:
 	UINT32 GetVideoBitrateMode() { return m_VideoBitrateControlMode; }
 	UINT32 GetEncoderProfile() { return m_EncoderProfile; }
 	GUID GetVideoInputFormat() { return VIDEO_INPUT_FORMAT; }
-	SIZE GetFrameSize() { return m_FrameSize; }
 
 	virtual GUID GetVideoEncoderFormat() abstract;
 	virtual std::wstring GetVideoExtension() {

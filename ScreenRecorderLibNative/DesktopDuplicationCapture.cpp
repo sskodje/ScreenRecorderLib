@@ -14,6 +14,7 @@ DesktopDuplicationCapture::DesktopDuplicationCapture() :
 	m_MetaDataSize(0),
 	m_Device(nullptr),
 	m_DeviceContext(nullptr),
+	m_TextureManager(nullptr),
 	m_MoveSurf(nullptr),
 	m_VertexShader(nullptr),
 	m_PixelShader(nullptr),
@@ -24,7 +25,8 @@ DesktopDuplicationCapture::DesktopDuplicationCapture() :
 	m_DirtyVertexBufferAllocSize(0),
 	m_OutputIsOnSeparateGraphicsAdapter(false),
 	m_LastGrabTimeStamp{ 0 },
-	m_LastSampleUpdatedTimeStamp{ 0 }
+	m_LastSampleUpdatedTimeStamp{ 0 },
+	m_RecordingSource(nullptr)
 {
 	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 	RtlZeroMemory(&m_OutputDesc, sizeof(m_OutputDesc));
@@ -98,7 +100,7 @@ HRESULT DesktopDuplicationCapture::AcquireNextFrame(_In_ DWORD timeoutMillis, _O
 	return hr;
 }
 
-HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ const std::optional<RECT> &sourceRect)
+HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect)
 {
 	HRESULT hr = S_OK;
 	if (m_LastGrabTimeStamp.QuadPart >= m_LastSampleUpdatedTimeStamp.QuadPart) {
@@ -106,9 +108,79 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 	}
 
 	if (SUCCEEDED(hr)) {
-		RETURN_ON_BAD_HR(hr = WriteFrameUpdatesToSurface(&m_CurrentData, pSharedSurf, offsetX, offsetY, destinationRect, sourceRect));
-		if (hr == S_FALSE
-			&& m_LastGrabTimeStamp.QuadPart > 0
+		//RETURN_ON_BAD_HR(hr = WriteFrameUpdatesToSurface(&m_CurrentData, pSharedSurf, offsetX, offsetY, destinationRect,stretch, sourceRect));
+		DXGI_MODE_ROTATION rotation = m_OutputDesc.Rotation;
+		D3D11_TEXTURE2D_DESC frameDesc;
+		m_CurrentData.Frame->GetDesc(&frameDesc);
+		if (m_CurrentData.FrameInfo.TotalMetadataBufferSize)
+		{
+			TextureStretchMode stretch = m_RecordingSource->Stretch;
+			MeasureExecutionTime measure(L"Duplication WriteFrameUpdatesToSurface");
+			RECORDING_SOURCE *recordingSource = dynamic_cast<RECORDING_SOURCE *>(m_RecordingSource);
+			if (recordingSource
+				&& (recordingSource->SourceRect.has_value() && !EqualRect(&recordingSource->SourceRect.value(), &destinationRect)
+					|| (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height))) {
+				CComPtr<ID3D11Texture2D> pProcessedTexture = m_CurrentData.Frame;
+
+				if (rotation != DXGI_MODE_ROTATION_IDENTITY && rotation != DXGI_MODE_ROTATION_UNSPECIFIED) {
+					ID3D11Texture2D *pRotatedTexture = nullptr;
+					RETURN_ON_BAD_HR(hr = m_TextureManager->RotateTexture(pProcessedTexture, rotation, &pRotatedTexture));
+					pProcessedTexture.Attach(pRotatedTexture);
+				}
+
+				D3D11_TEXTURE2D_DESC frameDesc;
+				pProcessedTexture->GetDesc(&frameDesc);
+
+				if (recordingSource->SourceRect.has_value()
+					&& IsValidRect(recordingSource->SourceRect.value())
+					&& (RectWidth(recordingSource->SourceRect.value()) != frameDesc.Width || (RectHeight(recordingSource->SourceRect.value()) != frameDesc.Height))) {
+					ID3D11Texture2D *pCroppedTexture;
+					RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(pProcessedTexture, recordingSource->SourceRect.value(), &pCroppedTexture));
+					if (hr == S_OK) {
+						pProcessedTexture.Release();
+						pProcessedTexture.Attach(pCroppedTexture);
+					}
+				}
+				pProcessedTexture->GetDesc(&frameDesc);
+
+				int leftMargin = 0;
+				int topMargin = 0;
+				RECT contentRect = destinationRect;
+				if (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height) {
+					ID3D11Texture2D *pResizedTexture;
+					RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pProcessedTexture, SIZE{ RectWidth(destinationRect),RectHeight(destinationRect) }, stretch, &pResizedTexture, &contentRect));
+					pProcessedTexture.Release();
+					pProcessedTexture.Attach(pResizedTexture);
+				}
+
+				pProcessedTexture->GetDesc(&frameDesc);
+
+				D3D11_TEXTURE2D_DESC processedFrameDesc;
+				pProcessedTexture->GetDesc(&processedFrameDesc);
+
+				D3D11_BOX Box;
+				Box.front = 0;
+				Box.back = 1;
+				Box.left = 0;
+				Box.top = 0;
+				Box.right = MakeEven(processedFrameDesc.Width);
+				Box.bottom = MakeEven(processedFrameDesc.Height);
+				m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, destinationRect.left + offsetX + leftMargin, destinationRect.top + offsetY + topMargin, 0, pProcessedTexture, 0, &Box);
+			}
+			else
+			{
+				// Process dirties and moves
+				if (m_CurrentData.MoveCount)
+				{
+					RETURN_ON_BAD_HR(hr = CopyMove(pSharedSurf, reinterpret_cast<DXGI_OUTDUPL_MOVE_RECT *>(m_CurrentData.MetaData), m_CurrentData.MoveCount, offsetX, offsetY, destinationRect, rotation));
+				}
+				if (m_CurrentData.DirtyCount)
+				{
+					RETURN_ON_BAD_HR(hr = CopyDirty(m_CurrentData.Frame, pSharedSurf, reinterpret_cast<RECT *>(m_CurrentData.MetaData + (m_CurrentData.MoveCount * sizeof(DXGI_OUTDUPL_MOVE_RECT))), m_CurrentData.DirtyCount, offsetX, offsetY, destinationRect, rotation));
+				}
+			}
+		}
+		else if (m_LastGrabTimeStamp.QuadPart > 0
 			&& m_CurrentData.FrameInfo.LastMouseUpdateTime.QuadPart > m_LastGrabTimeStamp.QuadPart) {
 			hr = S_OK;
 		};
@@ -121,6 +193,7 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 
 HRESULT DesktopDuplicationCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSource)
 {
+	m_RecordingSource = &recordingSource;
 	return InitializeDesktopDuplication(recordingSource.SourcePath);
 }
 
@@ -345,86 +418,6 @@ HRESULT DesktopDuplicationCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout
 	pData->FrameInfo = FrameInfo;
 	QueryPerformanceCounter(&m_LastSampleUpdatedTimeStamp);
 	return S_OK;
-}
-
-//
-// Process a given frame and its metadata
-//
-HRESULT DesktopDuplicationCapture::WriteFrameUpdatesToSurface(_In_ DUPL_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ const std::optional<RECT> &sourceRect)
-{
-	HRESULT hr = S_FALSE;
-	DXGI_MODE_ROTATION rotation = m_OutputDesc.Rotation;
-	D3D11_TEXTURE2D_DESC frameDesc;
-	pData->Frame->GetDesc(&frameDesc);
-
-	if (pData->FrameInfo.TotalMetadataBufferSize)
-	{
-		MeasureExecutionTime measure(L"Duplication WriteFrameUpdatesToSurface");
-		if (sourceRect.has_value() && !EqualRect(&sourceRect.value(), &destinationRect)
-			|| (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height)) {
-			CComPtr<ID3D11Texture2D> processedTexture = pData->Frame;
-
-			if (rotation != DXGI_MODE_ROTATION_IDENTITY && rotation != DXGI_MODE_ROTATION_UNSPECIFIED) {
-				ID3D11Texture2D *rotatedTexture = nullptr;
-				RETURN_ON_BAD_HR(hr = m_TextureManager->RotateTexture(processedTexture, &rotatedTexture, rotation));
-				processedTexture.Attach(rotatedTexture);
-			}
-
-			if (sourceRect.has_value()
-				&& IsValidRect(sourceRect.value())
-				&& (RectWidth(sourceRect.value()) != frameDesc.Width || (RectHeight(sourceRect.value()) != frameDesc.Height))) {
-				ID3D11Texture2D *pCroppedTexture;
-				RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(processedTexture, sourceRect.value(), &pCroppedTexture));
-				processedTexture.Release();
-				processedTexture.Attach(pCroppedTexture);
-			}
-			processedTexture->GetDesc(&frameDesc);
-
-			int leftMargin = 0;
-			int topMargin = 0;
-			if (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height) {
-				double widthRatio = (double)RectWidth(destinationRect) / frameDesc.Width;
-				double heightRatio = (double)RectHeight(destinationRect) / frameDesc.Height;
-
-				double resizeRatio = min(widthRatio, heightRatio);
-				UINT resizedWidth = (UINT)MakeEven((LONG)round(frameDesc.Width * resizeRatio));
-				UINT resizedHeight = (UINT)MakeEven((LONG)round(frameDesc.Height * resizeRatio));
-				ID3D11Texture2D *resizedTexture = nullptr;
-				RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(processedTexture, &resizedTexture, SIZE{ static_cast<LONG>(resizedWidth), static_cast<LONG>(resizedHeight) }));
-				processedTexture.Release();
-				processedTexture.Attach(resizedTexture);
-				leftMargin = (int)max(0, round(((double)RectWidth(destinationRect) - (double)resizedWidth)) / 2);
-				topMargin = (int)max(0, round(((double)RectHeight(destinationRect) - (double)resizedHeight)) / 2);
-			}
-
-			processedTexture->GetDesc(&frameDesc);
-
-			D3D11_TEXTURE2D_DESC processedFrameDesc;
-			processedTexture->GetDesc(&processedFrameDesc);
-
-			D3D11_BOX Box;
-			Box.front = 0;
-			Box.back = 1;
-			Box.left = 0;
-			Box.top = 0;
-			Box.right = MakeEven(processedFrameDesc.Width);
-			Box.bottom = MakeEven(processedFrameDesc.Height);
-			m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, destinationRect.left + offsetX + leftMargin, destinationRect.top + offsetY + topMargin, 0, processedTexture, 0, &Box);
-		}
-		else
-		{
-			// Process dirties and moves
-			if (pData->MoveCount)
-			{
-				RETURN_ON_BAD_HR(hr = CopyMove(pSharedSurf, reinterpret_cast<DXGI_OUTDUPL_MOVE_RECT *>(pData->MetaData), pData->MoveCount, offsetX, offsetY, destinationRect, rotation));
-			}
-			if (pData->DirtyCount)
-			{
-				RETURN_ON_BAD_HR(hr = CopyDirty(pData->Frame, pSharedSurf, reinterpret_cast<RECT *>(pData->MetaData + (pData->MoveCount * sizeof(DXGI_OUTDUPL_MOVE_RECT))), pData->DirtyCount, offsetX, offsetY, destinationRect, rotation));
-			}
-		}
-	}
-	return hr;
 }
 
 //

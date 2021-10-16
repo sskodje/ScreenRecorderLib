@@ -3,12 +3,6 @@
 using namespace System;
 
 namespace ScreenRecorderLib {
-	public enum class Anchor {
-		TopLeft,
-		TopRight,
-		BottomLeft,
-		BottomRight
-	};
 
 	public ref class RecordingOverlayBase abstract : public INotifyPropertyChanged {
 	private:
@@ -16,6 +10,7 @@ namespace ScreenRecorderLib {
 		ScreenSize^ _offset;
 		Anchor _anchorPosition;
 		String^ _id;
+		StretchMode _stretch;
 	internal:
 		RecordingOverlayBase()
 		{
@@ -23,12 +18,14 @@ namespace ScreenRecorderLib {
 			AnchorPosition = Anchor::TopLeft;
 			Offset = nullptr;
 			Size = nullptr;
+			Stretch = StretchMode::Uniform;
 		}
 		RecordingOverlayBase(RecordingOverlayBase^ base) :RecordingOverlayBase() {
 			ID = base->ID;
 			Offset = base->Offset;
 			Size = base->Size;
 			AnchorPosition = base->AnchorPosition;
+			Stretch = base->Stretch;
 		}
 	public:
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
@@ -43,6 +40,18 @@ namespace ScreenRecorderLib {
 		private:
 			void set(String^ id) {
 				_id = id;
+			}
+		}
+		/// <summary>
+		/// Gets or sets a value that describes how an overlay should be stretched to fill the destination rectangle.
+		/// </summary>
+		virtual property StretchMode Stretch {
+			StretchMode get() {
+				return _stretch;
+			}
+			void set(StretchMode stretch) {
+				_stretch = stretch;
+				OnPropertyChanged("Stretch");
 			}
 		}
 

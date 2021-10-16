@@ -8,9 +8,16 @@ public:
 	TextureManager();
 	~TextureManager();
 	HRESULT Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *Device);
-	HRESULT ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _Outptr_ ID3D11Texture2D **ppResizedTexture, _In_opt_  std::optional<SIZE> targetSize = std::nullopt, _In_opt_  std::optional<double> scale = std::nullopt);
-	HRESULT RotateTexture(_In_ ID3D11Texture2D *pOrgTexture, _Outptr_ ID3D11Texture2D **ppRotatedTexture, _In_ DXGI_MODE_ROTATION rotation);
+	HRESULT ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_  SIZE targetSize, _In_ TextureStretchMode stretch, _Outptr_ ID3D11Texture2D **ppResizedTexture, _Out_opt_ RECT *pContentRect = nullptr);
+	HRESULT RotateTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_ DXGI_MODE_ROTATION rotation, _Outptr_ ID3D11Texture2D **ppRotatedTexture);
 	HRESULT DrawTexture(_Inout_ ID3D11Texture2D *pCanvasTexture, _In_ ID3D11Texture2D *pTexture, _In_ RECT rect);
+	/// <summary>
+	/// Crops a texture to the given rectangle.
+	/// </summary>
+	/// <param name="pTexture">The texture to crop</param>
+	/// <param name="cropRect">A rectangle to crop the texture to</param>
+	/// <param name="pCroppedFrame">The cropped texture</param>
+	/// <returns>S_OK if successful, S_FALSE is crop rect is larger than texture, error code on failure</returns>
 	HRESULT CropTexture(_In_ ID3D11Texture2D *pTexture, _In_ RECT cropRect, _Outptr_ ID3D11Texture2D **pCroppedFrame);
 	/// <summary>
 	/// Copy a texture via the CPU. This can be used to copy a texture created on one physical device to be rendered on another.

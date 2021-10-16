@@ -63,29 +63,52 @@ HRESULT TextureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In
 	return hr;
 }
 
-HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _Outptr_ ID3D11Texture2D **ppResizedTexture, _In_opt_ std::optional<SIZE> targetSize, _In_opt_ std::optional<double> scale)
+HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_  SIZE targetSize, _In_ TextureStretchMode stretch, _Outptr_ ID3D11Texture2D **ppResizedTexture, _Out_opt_ RECT *pContentRect)
 {
 	HRESULT hr;
 
-
 	// Create shader resource from texture of the original frame
-	D3D11_TEXTURE2D_DESC desktopDesc = {};
-	pOrgTexture->GetDesc(&desktopDesc);
-	UINT targetWidth;
-	UINT targetHeight;
-	if (targetSize.has_value()) {
-		targetWidth = targetSize.value().cx;
-		targetHeight = targetSize.value().cy;
+	D3D11_TEXTURE2D_DESC frameDesc = {};
+	pOrgTexture->GetDesc(&frameDesc);
+	UINT targetWidth = targetSize.cx;
+	UINT targetHeight = targetSize.cy;
+
+	double widthRatio = (double)targetWidth / frameDesc.Width;
+	double heightRatio = (double)targetHeight / frameDesc.Height;
+
+	UINT resizedWidth = frameDesc.Width;
+	UINT resizedHeight = frameDesc.Height;
+	switch (stretch)
+	{
+		case TextureStretchMode::Fill: {
+			resizedWidth = (UINT)MakeEven((LONG)round(frameDesc.Width * widthRatio));
+			resizedHeight = (UINT)MakeEven((LONG)round(frameDesc.Height * heightRatio));
+			break;
+		}
+		case TextureStretchMode::UniformToFill: {
+			double resizeRatio = max(widthRatio, heightRatio);
+			resizedWidth = (UINT)MakeEven((LONG)round(frameDesc.Width * resizeRatio));
+			resizedHeight = (UINT)MakeEven((LONG)round(frameDesc.Height * resizeRatio));
+			break;
+		}
+		case TextureStretchMode::Uniform: {
+			double resizeRatio = min(widthRatio, heightRatio);
+			resizedWidth = (UINT)MakeEven((LONG)round(frameDesc.Width * resizeRatio));
+			resizedHeight = (UINT)MakeEven((LONG)round(frameDesc.Height * resizeRatio));
+			break;
+		}
+		case TextureStretchMode::None:
+		default:
+			break;
 	}
-	else {
-		targetWidth = desktopDesc.Width;
-		targetHeight = desktopDesc.Height;
+	if (pContentRect) {
+		*pContentRect = RECT{ 0,0,static_cast<long>(resizedWidth),static_cast<long>(resizedHeight) };
 	}
 	D3D11_SHADER_RESOURCE_VIEW_DESC SDesc = {};
-	SDesc.Format = desktopDesc.Format;
+	SDesc.Format = frameDesc.Format;
 	SDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	SDesc.Texture2D.MostDetailedMip = desktopDesc.MipLevels - 1;
-	SDesc.Texture2D.MipLevels = desktopDesc.MipLevels;
+	SDesc.Texture2D.MostDetailedMip = frameDesc.MipLevels - 1;
+	SDesc.Texture2D.MipLevels = frameDesc.MipLevels;
 	ID3D11ShaderResourceView *srcSRV;
 	hr = m_Device->CreateShaderResourceView(pOrgTexture, &SDesc, &srcSRV);
 	if (FAILED(hr))
@@ -110,19 +133,17 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _Outptr
 	m_DeviceContext->RSGetViewports(&numViewports, &VP);
 
 	// Set view port
-	UINT viewportWidth = static_cast<UINT>(round(targetWidth * scale.value_or(1.0)));
-	UINT viewportHeight = static_cast<UINT>(round(targetHeight * scale.value_or(1.0)));
-	SetViewPort(m_DeviceContext, viewportWidth, viewportHeight);
+	SetViewPort(m_DeviceContext, resizedWidth, resizedHeight);
 
 	// Vertices for drawing whole texture
 	VERTEX Vertices[] =
 	{
-		{XMFLOAT3(-1.0f, -1.0f, 0), XMFLOAT2(0.0f, 1.0f)},
-		{XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f)},
-		{XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f)},
-		{XMFLOAT3(1.0f, 1.0f, 0), XMFLOAT2(1.0f, 0.0f)},
-		//{XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f)},
-		//{XMFLOAT3(1.0f, 1.0f, 0), XMFLOAT2(1.0f, 0.0f)},
+		{ XMFLOAT3(-1.0f, -1.0f, 0), XMFLOAT2(0.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f) },
+		{ XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f) },
+		{ XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f) },
+		{ XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f) },
+		{ XMFLOAT3(1.0f, 1.0f, 0), XMFLOAT2(1.0f, 0.0f) },
 	};
 
 	// Make new render target view
@@ -140,7 +161,7 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _Outptr
 	m_DeviceContext->PSSetShader(m_PixelShader, nullptr, 0);
 	m_DeviceContext->PSSetShaderResources(0, 1, &srcSRV);
 	m_DeviceContext->PSSetSamplers(0, 1, &m_SamplerLinear);
-	m_DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+	m_DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	D3D11_BUFFER_DESC BufferDesc;
 	RtlZeroMemory(&BufferDesc, sizeof(BufferDesc));
@@ -173,7 +194,6 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _Outptr
 	// Clear shader resource
 	ID3D11ShaderResourceView *null[] = { nullptr, nullptr };
 	m_DeviceContext->PSSetShaderResources(0, 1, null);
-
 	// Clean up
 	VertexBuffer->Release();
 	VertexBuffer = nullptr;
@@ -187,7 +207,7 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _Outptr
 	return hr;
 }
 
-HRESULT TextureManager::RotateTexture(_In_ ID3D11Texture2D *pOrgTexture, _Outptr_ ID3D11Texture2D **ppRotatedTexture, _In_ DXGI_MODE_ROTATION rotation)
+HRESULT TextureManager::RotateTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_ DXGI_MODE_ROTATION rotation, _Outptr_ ID3D11Texture2D **ppRotatedTexture)
 {
 	HRESULT hr;
 	// Create shader resource from texture of the original frame
@@ -212,11 +232,11 @@ HRESULT TextureManager::RotateTexture(_In_ ID3D11Texture2D *pOrgTexture, _Outptr
 
 	switch (rotation)
 	{
-	case DXGI_MODE_ROTATION_ROTATE90:
-	case DXGI_MODE_ROTATION_ROTATE270:
-		rotatedWidth = textureDesc.Height;
-		rotatedHeight = textureDesc.Width;
-		break;
+		case DXGI_MODE_ROTATION_ROTATE90:
+		case DXGI_MODE_ROTATION_ROTATE270:
+			rotatedWidth = textureDesc.Height;
+			rotatedHeight = textureDesc.Width;
+			break;
 	}
 
 	// Create target texture
@@ -325,7 +345,7 @@ HRESULT TextureManager::DrawTexture(_Inout_ ID3D11Texture2D *pCanvasTexture, _In
 	m_DeviceContext->RSGetViewports(&numViewports, &VP);
 
 	// Set view port
-	SetViewPort(m_DeviceContext, desktopDesc.Width, desktopDesc.Height);
+	SetViewPort(m_DeviceContext, RectWidth(rect),RectHeight(rect),rect.left,rect.top);
 
 	VERTEX Vertices[] =
 	{
@@ -336,29 +356,6 @@ HRESULT TextureManager::DrawTexture(_Inout_ ID3D11Texture2D *pCanvasTexture, _In
 		{ XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f) },
 		{ XMFLOAT3(1.0f, 1.0f, 0), XMFLOAT2(1.0f, 0.0f) },
 	};
-
-	LONG overlayLeft = rect.left;
-	LONG overlayTop = rect.top;
-	LONG overlayWidth = RectWidth(rect);
-	LONG overlayHeight = RectHeight(rect);
-	// Center of desktop dimensions
-	FLOAT centerX = ((FLOAT)desktopDesc.Width / 2);
-	FLOAT centerY = ((FLOAT)desktopDesc.Height / 2);
-
-	Vertices[0].Pos.x = (overlayLeft - centerX) / centerX;
-	Vertices[0].Pos.y = -1 * ((overlayTop + overlayHeight) - centerY) / centerY;
-	Vertices[1].Pos.x = (overlayLeft - centerX) / centerX;
-	Vertices[1].Pos.y = -1 * (overlayTop - centerY) / centerY;
-	Vertices[2].Pos.x = ((overlayLeft + overlayWidth) - centerX) / centerX;
-	Vertices[2].Pos.y = -1 * ((overlayTop + overlayHeight) - centerY) / centerY;
-	Vertices[5].Pos.x = ((overlayLeft + overlayWidth) - centerX) / centerX;
-	Vertices[5].Pos.y = -1 * (overlayTop - centerY) / centerY;
-
-
-	Vertices[3].Pos.x = Vertices[2].Pos.x;
-	Vertices[3].Pos.y = Vertices[2].Pos.y;
-	Vertices[4].Pos.x = Vertices[1].Pos.x;
-	Vertices[4].Pos.y = Vertices[1].Pos.y;
 
 	// Set shader resource properties
 	D3D11_SHADER_RESOURCE_VIEW_DESC shaderDesc;
@@ -450,11 +447,11 @@ void TextureManager::ConfigureRotationVertices(_Inout_ VERTEX(&vertices)[6], _In
 
 	switch (rotation)
 	{
-	case DXGI_MODE_ROTATION_ROTATE90:
-	case DXGI_MODE_ROTATION_ROTATE270:
-		rotatedWidth = textureHeight;
-		rotatedHeight = textureWidth;
-		break;
+		case DXGI_MODE_ROTATION_ROTATE90:
+		case DXGI_MODE_ROTATION_ROTATE270:
+			rotatedWidth = textureHeight;
+			rotatedHeight = textureWidth;
+			break;
 	}
 
 	// Center of desktop dimensions
@@ -467,56 +464,56 @@ void TextureManager::ConfigureRotationVertices(_Inout_ VERTEX(&vertices)[6], _In
 	// Set appropriate coordinates compensated for rotation
 	switch (rotation)
 	{
-	case DXGI_MODE_ROTATION_ROTATE90:
-	{
-		rotatedDestRect.left = rotatedWidth - textureRect.bottom;
-		rotatedDestRect.top = textureRect.left;
-		rotatedDestRect.right = rotatedWidth - textureRect.top;
-		rotatedDestRect.bottom = textureRect.right;
+		case DXGI_MODE_ROTATION_ROTATE90:
+		{
+			rotatedDestRect.left = rotatedWidth - textureRect.bottom;
+			rotatedDestRect.top = textureRect.left;
+			rotatedDestRect.right = rotatedWidth - textureRect.top;
+			rotatedDestRect.bottom = textureRect.right;
 
-		vertices[0].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
-		vertices[1].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
-		vertices[2].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
-		vertices[5].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
-		break;
-	}
-	case DXGI_MODE_ROTATION_ROTATE180:
-	{
-		rotatedDestRect.left = rotatedWidth - textureRect.right;
-		rotatedDestRect.top = rotatedHeight - textureRect.bottom;
-		rotatedDestRect.right = rotatedWidth - textureRect.left;
-		rotatedDestRect.bottom = rotatedHeight - textureRect.top;
+			vertices[0].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
+			vertices[1].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
+			vertices[2].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
+			vertices[5].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
+			break;
+		}
+		case DXGI_MODE_ROTATION_ROTATE180:
+		{
+			rotatedDestRect.left = rotatedWidth - textureRect.right;
+			rotatedDestRect.top = rotatedHeight - textureRect.bottom;
+			rotatedDestRect.right = rotatedWidth - textureRect.left;
+			rotatedDestRect.bottom = rotatedHeight - textureRect.top;
 
-		vertices[0].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
-		vertices[1].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
-		vertices[2].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
-		vertices[5].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
-		break;
-	}
-	case DXGI_MODE_ROTATION_ROTATE270:
-	{
-		rotatedDestRect.left = textureRect.top;
-		rotatedDestRect.top = rotatedHeight - textureRect.right;
-		rotatedDestRect.right = textureRect.bottom;
-		rotatedDestRect.bottom = rotatedHeight - textureRect.left;
+			vertices[0].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
+			vertices[1].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
+			vertices[2].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
+			vertices[5].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
+			break;
+		}
+		case DXGI_MODE_ROTATION_ROTATE270:
+		{
+			rotatedDestRect.left = textureRect.top;
+			rotatedDestRect.top = rotatedHeight - textureRect.right;
+			rotatedDestRect.right = textureRect.bottom;
+			rotatedDestRect.bottom = rotatedHeight - textureRect.left;
 
-		vertices[0].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
-		vertices[1].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
-		vertices[2].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
-		vertices[5].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
-		break;
-	}
-	case DXGI_MODE_ROTATION_UNSPECIFIED:
-	case DXGI_MODE_ROTATION_IDENTITY:
-	{
-		vertices[0].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
-		vertices[1].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
-		vertices[2].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
-		vertices[5].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
-		break;
-	}
-	default:
-		assert(false);
+			vertices[0].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
+			vertices[1].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
+			vertices[2].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
+			vertices[5].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
+			break;
+		}
+		case DXGI_MODE_ROTATION_UNSPECIFIED:
+		case DXGI_MODE_ROTATION_IDENTITY:
+		{
+			vertices[0].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
+			vertices[1].TexCoord = XMFLOAT2(textureRect.left / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
+			vertices[2].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.bottom / static_cast<FLOAT>(textureHeight));
+			vertices[5].TexCoord = XMFLOAT2(textureRect.right / static_cast<FLOAT>(textureWidth), textureRect.top / static_cast<FLOAT>(textureHeight));
+			break;
+		}
+		default:
+			assert(false);
 	}
 
 	// Set positions
@@ -557,10 +554,22 @@ HRESULT TextureManager::InitializeDesc(_In_ UINT width, _In_ UINT height, _Out_ 
 	return S_OK;
 }
 
+
 HRESULT TextureManager::CropTexture(_In_ ID3D11Texture2D *pTexture, _In_ RECT cropRect, _Outptr_ ID3D11Texture2D **pCroppedFrame)
 {
+	*pCroppedFrame = nullptr;
 	D3D11_TEXTURE2D_DESC frameDesc;
 	pTexture->GetDesc(&frameDesc);
+	if (frameDesc.Width <= RectWidth(cropRect) && frameDesc.Height <= RectHeight(cropRect)) {
+		*pCroppedFrame = pTexture;
+		return S_FALSE;
+	}
+	if (RectWidth(cropRect) > frameDesc.Width) {
+		cropRect.right -= RectWidth(cropRect) - frameDesc.Width;
+	}
+	if (RectHeight(cropRect) > frameDesc.Height) {
+		cropRect.bottom -= RectHeight(cropRect) - frameDesc.Height;
+	}
 	frameDesc.Width = RectWidth(cropRect);
 	frameDesc.Height = RectHeight(cropRect);
 	frameDesc.MiscFlags = 0;

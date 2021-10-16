@@ -15,7 +15,7 @@ public:
 	virtual HRESULT GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize) override;
 	virtual inline HRESULT StopCapture() { return S_OK; };
 	virtual HRESULT AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame) override;
-	virtual HRESULT WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ const std::optional<RECT> &sourceRect = std::nullopt) override;
+	virtual HRESULT WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect) override;
 	inline virtual HRESULT GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ RECT frameCoordinates, _In_ int offsetX, _In_ int offsetY) override {
 		return S_FALSE;
 	}
@@ -30,5 +30,6 @@ private:
 	CComPtr<ID3D11Texture2D> m_Texture;
 	SIZE m_NativeSize;
 	LARGE_INTEGER m_LastGrabTimeStamp;
+	RECORDING_SOURCE_BASE *m_RecordingSource;
 };
 

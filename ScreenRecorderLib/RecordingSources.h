@@ -1,6 +1,5 @@
 #pragma once
 #include "../ScreenRecorderLibNative/Native.h"
-#include "Coordinates.h"
 
 using namespace System;
 using namespace System::ComponentModel;
@@ -18,15 +17,18 @@ namespace ScreenRecorderLib {
 	private:
 		ScreenSize^ _outputSize;
 		ScreenPoint^ _position;
+		StretchMode _stretch;
 		String^ _id;
 	internal:
 		RecordingSourceBase() {
 			ID = Guid::NewGuid().ToString();
+			Stretch = StretchMode::Uniform;
 		}
 		RecordingSourceBase(RecordingSourceBase^ base) :RecordingSourceBase() {
 			ID = base->ID;
 			Position = base->Position;
 			OutputSize = base->OutputSize;
+			Stretch = base->Stretch;
 		}
 	public:
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
@@ -67,7 +69,18 @@ namespace ScreenRecorderLib {
 				OnPropertyChanged("Position");
 			}
 		}
-
+		/// <summary>
+		/// Gets or sets a value that describes how a recording source should be stretched to fill the destination rectangle.
+		/// </summary>
+		virtual property StretchMode Stretch {
+			StretchMode get() {
+				return _stretch;
+			}
+			void set(StretchMode stretch) {
+				_stretch = stretch;
+				OnPropertyChanged("Stretch");
+			}
+		}
 
 		void OnPropertyChanged(String^ info)
 		{

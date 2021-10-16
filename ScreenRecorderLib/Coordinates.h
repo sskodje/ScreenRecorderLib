@@ -4,6 +4,31 @@ using namespace System::ComponentModel;
 
 namespace ScreenRecorderLib {
 
+	/// <summary>
+	/// Describes how content is resized to fill its allocated space.
+	/// </summary>
+	public enum class StretchMode {
+		///<summary>The content preserves its original size. </summary>
+		None = (int)TextureStretchMode::None,
+		///<summary>The content is resized to fill the destination dimensions. The aspect ratio is not preserved. </summary>
+		Fill = (int)TextureStretchMode::Fill,
+		///<summary>The content is resized to fit in the destination dimensions while it preserves its native aspect ratio.</summary>
+		Uniform = (int)TextureStretchMode::Uniform,
+		///<summary>
+		//     The content is resized to fill the destination dimensions while it preserves
+		//     its native aspect ratio. If the aspect ratio of the destination rectangle differs
+		//     from the source, the source content is clipped to fit in the destination dimensions.
+		///</summary>
+		UniformToFill = (int)TextureStretchMode::UniformToFill
+	};
+
+	public enum class Anchor {
+		TopLeft,
+		TopRight,
+		Center,
+		BottomLeft,
+		BottomRight
+	};
 	public ref class ScreenPoint : public INotifyPropertyChanged {
 	internal:
 		POINT ToPOINT() {

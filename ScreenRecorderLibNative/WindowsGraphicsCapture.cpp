@@ -100,7 +100,7 @@ HRESULT WindowsGraphicsCapture::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outp
 	return hr;
 }
 
-HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ const std::optional<RECT> &sourceRect)
+HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect)
 {
 	HRESULT hr = S_OK;
 	if (m_LastSampleReceivedTimeStamp.QuadPart >= m_CurrentData.Timestamp.QuadPart) {
@@ -110,7 +110,60 @@ HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeout
 		return E_ABORT;
 	}
 	if (SUCCEEDED(hr)) {
-		RETURN_ON_BAD_HR(hr = WriteFrameUpdatesToSurface(&m_CurrentData, pSharedSurf, offsetX, offsetY, destinationRect, sourceRect));
+
+		CComPtr<ID3D11Texture2D> pProcessedTexture = m_CurrentData.Frame;
+		D3D11_TEXTURE2D_DESC frameDesc;
+		pProcessedTexture->GetDesc(&frameDesc);
+		RECORDING_SOURCE *recordingSource = dynamic_cast<RECORDING_SOURCE *>(m_RecordingSource);
+		if (recordingSource
+			&& recordingSource->SourceRect.has_value()
+			&& IsValidRect(recordingSource->SourceRect.value())
+			&& (RectWidth(recordingSource->SourceRect.value()) != frameDesc.Width || (RectHeight(recordingSource->SourceRect.value()) != frameDesc.Height))) {
+			ID3D11Texture2D *pCroppedTexture;
+			RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(pProcessedTexture, recordingSource->SourceRect.value(), &pCroppedTexture));
+			if (hr == S_OK) {
+				pProcessedTexture.Release();
+				pProcessedTexture.Attach(pCroppedTexture);
+			}
+		}
+		pProcessedTexture->GetDesc(&frameDesc);
+
+		int leftMargin = 0;
+		int topMargin = 0;
+		RECT contentRect = destinationRect;
+		if (m_RecordingSource
+			&& (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height)) {
+			ID3D11Texture2D *pResizedTexture;
+			RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pProcessedTexture, SIZE{ RectWidth(destinationRect),RectHeight(destinationRect) }, m_RecordingSource->Stretch, &pResizedTexture, &contentRect));
+			pProcessedTexture.Release();
+			pProcessedTexture.Attach(pResizedTexture);
+		}
+		leftMargin = (int)max(0, round(((double)RectWidth(destinationRect) - (double)RectWidth(contentRect))) / 2);
+		topMargin = (int)max(0, round(((double)RectHeight(destinationRect) - (double)RectHeight(contentRect))) / 2);
+		pProcessedTexture->GetDesc(&frameDesc);
+
+		RECT finalFrameRect = MakeRectEven(RECT
+			{
+				destinationRect.left,
+				destinationRect.top,
+				destinationRect.left + (LONG)RectWidth(contentRect),
+				destinationRect.top + (LONG)RectHeight(contentRect)
+			});
+
+		if (!IsRectEmpty(&m_LastFrameRect) && !EqualRect(&finalFrameRect, &m_LastFrameRect)) {
+			m_TextureManager->BlankTexture(pSharedSurf, MakeRectEven(destinationRect), offsetX, offsetY);
+		}
+
+		D3D11_BOX Box;
+		Box.front = 0;
+		Box.back = 1;
+		Box.left = 0;
+		Box.top = 0;
+		Box.right = MakeEven(RectWidth(contentRect));
+		Box.bottom = MakeEven(RectHeight(contentRect));
+
+		m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, finalFrameRect.left + offsetX + leftMargin, finalFrameRect.top + offsetY + topMargin, 0, pProcessedTexture, 0, &Box);
+		m_LastFrameRect = finalFrameRect;
 		QueryPerformanceCounter(&m_LastGrabTimeStamp);
 	}
 	return hr;
@@ -292,7 +345,7 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 				* In this instance we continue to use this size instead of the Direct3D11CaptureFrame::ContentSize(), as it may differ by a few pixels
 				* due to windows 10 window borders and trigger a resize, which leads to blurry recordings.
 				*/
-				winrt::SizeInt32 newSize = (!m_HaveDeliveredFirstFrame && pData->ContentSize.cx > 0) ? winrt::SizeInt32{ pData->ContentSize.cx,pData->ContentSize.cy }: frame.ContentSize();
+				winrt::SizeInt32 newSize = (!m_HaveDeliveredFirstFrame && pData->ContentSize.cx > 0) ? winrt::SizeInt32{ pData->ContentSize.cx,pData->ContentSize.cy } : frame.ContentSize();
 				SafeRelease(&pData->Frame);
 
 				D3D11_TEXTURE2D_DESC newFrameDesc;
@@ -334,9 +387,9 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 			D3D11_BOX sourceRegion;
 			RtlZeroMemory(&sourceRegion, sizeof(sourceRegion));
 			sourceRegion.left = 0;
-			sourceRegion.right = min(frame.ContentSize().Width, desc.Width);
+			sourceRegion.right = min(frame.ContentSize().Width, (int)desc.Width);
 			sourceRegion.top = 0;
-			sourceRegion.bottom = min(frame.ContentSize().Height, desc.Height);
+			sourceRegion.bottom = min(frame.ContentSize().Height, (int)desc.Height);
 			sourceRegion.front = 0;
 			sourceRegion.back = 1;
 			m_DeviceContext->CopySubresourceRegion(pData->Frame, 0, 0, 0, 0, surfaceTexture.get(), 0, &sourceRegion);
@@ -384,67 +437,5 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 		LOG_ERROR(L"WaitForSingleObject failed: last error = %u", dwErr);
 		hr = HRESULT_FROM_WIN32(dwErr);
 	}
-	return hr;
-}
-
-HRESULT WindowsGraphicsCapture::WriteFrameUpdatesToSurface(_Inout_ GRAPHICS_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, _In_ INT offsetX, _In_  INT offsetY, _In_ RECT &destinationRect, _In_opt_ const std::optional<RECT> &sourceRect)
-{
-	HRESULT hr = S_OK;
-
-	CComPtr<ID3D11Texture2D> processedTexture = pData->Frame;
-	D3D11_TEXTURE2D_DESC frameDesc;
-	processedTexture->GetDesc(&frameDesc);
-
-	if (sourceRect.has_value()
-		&& IsValidRect(sourceRect.value())
-		&& (RectWidth(sourceRect.value()) != frameDesc.Width || (RectHeight(sourceRect.value()) != frameDesc.Height))) {
-		ID3D11Texture2D *pCroppedTexture;
-		RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(processedTexture, sourceRect.value(), &pCroppedTexture));
-		processedTexture.Release();
-		processedTexture.Attach(pCroppedTexture);
-	}
-	processedTexture->GetDesc(&frameDesc);
-
-	int leftMargin = 0;
-	int topMargin = 0;
-	if (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height) {
-		double widthRatio = (double)RectWidth(destinationRect) / frameDesc.Width;
-		double heightRatio = (double)RectHeight(destinationRect) / frameDesc.Height;
-
-		double resizeRatio = min(widthRatio, heightRatio);
-		UINT resizedWidth = (UINT)MakeEven((LONG)round(frameDesc.Width * resizeRatio));
-		UINT resizedHeight = (UINT)MakeEven((LONG)round(frameDesc.Height * resizeRatio));
-		ID3D11Texture2D *resizedTexture = nullptr;
-		RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(processedTexture, &resizedTexture, SIZE{ static_cast<LONG>(resizedWidth), static_cast<LONG>(resizedHeight) }));
-		processedTexture.Release();
-		processedTexture.Attach(resizedTexture);
-		leftMargin = (int)max(0, round(((double)RectWidth(destinationRect) - (double)resizedWidth)) / 2);
-		topMargin = (int)max(0, round(((double)RectHeight(destinationRect) - (double)resizedHeight)) / 2);
-	}
-
-	processedTexture->GetDesc(&frameDesc);
-
-	RECT finalFrameRect = MakeRectEven(RECT
-		{
-			destinationRect.left,
-			destinationRect.top,
-			destinationRect.left + (LONG)frameDesc.Width,
-			destinationRect.top + (LONG)frameDesc.Height
-		});
-
-	if (!IsRectEmpty(&m_LastFrameRect) && !EqualRect(&finalFrameRect, &m_LastFrameRect)) {
-		m_TextureManager->BlankTexture(pSharedSurf, MakeRectEven(destinationRect), offsetX, offsetY);
-	}
-
-	D3D11_BOX Box;
-	Box.front = 0;
-	Box.back = 1;
-	Box.left = 0;
-	Box.top = 0;
-	Box.right = MakeEven(frameDesc.Width);
-	Box.bottom = MakeEven(frameDesc.Height);
-
-	m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, finalFrameRect.left + offsetX + leftMargin, finalFrameRect.top + offsetY + topMargin, 0, processedTexture, 0, &Box);
-	m_LastFrameRect = finalFrameRect;
 	return hr;
 }

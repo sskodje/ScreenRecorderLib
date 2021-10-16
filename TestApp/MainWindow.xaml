@@ -11,7 +11,7 @@
         mc:Ignorable="d"
         Title="ScreenRecorderLib Demo"
         Height="800"
-        Width="900"
+        Width="915"
         SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
         Activated="MainWin_Activated">
@@ -22,6 +22,13 @@
         <sources:MediaDeviceToDeviceIdConverter x:Key="MediaDeviceToDeviceIdConverter" />
         <sources:RecordableDisplayToDeviceIdConverter x:Key="RecordableDisplayToDeviceIdConverter" />
         <sources:RecordableWindowToHandleConverter x:Key="RecordableWindowToHandleConverter" />
+        <ObjectDataProvider x:Key="RecorderStretchData"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type System:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="rec:StretchMode" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
         <ObjectDataProvider x:Key="RecorderAnchorData"
                             MethodName="GetValues"
                             ObjectType="{x:Type System:Enum}">
@@ -325,7 +332,7 @@
                                 <StackPanel Orientation="Horizontal"
                                             IsEnabled="{Binding IsCustomOutputSizeEnabled}">
                                     <Label Content="Size:"
-                                           VerticalContentAlignment="Center"/>
+                                           VerticalContentAlignment="Center" />
                                     <TextBox x:Name="RecordingOutputWidthTextBox"
                                              VerticalContentAlignment="Center"
                                              Text="{Binding OutputSize.Width, UpdateSourceTrigger=PropertyChanged}"
@@ -348,33 +355,60 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <Label Content="{Binding}"
                                        MinWidth="100"
                                        MaxWidth="250"
                                        ToolTip="{Binding}"
                                        VerticalAlignment="Center" />
-                                <ComboBox x:Name="RecordingApiComboBox"
-                                          Grid.Column="1"
-                                          Width="55"
-                                          Margin="0,5,5,5"
-                                          IsEditable="True"
-                                          IsReadOnly="True"
-                                          Validation.ErrorTemplate="{x:Null}"
-                                          SelectionChanged="RecordingApiComboBox_SelectionChanged"
-                                          ItemsSource="{Binding Source={StaticResource RecorderApiData}}"
-                                          SelectedItem="{Binding RecorderApi, Mode=TwoWay}" />
+                                <Grid Grid.Column="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <ComboBox x:Name="RecordingApiComboBox"
+                                              Grid.Column="0"
+                                              Width="55"
+                                              Padding="0"
+                                              Margin="0,0,5,0"
+                                              VerticalAlignment="Center"
+                                              IsEditable="True"
+                                              IsReadOnly="True"
+                                              Validation.ErrorTemplate="{x:Null}"
+                                              SelectionChanged="RecordingApiComboBox_SelectionChanged"
+                                              ItemsSource="{Binding Source={StaticResource RecorderApiData}}"
+                                              SelectedItem="{Binding RecorderApi, Mode=TwoWay}" />
+                                    <DockPanel Grid.Column="1">
+                                        <CheckBox VerticalAlignment="Center"
+                                                  Padding="0"
+                                                  DockPanel.Dock="Left"
+                                                  x:Name="CheckBoxIsCursorCaptureEnabledForSource"
+                                                  IsChecked="{Binding IsCursorCaptureEnabled,Mode=TwoWay}" />
+                                        <Label Content="Show cursor"
+                                               Padding="5,0,0,0"
+                                               DockPanel.Dock="Right"
+                                               VerticalContentAlignment="Center" />
+                                    </DockPanel>
+                                    <DockPanel Grid.ColumnSpan="2"
+                                                Grid.Row="1">
+                                        <Label Content="Stretch: "
+                                               Margin="0,0,7,0"
+                                               DockPanel.Dock="Left"/>
+                                        <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
+                                                  SelectedItem="{Binding Stretch}"
+                                                  Padding="5,1,1,1"
+                                                  DockPanel.Dock="Right"
+                                                  VerticalAlignment="Center" />
+                                    </DockPanel>
+                                </Grid>
+
                                 <StackPanel Grid.Column="2"
-                                            Orientation="Horizontal">
-                                    <CheckBox VerticalAlignment="Center"
-                                              x:Name="CheckBoxIsCursorCaptureEnabledForSource"
-                                              IsChecked="{Binding IsCursorCaptureEnabled,Mode=TwoWay}"/>
-                                    <Label Content="Show cursor"
-                                           VerticalContentAlignment="Center" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="3"
                                             Margin="5,0,0,0"
+                                            VerticalAlignment="Center"
                                             Orientation="Horizontal">
                                     <CheckBox VerticalAlignment="Center"
                                               IsChecked="{Binding IsCustomOutputSourceRectEnabled}"
@@ -411,7 +445,7 @@
                                                  PreviewTextInput="UserInput_TextInput"
                                                  Margin="5,0,0,0" />
                                     </StackPanel>
-                                    <ContentPresenter Content="{StaticResource BaseContent}" />
+                                    <ContentPresenter Content="{StaticResource BaseContent}"/>
                                 </StackPanel>
                             </Grid>
                         </DataTemplate>
@@ -420,6 +454,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <Label Content="{Binding}"
                                        MinWidth="150"
@@ -427,7 +462,13 @@
                                        HorizontalAlignment="Left"
                                        ToolTip="{Binding}" />
                                 <StackPanel Grid.Column="1"
-                                            Margin="5,0,0,0"
+                                            Orientation="Horizontal">
+                                    <Label Content="Stretch mode: " />
+                                    <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
+                                              SelectedItem="{Binding Stretch}"
+                                              VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2"
                                             Orientation="Horizontal">
                                     <ContentPresenter Content="{StaticResource BaseContent}" />
                                 </StackPanel>
@@ -438,6 +479,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <Label Content="{Binding FriendlyName}"
                                        MinWidth="150"
@@ -445,7 +487,13 @@
                                        HorizontalAlignment="Left"
                                        ToolTip="{Binding}" />
                                 <StackPanel Grid.Column="1"
-                                            Margin="5,0,0,0"
+                                            Orientation="Horizontal">
+                                    <Label Content="Stretch mode: " />
+                                    <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
+                                              SelectedItem="{Binding Stretch}"
+                                              VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2"
                                             Orientation="Horizontal">
                                     <ContentPresenter Content="{StaticResource BaseContent}" />
                                 </StackPanel>
@@ -456,6 +504,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBox Text="{Binding SourcePath, Mode=TwoWay}"
                                          MinWidth="150"
@@ -464,7 +513,13 @@
                                          HorizontalAlignment="Left"
                                          ToolTip="{Binding}" />
                                 <StackPanel Grid.Column="1"
-                                            Margin="5,0,0,0"
+                                            Orientation="Horizontal">
+                                    <Label Content="Stretch mode: " />
+                                    <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
+                                              SelectedItem="{Binding Stretch}"
+                                              VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2"
                                             Orientation="Horizontal">
                                     <ContentPresenter Content="{StaticResource BaseContent}" />
                                 </StackPanel>
@@ -475,6 +530,7 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBox Text="{Binding SourcePath,Mode=TwoWay}"
                                          MinWidth="150"
@@ -483,7 +539,13 @@
                                          HorizontalAlignment="Left"
                                          ToolTip="{Binding}" />
                                 <StackPanel Grid.Column="1"
-                                            Margin="5,0,0,0"
+                                            Orientation="Horizontal">
+                                    <Label Content="Stretch mode: " />
+                                    <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
+                                              SelectedItem="{Binding Stretch}"
+                                              VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2"
                                             Orientation="Horizontal">
                                     <ContentPresenter Content="{StaticResource BaseContent}" />
                                 </StackPanel>
@@ -505,6 +567,11 @@
                         <StackPanel Orientation="Horizontal"
                                     Margin="5,0,145,0"
                                     Grid.Column="1">
+                            <Label Content="Stretch: " />
+                            <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
+                                      SelectedItem="{Binding ElementName=MainWin,Path=OutputStretchMode}"
+                                      VerticalAlignment="Center" 
+                                      Margin="0,0,5,0"/>
                             <CheckBox VerticalAlignment="Center"
                                       IsChecked="{Binding ElementName=MainWin,Path=IsCustomOutputSourceRectEnabled}"
                                       Checked="CustomCoordinates_CheckedChanged" />

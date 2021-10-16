@@ -432,15 +432,15 @@ void CleanDx(_Inout_ DX_RESOURCES *Data)
 //
 // Set new viewport
 //
-void SetViewPort(_In_ ID3D11DeviceContext *deviceContext, _In_ UINT Width, _In_ UINT Height)
+void SetViewPort(_In_ ID3D11DeviceContext *deviceContext, _In_ UINT Width, _In_ UINT Height, _In_ UINT left, _In_ UINT top)
 {
 	D3D11_VIEWPORT VP;
 	VP.Width = static_cast<FLOAT>(Width);
 	VP.Height = static_cast<FLOAT>(Height);
 	VP.MinDepth = 0.0f;
 	VP.MaxDepth = 1.0f;
-	VP.TopLeftX = 0;
-	VP.TopLeftY = 0;
+	VP.TopLeftX = left;
+	VP.TopLeftY = top;
 	deviceContext->RSSetViewports(1, &VP);
 }
 

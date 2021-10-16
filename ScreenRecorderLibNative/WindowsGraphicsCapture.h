@@ -13,7 +13,7 @@ public:
 	virtual ~WindowsGraphicsCapture();
 	virtual HRESULT Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice) override;
 	virtual HRESULT AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame) override;
-	virtual HRESULT WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ const std::optional<RECT> &sourceRect = std::nullopt) override;
+	virtual HRESULT WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect) override;
 	virtual HRESULT StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSource) override;
 	virtual HRESULT StopCapture();
 	virtual HRESULT GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize) override;
@@ -22,7 +22,6 @@ public:
 
 private:
 	void OnFrameArrived(winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &args);
-	HRESULT WriteFrameUpdatesToSurface(_Inout_ GRAPHICS_FRAME_DATA *pData, _Inout_ ID3D11Texture2D *pSharedSurf, _In_  INT OffsetX, _In_  INT OffsetY, _In_ RECT &destinationRect, _In_opt_ const std::optional<RECT> &sourceRect = std::nullopt);
 	HRESULT GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ GRAPHICS_FRAME_DATA *pData);
 private:
 	winrt::Windows::Graphics::Capture::GraphicsCaptureItem GetCaptureItem(_In_ RECORDING_SOURCE_BASE &recordingSource);

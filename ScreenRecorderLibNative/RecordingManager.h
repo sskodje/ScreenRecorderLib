@@ -44,10 +44,6 @@ public:
 
 	bool IsRecording() { return m_IsRecording; }
 
-	void SetSourceRectangle(RECT rect) {
-		m_SourceRect = MakeRectEven(rect);
-	}
-
 	static bool SetExcludeFromCapture(HWND hwnd, bool isExcluded);
 
 	inline void SetRecordingSources(std::vector<RECORDING_SOURCE> sources) 
@@ -86,6 +82,8 @@ public:
 	std::shared_ptr<MOUSE_OPTIONS> GetMouseOptions() { return m_MouseOptions; }
 	void SetSnapshotOptions(SNAPSHOT_OPTIONS *options) { m_SnapshotOptions.reset(options); }
 	std::shared_ptr<SNAPSHOT_OPTIONS> GetSnapshotOptions() { return m_SnapshotOptions; }
+	void SetOutputOptions(OUTPUT_OPTIONS *options) { m_OutputOptions.reset(options); }
+	std::shared_ptr<OUTPUT_OPTIONS> GetOutputOptions() { return m_OutputOptions; }
 private:
 	bool m_IsDestructing;
 	struct TaskWrapper;
@@ -108,7 +106,6 @@ private:
 	RecorderModeInternal m_RecorderMode;
 	std::vector<RECORDING_SOURCE*> m_RecordingSources;
 	std::vector<RECORDING_OVERLAY*> m_Overlays;
-	RECT m_SourceRect{};
 	bool m_IsPaused = false;
 	bool m_IsRecording = false;
 
@@ -116,6 +113,7 @@ private:
 	std::shared_ptr<AUDIO_OPTIONS> m_AudioOptions;
 	std::shared_ptr<MOUSE_OPTIONS> m_MouseOptions;
 	std::shared_ptr<SNAPSHOT_OPTIONS> m_SnapshotOptions;
+	std::shared_ptr<OUTPUT_OPTIONS> m_OutputOptions;
 
 	bool CheckDependencies(_Out_ std::wstring *error);
 	HRESULT ConfigureOutputDir(_In_ std::wstring path);
