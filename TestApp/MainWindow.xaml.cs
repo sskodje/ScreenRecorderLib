@@ -135,7 +135,7 @@ namespace TestApp
                     _isMouseClicksDetected = value;
                     RaisePropertyChanged(nameof(IsMouseClicksDetected));
                     _rec?.GetDynamicOptionsBuilder()
-                             .SetDynamicMouseOptions(new DynamicMouseOptions {  IsMouseClicksDetected = value })
+                             .SetDynamicMouseOptions(new DynamicMouseOptions { IsMouseClicksDetected = value })
                              .Apply();
                 }
             }
@@ -413,7 +413,7 @@ namespace TestApp
 
         private void MainWindow_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-     
+
         }
 
         private void InitializeDefaultOverlays()
@@ -592,12 +592,12 @@ namespace TestApp
                 {
                     RecordingSources = CreateSelectedRecordingSources()
                 },
-                 OutputOptions = new OutputOptions
-                 {
-                     SourceRect = IsCustomOutputSourceRectEnabled ? this.SourceRect : null,
-                     Stretch = OutputStretchMode,
-                     OutputFrameSize = IsCustomOutputFrameSizeEnabled ? this.OutputSize : null
-                 },
+                OutputOptions = new OutputOptions
+                {
+                    SourceRect = IsCustomOutputSourceRectEnabled ? this.SourceRect : null,
+                    Stretch = OutputStretchMode,
+                    OutputFrameSize = IsCustomOutputFrameSizeEnabled ? this.OutputSize : null
+                },
                 MouseOptions = new MouseOptions
                 {
                     IsMouseClicksDetected = this.IsMouseClicksDetected,
@@ -662,21 +662,18 @@ namespace TestApp
                 {
                     return new WindowRecordingSource(win)
                     {
-                        IsCursorCaptureEnabled = win.IsCursorCaptureEnabled,
                         OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
                         SourceRect = win.IsCustomOutputSourceRectEnabled ? win.SourceRect : null,
-                        Position = win.IsCustomPositionEnabled ? win.Position : null
+                        Position = win.IsCustomPositionEnabled ? win.Position : null,
                     };
                 }
                 else if (x is CheckableRecordableDisplay disp)
                 {
                     return new DisplayRecordingSource(disp)
                     {
-                        IsCursorCaptureEnabled = disp.IsCursorCaptureEnabled,
                         OutputSize = disp.IsCustomOutputSizeEnabled ? disp.OutputSize : null,
                         SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
-                        Position = disp.IsCustomPositionEnabled ? disp.Position : null,
-                        RecorderApi = disp.RecorderApi
+                        Position = disp.IsCustomPositionEnabled ? disp.Position : null
                     };
                 }
                 else if (x is CheckableRecordableCamera cam)
@@ -685,7 +682,7 @@ namespace TestApp
                     {
                         OutputSize = cam.IsCustomOutputSizeEnabled ? cam.OutputSize : null,
                         SourceRect = cam.IsCustomOutputSourceRectEnabled ? cam.SourceRect : null,
-                        Position = cam.IsCustomPositionEnabled ? cam.Position : null,
+                        Position = cam.IsCustomPositionEnabled ? cam.Position : null
                     };
                 }
                 else if (x is CheckableRecordableImage img)
@@ -694,7 +691,7 @@ namespace TestApp
                     {
                         OutputSize = img.IsCustomOutputSizeEnabled ? img.OutputSize : null,
                         SourceRect = img.IsCustomOutputSourceRectEnabled ? img.SourceRect : null,
-                        Position = img.IsCustomPositionEnabled ? img.Position : null,
+                        Position = img.IsCustomPositionEnabled ? img.Position : null
                     };
                 }
                 else if (x is CheckableRecordableVideo vid)
@@ -703,7 +700,7 @@ namespace TestApp
                     {
                         OutputSize = vid.IsCustomOutputSizeEnabled ? vid.OutputSize : null,
                         SourceRect = vid.IsCustomOutputSourceRectEnabled ? vid.SourceRect : null,
-                        Position = vid.IsCustomPositionEnabled ? vid.Position : null,
+                        Position = vid.IsCustomPositionEnabled ? vid.Position : null
                     };
                 }
                 else

@@ -116,6 +116,7 @@ namespace ScreenRecorderLib {
 		}
 		WindowRecordingSource(WindowRecordingSource^ source) :RecordingSourceBase(source) {
 			Handle = source->Handle;
+			IsCursorCaptureEnabled = source->IsCursorCaptureEnabled;
 		}
 		virtual property RecorderApi RecorderApi {
 			ScreenRecorderLib::RecorderApi get() {
@@ -166,6 +167,8 @@ namespace ScreenRecorderLib {
 		}
 		DisplayRecordingSource(DisplayRecordingSource^ source) :RecordingSourceBase(source) {
 			DeviceName = source->DeviceName;
+			IsCursorCaptureEnabled = source->IsCursorCaptureEnabled;
+			RecorderApi = source->RecorderApi;
 		}
 
 		virtual property RecorderApi RecorderApi {
