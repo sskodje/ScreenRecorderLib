@@ -144,6 +144,10 @@ HRESULT ImageReader::InitializeDecoder(_In_ std::wstring source)
 		return E_FAIL;
 	}
 	BYTE *pFrameBuffer = new (std::nothrow) BYTE[bitmapSize];
+	if (!pFrameBuffer) {
+		LOG_ERROR("Failed to allocate memory for bitmap decode");
+		return E_OUTOFMEMORY;
+	}
 	DeleteArrayOnExit deleteOnExit(pFrameBuffer);
 	RETURN_ON_BAD_HR(hr = pBitmap->CopyPixels(nullptr, stride, bitmapSize, pFrameBuffer));
 	RETURN_ON_BAD_HR(m_TextureManager->CreateTextureFromBuffer(pFrameBuffer, stride, width, height, &m_Texture));

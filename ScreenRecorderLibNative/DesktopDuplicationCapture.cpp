@@ -749,7 +749,7 @@ HRESULT DesktopDuplicationCapture::CopyDirty(_In_ ID3D11Texture2D *pSrcSurface, 
 	UINT numViewports = 1;
 	m_DeviceContext->RSGetViewports(&numViewports, &VP);
 
-	SetViewPort(m_DeviceContext, FullDesc.Width, FullDesc.Height);
+	SetViewPort(m_DeviceContext, static_cast<float>(FullDesc.Width), static_cast<float>(FullDesc.Height));
 
 	m_DeviceContext->Draw(NUMVERTICES * dirtyCount, 0);
 

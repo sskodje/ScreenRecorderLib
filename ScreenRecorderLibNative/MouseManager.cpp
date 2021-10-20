@@ -914,7 +914,7 @@ HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuf
 			int nBmInfoSize = sizeof(BITMAPINFOHEADER);
 			if (colorBits < 24)
 			{
-				nBmInfoSize += sizeof(RGBQUAD) * (int)(1 << colorBits);
+				nBmInfoSize += (int)sizeof(RGBQUAD) * (1 << colorBits);
 			}
 
 			CAutoVectorPtr<UCHAR> bitmapInfo;

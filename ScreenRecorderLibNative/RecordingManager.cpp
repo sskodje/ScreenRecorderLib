@@ -404,7 +404,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 	std::unique_ptr<AudioManager> pAudioManager = make_unique<AudioManager>();
 	std::unique_ptr<MouseManager> pMouseManager = make_unique<MouseManager>();
 	RETURN_ON_BAD_HR(hr = pMouseManager->Initialize(m_DeviceContext, m_Device, GetMouseOptions()));
-	SetViewPort(m_DeviceContext, videoOutputFrameSize.cx, videoOutputFrameSize.cy);
+	SetViewPort(m_DeviceContext, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
 
 	if (m_RecorderMode == RecorderModeInternal::Video) {
 		hr = pAudioManager->Initialize(GetAudioOptions());

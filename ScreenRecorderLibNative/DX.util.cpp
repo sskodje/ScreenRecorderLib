@@ -94,9 +94,9 @@ HRESULT GetAdapterForDevice(_In_ ID3D11Device *pDevice, _Outptr_ IDXGIAdapter **
 }
 
 
-HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURCE*> &sources, _Out_ std::vector<std::pair<RECORDING_SOURCE*, RECT>> *outputs)
+HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURCE *> &sources, _Out_ std::vector<std::pair<RECORDING_SOURCE *, RECT>> *outputs)
 {
-	std::vector<std::pair<RECORDING_SOURCE*, RECT>> validOutputs{};
+	std::vector<std::pair<RECORDING_SOURCE *, RECT>> validOutputs{};
 
 	auto GetOffsetSourceRect([&](const RECT &originalSourceRect, RECORDING_SOURCE *source) {
 
@@ -109,7 +109,7 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 			OffsetRect(&offsetSourceRect, -offsetSourceRect.left, -offsetSourceRect.top);
 		}
 		else if (validOutputs.size() > 0) {
-			for each (std::pair<RECORDING_SOURCE*, RECT> var in validOutputs)
+			for each (std::pair<RECORDING_SOURCE *, RECT> var in validOutputs)
 			{
 				RECT prevRect = var.second;
 				RECT intersect{};
@@ -139,7 +139,7 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 		return offsetSourceRect;
 		});
 
-	for each (RECORDING_SOURCE *source in sources)
+	for each (RECORDING_SOURCE * source in sources)
 	{
 		switch (source->Type)
 		{
@@ -155,7 +155,7 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 				output->GetDesc(&outputDesc);
 				RECT displayRect = outputDesc.DesktopCoordinates;
 				RECT sourceRect = GetOffsetSourceRect(displayRect, source);
-				std::pair<RECORDING_SOURCE*, RECT> tuple(source, sourceRect);
+				std::pair<RECORDING_SOURCE *, RECT> tuple(source, sourceRect);
 				validOutputs.push_back(tuple);
 				break;
 			}
@@ -212,7 +212,7 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 				if (SUCCEEDED(hr)) {
 					RECT sourceRect = GetOffsetSourceRect(RECT{ 0,0,size.cx,size.cy }, source);
 					LONG width = RectWidth(sourceRect);
-					std::pair<RECORDING_SOURCE*, RECT> tuple(source, sourceRect);
+					std::pair<RECORDING_SOURCE *, RECT> tuple(source, sourceRect);
 					validOutputs.push_back(tuple);
 				}
 				break;
@@ -221,7 +221,7 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 				break;
 		}
 	}
-	auto sortRect = [](const std::pair<RECORDING_SOURCE*, RECT> &p1, const std::pair<RECORDING_SOURCE*, RECT> &p2)
+	auto sortRect = [](const std::pair<RECORDING_SOURCE *, RECT> &p1, const std::pair<RECORDING_SOURCE *, RECT> &p2)
 	{
 		RECT r1 = p1.second;
 		RECT r2 = p2.second;
@@ -429,14 +429,15 @@ void CleanDx(_Inout_ DX_RESOURCES *Data)
 	SafeRelease(&Data->Context);
 	SafeRelease(&Data->Debug);
 }
+
 //
 // Set new viewport
 //
 void SetViewPort(_In_ ID3D11DeviceContext *deviceContext, _In_ float Width, _In_ float Height, _In_ float left, _In_ float top)
 {
 	D3D11_VIEWPORT VP;
-	VP.Width = static_cast<FLOAT>(Width);
-	VP.Height = static_cast<FLOAT>(Height);
+	VP.Width = Width;
+	VP.Height = Height;
 	VP.MinDepth = 0.0f;
 	VP.MaxDepth = 1.0f;
 	VP.TopLeftX = left;

@@ -76,25 +76,25 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_  S
 	double widthRatio = (double)targetWidth / frameDesc.Width;
 	double heightRatio = (double)targetHeight / frameDesc.Height;
 
-	UINT resizedWidth = frameDesc.Width;
-	UINT resizedHeight = frameDesc.Height;
+	LONG resizedWidth = frameDesc.Width;
+	LONG resizedHeight = frameDesc.Height;
 	switch (stretch)
 	{
 		case TextureStretchMode::Fill: {
-			resizedWidth = (UINT)MakeEven((LONG)round(frameDesc.Width * widthRatio));
-			resizedHeight = (UINT)MakeEven((LONG)round(frameDesc.Height * heightRatio));
+			resizedWidth = MakeEven((LONG)round(frameDesc.Width * widthRatio));
+			resizedHeight = MakeEven((LONG)round(frameDesc.Height * heightRatio));
 			break;
 		}
 		case TextureStretchMode::UniformToFill: {
 			double resizeRatio = max(widthRatio, heightRatio);
-			resizedWidth = (UINT)MakeEven((LONG)round(frameDesc.Width * resizeRatio));
-			resizedHeight = (UINT)MakeEven((LONG)round(frameDesc.Height * resizeRatio));
+			resizedWidth = MakeEven((LONG)round(frameDesc.Width * resizeRatio));
+			resizedHeight = MakeEven((LONG)round(frameDesc.Height * resizeRatio));
 			break;
 		}
 		case TextureStretchMode::Uniform: {
 			double resizeRatio = min(widthRatio, heightRatio);
-			resizedWidth = (UINT)MakeEven((LONG)round(frameDesc.Width * resizeRatio));
-			resizedHeight = (UINT)MakeEven((LONG)round(frameDesc.Height * resizeRatio));
+			resizedWidth = MakeEven((LONG)round(frameDesc.Width * resizeRatio));
+			resizedHeight = MakeEven((LONG)round(frameDesc.Height * resizeRatio));
 			break;
 		}
 		case TextureStretchMode::None:
@@ -102,7 +102,7 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_  S
 			break;
 	}
 	if (pContentRect) {
-		*pContentRect = RECT{ 0,0,static_cast<long>(resizedWidth),static_cast<long>(resizedHeight) };
+		*pContentRect = RECT{ 0,0,resizedWidth,resizedHeight };
 	}
 	D3D11_SHADER_RESOURCE_VIEW_DESC SDesc = {};
 	SDesc.Format = frameDesc.Format;
@@ -133,7 +133,7 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_  S
 	m_DeviceContext->RSGetViewports(&numViewports, &VP);
 
 	// Set view port
-	SetViewPort(m_DeviceContext, resizedWidth, resizedHeight);
+	SetViewPort(m_DeviceContext, static_cast<float>(resizedWidth), static_cast<float>(resizedHeight));
 
 	// Vertices for drawing whole texture
 	VERTEX Vertices[] =
@@ -254,7 +254,7 @@ HRESULT TextureManager::RotateTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_ DX
 	m_DeviceContext->RSGetViewports(&numViewports, &VP);
 
 	// Set view port
-	SetViewPort(m_DeviceContext, targetDesc.Width, targetDesc.Height);
+	SetViewPort(m_DeviceContext, static_cast<float>(targetDesc.Width), static_cast<float>(targetDesc.Height));
 
 	// Vertices for drawing whole texture
 	VERTEX Vertices[6] =
@@ -345,7 +345,7 @@ HRESULT TextureManager::DrawTexture(_Inout_ ID3D11Texture2D *pCanvasTexture, _In
 	m_DeviceContext->RSGetViewports(&numViewports, &VP);
 
 	// Set view port
-	SetViewPort(m_DeviceContext, RectWidth(rect),RectHeight(rect),rect.left,rect.top);
+	SetViewPort(m_DeviceContext, static_cast<float>(RectWidth(rect)), static_cast<float>(RectHeight(rect)), static_cast<float>(rect.left), static_cast<float>(rect.top));
 
 	VERTEX Vertices[] =
 	{
@@ -560,14 +560,14 @@ HRESULT TextureManager::CropTexture(_In_ ID3D11Texture2D *pTexture, _In_ RECT cr
 	*pCroppedFrame = nullptr;
 	D3D11_TEXTURE2D_DESC frameDesc;
 	pTexture->GetDesc(&frameDesc);
-	if (frameDesc.Width <= RectWidth(cropRect) && frameDesc.Height <= RectHeight(cropRect)) {
+	if ((LONG)frameDesc.Width <= RectWidth(cropRect) && (LONG)frameDesc.Height <= RectHeight(cropRect)) {
 		*pCroppedFrame = pTexture;
 		return S_FALSE;
 	}
-	if (RectWidth(cropRect) > frameDesc.Width) {
+	if (RectWidth(cropRect) > (LONG)frameDesc.Width) {
 		cropRect.right -= RectWidth(cropRect) - frameDesc.Width;
 	}
-	if (RectHeight(cropRect) > frameDesc.Height) {
+	if (RectHeight(cropRect) > (LONG)frameDesc.Height) {
 		cropRect.bottom -= RectHeight(cropRect) - frameDesc.Height;
 	}
 	frameDesc.Width = RectWidth(cropRect);
