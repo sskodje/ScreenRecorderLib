@@ -12,4 +12,13 @@ public:
 	virtual HRESULT GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize) abstract;
 	virtual HRESULT GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ RECT frameCoordinates, _In_ int offsetX, _In_ int offsetY) abstract;
 	virtual std::wstring Name() abstract;
+protected:
+	/// <summary>
+	/// Calculate the offset used to position the content withing the parent frame based on the given anchor.
+	/// </summary>
+	/// <param name="anchor"></param>
+	/// <param name="parentRect"></param>
+	/// <param name="contentRect"></param>
+	/// <returns></returns>
+	virtual SIZE GetContentOffset(_In_ ContentAnchor anchor, _In_ RECT parentRect, _In_ RECT contentRect);
 };

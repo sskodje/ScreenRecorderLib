@@ -557,6 +557,7 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 		nativeSource.SourceRect = managedSource->SourceRect->ToRECT();
 	}
 	nativeSource.Stretch = static_cast<TextureStretchMode>(managedSource->Stretch);
+	nativeSource.Anchor = static_cast<ContentAnchor>(managedSource->AnchorPoint);
 	if (isinst<DisplayRecordingSource^>(managedSource)) {
 		DisplayRecordingSource^ displaySource = (DisplayRecordingSource^)managedSource;
 		if (!String::IsNullOrEmpty(displaySource->DeviceName)) {
@@ -641,7 +642,7 @@ HRESULT ScreenRecorderLib::Recorder::CreateNativeRecordingOverlay(_In_ Recording
 	nativeOverlay.ID = msclr::interop::marshal_as<std::wstring>(managedOverlay->ID);
 	nativeOverlay.Offset = SIZE{ static_cast<long>(managedOverlay->Offset->Width), static_cast<long>(managedOverlay->Offset->Height) };
 	nativeOverlay.OutputSize = SIZE{ static_cast<long>(managedOverlay->Size->Width), static_cast<long>(managedOverlay->Size->Height) };
-	nativeOverlay.Anchor = static_cast<ContentAnchor>(managedOverlay->AnchorPosition);
+	nativeOverlay.Anchor = static_cast<ContentAnchor>(managedOverlay->AnchorPoint);
 	nativeOverlay.Stretch = static_cast<TextureStretchMode>(managedOverlay->Stretch);
 	if (isinst<VideoCaptureOverlay^>(managedOverlay)) {
 		VideoCaptureOverlay^ videoCaptureOverlay = (VideoCaptureOverlay^)managedOverlay;

@@ -224,6 +224,9 @@
     <ClCompile Include="ImageReader.cpp">
       <Filter>Source Files\Video Capture\Overlay Capture</Filter>
     </ClCompile>
+    <ClCompile Include="CaptureBase.cpp">
+      <Filter>Source Files\Video Capture</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="VertexShader.hlsl" />

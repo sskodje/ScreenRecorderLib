@@ -142,17 +142,26 @@ struct RECORDING_SOURCE_BASE abstract {
 	/// Optional custom output size of the source frame. May be both smaller or larger than the source.
 	/// </summary>
 	std::optional<SIZE> OutputSize;
+	/// <summary>
+	/// The anchor position for the content inside the parent frame.
+	/// </summary>
+	ContentAnchor Anchor;
 	RECORDING_SOURCE_BASE() :
 		Type(RecordingSourceType::Display),
 		SourceWindow(nullptr),
 		SourcePath(L""),
 		OutputSize{ std::nullopt },
 		ID(L""),
-		Stretch(TextureStretchMode::Uniform)
+		Stretch(TextureStretchMode::Uniform),
+		Anchor(ContentAnchor::TopLeft)
 	{
 
 	}
 	virtual ~RECORDING_SOURCE_BASE() {
+
+	}
+
+	SIZE GetMargins() {
 
 	}
 };
@@ -160,14 +169,12 @@ struct RECORDING_SOURCE_BASE abstract {
 struct RECORDING_OVERLAY :RECORDING_SOURCE_BASE
 {
 	std::wstring ID;
-	ContentAnchor Anchor;
 	/// <summary>
 	/// Optional custom offset for the source frame.
 	/// </summary>
 	std::optional<SIZE> Offset;
 	RECORDING_OVERLAY() :
 		RECORDING_SOURCE_BASE(),
-		Anchor(ContentAnchor::BottomLeft),
 		Offset{ std::nullopt },
 		ID(L"")
 	{
@@ -210,7 +217,7 @@ struct RECORDING_SOURCE : RECORDING_SOURCE_BASE
 		Position{ std::nullopt },
 		SourceApi(std::nullopt)
 	{
-
+		RECORDING_SOURCE_BASE::Anchor = ContentAnchor::Center;
 	}
 
 	friend bool operator< (const RECORDING_SOURCE &a, const RECORDING_SOURCE &b) {

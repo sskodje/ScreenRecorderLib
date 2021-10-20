@@ -216,8 +216,6 @@ HRESULT SourceReaderBase::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis
 	}
 	pProcessedTexture->GetDesc(&frameDesc);
 
-	int leftMargin = 0;
-	int topMargin = 0;
 	RECT contentRect = destinationRect;
 	if (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height) {
 		ID3D11Texture2D *pResizedTexture;
@@ -228,8 +226,9 @@ HRESULT SourceReaderBase::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis
 
 	pProcessedTexture->GetDesc(&frameDesc);
 
-	long left = destinationRect.left + offsetX + leftMargin;
-	long top = destinationRect.top + offsetY + topMargin;
+	SIZE contentOffset = GetContentOffset(m_RecordingSource->Anchor, destinationRect, contentRect);
+	long left = destinationRect.left + offsetX + contentOffset.cx;
+	long top = destinationRect.top + offsetY + contentOffset.cy;
 	long right = left + MakeEven(frameDesc.Width);
 	long bottom = top + MakeEven(frameDesc.Height);
 

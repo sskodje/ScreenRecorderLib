@@ -423,7 +423,7 @@ namespace TestApp
             {
                 Overlay = new VideoCaptureOverlay
                 {
-                    AnchorPosition = Anchor.TopLeft,
+                    AnchorPoint = Anchor.TopLeft,
                     Offset = new ScreenSize(100, 100),
                     Size = new ScreenSize(0, 250)
 
@@ -434,7 +434,7 @@ namespace TestApp
             {
                 Overlay = new VideoOverlay
                 {
-                    AnchorPosition = Anchor.TopRight,
+                    AnchorPoint = Anchor.TopRight,
                     SourcePath = @"testmedia\cat.mp4",
                     Offset = new ScreenSize(50, 50),
                     Size = new ScreenSize(0, 200)
@@ -446,7 +446,7 @@ namespace TestApp
             {
                 Overlay = new ImageOverlay
                 {
-                    AnchorPosition = Anchor.BottomLeft,
+                    AnchorPoint = Anchor.BottomLeft,
                     SourcePath = @"testmedia\alphatest.png",
                     Offset = new ScreenSize(0, 100),
                     Size = new ScreenSize(0, 300)
@@ -457,7 +457,7 @@ namespace TestApp
             {
                 Overlay = new ImageOverlay()
                 {
-                    AnchorPosition = Anchor.Center,
+                    AnchorPoint = Anchor.Center,
                     SourcePath = @"testmedia\giftest.gif",
                     Offset = new ScreenSize(0, 0),
                     Size = new ScreenSize(0, 300)
@@ -468,7 +468,7 @@ namespace TestApp
             {
                 Overlay = new DisplayOverlay()
                 {
-                    AnchorPosition = Anchor.TopLeft,
+                    AnchorPoint = Anchor.TopLeft,
                     Offset = new ScreenSize(400, 100),
                     Size = new ScreenSize(300, 0)
                 },
@@ -478,7 +478,7 @@ namespace TestApp
             {
                 Overlay = new WindowOverlay()
                 {
-                    AnchorPosition = Anchor.BottomRight,
+                    AnchorPoint = Anchor.BottomRight,
                     Offset = new ScreenSize(100, 100),
                     Size = new ScreenSize(300, 0)
                 },

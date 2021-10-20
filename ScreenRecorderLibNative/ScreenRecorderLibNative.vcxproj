@@ -53,6 +53,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AudioManager.cpp" />
+    <ClCompile Include="CaptureBase.cpp" />
     <ClCompile Include="ImageReader.cpp" />
     <ClCompile Include="Log.cpp" />
     <ClCompile Include="OutputManager.cpp" />

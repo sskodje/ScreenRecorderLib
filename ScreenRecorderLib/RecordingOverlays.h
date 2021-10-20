@@ -8,14 +8,14 @@ namespace ScreenRecorderLib {
 	private:
 		ScreenSize^ _size;
 		ScreenSize^ _offset;
-		Anchor _anchorPosition;
+		Anchor _anchorPoint;
 		String^ _id;
 		StretchMode _stretch;
 	internal:
 		RecordingOverlayBase()
 		{
 			ID = Guid::NewGuid().ToString();
-			AnchorPosition = Anchor::TopLeft;
+			AnchorPoint = Anchor::TopLeft;
 			Offset = nullptr;
 			Size = nullptr;
 			Stretch = StretchMode::Uniform;
@@ -24,7 +24,7 @@ namespace ScreenRecorderLib {
 			ID = base->ID;
 			Offset = base->Offset;
 			Size = base->Size;
-			AnchorPosition = base->AnchorPosition;
+			AnchorPoint = base->AnchorPoint;
 			Stretch = base->Stretch;
 		}
 	public:
@@ -54,14 +54,16 @@ namespace ScreenRecorderLib {
 				OnPropertyChanged("Stretch");
 			}
 		}
-
-		virtual property Anchor AnchorPosition {
+		/// <summary>
+		/// The point on the parent frame where the overlay anchors to.
+		/// </summary>
+		virtual property Anchor AnchorPoint {
 			Anchor get() {
-				return _anchorPosition;
+				return _anchorPoint;
 			}
 			void set(Anchor anchor) {
-				_anchorPosition = anchor;
-				OnPropertyChanged("AnchorPosition");
+				_anchorPoint = anchor;
+				OnPropertyChanged("AnchorPoint");
 			}
 		}
 

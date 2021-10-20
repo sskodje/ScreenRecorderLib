@@ -15,20 +15,23 @@ namespace ScreenRecorderLib {
 
 	public ref class RecordingSourceBase abstract : public INotifyPropertyChanged {
 	private:
+		String^ _id;
 		ScreenSize^ _outputSize;
 		ScreenPoint^ _position;
+		Anchor _anchorPoint;
 		StretchMode _stretch;
-		String^ _id;
 		ScreenRect^ _sourceRect;
 	internal:
 		RecordingSourceBase() {
 			ID = Guid::NewGuid().ToString();
 			Stretch = StretchMode::Uniform;
+			AnchorPoint = Anchor::Center;
 		}
 		RecordingSourceBase(RecordingSourceBase^ base) :RecordingSourceBase() {
 			ID = base->ID;
 			Position = base->Position;
 			OutputSize = base->OutputSize;
+			AnchorPoint = base->AnchorPoint;
 			Stretch = base->Stretch;
 			SourceRect = base->SourceRect;
 		}
@@ -69,6 +72,18 @@ namespace ScreenRecorderLib {
 			void set(ScreenPoint^ pos) {
 				_position = pos;
 				OnPropertyChanged("Position");
+			}
+		}
+		/// <summary>
+		/// The point where the source anchors to.
+		/// </summary>
+		virtual property Anchor AnchorPoint {
+			Anchor get() {
+				return _anchorPoint;
+			}
+			void set(Anchor anchor) {
+				_anchorPoint = anchor;
+				OnPropertyChanged("AnchorPoint");
 			}
 		}
 		/// <summary>

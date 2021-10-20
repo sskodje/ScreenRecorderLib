@@ -1406,21 +1406,21 @@ namespace ScreenRecorderLib
                 var overlays = new List<RecordingOverlayBase>();
                 overlays.Add(new VideoOverlay
                 {
-                    AnchorPosition = Anchor.TopRight,
+                    AnchorPoint = Anchor.TopRight,
                     SourcePath = @"testmedia\cat.mp4",
                     Size = new ScreenSize(0, 200),
                     Offset = new ScreenSize(50, 50)
                 });
                 overlays.Add(new ImageOverlay
                 {
-                    AnchorPosition = Anchor.BottomLeft,
+                    AnchorPoint = Anchor.BottomLeft,
                     SourcePath = @"testmedia\alphatest.png",
                     Size = new ScreenSize(0, 300),
                     Offset = new ScreenSize(0, 0)
                 });
                 overlays.Add(new ImageOverlay
                 {
-                    AnchorPosition = Anchor.BottomRight,
+                    AnchorPoint = Anchor.BottomRight,
                     SourcePath = @"testmedia\giftest.gif",
                     Size = new ScreenSize(0, 300),
                     Offset = new ScreenSize(75, 25)
@@ -1429,7 +1429,7 @@ namespace ScreenRecorderLib
                 {
                     overlays.Add(new WindowOverlay
                     {
-                        AnchorPosition = Anchor.BottomRight,
+                        AnchorPoint = Anchor.BottomRight,
                         Handle = Recorder.GetWindows().FirstOrDefault(x => x.IsValidWindow() && !x.IsMinmimized()).Handle,
                         Size = new ScreenSize(0, 300),
                         Offset = new ScreenSize(75, 25)
@@ -1437,7 +1437,7 @@ namespace ScreenRecorderLib
                 }
                 overlays.Add(new DisplayOverlay
                 {
-                    AnchorPosition = Anchor.BottomRight,
+                    AnchorPoint = Anchor.BottomRight,
                     Size = new ScreenSize(0, 300),
                     Offset = new ScreenSize(75, 25)
                 });
