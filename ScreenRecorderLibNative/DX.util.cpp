@@ -432,7 +432,7 @@ void CleanDx(_Inout_ DX_RESOURCES *Data)
 //
 // Set new viewport
 //
-void SetViewPort(_In_ ID3D11DeviceContext *deviceContext, _In_ UINT Width, _In_ UINT Height, _In_ UINT left, _In_ UINT top)
+void SetViewPort(_In_ ID3D11DeviceContext *deviceContext, _In_ float Width, _In_ float Height, _In_ float left, _In_ float top)
 {
 	D3D11_VIEWPORT VP;
 	VP.Width = static_cast<FLOAT>(Width);

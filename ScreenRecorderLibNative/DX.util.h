@@ -49,6 +49,6 @@ std::wstring GetMonitorName(HMONITOR monitor);
 
 std::vector<IDXGIAdapter *> EnumDisplayAdapters();
 void CleanDx(_Inout_ DX_RESOURCES *Data);
-void SetViewPort(_In_ ID3D11DeviceContext *deviceContext, _In_ UINT Width, _In_ UINT Height, _In_ UINT left = 0, _In_ UINT top = 0);
+void SetViewPort(_In_ ID3D11DeviceContext *deviceContext, _In_ float Width, _In_ float Height, _In_ float left = 0, _In_ float top = 0);
 void SetDebugName(_In_ ID3D11DeviceChild *child, _In_ const std::string &name);
 _Ret_maybenull_  HANDLE GetSharedHandle(_In_ ID3D11Texture2D *pSurface);
