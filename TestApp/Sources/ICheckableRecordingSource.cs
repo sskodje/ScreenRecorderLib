@@ -15,8 +15,10 @@ namespace TestApp.Sources
 
         ScreenSize OutputSize { get; set; }
         ScreenPoint Position { get; set; }
+        ScreenRect SourceRect { get; set; }
         bool IsCustomPositionEnabled { get; set; }
         bool IsCustomOutputSizeEnabled { get; set; }
+        bool IsCustomOutputSourceRectEnabled { get; set; }
 
         void UpdateScreenCoordinates(ScreenPoint position, ScreenSize size);
     }

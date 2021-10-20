@@ -550,6 +550,12 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 	if (managedSource->Position && managedSource->Position != ScreenPoint::Empty) {
 		nativeSource.Position = managedSource->Position->ToPOINT();
 	}
+	if (managedSource->SourceRect
+		&& managedSource->SourceRect != ScreenRect::Empty
+		&& managedSource->SourceRect->Right > managedSource->SourceRect->Left
+		&& managedSource->SourceRect->Bottom > managedSource->SourceRect->Top) {
+		nativeSource.SourceRect = managedSource->SourceRect->ToRECT();
+	}
 	nativeSource.Stretch = static_cast<TextureStretchMode>(managedSource->Stretch);
 	if (isinst<DisplayRecordingSource^>(managedSource)) {
 		DisplayRecordingSource^ displaySource = (DisplayRecordingSource^)managedSource;
@@ -563,13 +569,6 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 				nativeSource.Type = RecordingSourceType::Display;
 				nativeSource.SourcePath = desc.DeviceName;
 				nativeSource.IsCursorCaptureEnabled = displaySource->IsCursorCaptureEnabled;
-
-				if (displaySource->SourceRect
-						&& displaySource->SourceRect != ScreenRect::Empty
-						&& displaySource->SourceRect->Right > displaySource->SourceRect->Left
-						&& displaySource->SourceRect->Bottom > displaySource->SourceRect->Top) {
-					nativeSource.SourceRect = displaySource->SourceRect->ToRECT();
-				}
 
 				switch (displaySource->RecorderApi)
 				{

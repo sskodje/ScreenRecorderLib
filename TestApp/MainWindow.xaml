@@ -11,7 +11,7 @@
         mc:Ignorable="d"
         Title="ScreenRecorderLib Demo"
         Height="800"
-        Width="915"
+        Width="920"
         SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
         Activated="MainWin_Activated">
@@ -305,6 +305,42 @@
                             <StackPanel Orientation="Horizontal">
                                 <CheckBox VerticalAlignment="Center"
                                           Margin="5,0,0,0"
+                                          IsChecked="{Binding IsCustomOutputSourceRectEnabled}"
+                                          Checked="CustomCoordinates_CheckedChanged" />
+                                <StackPanel Orientation="Horizontal"
+                                            IsEnabled="{Binding IsCustomOutputSourceRectEnabled}">
+                                    <Label Content="Source rect:"
+                                           VerticalContentAlignment="Center" />
+                                    <TextBox x:Name="RecordingSourceAreaLeftTextBox"
+                                             VerticalContentAlignment="Center"
+                                             Text="{Binding SourceRect.Left, UpdateSourceTrigger=PropertyChanged}"
+                                             GotFocus="TextBox_GotFocus"
+                                             PreviewTextInput="UserInput_TextInput"
+                                             MinWidth="32" />
+                                    <TextBox x:Name="RecordingSourceAreaTopTextBox"
+                                             VerticalContentAlignment="Center"
+                                             MinWidth="32"
+                                             Text="{Binding SourceRect.Top, UpdateSourceTrigger=PropertyChanged}"
+                                             GotFocus="TextBox_GotFocus"
+                                             PreviewTextInput="UserInput_TextInput"
+                                             Margin="5,0,0,0" />
+                                    <TextBox x:Name="RecordingSourceAreaRightTextBox"
+                                             VerticalContentAlignment="Center"
+                                             MinWidth="32"
+                                             Text="{Binding SourceRect.Right, UpdateSourceTrigger=PropertyChanged}"
+                                             GotFocus="TextBox_GotFocus"
+                                             PreviewTextInput="UserInput_TextInput"
+                                             Margin="5,0,0,0" />
+                                    <TextBox x:Name="RecordingSourceAreaBottomTextBox"
+                                             VerticalContentAlignment="Center"
+                                             MinWidth="32"
+                                             Text="{Binding SourceRect.Bottom, UpdateSourceTrigger=PropertyChanged}"
+                                             GotFocus="TextBox_GotFocus"
+                                             PreviewTextInput="UserInput_TextInput"
+                                             Margin="5,0,0,0" />
+                                </StackPanel>
+                                <CheckBox VerticalAlignment="Center"
+                                          Margin="5,0,0,0"
                                           IsChecked="{Binding IsCustomPositionEnabled}"
                                           Checked="CustomCoordinates_CheckedChanged" />
                                 <StackPanel Orientation="Horizontal"
@@ -358,7 +394,7 @@
                                 </Grid.ColumnDefinitions>
                                 <Label Content="{Binding}"
                                        MinWidth="100"
-                                       MaxWidth="250"
+                                       MaxWidth="200"
                                        ToolTip="{Binding}"
                                        VerticalAlignment="Center" />
                                 <Grid Grid.Column="1">
@@ -396,7 +432,7 @@
                                     <DockPanel Grid.ColumnSpan="2"
                                                 Grid.Row="1">
                                         <Label Content="Stretch: "
-                                               Margin="0,0,7,0"
+                                               Margin="0,0,0,0"
                                                DockPanel.Dock="Left"/>
                                         <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
                                                   SelectedItem="{Binding Stretch}"
@@ -407,44 +443,9 @@
                                 </Grid>
 
                                 <StackPanel Grid.Column="2"
-                                            Margin="5,0,0,0"
+                                            Margin="0,0,0,0"
                                             VerticalAlignment="Center"
                                             Orientation="Horizontal">
-                                    <CheckBox VerticalAlignment="Center"
-                                              IsChecked="{Binding IsCustomOutputSourceRectEnabled}"
-                                              Checked="CustomCoordinates_CheckedChanged" />
-                                    <StackPanel Orientation="Horizontal"
-                                                IsEnabled="{Binding IsCustomOutputSourceRectEnabled}">
-                                        <Label Content="Source rect:"
-                                               VerticalContentAlignment="Center"/>
-                                        <TextBox x:Name="RecordingSourceAreaLeftTextBox"
-                                                 VerticalContentAlignment="Center"
-                                                 Text="{Binding SourceRect.Left, UpdateSourceTrigger=PropertyChanged}"
-                                                 GotFocus="TextBox_GotFocus"
-                                                 PreviewTextInput="UserInput_TextInput"
-                                                 MinWidth="32" />
-                                        <TextBox x:Name="RecordingSourceAreaTopTextBox"
-                                                 VerticalContentAlignment="Center"
-                                                 MinWidth="32"
-                                                 Text="{Binding SourceRect.Top, UpdateSourceTrigger=PropertyChanged}"
-                                                 GotFocus="TextBox_GotFocus"
-                                                 PreviewTextInput="UserInput_TextInput"
-                                                 Margin="5,0,0,0" />
-                                        <TextBox x:Name="RecordingSourceAreaRightTextBox"
-                                                 VerticalContentAlignment="Center"
-                                                 MinWidth="32"
-                                                 Text="{Binding SourceRect.Right, UpdateSourceTrigger=PropertyChanged}"
-                                                 GotFocus="TextBox_GotFocus"
-                                                 PreviewTextInput="UserInput_TextInput"
-                                                 Margin="5,0,0,0" />
-                                        <TextBox x:Name="RecordingSourceAreaBottomTextBox"
-                                                 VerticalContentAlignment="Center"
-                                                 MinWidth="32"
-                                                 Text="{Binding SourceRect.Bottom, UpdateSourceTrigger=PropertyChanged}"
-                                                 GotFocus="TextBox_GotFocus"
-                                                 PreviewTextInput="UserInput_TextInput"
-                                                 Margin="5,0,0,0" />
-                                    </StackPanel>
                                     <ContentPresenter Content="{StaticResource BaseContent}"/>
                                 </StackPanel>
                             </Grid>
@@ -457,13 +458,13 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <Label Content="{Binding}"
-                                       MinWidth="150"
-                                       MaxWidth="300"
+                                       MinWidth="100"
+                                       MaxWidth="200"
                                        HorizontalAlignment="Left"
                                        ToolTip="{Binding}" />
                                 <StackPanel Grid.Column="1"
                                             Orientation="Horizontal">
-                                    <Label Content="Stretch mode: " />
+                                    <Label Content="Stretch: " />
                                     <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
                                               SelectedItem="{Binding Stretch}"
                                               VerticalAlignment="Center"/>
@@ -488,7 +489,7 @@
                                        ToolTip="{Binding}" />
                                 <StackPanel Grid.Column="1"
                                             Orientation="Horizontal">
-                                    <Label Content="Stretch mode: " />
+                                    <Label Content="Stretch: " />
                                     <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
                                               SelectedItem="{Binding Stretch}"
                                               VerticalAlignment="Center" />
@@ -514,7 +515,7 @@
                                          ToolTip="{Binding}" />
                                 <StackPanel Grid.Column="1"
                                             Orientation="Horizontal">
-                                    <Label Content="Stretch mode: " />
+                                    <Label Content="Stretch: " />
                                     <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
                                               SelectedItem="{Binding Stretch}"
                                               VerticalAlignment="Center" />
@@ -540,7 +541,7 @@
                                          ToolTip="{Binding}" />
                                 <StackPanel Grid.Column="1"
                                             Orientation="Horizontal">
-                                    <Label Content="Stretch mode: " />
+                                    <Label Content="Stretch: " />
                                     <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
                                               SelectedItem="{Binding Stretch}"
                                               VerticalAlignment="Center" />
@@ -577,7 +578,7 @@
                                       Checked="CustomCoordinates_CheckedChanged" />
                             <StackPanel Orientation="Horizontal"
                                         IsEnabled="{Binding  ElementName=MainWin,Path=IsCustomOutputSourceRectEnabled}">
-                                <Label Content="Source rect:" />
+                                <Label Content="Source rect:"/>
                                 <TextBox x:Name="RecordingAreaLeftTextBox"
                                          VerticalContentAlignment="Center"
                                          Text="{Binding ElementName=MainWin,Path=SourceRect.Left}"

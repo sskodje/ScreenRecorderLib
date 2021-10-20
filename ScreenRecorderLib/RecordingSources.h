@@ -19,6 +19,7 @@ namespace ScreenRecorderLib {
 		ScreenPoint^ _position;
 		StretchMode _stretch;
 		String^ _id;
+		ScreenRect^ _sourceRect;
 	internal:
 		RecordingSourceBase() {
 			ID = Guid::NewGuid().ToString();
@@ -29,6 +30,7 @@ namespace ScreenRecorderLib {
 			Position = base->Position;
 			OutputSize = base->OutputSize;
 			Stretch = base->Stretch;
+			SourceRect = base->SourceRect;
 		}
 	public:
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
@@ -81,24 +83,6 @@ namespace ScreenRecorderLib {
 				OnPropertyChanged("Stretch");
 			}
 		}
-
-		void OnPropertyChanged(String^ info)
-		{
-			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
-		}
-	};
-
-	public ref class CroppableRecordingSource abstract :RecordingSourceBase {
-	private:
-		ScreenRect^ _sourceRect;
-	internal:
-		CroppableRecordingSource() :RecordingSourceBase() {
-
-		}
-		CroppableRecordingSource(CroppableRecordingSource^ base) :RecordingSourceBase(base) {
-			SourceRect = base->SourceRect;
-		}
-	public:
 		virtual property ScreenRect^ SourceRect {
 			ScreenRect^ get() {
 				return _sourceRect;
@@ -108,7 +92,10 @@ namespace ScreenRecorderLib {
 				OnPropertyChanged("SourceRect");
 			}
 		}
-
+		void OnPropertyChanged(String^ info)
+		{
+			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
+		}
 	};
 
 	public ref class WindowRecordingSource : public RecordingSourceBase {
@@ -149,7 +136,7 @@ namespace ScreenRecorderLib {
 		}
 	};
 
-	public ref class DisplayRecordingSource : public CroppableRecordingSource {
+	public ref class DisplayRecordingSource : public RecordingSourceBase {
 	private:
 		RecorderApi _recorderApi = ScreenRecorderLib::RecorderApi::DesktopDuplication;
 		bool _isCursorCaptureEnabled = true;
@@ -177,7 +164,7 @@ namespace ScreenRecorderLib {
 		DisplayRecordingSource(String^ deviceName) :DisplayRecordingSource() {
 			DeviceName = deviceName;
 		}
-		DisplayRecordingSource(DisplayRecordingSource^ source) :CroppableRecordingSource(source) {
+		DisplayRecordingSource(DisplayRecordingSource^ source) :RecordingSourceBase(source) {
 			DeviceName = source->DeviceName;
 		}
 
@@ -204,27 +191,27 @@ namespace ScreenRecorderLib {
 		}
 	};
 
-	public ref class VideoCaptureRecordingSource : public CroppableRecordingSource {
+	public ref class VideoCaptureRecordingSource : public RecordingSourceBase {
 	public:
 		/// <summary>
 		/// The device name to record
 		/// </summary>
 		property String^ DeviceName;
 
-		VideoCaptureRecordingSource() :CroppableRecordingSource()
+		VideoCaptureRecordingSource() :RecordingSourceBase()
 		{
 
 		}
 		VideoCaptureRecordingSource(String^ deviceName) :VideoCaptureRecordingSource() {
 			DeviceName = deviceName;
 		}
-		VideoCaptureRecordingSource(VideoCaptureRecordingSource^ source) :CroppableRecordingSource(source) {
+		VideoCaptureRecordingSource(VideoCaptureRecordingSource^ source) :RecordingSourceBase(source) {
 			DeviceName = source->DeviceName;
 		}
 	};
 
 
-	public ref class VideoRecordingSource : public CroppableRecordingSource {
+	public ref class VideoRecordingSource : public RecordingSourceBase {
 	public:
 		/// <summary>
 		/// The file path to the video
@@ -238,12 +225,12 @@ namespace ScreenRecorderLib {
 		VideoRecordingSource(String^ path) :VideoRecordingSource() {
 			SourcePath = path;
 		}
-		VideoRecordingSource(VideoRecordingSource^ source) :CroppableRecordingSource(source) {
+		VideoRecordingSource(VideoRecordingSource^ source) :RecordingSourceBase(source) {
 			SourcePath = source->SourcePath;
 		}
 	};
 
-	public ref class ImageRecordingSource : public CroppableRecordingSource {
+	public ref class ImageRecordingSource : public RecordingSourceBase {
 	public:
 		/// <summary>
 		/// The file path to the video
@@ -257,7 +244,7 @@ namespace ScreenRecorderLib {
 		ImageRecordingSource(String^ path) :ImageRecordingSource() {
 			SourcePath = path;
 		}
-		ImageRecordingSource(ImageRecordingSource^ source) :CroppableRecordingSource(source) {
+		ImageRecordingSource(ImageRecordingSource^ source) :RecordingSourceBase(source) {
 			SourcePath = source->SourcePath;
 		}
 	};

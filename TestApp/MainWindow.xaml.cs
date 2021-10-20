@@ -664,6 +664,7 @@ namespace TestApp
                     {
                         IsCursorCaptureEnabled = win.IsCursorCaptureEnabled,
                         OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
+                        SourceRect = win.IsCustomOutputSourceRectEnabled ? win.SourceRect : null,
                         Position = win.IsCustomPositionEnabled ? win.Position : null
                     };
                 }
@@ -683,6 +684,7 @@ namespace TestApp
                     return new VideoCaptureRecordingSource(cam)
                     {
                         OutputSize = cam.IsCustomOutputSizeEnabled ? cam.OutputSize : null,
+                        SourceRect = cam.IsCustomOutputSourceRectEnabled ? cam.SourceRect : null,
                         Position = cam.IsCustomPositionEnabled ? cam.Position : null,
                     };
                 }
@@ -691,6 +693,7 @@ namespace TestApp
                     return new ImageRecordingSource(img)
                     {
                         OutputSize = img.IsCustomOutputSizeEnabled ? img.OutputSize : null,
+                        SourceRect = img.IsCustomOutputSourceRectEnabled ? img.SourceRect : null,
                         Position = img.IsCustomPositionEnabled ? img.Position : null,
                     };
                 }
@@ -699,6 +702,7 @@ namespace TestApp
                     return new VideoRecordingSource(vid)
                     {
                         OutputSize = vid.IsCustomOutputSizeEnabled ? vid.OutputSize : null,
+                        SourceRect = vid.IsCustomOutputSourceRectEnabled ? vid.SourceRect : null,
                         Position = vid.IsCustomPositionEnabled ? vid.Position : null,
                     };
                 }
@@ -1161,9 +1165,9 @@ namespace TestApp
                 {
                     source.OutputSize = null;
                 }
-                if (source is CheckableRecordableDisplay disp && !disp.IsCustomOutputSourceRectEnabled)
+                if (!source.IsCustomOutputSourceRectEnabled)
                 {
-                    disp.SourceRect = null;
+                    source.SourceRect = null;
                 }
             }
             var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(selectedSources.Cast<RecordingSourceBase>());

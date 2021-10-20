@@ -410,8 +410,8 @@ RECT ScreenCaptureManager::GetOverlayRect(_In_ SIZE canvasSize, _In_ SIZE overla
 			break;
 		}
 		case ContentAnchor::Center: {
-			overlayLeft = (backgroundWidth/2) - (overlayWidth/2) - overlayPositionX;
-			overlayTop = (backgroundHeight/2) - (overlayHeight/2) - overlayPositionY;
+			overlayLeft = (backgroundWidth / 2) - (overlayWidth / 2) - overlayPositionX;
+			overlayTop = (backgroundHeight / 2) - (overlayHeight / 2) - overlayPositionY;
 			break;
 		}
 		case ContentAnchor::BottomLeft: {
@@ -489,13 +489,8 @@ HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ const std::vector<RECORDING_
 		RECT sourceRect = validOutputs.at(i).second;
 		RECORDING_SOURCE_DATA *data = new RECORDING_SOURCE_DATA(source);
 
-		if (source->Type == RecordingSourceType::Display) {
-			data->OffsetX -= pDeskBounds->left;
-			data->OffsetY -= pDeskBounds->top;
-
-		}
-		data->OffsetX -= outputOffsets.at(i).cx;
-		data->OffsetY -= outputOffsets.at(i).cy;
+		data->OffsetX -= pDeskBounds->left + outputOffsets.at(i).cx;
+		data->OffsetY -= pDeskBounds->top + outputOffsets.at(i).cy;
 		data->FrameCoordinates = sourceRect;
 		pCreatedOutputs->push_back(data);
 	}

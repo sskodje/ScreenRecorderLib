@@ -102,6 +102,19 @@ namespace TestApp.Sources
             }
         }
 
+        private bool _isCustomOutputSourceRectEnabled;
+        public bool IsCustomOutputSourceRectEnabled
+        {
+            get { return _isCustomOutputSourceRectEnabled; }
+            set
+            {
+                if (_isCustomOutputSourceRectEnabled != value)
+                {
+                    _isCustomOutputSourceRectEnabled = value;
+                    OnPropertyChanged(nameof(IsCustomOutputSourceRectEnabled));
+                }
+            }
+        }
         public CheckableRecordableCamera() : base()
         {
 
@@ -122,6 +135,10 @@ namespace TestApp.Sources
 
         public void UpdateScreenCoordinates(ScreenPoint position, ScreenSize size)
         {
+            if (!IsCustomOutputSourceRectEnabled)
+            {
+                SourceRect = new ScreenRect(0, 0, size.Width, size.Height);
+            }
             if (!IsCustomOutputSizeEnabled)
             {
                 OutputSize = size;
