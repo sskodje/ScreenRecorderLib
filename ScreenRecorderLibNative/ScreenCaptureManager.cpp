@@ -410,8 +410,8 @@ RECT ScreenCaptureManager::GetOverlayRect(_In_ SIZE canvasSize, _In_ SIZE overla
 			break;
 		}
 		case ContentAnchor::Center: {
-			overlayLeft = (backgroundWidth / 2) - (overlayWidth / 2) - overlayPositionX;
-			overlayTop = (backgroundHeight / 2) - (overlayHeight / 2) - overlayPositionY;
+			overlayLeft = (backgroundWidth / 2) - (overlayWidth / 2) + overlayPositionX;
+			overlayTop = (backgroundHeight / 2) - (overlayHeight / 2) + overlayPositionY;
 			break;
 		}
 		case ContentAnchor::BottomLeft: {
