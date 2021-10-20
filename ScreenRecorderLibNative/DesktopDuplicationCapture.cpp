@@ -183,7 +183,11 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 		else if (m_LastGrabTimeStamp.QuadPart > 0
 			&& m_CurrentData.FrameInfo.LastMouseUpdateTime.QuadPart > m_LastGrabTimeStamp.QuadPart) {
 			hr = S_OK;
-		};
+		}
+		else {
+			hr = S_FALSE;
+		}
+
 		if (hr == S_OK) {
 			QueryPerformanceCounter(&m_LastGrabTimeStamp);
 		}
