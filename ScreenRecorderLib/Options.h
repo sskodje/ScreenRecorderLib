@@ -56,9 +56,9 @@ namespace ScreenRecorderLib {
 		Screenshot = (int)RecorderModeInternal::Screenshot
 	};
 
-	public ref class SourceOptions {
+	public ref class SourceOptions : public INotifyPropertyChanged {
 	private:
-		StretchMode _stretch;
+		List<RecordingSourceBase^>^ _recordingSources;
 	public:
 		static property SourceOptions^ MainMonitor {
 			SourceOptions^ get() {
@@ -67,35 +67,92 @@ namespace ScreenRecorderLib {
 				return options;
 			}
 		}
-		property List<RecordingSourceBase^>^ RecordingSources;
+		property List<RecordingSourceBase^>^ RecordingSources {
+			List<RecordingSourceBase^>^ get() {
+				return _recordingSources;
+			}
+			void set(List<RecordingSourceBase^>^ value) {
+				_recordingSources = value;
+				OnPropertyChanged("RecordingSources");
+			}
+		}
 
 		SourceOptions() {
 			RecordingSources = gcnew List<RecordingSourceBase^>();
 		}
+		virtual event PropertyChangedEventHandler^ PropertyChanged;
+		void OnPropertyChanged(String^ info)
+		{
+			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
+		}
 	};
 
-	public ref class OutputOptions {
+	public ref class OutputOptions : public INotifyPropertyChanged {
+	private: 
+		StretchMode _stretch;
+		ScreenSize^ _outputFrameSize;
+		ScreenRect^ _sourceRect;
 	public:
 		OutputOptions() {
 			Stretch = StretchMode::Uniform;
 			OutputFrameSize = ScreenSize::Empty;
 			SourceRect = ScreenRect::Empty;
 		}
+		virtual event PropertyChangedEventHandler^ PropertyChanged;
+		void OnPropertyChanged(String^ info)
+		{
+			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
+		}
 		/// <summary>
 		/// How the output should be stretched to fill the destination rectangle.
 		/// </summary>
-		property StretchMode Stretch;
+		property StretchMode Stretch {
+			StretchMode get() {
+				return _stretch;
+			}
+			void set(StretchMode value) {
+				_stretch = value;
+				OnPropertyChanged("Stretch");
+			}
+		}
 		/// <summary>
 		/// The frame size of the output in pixels.
 		/// </summary>
-		property ScreenSize^ OutputFrameSize;
+		property ScreenSize^ OutputFrameSize {
+			ScreenSize^ get() {
+				return _outputFrameSize;
+			}
+			void set(ScreenSize^ value) {
+				_outputFrameSize = value;
+				OnPropertyChanged("OutputFrameSize");
+			}
+		}
 		/// <summary>
 		/// The part of the output to record. Null or empty records the entire source area, else the output is cropped to the rectangle.
 		/// </summary>
-		property ScreenRect^ SourceRect;
+		property ScreenRect^ SourceRect {
+			ScreenRect^ get() {
+				return _sourceRect;
+			}
+			void set(ScreenRect^ value) {
+				_sourceRect = value;
+				OnPropertyChanged("SourceRect");
+			}
+		}
 	};
 
-	public ref class VideoEncoderOptions {
+	public ref class VideoEncoderOptions : public INotifyPropertyChanged {
+	private:
+		int _framerate;
+		int _quality;
+		int _bitrate;
+		bool _isFixedFramerate;
+		bool _isThrottlingDisabled;
+		bool _isLowLatencyEnabled;
+		bool _isHardwareEncodingEnabled;
+		bool _isMp4FastStartEnabled;
+		bool _isFragmentedMp4Enabled;
+		IVideoEncoder^ _encoder = gcnew H264VideoEncoder();
 	public:
 		VideoEncoderOptions() {
 			Framerate = 30;
@@ -106,105 +163,281 @@ namespace ScreenRecorderLib {
 			IsLowLatencyEnabled = false;
 			IsHardwareEncodingEnabled = true;
 			IsMp4FastStartEnabled = true;
+			IsFragmentedMp4Enabled = false;
 			Encoder = gcnew H264VideoEncoder();
 		}
-
+		virtual event PropertyChangedEventHandler^ PropertyChanged;
+		void OnPropertyChanged(String^ info)
+		{
+			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
+		}
 		/// <summary>
 		///Framerate in frames per second.
 		/// </summary>
-		property int Framerate;
+		property int Framerate {
+			int get() {
+				return _framerate;
+			}
+			void set(int value) {
+				_framerate = value;
+				OnPropertyChanged("Framerate");
+			}
+		}
 		/// <summary>
 		///Bitrate in bits per second
 		/// </summary>
-		property int Bitrate;
+		property int Bitrate {
+			int get() {
+				return _bitrate;
+			}
+			void set(int value) {
+				_bitrate = value;
+				OnPropertyChanged("Bitrate");
+			}
+		}
 		/// <summary>
 		///Video quality. This is only used when BitrateMode is set to Quality.
 		/// </summary>
-		property int Quality;
+		property int Quality {
+			int get() {
+				return _quality;
+			}
+			void set(int value) {
+				_quality = value;
+				OnPropertyChanged("Quality");
+			}
+		}
 		/// <summary>
 		///Send data to the video encoder every frame, even if it means duplicating the previous frame(s). Can fix stutter issues in fringe cases, but uses more resources.
 		/// </summary>
-		property bool IsFixedFramerate;
+		property bool IsFixedFramerate {
+			bool get() {
+				return _isFixedFramerate;
+			}
+			void set(bool value) {
+				_isFixedFramerate = value;
+				OnPropertyChanged("IsFixedFramerate");
+			}
+		}
 		/// <summary>
 		///Disable throttling of video renderer. If this is disabled, all frames are sent to renderer as fast as they come. Can cause out of memory crashes.
 		/// </summary>
-		property bool IsThrottlingDisabled;
+		property bool IsThrottlingDisabled {
+			bool get() {
+				return _isThrottlingDisabled;
+			}
+			void set(bool value) {
+				_isThrottlingDisabled = value;
+				OnPropertyChanged("IsThrottlingDisabled");
+			}
+		}
 		/// <summary>
 		///Faster rendering, but can affect quality. Use when speed is more important than quality.
 		/// </summary>
-		property bool IsLowLatencyEnabled;
+		property bool IsLowLatencyEnabled {
+			bool get() {
+				return _isLowLatencyEnabled;
+			}
+			void set(bool value) {
+				_isLowLatencyEnabled = value;
+				OnPropertyChanged("IsLowLatencyEnabled");
+			}
+		}
 		/// <summary>
 		///Enable hardware encoding if available. This is enabled by default.
 		/// </summary>
-		property bool IsHardwareEncodingEnabled;
+		property bool IsHardwareEncodingEnabled {
+			bool get() {
+				return _isHardwareEncodingEnabled;
+			}
+			void set(bool value) {
+				_isHardwareEncodingEnabled = value;
+				OnPropertyChanged("IsHardwareEncodingEnabled");
+			}
+		}
 		/// <summary>
 		/// Place the mp4 header at the start of the file instead of the end. This allows streaming to start before entire file is downloaded.
 		/// </summary>
-		property bool IsMp4FastStartEnabled;
+		property bool IsMp4FastStartEnabled {
+			bool get() {
+				return _isMp4FastStartEnabled;
+			}
+			void set(bool value) {
+				_isMp4FastStartEnabled = value;
+				OnPropertyChanged("IsMp4FastStartEnabled");
+			}
+		}
 		/// <summary>
 		/// Fragments the video into a list of individually playable blocks. This allows playback of video segments that has no end, i.e. live streaming.
 		/// </summary>
-		property bool IsFragmentedMp4Enabled;
+		property bool IsFragmentedMp4Enabled {
+			bool get() {
+				return _isFragmentedMp4Enabled;
+			}
+			void set(bool value) {
+				_isFragmentedMp4Enabled = value;
+				OnPropertyChanged("IsFragmentedMp4Enabled");
+			}
+		}
 		/// <summary>
 		/// Set the video encoder to use. Current supported encoders are H264VideoEncoder and H265VideoEncoder.
 		/// </summary>
-		property IVideoEncoder^ Encoder;
+		property IVideoEncoder^ Encoder {
+			IVideoEncoder^ get() {
+				return _encoder;
+			}
+			void set(IVideoEncoder^ value) {
+				_encoder = value;
+				OnPropertyChanged("Encoder");
+			}
+		}
 	};
 
-	public ref class SnapshotOptions {
+	public ref class SnapshotOptions : public INotifyPropertyChanged {
+	private:
+		ImageFormat _snapshotFormat;
+		bool _snapshotsWithVideo;
+		int _snapshotsIntervalMillis;
+		String^ _snapshotsDirectory;
 	public:
 		SnapshotOptions() {
 			SnapshotFormat = ImageFormat::PNG;
 			SnapshotsWithVideo = false;
 			SnapshotsIntervalMillis = 10000;
 		}
+		virtual event PropertyChangedEventHandler^ PropertyChanged;
+		void OnPropertyChanged(String^ info)
+		{
+			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
+		}
 		/// <summary>
 		///Image format for snapshots. This is used with Screenshot, Slideshow, and video with SnapshotsWithVideo enabled.
 		/// </summary>
-		property ImageFormat SnapshotFormat;
+		property ImageFormat SnapshotFormat {
+			ImageFormat get() {
+				return _snapshotFormat;
+			}
+			void set(ImageFormat value) {
+				_snapshotFormat = value;
+				OnPropertyChanged("SnapshotFormat");
+			}
+		}
 		/// <summary>
 		///Whether to take snapshots in a video recording. This is only used with Video mode.
 		/// </summary>
-		property bool SnapshotsWithVideo;
+		property bool SnapshotsWithVideo {
+			bool get() {
+				return _snapshotsWithVideo;
+			}
+			void set(bool value) {
+				_snapshotsWithVideo = value;
+				OnPropertyChanged("SnapshotsWithVideo");
+			}
+		}
 		/// <summary>
 		///Interval in milliseconds between images in slideshows, or snapshots in a video recording.
 		/// </summary>
-		property int SnapshotsIntervalMillis;
+		property int SnapshotsIntervalMillis {
+			int get() {
+				return _snapshotsIntervalMillis;
+			}
+			void set(int value) {
+				_snapshotsIntervalMillis = value;
+				OnPropertyChanged("SnapshotsIntervalMillis");
+			}
+		}
 		/// <summary>
 		///Directory to store snapshots. If not set, the directory of the output file is used.
 		/// </summary>
-		property String^ SnapshotsDirectory;
+		property String^ SnapshotsDirectory {
+			String^ get() {
+				return _snapshotsDirectory;
+			}
+			void set(String^ value) {
+				_snapshotsDirectory = value;
+				OnPropertyChanged("SnapshotsDirectory");
+			}
+		}
 	};
 
-	public ref class DynamicAudioOptions {
+	public ref class DynamicAudioOptions : public INotifyPropertyChanged {
+	private:
+		Nullable<float> _inputVolume;
+		Nullable<float> _outputVolume;
+		Nullable<bool> _isInputDeviceEnabled;
+		Nullable<bool> _isOutputDeviceEnabled;
 	public:
 		DynamicAudioOptions() {
 
 		}
+		virtual event PropertyChangedEventHandler^ PropertyChanged;
+		void OnPropertyChanged(String^ info)
+		{
+			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
+		}
 		/// <summary>
 		///Enable to record system audio output.
 		/// </summary>
-		property Nullable<bool> IsOutputDeviceEnabled;
+		property Nullable<bool> IsOutputDeviceEnabled {
+			Nullable<bool> get() {
+				return _isOutputDeviceEnabled;
+			}
+			void set(Nullable<bool> value) {
+				_isOutputDeviceEnabled = value;
+				OnPropertyChanged("IsOutputDeviceEnabled");
+			}
+		}
 		/// <summary>
 		///Enable to record system audio input (e.g. microphone)
 		/// </summary>
-		property Nullable<bool> IsInputDeviceEnabled;
+		property Nullable<bool> IsInputDeviceEnabled {
+			Nullable<bool> get() {
+				return _isInputDeviceEnabled;
+			}
+			void set(Nullable<bool> value) {
+				_isInputDeviceEnabled = value;
+				OnPropertyChanged("IsInputDeviceEnabled");
+			}
+		}
 		/// <summary>
 		/// Volume if the input stream. Recommended values are between 0 and 1.
 		/// Value of 0 mutes the stream and value of 1 makes it original volume.
 		/// This value can be changed after the recording is started with SetInputVolume() method.
 		/// </summary>
-		property Nullable<float> InputVolume;
+		property Nullable<float> InputVolume {
+			Nullable<float> get() {
+				return _inputVolume;
+			}
+			void set(Nullable<float> value) {
+				_inputVolume = value;
+				OnPropertyChanged("InputVolume");
+			}
+		}
 
 		/// <summary>
 		/// Volume if the output stream. Recommended values are between 0 and 1.
 		/// Value of 0 mutes the stream and value of 1 makes it original volume.
 		/// This value can be changed after the recording is started with SetOutputVolume() method.
 		/// </summary>
-		property Nullable<float> OutputVolume;
+		property Nullable<float> OutputVolume {
+			Nullable<float> get() {
+				return _outputVolume;
+			}
+			void set(Nullable<float> value) {
+				_outputVolume = value;
+				OnPropertyChanged("OutputVolume");
+			}
+		}
 	};
 
 	public ref class AudioOptions :DynamicAudioOptions {
+	private:
+		Nullable<bool> _isAudioEnabled;
+		Nullable<AudioBitrate> _bitrate;
+		Nullable<AudioChannels> _channels;
+		String^ _audioInputDevice;
+		String^ _audioOutputDevice;
+
 	public:
 		AudioOptions() :DynamicAudioOptions() {
 			Bitrate = AudioBitrate::bitrate_96kbps;
@@ -218,53 +451,156 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// Enable or disable the writing of an audio track for the recording.
 		/// </summary>
-		property Nullable<bool> IsAudioEnabled;
-		property  Nullable<AudioBitrate> Bitrate;
-		property  Nullable<AudioChannels> Channels;
+		property Nullable<bool> IsAudioEnabled {
+			Nullable<bool> get() {
+				return _isAudioEnabled;
+			}
+			void set(Nullable<bool> value) {
+				_isAudioEnabled = value;
+				OnPropertyChanged("IsAudioEnabled");
+			}
+		}
+		property  Nullable<AudioBitrate> Bitrate {
+			Nullable<AudioBitrate> get() {
+				return _bitrate;
+			}
+			void set(Nullable<AudioBitrate> value) {
+				_bitrate = value;
+				OnPropertyChanged("Bitrate");
+			}
+		}
+		property  Nullable<AudioChannels> Channels {
+			Nullable<AudioChannels> get() {
+				return _channels;
+			}
+			void set(Nullable<AudioChannels> value) {
+				_channels = value;
+				OnPropertyChanged("Channels");
+			}
+		}
 		/// <summary>
 		///Audio device to capture system audio from via loopback capture. Pass null or empty string to select system default.
 		/// </summary>
-		property String^ AudioOutputDevice;
+		property String^ AudioOutputDevice {
+			String^ get() {
+				return _audioOutputDevice;
+			}
+			void set(String^ value) {
+				_audioOutputDevice = value;
+				OnPropertyChanged("AudioOutputDevice");
+			}
+		}
 		/// <summary>
 		///Audio input device (e.g. microphone) to capture audio from. Pass null or empty string to select system default.
 		/// </summary>
-		property String^ AudioInputDevice;
+		property String^ AudioInputDevice {
+			String^ get() {
+				return _audioInputDevice;
+			}
+			void set(String^ value) {
+				_audioInputDevice = value;
+				OnPropertyChanged("AudioInputDevice");
+			}
+		}
 
 
 	};
 
-	public ref class DynamicMouseOptions {
+	public ref class DynamicMouseOptions : public INotifyPropertyChanged {
+	private:
+		Nullable<bool> _isMousePointerEnabled;
+		Nullable<bool> _isMouseClicksDetected;
+		Nullable<int> _mouseClickDetectionRadius;
+		Nullable<int> _mouseClickDetectionDuration;
+		String^ _mouseLeftClickDetectionColor;
+		String^ _mouseRightClickDetectionColor;
+
 	public:
 		DynamicMouseOptions() {
 
 		}
+		virtual event PropertyChangedEventHandler^ PropertyChanged;
+		void OnPropertyChanged(String^ info)
+		{
+			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
+		}
 		/// <summary>
 		///Display the mouse cursor on the recording
 		/// </summary>
-		property Nullable<bool> IsMousePointerEnabled;
+		property Nullable<bool> IsMousePointerEnabled {
+			Nullable<bool> get() {
+				return _isMousePointerEnabled;
+			}
+			void set(Nullable<bool> value) {
+				_isMousePointerEnabled = value;
+				OnPropertyChanged("IsMousePointerEnabled");
+			}
+		}
 		/// <summary>
 		/// Display a colored dot where the left mouse button is pressed.
 		/// </summary>
-		property Nullable<bool> IsMouseClicksDetected;
+		property Nullable<bool> IsMouseClicksDetected {
+			Nullable<bool> get() {
+				return _isMouseClicksDetected;
+			}
+			void set(Nullable<bool> value) {
+				_isMouseClicksDetected = value;
+				OnPropertyChanged("IsMouseClicksDetected");
+			}
+		}
 		/// <summary>
 		/// The color of the dot where the left mouse button is pressed, in hex format. Default is Yellow (#FFFF00).
 		/// </summary>
-		property String^ MouseLeftClickDetectionColor;
+		property String^ MouseLeftClickDetectionColor {
+			String^ get() {
+				return _mouseLeftClickDetectionColor;
+			}
+			void set(String^ value) {
+				_mouseLeftClickDetectionColor = value;
+				OnPropertyChanged("MouseLeftClickDetectionColor");
+			}
+		}
 		/// <summary>
 		/// The color of the dot where the right mouse button is pressed, in hex format. Default is Yellow (#FFFF00).
 		/// </summary>
-		property String^ MouseRightClickDetectionColor;
+		property String^ MouseRightClickDetectionColor {
+			String^ get() {
+				return _mouseRightClickDetectionColor;
+			}
+			void set(String^ value) {
+				_mouseRightClickDetectionColor = value;
+				OnPropertyChanged("MouseRightClickDetectionColor");
+			}
+		}
 		/// <summary>
 		/// The radius of the dot where the mouse button is pressed. Default is 20.
 		/// </summary>
-		property Nullable<int> MouseClickDetectionRadius;
+		property Nullable<int> MouseClickDetectionRadius {
+			Nullable<int> get() {
+				return _mouseClickDetectionRadius;
+			}
+			void set(Nullable<int> value) {
+				_mouseClickDetectionRadius = value;
+				OnPropertyChanged("MouseClickDetectionRadius");
+			}
+		}
 		/// <summary>
 		/// The duration of the dot shown where the mouse button is pressed, in milliseconds. Default is 150.
 		/// </summary>
-		property Nullable<int> MouseClickDetectionDuration;
+		property Nullable<int> MouseClickDetectionDuration {
+			Nullable<int> get() {
+				return _mouseClickDetectionDuration;
+			}
+			void set(Nullable<int> value) {
+				_mouseClickDetectionDuration = value;
+				OnPropertyChanged("MouseClickDetectionDuration");
+			}
+		}
 	};
 
 	public ref class MouseOptions :DynamicMouseOptions {
+	private:
+		MouseDetectionMode _mouseClickDetectionMode;
 	public:
 		MouseOptions() :DynamicMouseOptions() {
 			MouseClickDetectionMode = MouseDetectionMode::Polling;
@@ -278,19 +614,46 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// The mode for detecting mouse clicks. Default is Polling.
 		/// </summary>
-		property MouseDetectionMode MouseClickDetectionMode;
-
+		property MouseDetectionMode MouseClickDetectionMode {
+			MouseDetectionMode get() {
+				return _mouseClickDetectionMode;
+			}
+			void set(MouseDetectionMode value) {
+				_mouseClickDetectionMode = value;
+				OnPropertyChanged("MouseClickDetectionMode");
+			}
+		}
 	};
 
-	public ref class OverLayOptions {
+	public ref class OverLayOptions : public INotifyPropertyChanged {
+	private:
+		List<RecordingOverlayBase^>^ _overlays;
 	public:
 		OverLayOptions() {
 
 		}
-		property List<RecordingOverlayBase^>^ Overlays;
+		virtual event PropertyChangedEventHandler^ PropertyChanged;
+		void OnPropertyChanged(String^ info)
+		{
+			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
+		}
+		property List<RecordingOverlayBase^>^ Overlays {
+			List<RecordingOverlayBase^>^ get() {
+				return _overlays;
+			}
+			void set(List<RecordingOverlayBase^>^ value) {
+				_overlays = value;
+				OnPropertyChanged("Overlays");
+			}
+		}
 	};
 
-	public ref class LogOptions {
+	public ref class LogOptions : public INotifyPropertyChanged {
+	private:
+		bool _isLogEnabled;
+		String^ _logFilePath;
+		LogLevel _logSeverityLevel;
+
 	public:
 		LogOptions() {
 #if _DEBUG
@@ -301,18 +664,47 @@ namespace ScreenRecorderLib {
 			LogSeverityLevel = LogLevel::Info;
 #endif
 		}
+		virtual event PropertyChangedEventHandler^ PropertyChanged;
+		void OnPropertyChanged(String^ info)
+		{
+			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
+		}
 		/// <summary>
 		/// Toggles logging. Default is on when debugging, off in release mode, this setting overrides it.
 		/// </summary>
-		property bool IsLogEnabled;
+		property bool IsLogEnabled {
+			bool get() {
+				return _isLogEnabled;
+			}
+			void set(bool value) {
+				_isLogEnabled = value;
+				OnPropertyChanged("IsLogEnabled");
+			}
+		}
 		/// <summary>
 		/// A path to a file to write logs to. If this is not empty, all logs will be redirected to it.
 		/// </summary>
-		property String^ LogFilePath;
+		property String^ LogFilePath {
+			String^ get() {
+				return _logFilePath;
+			}
+			void set(String^ value) {
+				_logFilePath = value;
+				OnPropertyChanged("LogFilePath");
+			}
+		}
 		/// <summary>
 		/// The maximum level of the logs to write.
 		/// </summary>
-		property LogLevel LogSeverityLevel;
+		property LogLevel LogSeverityLevel {
+			LogLevel get() {
+				return _logSeverityLevel;
+			}
+			void set(LogLevel value) {
+				_logSeverityLevel = value;
+				OnPropertyChanged("LogSeverityLevel");
+			}
+		}
 	};
 
 	public ref class RecorderOptions {

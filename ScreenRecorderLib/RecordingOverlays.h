@@ -45,7 +45,7 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// Gets or sets a value that describes how an overlay should be stretched to fill the destination rectangle.
 		/// </summary>
-		virtual property StretchMode Stretch {
+		property StretchMode Stretch {
 			StretchMode get() {
 				return _stretch;
 			}
@@ -57,7 +57,7 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// The point on the parent frame where the overlay anchors to.
 		/// </summary>
-		virtual property Anchor AnchorPoint {
+		property Anchor AnchorPoint {
 			Anchor get() {
 				return _anchorPoint;
 			}
@@ -70,7 +70,7 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// This option can be configured to set the size of this overlay in pixels.
 		/// </summary>
-		virtual property ScreenSize^ Size {
+		property ScreenSize^ Size {
 			ScreenSize^ get() {
 				return _size;
 			}
@@ -83,7 +83,7 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// This option can be configured to position the overlay within the output frame.
 		/// </summary>
-		virtual property ScreenSize^ Offset {
+		property ScreenSize^ Offset {
 			ScreenSize^ get() {
 				return _offset;
 			}

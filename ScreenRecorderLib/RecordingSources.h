@@ -53,7 +53,7 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// This option can be configured to set the frame size of this source in pixels.
 		/// </summary>
-		virtual property ScreenSize^ OutputSize {
+		property ScreenSize^ OutputSize {
 			ScreenSize^ get() {
 				return _outputSize;
 			}
@@ -65,7 +65,7 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// This option can be configured to position the source frame within the output frame.
 		/// </summary>
-		virtual property ScreenPoint^ Position {
+		property ScreenPoint^ Position {
 			ScreenPoint^ get() {
 				return _position;
 			}
@@ -77,7 +77,7 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// The point where the source anchors to.
 		/// </summary>
-		virtual property Anchor AnchorPoint {
+		property Anchor AnchorPoint {
 			Anchor get() {
 				return _anchorPoint;
 			}
@@ -89,7 +89,7 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// Gets or sets a value that describes how a recording source should be stretched to fill the destination rectangle.
 		/// </summary>
-		virtual property StretchMode Stretch {
+		property StretchMode Stretch {
 			StretchMode get() {
 				return _stretch;
 			}
@@ -98,7 +98,7 @@ namespace ScreenRecorderLib {
 				OnPropertyChanged("Stretch");
 			}
 		}
-		virtual property ScreenRect^ SourceRect {
+		property ScreenRect^ SourceRect {
 			ScreenRect^ get() {
 				return _sourceRect;
 			}
@@ -133,7 +133,7 @@ namespace ScreenRecorderLib {
 			Handle = source->Handle;
 			IsCursorCaptureEnabled = source->IsCursorCaptureEnabled;
 		}
-		virtual property RecorderApi RecorderApi {
+		property RecorderApi RecorderApi {
 			ScreenRecorderLib::RecorderApi get() {
 				return ScreenRecorderLib::RecorderApi::WindowsGraphicsCapture;
 			}
@@ -141,7 +141,7 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		///This option determines if the mouse cursor is recorded for this source. Defaults to true.
 		/// </summary>
-		virtual property bool IsCursorCaptureEnabled {
+		property bool IsCursorCaptureEnabled {
 			bool get() {
 				return _isCursorCaptureEnabled;
 			}
@@ -186,7 +186,7 @@ namespace ScreenRecorderLib {
 			RecorderApi = source->RecorderApi;
 		}
 
-		virtual property RecorderApi RecorderApi {
+		property RecorderApi RecorderApi {
 			ScreenRecorderLib::RecorderApi get() {
 				return _recorderApi;
 			}
@@ -198,7 +198,7 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		///This option determines if the mouse cursor is recorded for this source. Defaults to true.
 		/// </summary>
-		virtual property bool IsCursorCaptureEnabled {
+		property bool IsCursorCaptureEnabled {
 			bool get() {
 				return _isCursorCaptureEnabled;
 			}
