@@ -84,7 +84,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			if (options->OutputOptions->SourceRect && options->OutputOptions->SourceRect != ScreenRect::Empty) {
 				outputOptions->SetSourceRectangle(options->OutputOptions->SourceRect->ToRECT());
 			}
-			if (options->OutputOptions->OutputFrameSize && options->OutputOptions->OutputFrameSize != ScreenSize::Empty) {
+			if (options->OutputOptions->OutputFrameSize && !options->OutputOptions->OutputFrameSize->Equals(ScreenSize::Empty)) {
 				outputOptions->SetFrameSize(SIZE{ (long)round(options->OutputOptions->OutputFrameSize->Width),(long)round(options->OutputOptions->OutputFrameSize->Height) });
 			}
 			outputOptions->SetStretch(static_cast<TextureStretchMode>(options->OutputOptions->Stretch));
@@ -542,16 +542,16 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 	RECORDING_SOURCE nativeSource{};
 	nativeSource.ID = msclr::interop::marshal_as<std::wstring>(managedSource->ID);
 	if (managedSource->OutputSize
-		&& managedSource->OutputSize != ScreenSize::Empty
+		&& !managedSource->OutputSize->Equals(ScreenSize::Empty)
 		&& (managedSource->OutputSize->Width > 0 || managedSource->OutputSize->Height > 0)) {
 		nativeSource.OutputSize = managedSource->OutputSize->ToSIZE();
 	}
 
-	if (managedSource->Position && managedSource->Position != ScreenPoint::Empty) {
+	if (managedSource->Position && !managedSource->Position->Equals(ScreenPoint::Empty)) {
 		nativeSource.Position = managedSource->Position->ToPOINT();
 	}
 	if (managedSource->SourceRect
-		&& managedSource->SourceRect != ScreenRect::Empty
+		&& !managedSource->SourceRect->Equals(ScreenRect::Empty)
 		&& managedSource->SourceRect->Right > managedSource->SourceRect->Left
 		&& managedSource->SourceRect->Bottom > managedSource->SourceRect->Top) {
 		nativeSource.SourceRect = managedSource->SourceRect->ToRECT();
@@ -635,7 +635,7 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 	return hr;
 }
 
-HRESULT ScreenRecorderLib::Recorder::CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ managedOverlay, _Out_ RECORDING_OVERLAY* pNativeOverlay)
+HRESULT Recorder::CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ managedOverlay, _Out_ RECORDING_OVERLAY* pNativeOverlay)
 {
 	HRESULT hr = E_FAIL;
 	RECORDING_OVERLAY nativeOverlay{};

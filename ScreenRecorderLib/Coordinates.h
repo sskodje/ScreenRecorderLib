@@ -52,22 +52,13 @@ namespace ScreenRecorderLib {
 			Top = top;
 		}
 
-		static bool operator== (ScreenPoint^ left, ScreenPoint^ right)
-		{
-			if (Object::ReferenceEquals(left, nullptr))
-			{
-				return Object::ReferenceEquals(right, nullptr);
+		bool ScreenPoint::Equals(Object^ o) override {
+			ScreenPoint^ other = static_cast<ScreenPoint^>(o);
+			if (other == nullptr) {
+				return false;
 			}
-			else if (Object::ReferenceEquals(right, nullptr))
-			{
-				return Object::ReferenceEquals(left, nullptr);
-			}
-			return left->Left == right->Left
-				&& left->Top == right->Top;
-		}
-		static bool operator!= (ScreenPoint^ left, ScreenPoint^ right)
-		{
-			return !(left == right);
+			return Left == other->Left
+				&& Top == other->Top;
 		}
 	};
 
@@ -94,22 +85,13 @@ namespace ScreenRecorderLib {
 			Height = height;
 		}
 
-		static bool operator== (ScreenSize^ left, ScreenSize^ right)
-		{
-			if (Object::ReferenceEquals(left, nullptr))
-			{
-				return Object::ReferenceEquals(right, nullptr);
+		bool ScreenSize::Equals(Object^ o) override {
+			ScreenSize^ other = static_cast<ScreenSize^>(o);
+			if (other == nullptr) {
+				return false;
 			}
-			else if (Object::ReferenceEquals(right, nullptr))
-			{
-				return Object::ReferenceEquals(left, nullptr);
-			}
-			return left->Width == right->Width
-				&& left->Height == right->Height;
-		}
-		static bool operator!= (ScreenSize^ left, ScreenSize^ right)
-		{
-			return !(left == right);
+			return Width == other->Width
+				&& Height == other->Height;
 		}
 	};
 
@@ -206,24 +188,16 @@ namespace ScreenRecorderLib {
 				return gcnew ScreenRect(double::PositiveInfinity, double::PositiveInfinity, double::NegativeInfinity, double::NegativeInfinity);
 			}
 		}
-		static bool operator== (ScreenRect^ left, ScreenRect^ right)
-		{
-			if (Object::ReferenceEquals(left, nullptr))
-			{
-				return Object::ReferenceEquals(right, nullptr);
+
+		bool ScreenRect::Equals(Object^ o) override {
+			ScreenRect^ other = static_cast<ScreenRect^>(o);
+			if (other == nullptr) {
+				return false;
 			}
-			else if (Object::ReferenceEquals(right, nullptr))
-			{
-				return Object::ReferenceEquals(left, nullptr);
-			}
-			return left->Left == right->Left
-				&& left->Top == right->Top
-				&& left->Right == right->Right
-				&& left->Bottom == right->Bottom;
-		}
-		static bool operator!= (ScreenRect^ left, ScreenRect^ right)
-		{
-			return !(left == right);
+			return Left == other->Left
+				&& Top == other->Top
+				&& Width == other->Width
+				&& Height == other->Height;
 		}
 		void OnPropertyChanged(String^ info)
 		{
