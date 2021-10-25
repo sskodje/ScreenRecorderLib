@@ -432,6 +432,21 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 			(std::chrono::steady_clock::now() - previousSnapshotTaken) > GetSnapshotOptions()->GetSnapshotsInterval();
 	});
 
+	auto ShouldSkipDelay([&](CAPTURED_FRAME capturedFrame)
+	{
+		if ((m_RecorderMode == RecorderModeInternal::Video)
+			&& (m_OutputManager->GetRenderedFrameCount() == 0 //never delay the first frame 
+				|| (GetMouseOptions()->IsMousePointerEnabled() && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
+				|| (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()))) // Or if we need to write a snapshot 
+		{
+			return true;
+		}
+		if (m_RecorderMode == RecorderModeInternal::Slideshow
+			&& (m_OutputManager->GetRenderedFrameCount() == 0)){ //never delay the first frame  
+			return true;
+		}
+		return false;
+	});
 	auto PrepareAndRenderFrame([&](CComPtr<ID3D11Texture2D> pTexture, INT64 duration100Nanos)->HRESULT {
 		HRESULT renderHr = E_FAIL;
 		if (pPtrInfo) {
@@ -536,10 +551,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 		{
 			bool cacheCurrentFrame = false;
 			INT64 delay100Nanos = 0;
-			if (m_RecorderMode == RecorderModeInternal::Video
-				&& (m_OutputManager->GetRenderedFrameCount() == 0 //never delay the first frame 
-					|| (GetMouseOptions()->IsMousePointerEnabled() && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
-					|| (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()))) // Or if we need to write a snapshot 
+			if (ShouldSkipDelay(capturedFrame)) 
 			{
 				if (capturedFrame.PtrInfo) {
 					capturedFrame.PtrInfo->IsPointerShapeUpdated = false;
