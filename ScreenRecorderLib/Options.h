@@ -88,7 +88,7 @@ namespace ScreenRecorderLib {
 	};
 
 	public ref class OutputOptions : public INotifyPropertyChanged {
-	private: 
+	private:
 		StretchMode _stretch;
 		ScreenSize^ _outputFrameSize;
 		ScreenRect^ _sourceRect;
@@ -400,7 +400,7 @@ namespace ScreenRecorderLib {
 			}
 		}
 		/// <summary>
-		/// Volume if the input stream. Recommended values are between 0 and 1.
+		/// Volume of the input stream. Recommended values are between 0 and 1.
 		/// Value of 0 mutes the stream and value of 1 makes it original volume.
 		/// This value can be changed after the recording is started with SetInputVolume() method.
 		/// </summary>
@@ -415,7 +415,7 @@ namespace ScreenRecorderLib {
 		}
 
 		/// <summary>
-		/// Volume if the output stream. Recommended values are between 0 and 1.
+		/// Volume of the output stream. Recommended values are between 0 and 1.
 		/// Value of 0 mutes the stream and value of 1 makes it original volume.
 		/// This value can be changed after the recording is started with SetOutputVolume() method.
 		/// </summary>
@@ -709,9 +709,23 @@ namespace ScreenRecorderLib {
 
 	public ref class RecorderOptions {
 	public:
-		static property RecorderOptions^ DefaultMainMonitor {
+		static property RecorderOptions^ Default {
 			RecorderOptions^ get() {
 				RecorderOptions^ rec = gcnew RecorderOptions();
+				rec->SourceOptions = gcnew ScreenRecorderLib::SourceOptions();
+				rec->AudioOptions = gcnew ScreenRecorderLib::AudioOptions();
+				rec->LogOptions = gcnew ScreenRecorderLib::LogOptions();
+				rec->MouseOptions = gcnew ScreenRecorderLib::MouseOptions();
+				rec->OutputOptions = gcnew ScreenRecorderLib::OutputOptions();
+				rec->OverlayOptions = gcnew ScreenRecorderLib::OverLayOptions();
+				rec->SnapshotOptions = gcnew ScreenRecorderLib::SnapshotOptions();
+				rec->VideoEncoderOptions = gcnew ScreenRecorderLib::VideoEncoderOptions();
+				return rec;
+			}
+		}
+		static property RecorderOptions^ DefaultMainMonitor {
+			RecorderOptions^ get() {
+				RecorderOptions^ rec = Default;
 				rec->SourceOptions = ScreenRecorderLib::SourceOptions::MainMonitor;
 				return rec;
 			}

@@ -160,10 +160,6 @@ struct RECORDING_SOURCE_BASE abstract {
 	virtual ~RECORDING_SOURCE_BASE() {
 
 	}
-
-	SIZE GetMargins() {
-
-	}
 };
 
 struct RECORDING_OVERLAY :RECORDING_SOURCE_BASE
