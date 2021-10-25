@@ -230,11 +230,6 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		m_OutputManager = make_unique<OutputManager>();
 		m_OutputManager->Initialize(m_DeviceContext, m_Device, m_EncoderOptions, m_AudioOptions, m_SnapshotOptions);
 
-		if (RecordingStatusChangedCallback != nullptr) {
-			RecordingStatusChangedCallback(STATUS_RECORDING);
-			LOG_DEBUG("Changed Recording Status to Recording");
-		}
-
 		hr = StartRecorderLoop(m_RecordingSources, m_Overlays, stream);
 		LOG_INFO("Exiting recording task");
 		return hr;
@@ -618,7 +613,12 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 			hr = S_OK;
 			break;
 		}
-
+		if (frameNr == 0) {
+			if (RecordingStatusChangedCallback != nullptr) {
+				RecordingStatusChangedCallback(STATUS_RECORDING);
+				LOG_DEBUG("Changed Recording Status to Recording");
+			}
+		}
 		RETURN_ON_BAD_HR(hr = PrepareAndRenderFrame(pCurrentFrameCopy, durationSinceLastFrame100Nanos));
 		if (m_RecorderMode == RecorderModeInternal::Screenshot) {
 			break;
