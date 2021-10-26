@@ -101,6 +101,9 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 	auto GetOffsetSourceRect([&](const RECT &originalSourceRect, RECORDING_SOURCE *source) {
 
 		RECT offsetSourceRect = originalSourceRect;
+		if (IsValidRect(source->SourceRect.value_or(RECT{}))) {
+			offsetSourceRect = source->SourceRect.value();
+		}
 		if (source->Position.has_value()) {
 			OffsetRect(&offsetSourceRect, source->Position.value().x - offsetSourceRect.left, source->Position.value().y - offsetSourceRect.top);
 		}
@@ -108,19 +111,7 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 			//For the first source, we start at [0,0]
 			OffsetRect(&offsetSourceRect, -offsetSourceRect.left, -offsetSourceRect.top);
 		}
-		else if (validOutputs.size() > 0) {
-			for each (std::pair<RECORDING_SOURCE *, RECT> var in validOutputs)
-			{
-				RECT prevRect = var.second;
-				RECT intersect{};
-				if (IntersectRect(&intersect, &offsetSourceRect, &prevRect)) {
-					OffsetRect(&offsetSourceRect, prevRect.right - intersect.left, 0);
-				}
-				if (IntersectRect(&intersect, &offsetSourceRect, &prevRect)) {
-					OffsetRect(&offsetSourceRect, 0, prevRect.bottom - intersect.top);
-				}
-			}
-		}
+
 		if (source->OutputSize.has_value() && (source->OutputSize.value().cx > 0 || source->OutputSize.value().cy > 0)) {
 			long cx = source->OutputSize.value().cx;
 			long cy = source->OutputSize.value().cy;
@@ -133,9 +124,23 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 			offsetSourceRect.right = offsetSourceRect.left + cx;
 			offsetSourceRect.bottom = offsetSourceRect.top + cy;
 		}
-		else if (IsValidRect(source->SourceRect.value_or(RECT{}))) {
-			offsetSourceRect = source->SourceRect.value();
+
+		if (validOutputs.size() > 0) {
+			for each (std::pair<RECORDING_SOURCE *, RECT> var in validOutputs)
+			{
+				RECT prevRect = var.second;
+				RECT intersect{};
+				if (IntersectRect(&intersect, &offsetSourceRect, &prevRect)) {
+					long offsetWidth = prevRect.right - offsetSourceRect.left;
+					OffsetRect(&offsetSourceRect, offsetWidth, 0);
+				}
+				if (IntersectRect(&intersect, &offsetSourceRect, &prevRect)) {
+					long offsetHeight = prevRect.bottom - offsetSourceRect.top;
+					OffsetRect(&offsetSourceRect, 0, offsetHeight);
+				}
+			}
 		}
+
 		return offsetSourceRect;
 		});
 
@@ -369,6 +374,7 @@ void GetCombinedRects(_In_ std::vector<RECT> inputs, _Out_ RECT *pOutRect, _Out_
 			pOffsets->push_back(SIZE{ xPosOffset,yPosOffset });
 		}
 	}
+	*pOutRect = RECT{ 0,0,pOutRect->right,pOutRect->bottom };
 }
 
 std::wstring GetMonitorName(HMONITOR monitor) {
