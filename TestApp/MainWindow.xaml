@@ -143,15 +143,15 @@
                         Margin="20,0">
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Center">
-                    <ComboBox x:Name="ScreenComboBox"
+                    <ComboBox x:Name="SourceComboBox"
                               Margin="5"
                               Width="350"
                               IsEditable="True"
                               IsReadOnly="True"
-                              DropDownOpened="ScreenComboBox_DropDownOpened"
+                              DropDownOpened="SourceComboBox_DropDownOpened"
                               SelectedItem="{Binding ElementName=MainWin,Path=SelectedRecordingSource}"
                               ItemsSource="{Binding Source={StaticResource RecordingSourcesViewSource}}"
-                              SelectionChanged="ScreenComboBox_SelectionChanged"
+                              SelectionChanged="SourceComboBox_SelectionChanged"
                               ItemTemplateSelector="{StaticResource RecordingSourceTemplateSelector}">
                         <ComboBox.Resources>
                             <DataTemplate x:Key="DisplayRecordingSourceTemplate">
@@ -658,8 +658,7 @@
                                           Margin="0,5,5,5"
                                           ItemsSource="{Binding Source={StaticResource RecorderModeData}}"
                                           SelectedItem="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.RecorderMode, Mode=TwoWay}"
-                                          VerticalAlignment="Top"
-                                          SelectionChanged="RecordingModeComboBox_SelectionChanged" />
+                                          VerticalAlignment="Top" />
                             </StackPanel>
                             <StackPanel x:Name="EncoderOptionsPanel">
                                 <StackPanel Orientation="Horizontal"

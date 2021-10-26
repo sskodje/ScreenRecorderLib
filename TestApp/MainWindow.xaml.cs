@@ -171,6 +171,7 @@ namespace TestApp
             InitializeDefaultOverlays();
             RefreshCaptureTargetItems();
             InitializeDefaultRecorderOptions();
+            RecorderOptions.OutputOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.SnapshotOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.AudioOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.MouseOptions.PropertyChanged += RecorderOptions_PropertyChanged;
@@ -180,6 +181,7 @@ namespace TestApp
         {
             switch (e.PropertyName)
             {
+                case nameof(OutputOptions.RecorderMode):
                 case nameof(SnapshotOptions.SnapshotsWithVideo):
                     {
                         UpdateUiState();
@@ -627,11 +629,11 @@ namespace TestApp
             _rec.Pause();
         }
 
-        private void ScreenComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void SourceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (e.AddedItems.Count == 0)
                 return;
-            SetScreenComboBoxTitle();
+            SetSourceComboBoxTitle();
             SetOutputDimensions();
             ((CollectionViewSource)Resources["SelectedRecordingSourcesViewSource"]).View.Refresh();
         }
@@ -693,11 +695,6 @@ namespace TestApp
             {
                 ((TextBox)sender).ClearValue(TextBox.BorderBrushProperty);
             }
-        }
-
-        private void RecordingModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            UpdateUiState();
         }
 
         private void RecordingApiComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -846,7 +843,7 @@ namespace TestApp
             }
             RefreshWindowSizeAndAvailability();
 
-            ScreenComboBox.SelectedIndex = 0;
+            SourceComboBox.SelectedIndex = 0;
         }
 
         private void RefreshWindowSizeAndAvailability()
@@ -894,18 +891,18 @@ namespace TestApp
 
         private void ScreenCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
         {
-            SetScreenComboBoxTitle();
+            SetSourceComboBoxTitle();
             SetOutputDimensions();
             ((CollectionViewSource)Resources["SelectedRecordingSourcesViewSource"]).View.Refresh();
         }
-        private void SetScreenComboBoxTitle()
+        private void SetSourceComboBoxTitle()
         {
             this.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
             {
                 if (RecordingSources.Any(x => x.IsSelected))
                 {
                     var sources = RecordingSources.Where(x => x.IsSelected).Select(x => x.ToString());
-                    this.ScreenComboBox.Text = string.Join(", ", sources);
+                    this.SourceComboBox.Text = string.Join(", ", sources);
                 }
             }));
         }
@@ -991,7 +988,7 @@ namespace TestApp
             SetOutputDimensions();
         }
 
-        private void ScreenComboBox_DropDownOpened(object sender, EventArgs e)
+        private void SourceComboBox_DropDownOpened(object sender, EventArgs e)
         {
             RefreshWindowSizeAndAvailability();
         }
