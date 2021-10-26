@@ -14,7 +14,7 @@ namespace ScreenRecorderLib
     [TestClass]
     public class ScreenRecorderTests
     {
-        const int DefaultRecordingLengthMillis = 3000;
+        const int DefaultMaxRecordingLengthMillis = 3000;
 
         private string GetTempPath()
         {
@@ -24,7 +24,7 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void DefaultRecordingToStreamTest()
+        public void DefaultRecordingToStream()
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
@@ -50,9 +50,15 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
-
+                        rec.OnStatusChanged += (s, args) =>
+                        {
+                            if (args.Status == RecorderStatus.Recording)
+                            {
+                                recordingResetEvent.Set();
+                            }
+                        };
                         rec.Record(outStream);
-                        recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                        recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                         rec.Stop();
                         finalizeResetEvent.WaitOne(5000);
                         outStream.Flush();
@@ -110,9 +116,15 @@ namespace ScreenRecorderLib
                                 finalizeResetEvent.Set();
                                 recordingResetEvent.Set();
                             };
-
+                            rec.OnStatusChanged += (s, args) =>
+                            {
+                                if (args.Status == RecorderStatus.Recording)
+                                {
+                                    recordingResetEvent.Set();
+                                }
+                            };
                             rec.Record(outStream);
-                            recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                            recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                             rec.Stop();
                             finalizeResetEvent.WaitOne(5000);
                             outStream.Flush();
@@ -134,7 +146,7 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void QualitySettingTest()
+        public void QualitySetting()
         {
             long fullQualitySize;
             long lowestQualitySize;
@@ -166,9 +178,15 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-
+                    rec.OnStatusChanged += (s, args) =>
+                    {
+                        if (args.Status == RecorderStatus.Recording)
+                        {
+                            recordingResetEvent.Set();
+                        }
+                    };
                     rec.Record(outStream);
-                    recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                    recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
                     outStream.Flush();
@@ -206,9 +224,15 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-
+                    rec.OnStatusChanged += (s, args) =>
+                    {
+                        if (args.Status == RecorderStatus.Recording)
+                        {
+                            recordingResetEvent.Set();
+                        }
+                    };
                     rec.Record(outStream);
-                    recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                    recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
 
@@ -222,7 +246,7 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void SoftwareEncodingTest()
+        public void SoftwareEncoding()
         {
             using (var outStream = new MemoryStream())
             {
@@ -246,9 +270,15 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-
+                    rec.OnStatusChanged += (s, args) =>
+                    {
+                        if (args.Status == RecorderStatus.Recording)
+                        {
+                            recordingResetEvent.Set();
+                        }
+                    };
                     rec.Record(outStream);
-                    recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                    recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
                     outStream.Flush();
@@ -260,56 +290,7 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void RecordingWithNoAudioTest()
-        {
-            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
-            try
-            {
-                using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
-                {
-                    RecorderOptions options = new RecorderOptions();
-                    options.AudioOptions = new AudioOptions { IsAudioEnabled = false };
-                    using (var rec = Recorder.CreateRecorder(options))
-                    {
-                        string error = "";
-                        bool isError = false;
-                        bool isComplete = false;
-                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
-                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
-                        rec.OnRecordingComplete += (s, args) =>
-                        {
-                            isComplete = true;
-                            finalizeResetEvent.Set();
-                        };
-                        rec.OnRecordingFailed += (s, args) =>
-                        {
-                            isError = true;
-                            error = args.Error;
-                            finalizeResetEvent.Set();
-                            recordingResetEvent.Set();
-                        };
-
-                        rec.Record(outStream);
-                        recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
-                        rec.Stop();
-                        finalizeResetEvent.WaitOne(5000);
-                        outStream.Flush();
-                        var mediaInfo = new MediaInfoWrapper(filePath);
-                        Assert.IsTrue(mediaInfo.AudioStreams.Count == 0);
-                        Assert.IsFalse(isError, error);
-                        Assert.IsTrue(isComplete);
-                        Assert.AreNotEqual(outStream.Length, 0);
-                    }
-                }
-            }
-            finally
-            {
-                File.Delete(filePath);
-            }
-        }
-
-        [TestMethod]
-        public void RecordingWithAudioInputTest()
+        public void RecordingWithAudioInput()
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
@@ -337,9 +318,15 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
-
+                        rec.OnStatusChanged += (s, args) =>
+                        {
+                            if (args.Status == RecorderStatus.Recording)
+                            {
+                                recordingResetEvent.Set();
+                            }
+                        };
                         rec.Record(outStream);
-                        recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                        recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                         rec.Stop();
                         finalizeResetEvent.WaitOne(5000);
                         outStream.Flush();
@@ -358,7 +345,7 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void RecordingWithAudioMixingTest()
+        public void RecordingWithAudioMixing()
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
@@ -386,9 +373,15 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
-
+                        rec.OnStatusChanged += (s, args) =>
+                        {
+                            if (args.Status == RecorderStatus.Recording)
+                            {
+                                recordingResetEvent.Set();
+                            }
+                        };
                         rec.Record(outStream);
-                        recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                        recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                         rec.Stop();
                         finalizeResetEvent.WaitOne(5000);
                         outStream.Flush();
@@ -407,63 +400,7 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void RecordingWithCustomOutputFrameSizeTest()
-        {
-            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
-            try
-            {
-                using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
-                {
-                    RecorderOptions options = new RecorderOptions();
-                    int frameWidth = 1000;
-                    int frameHeight = 1000;
-                    options.OutputOptions = new OutputOptions
-                    {
-                        OutputFrameSize = new ScreenSize(frameWidth, frameHeight)
-                    };
-                    using (var rec = Recorder.CreateRecorder(options))
-                    {
-                        string error = "";
-                        bool isError = false;
-                        bool isComplete = false;
-                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
-                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
-                        rec.OnRecordingComplete += (s, args) =>
-                        {
-                            isComplete = true;
-                            finalizeResetEvent.Set();
-                        };
-                        rec.OnRecordingFailed += (s, args) =>
-                        {
-                            isError = true;
-                            error = args.Error;
-                            finalizeResetEvent.Set();
-                            recordingResetEvent.Set();
-                        };
-
-                        rec.Record(outStream);
-                        recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
-                        rec.Stop();
-                        finalizeResetEvent.WaitOne(5000);
-                        outStream.Flush();
-                        Assert.IsFalse(isError, error);
-                        Assert.IsTrue(isComplete);
-                        Assert.AreNotEqual(outStream.Length, 0);
-                        Assert.IsTrue(new FileInfo(filePath).Length > 0);
-                        var mediaInfo = new MediaInfoWrapper(filePath);
-                        Assert.IsTrue(mediaInfo.Format == "MPEG-4");
-                        Assert.IsTrue(mediaInfo.Width == frameWidth && mediaInfo.Height == frameHeight, "Expected and actual output dimensions differ");
-                    }
-                }
-            }
-            finally
-            {
-                File.Delete(filePath);
-            }
-        }
-
-        [TestMethod]
-        public void RecordingWithOutputCropAndCustomOutputFrameSizeTest()
+        public void RecordingWithOutputCropAndCustomFrameSize()
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
@@ -498,9 +435,15 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
-
+                        rec.OnStatusChanged += (s, args) =>
+                        {
+                            if (args.Status == RecorderStatus.Recording)
+                            {
+                                recordingResetEvent.Set();
+                            }
+                        };
                         rec.Record(outStream);
-                        recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                        recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                         rec.Stop();
                         finalizeResetEvent.WaitOne(5000);
                         outStream.Flush();
@@ -520,8 +463,9 @@ namespace ScreenRecorderLib
             }
         }
 
-        [TestMethod]
-        public void RecordingWithSourceOutputSizeTest()
+        [DataTestMethod]
+        [DynamicData(nameof(GetRecordingSources), DynamicDataSourceType.Method)]
+        public void RecordingWithCustomSourceDimensionsAndPositions(IEnumerable<RecordingSourceBase> recordingSources, ScreenSize expectedSize)
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
@@ -529,19 +473,12 @@ namespace ScreenRecorderLib
                 using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                 {
                     RecorderOptions options = new RecorderOptions();
-                    int frameWidth = 500;
-                    int frameHeight = 500;
                     options.SourceOptions = new SourceOptions
                     {
-                        RecordingSources = new List<RecordingSourceBase>
-                        {
-                            new DisplayRecordingSource
-                            {
-                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
-                                OutputSize = new ScreenSize(frameWidth, frameHeight)
-                            }
-                        }
+                        RecordingSources = recordingSources.ToList()
                     };
+                    ScreenSize calculatedSize = Recorder.GetOutputDimensionsForRecordingSources(recordingSources).CombinedOutputSize;
+                    Assert.AreEqual(calculatedSize, expectedSize);
                     using (var rec = Recorder.CreateRecorder(options))
                     {
                         string error = "";
@@ -561,9 +498,15 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
-
+                        rec.OnStatusChanged += (s, args) =>
+                        {
+                            if (args.Status == RecorderStatus.Recording)
+                            {
+                                recordingResetEvent.Set();
+                            }
+                        };
                         rec.Record(outStream);
-                        recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                        recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                         rec.Stop();
                         finalizeResetEvent.WaitOne(5000);
                         outStream.Flush();
@@ -573,7 +516,7 @@ namespace ScreenRecorderLib
                         Assert.IsTrue(new FileInfo(filePath).Length > 0);
                         var mediaInfo = new MediaInfoWrapper(filePath);
                         Assert.IsTrue(mediaInfo.Format == "MPEG-4");
-                        Assert.IsTrue(mediaInfo.Width == frameWidth && mediaInfo.Height == frameHeight, "Expected and actual output dimensions differ");
+                        Assert.IsTrue(mediaInfo.Width == expectedSize.Width && mediaInfo.Height == expectedSize.Height, "Expected and actual output dimensions differ");
                     }
                 }
             }
@@ -582,74 +525,136 @@ namespace ScreenRecorderLib
                 File.Delete(filePath);
             }
         }
-
-        [TestMethod]
-        public void RecordingWithSourceCropAndSourceOutputSizeTest()
+        public static IEnumerable<object[]> GetRecordingSources()
         {
-            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
-            try
-            {
-                using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
-                {
-                    RecorderOptions options = new RecorderOptions();
-                    int frameWidth = 500;
-                    int frameHeight = 500;
-                    var sourceRect = new ScreenRect(0, 0, frameWidth, frameHeight);
-                    options.SourceOptions = new SourceOptions
-                    {
-                        RecordingSources = new List<RecordingSourceBase>
-                        {
-                            new DisplayRecordingSource
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
                             {
                                 DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
-                                OutputSize = new ScreenSize(frameWidth, frameHeight),
-                                SourceRect = sourceRect
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500)
                             }
-                        }
-                    };
-                    using (var rec = Recorder.CreateRecorder(options))
-                    {
-                        string error = "";
-                        bool isError = false;
-                        bool isComplete = false;
-                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
-                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
-                        rec.OnRecordingComplete += (s, args) =>
-                        {
-                            isComplete = true;
-                            finalizeResetEvent.Set();
-                        };
-                        rec.OnRecordingFailed += (s, args) =>
-                        {
-                            isError = true;
-                            error = args.Error;
-                            finalizeResetEvent.Set();
-                            recordingResetEvent.Set();
-                        };
-
-                        rec.Record(outStream);
-                        recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
-                        rec.Stop();
-                        finalizeResetEvent.WaitOne(5000);
-                        outStream.Flush();
-                        Assert.IsFalse(isError, error);
-                        Assert.IsTrue(isComplete);
-                        Assert.AreNotEqual(outStream.Length, 0);
-                        Assert.IsTrue(new FileInfo(filePath).Length > 0);
-                        var mediaInfo = new MediaInfoWrapper(filePath);
-                        Assert.IsTrue(mediaInfo.Format == "MPEG-4");
-                        Assert.IsTrue(mediaInfo.Width == frameWidth && mediaInfo.Height == frameHeight, "Expected and actual output dimensions differ");
-                    }
-                }
-            }
-            finally
-            {
-                File.Delete(filePath);
-            }
+               },
+               new ScreenSize(500,500)
+            };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif" //400x400px
+                            }
+               },
+               new ScreenSize(900,500)
+            };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500),
+                                Position = new ScreenPoint(50,50)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif"//400x400px
+                            }
+               },
+               new ScreenSize(950,550)
+            };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500),
+                                Position = new ScreenPoint(50,50)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif",//400x400px
+                               OutputSize = new ScreenSize(500,500)
+                            }
+               },
+               new ScreenSize(1050,550)
+            };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500),
+                                Position = new ScreenPoint(50,50)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif",//400x400px
+                               OutputSize = new ScreenSize(500,500),
+                               Position = new ScreenPoint(600,0)
+                            }
+               },
+               new ScreenSize(1100,550)
+            };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500),
+                                Position = new ScreenPoint(50,50)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif",//400x400px
+                               OutputSize = new ScreenSize(500,500),
+                               Position = new ScreenPoint(0,550)
+                            }
+               },
+               new ScreenSize(550,1050)
+            };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500),
+                                Position = new ScreenPoint(50,50)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif",//400x400px
+                               OutputSize = new ScreenSize(500,500),
+                               Position = new ScreenPoint(0,550)
+                            },
+                            new VideoRecordingSource
+                            {
+                               SourcePath=@"testmedia\cat.mp4",//480x480px
+                            }
+               },
+               new ScreenSize(1030,1050)
+            };
         }
 
         [TestMethod]
-        public void FixedFramerateTest()
+        public void FixedFramerate()
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
@@ -678,9 +683,8 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
-
                         rec.Record(outStream);
-                        recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                        recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                         rec.Stop();
                         finalizeResetEvent.WaitOne(5000);
                         outStream.Flush();
@@ -699,7 +703,7 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void CustomFixedBitrateTest()
+        public void CustomFixedBitrate()
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
@@ -730,9 +734,15 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-
+                    rec.OnStatusChanged += (s, args) =>
+                    {
+                        if (args.Status == RecorderStatus.Recording)
+                        {
+                            recordingResetEvent.Set();
+                        }
+                    };
                     rec.Record(filePath);
-                    recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                    recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
                     Assert.IsFalse(isError, error);
@@ -751,7 +761,7 @@ namespace ScreenRecorderLib
         [TestMethod]
         [DataRow(RecorderApi.DesktopDuplication)]
         [DataRow(RecorderApi.WindowsGraphicsCapture)]
-        public void ScreenshotTest(RecorderApi api)
+        public void Screenshot(RecorderApi api)
         {
             RecorderOptions options = new RecorderOptions();
             options.RecorderMode = RecorderMode.Screenshot;
@@ -779,9 +789,8 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-
                     rec.Record(filePath);
-                    recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                    recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
 
@@ -799,7 +808,7 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void ScreenshotTestWithCropping()
+        public void ScreenshotWithCropping()
         {
             RecorderOptions options = new RecorderOptions();
             options.RecorderMode = RecorderMode.Screenshot;
@@ -830,9 +839,8 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-
                     rec.Record(filePath);
-                    recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                    recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
 
@@ -853,7 +861,7 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void SlideshowTest()
+        public void Slideshow()
         {
             string directoryPath = Path.Combine(GetTempPath(), Path.GetFileNameWithoutExtension(Path.GetRandomFileName()));
             try
@@ -906,7 +914,7 @@ namespace ScreenRecorderLib
 
 
         [TestMethod]
-        public void RecordingWithH265EncoderTest()
+        public void RecordingWithH265Encoder()
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
@@ -930,9 +938,15 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-
+                    rec.OnStatusChanged += (s, args) =>
+                    {
+                        if (args.Status == RecorderStatus.Recording)
+                        {
+                            recordingResetEvent.Set();
+                        }
+                    };
                     rec.Record(filePath);
-                    recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                    recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
 
@@ -951,78 +965,7 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void RecordingToStreamWithSnapshotsTest()
-        {
-            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
-            string snapshotsDir = Path.ChangeExtension(filePath, null);
-            try
-            {
-                using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
-                {
-                    RecorderOptions options = new RecorderOptions();
-                    options.SnapshotOptions = new SnapshotOptions
-                    {
-                        SnapshotsWithVideo = true,
-                        SnapshotsIntervalMillis = 2000,
-                        SnapshotFormat = ImageFormat.JPEG,
-                        SnapshotsDirectory = snapshotsDir
-                    };
-                    using (var rec = Recorder.CreateRecorder(options))
-                    {
-                        List<string> snapshotCallbackList = new List<string>();
-                        string error = "";
-                        bool isError = false;
-                        bool isComplete = false;
-                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
-                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
-                        rec.OnRecordingComplete += (s, args) =>
-                        {
-                            isComplete = true;
-                            finalizeResetEvent.Set();
-                        };
-                        rec.OnRecordingFailed += (s, args) =>
-                        {
-                            isError = true;
-                            error = args.Error;
-                            finalizeResetEvent.Set();
-                            recordingResetEvent.Set();
-                        };
-                        rec.OnSnapshotSaved += (s, args) =>
-                        {
-                            snapshotCallbackList.Add(args.SnapshotPath);
-                        };
-                        rec.Record(outStream);
-                        recordingResetEvent.WaitOne(11900); // 10 < x < 12 sec
-                        rec.Stop();
-                        finalizeResetEvent.WaitOne(5000);
-                        outStream.Flush();
-                        Assert.IsFalse(isError, error);
-                        Assert.IsTrue(isComplete);
-                        outStream.Seek(0, SeekOrigin.Begin);
-                        Assert.IsTrue(new FileInfo(filePath).Length > 0);
-                        var mediaInfo = new MediaInfoWrapper(filePath);
-                        Assert.IsTrue(mediaInfo.Format == "MPEG-4");
-                        Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
-
-                        var snapshotsOnDisk = Directory.GetFiles(snapshotsDir);
-                        Assert.AreEqual(6, snapshotsOnDisk.Count());  // First snapshot taken at time 0.
-                        Assert.IsTrue(Enumerable.SequenceEqual(snapshotCallbackList, snapshotsOnDisk));
-                        foreach (var snapshot in snapshotsOnDisk)
-                        {
-                            Assert.IsTrue(new MediaInfoWrapper(snapshot).Format == "JPEG");
-                        }
-                    }
-                }
-            }
-            finally
-            {
-                Directory.Delete(snapshotsDir, recursive: true);
-                File.Delete(filePath);
-            }
-        }
-
-        [TestMethod]
-        public void RecordingToFileWithSnapshotsAndCroppingTest()
+        public void RecordingToFileWithSnapshotsAndCropping()
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             string snapshotsDir = Path.ChangeExtension(filePath, null);
@@ -1135,16 +1078,18 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void TwoSimultaneousGCRecorderInstances()
+        [DataRow(RecorderApi.WindowsGraphicsCapture, RecorderApi.WindowsGraphicsCapture)]
+        [DataRow(RecorderApi.DesktopDuplication, RecorderApi.WindowsGraphicsCapture)]
+        public void TwoSimultaneousRecorderInstances(RecorderApi r1, RecorderApi r2)
         {
             string filePath1 = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             string filePath2 = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
             {
-                var recordingSource = DisplayRecordingSource.MainMonitor;
-                recordingSource.RecorderApi = RecorderApi.WindowsGraphicsCapture;
                 var recording1 = Task.Run(() =>
                 {
+                    var recordingSource = DisplayRecordingSource.MainMonitor;
+                    recordingSource.RecorderApi = r1;
                     using (var rec = Recorder.CreateRecorder(new RecorderOptions { SourceOptions = new SourceOptions { RecordingSources = { recordingSource } } }))
                     {
                         string error = "";
@@ -1164,11 +1109,17 @@ namespace ScreenRecorderLib
                             finalizingResetEvent.Set();
                             recordingResetEvent.Set();
                         };
-
+                        rec.OnStatusChanged += (s, args) =>
+                        {
+                            if (args.Status == RecorderStatus.Recording)
+                            {
+                                recordingResetEvent.Set();
+                            }
+                        };
                         rec.Record(filePath1);
 
 
-                        recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                        recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                         rec.Stop();
                         finalizingResetEvent.WaitOne(5000);
                         Assert.IsFalse(isError, error);
@@ -1181,6 +1132,8 @@ namespace ScreenRecorderLib
                 });
                 var recording2 = Task.Run(() =>
                 {
+                    var recordingSource = DisplayRecordingSource.MainMonitor;
+                    recordingSource.RecorderApi = r2;
                     using (var rec2 = Recorder.CreateRecorder(new RecorderOptions { SourceOptions = new SourceOptions { RecordingSources = { recordingSource } } }))
                     {
                         string error2 = "";
@@ -1200,99 +1153,15 @@ namespace ScreenRecorderLib
                             finalizingResetEvent2.Set();
                             recordingResetEvent2.Set();
                         };
-
+                        rec2.OnStatusChanged += (s, args) =>
+                        {
+                            if (args.Status == RecorderStatus.Recording)
+                            {
+                                recordingResetEvent2.Set();
+                            }
+                        };
                         rec2.Record(filePath2);
-                        recordingResetEvent2.WaitOne(DefaultRecordingLengthMillis);
-                        rec2.Stop();
-                        finalizingResetEvent2.WaitOne(5000);
-                        Assert.IsFalse(isError2, error2);
-                        Assert.IsTrue(isComplete2);
-                        Assert.IsTrue(new FileInfo(filePath2).Length > 0);
-                        var mediaInfo2 = new MediaInfoWrapper(filePath2);
-                        Assert.IsTrue(mediaInfo2.Format == "MPEG-4");
-                        Assert.IsTrue(mediaInfo2.VideoStreams.Count > 0);
-                    }
-                });
-                Task.WaitAll(recording1, recording2);
-            }
-            finally
-            {
-                File.Delete(filePath1);
-                File.Delete(filePath2);
-            }
-        }
-        [TestMethod]
-        public void TwoSimultaneousGCAndDDRecorderInstances()
-        {
-            string filePath1 = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
-            string filePath2 = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
-            try
-            {
-
-                var recording1 = Task.Run(() =>
-                {
-                    var recordingSource = DisplayRecordingSource.MainMonitor;
-                    recordingSource.RecorderApi = RecorderApi.WindowsGraphicsCapture;
-                    using (var rec = Recorder.CreateRecorder(new RecorderOptions { SourceOptions = new SourceOptions { RecordingSources = { recordingSource } } }))
-                    {
-                        string error = "";
-                        bool isError = false;
-                        bool isComplete = false;
-                        ManualResetEvent finalizingResetEvent = new ManualResetEvent(false);
-                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
-                        rec.OnRecordingComplete += (s, args) =>
-                        {
-                            isComplete = true;
-                            finalizingResetEvent.Set();
-                        };
-                        rec.OnRecordingFailed += (s, args) =>
-                        {
-                            isError = true;
-                            error = args.Error;
-                            finalizingResetEvent.Set();
-                            recordingResetEvent.Set();
-                        };
-
-                        rec.Record(filePath1);
-
-
-                        recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
-                        rec.Stop();
-                        finalizingResetEvent.WaitOne(5000);
-                        Assert.IsFalse(isError, error);
-                        Assert.IsTrue(isComplete);
-                        Assert.IsTrue(new FileInfo(filePath1).Length > 0);
-                        var mediaInfo = new MediaInfoWrapper(filePath1);
-                        Assert.IsTrue(mediaInfo.Format == "MPEG-4");
-                        Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
-                    }
-                });
-                var recording2 = Task.Run(() =>
-                {
-                    var recordingSource = DisplayRecordingSource.MainMonitor;
-                    recordingSource.RecorderApi = RecorderApi.DesktopDuplication;
-                    using (var rec2 = Recorder.CreateRecorder(new RecorderOptions { SourceOptions = new SourceOptions { RecordingSources = { recordingSource } } }))
-                    {
-                        string error2 = "";
-                        bool isError2 = false;
-                        bool isComplete2 = false;
-                        ManualResetEvent finalizingResetEvent2 = new ManualResetEvent(false);
-                        ManualResetEvent recordingResetEvent2 = new ManualResetEvent(false);
-                        rec2.OnRecordingComplete += (s, args) =>
-                        {
-                            isComplete2 = true;
-                            finalizingResetEvent2.Set();
-                        };
-                        rec2.OnRecordingFailed += (s, args) =>
-                        {
-                            isError2 = true;
-                            error2 = args.Error;
-                            finalizingResetEvent2.Set();
-                            recordingResetEvent2.Set();
-                        };
-
-                        rec2.Record(filePath2);
-                        recordingResetEvent2.WaitOne(DefaultRecordingLengthMillis);
+                        recordingResetEvent2.WaitOne(DefaultMaxRecordingLengthMillis);
                         rec2.Stop();
                         finalizingResetEvent2.WaitOne(5000);
                         Assert.IsFalse(isError2, error2);
@@ -1313,11 +1182,12 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void Run25RecordingsTestWithDifferentInstances()
+        public void Run25RecordingsWithUniqueInstances()
         {
             for (int i = 0; i < 25; i++)
             {
-                using (Stream outStream = new MemoryStream())
+                string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+                try
                 {
                     RecorderOptions options = new RecorderOptions();
                     using (var rec = Recorder.CreateRecorder(options))
@@ -1331,6 +1201,7 @@ namespace ScreenRecorderLib
                         {
                             isComplete = true;
                             finalizeResetEvent.Set();
+                            recordingResetEvent.Set();
                         };
                         rec.OnRecordingFailed += (s, args) =>
                         {
@@ -1339,23 +1210,34 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
-
-                        rec.Record(outStream);
+                        rec.OnStatusChanged += (s, args) =>
+                        {
+                            if (args.Status == RecorderStatus.Recording)
+                            {
+                                rec.Stop();
+                            }
+                        };
+                        rec.Record(filePath);
                         recordingResetEvent.WaitOne(1000);
-                        rec.Stop();
 
-                        Assert.IsTrue(finalizeResetEvent.WaitOne(5000), $"[{i}] Recording finalize timed out");
-                        outStream.Flush();
-                        Assert.IsNotNull(outStream, $"[{i}] Outstream is null");
+                        Assert.IsTrue(finalizeResetEvent.WaitOne(1000), $"[{i}] Recording finalize timed out");
                         Assert.IsFalse(isError, $"[{i}]: " + error);
                         Assert.IsTrue(isComplete, $"[{i}] Recording not complete");
-                        Assert.AreNotEqual(outStream.Length, 0, $"[{i}] Outstream length is 0");
+                        Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                        var mediaInfo = new MediaInfoWrapper(filePath);
+                        Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                        Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                        Assert.IsTrue(mediaInfo.Duration > 0);
                     }
+                }
+                finally
+                {
+                    File.Delete(filePath);
                 }
             }
         }
         [TestMethod]
-        public void Run25RecordingsTestWithOneInstance()
+        public void Run25RecordingsWithOneInstance()
         {
             string error = "";
             bool isError = false;
@@ -1363,12 +1245,14 @@ namespace ScreenRecorderLib
             AutoResetEvent finalizeResetEvent = new AutoResetEvent(false);
             ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
             RecorderOptions options = new RecorderOptions();
+            options.AudioOptions = new AudioOptions { IsAudioEnabled = true };
             using (var rec = Recorder.CreateRecorder(options))
             {
                 rec.OnRecordingComplete += (s, args) =>
                 {
                     isComplete = true;
                     finalizeResetEvent.Set();
+                    recordingResetEvent.Set();
                 };
                 rec.OnRecordingFailed += (s, args) =>
                 {
@@ -1377,22 +1261,35 @@ namespace ScreenRecorderLib
                     finalizeResetEvent.Set();
                     recordingResetEvent.Set();
                 };
+                rec.OnStatusChanged += (s, args) =>
+                {
+                    if (args.Status == RecorderStatus.Recording)
+                    {
+                        rec.Stop();
+                    }
+                };
                 for (int i = 0; i < 25; i++)
                 {
-                    using (var outStream = new MemoryStream())
+                    string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+                    try
                     {
                         isError = false;
                         isComplete = false;
-                        rec.Record(outStream);
+                        rec.Record(filePath);
                         recordingResetEvent.WaitOne(1000);
-                        rec.Stop();
 
-                        Assert.IsTrue(finalizeResetEvent.WaitOne(5000), $"[{i}] Recording finalize timed out");
-                        outStream.Flush();
-                        Assert.IsNotNull(outStream, $"[{i}] Outstream is null");
+                        Assert.IsTrue(finalizeResetEvent.WaitOne(1000), $"[{i}] Recording finalize timed out");
                         Assert.IsFalse(isError, $"[{i}]: " + error);
                         Assert.IsTrue(isComplete, $"[{i}] Recording not complete");
-                        Assert.AreNotEqual(outStream.Length, 0, $"[{i}] Outstream length is 0");
+                        Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                        var mediaInfo = new MediaInfoWrapper(filePath);
+                        Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                        Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                        Assert.IsTrue(mediaInfo.Duration > 0);
+                    }
+                    finally
+                    {
+                        File.Delete(filePath);
                     }
                 }
             }
@@ -1462,9 +1359,15 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-
+                    rec.OnStatusChanged += (s, args) =>
+                    {
+                        if (args.Status == RecorderStatus.Recording)
+                        {
+                            recordingResetEvent.Set();
+                        }
+                    };
                     rec.Record(filePath);
-                    recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                    recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
 
@@ -1482,7 +1385,7 @@ namespace ScreenRecorderLib
             }
         }
         [TestMethod]
-        public void RecordWindowTest()
+        public void RecordWindow()
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
@@ -1513,9 +1416,15 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-
+                    rec.OnStatusChanged += (s, args) =>
+                    {
+                        if (args.Status == RecorderStatus.Recording)
+                        {
+                            recordingResetEvent.Set();
+                        }
+                    };
                     rec.Record(filePath);
-                    recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
+                    recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
 
@@ -1525,72 +1434,6 @@ namespace ScreenRecorderLib
                     var mediaInfo = new MediaInfoWrapper(filePath);
                     Assert.IsTrue(mediaInfo.Format == "MPEG-4");
                     Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
-                }
-            }
-            finally
-            {
-                File.Delete(filePath);
-            }
-        }
-        [TestMethod]
-        public void RecordMultipleSourcesTest()
-        {
-            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
-            try
-            {
-                var sources = new List<RecordingSourceBase>();
-                sources.Add(DisplayRecordingSource.MainMonitor);
-                sources.Add(Recorder.GetWindows().FirstOrDefault(x => x.IsValidWindow() && !x.IsMinmimized()));
-                sources.Add(new VideoRecordingSource(@"testmedia\cat.mp4"));
-                sources.Add(new ImageRecordingSource(@"testmedia\earth.gif"));
-                foreach (var source in sources)
-                {
-                    source.OutputSize = new ScreenSize(500, 0);
-                }
-                var coordinates = Recorder.GetOutputDimensionsForRecordingSources(sources);
-                RecorderOptions options = new RecorderOptions
-                {
-                    SourceOptions = new SourceOptions
-                    {
-                        RecordingSources = sources,
-                    },
-                    VideoEncoderOptions = new VideoEncoderOptions
-                    {
-                        IsHardwareEncodingEnabled = false
-                    }
-                };
-                using (var rec = Recorder.CreateRecorder(options))
-                {
-                    string error = "";
-                    bool isError = false;
-                    bool isComplete = false;
-                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
-                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
-                    rec.OnRecordingComplete += (s, args) =>
-                    {
-                        isComplete = true;
-                        finalizeResetEvent.Set();
-                    };
-                    rec.OnRecordingFailed += (s, args) =>
-                    {
-                        isError = true;
-                        error = args.Error;
-                        finalizeResetEvent.Set();
-                        recordingResetEvent.Set();
-                    };
-
-                    rec.Record(filePath);
-                    recordingResetEvent.WaitOne(DefaultRecordingLengthMillis);
-                    rec.Stop();
-                    finalizeResetEvent.WaitOne(5000);
-
-                    Assert.IsFalse(isError, error, "recording has error");
-                    Assert.IsTrue(isComplete, "recording failed to complete");
-                    Assert.IsTrue(new FileInfo(filePath).Length > 0, "file length is 0");
-                    var mediaInfo = new MediaInfoWrapper(filePath);
-                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
-                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0, "no video streams found");
-                    Assert.IsTrue(mediaInfo.Width == coordinates.CombinedOutputSize.Width && mediaInfo.Height == coordinates.CombinedOutputSize.Height, "videos resolution {0}x{1} differs from source dimension {2}x{3}", mediaInfo.Width, mediaInfo.Height, coordinates.CombinedOutputSize.Width, coordinates.CombinedOutputSize.Height);
                 }
             }
             finally
