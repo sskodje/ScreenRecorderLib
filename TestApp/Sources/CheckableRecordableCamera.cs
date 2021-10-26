@@ -30,7 +30,7 @@ namespace TestApp.Sources
             RecordableCamera device;
             if (value is null)
             {
-                device = MediaDevices.FirstOrDefault(x => String.IsNullOrEmpty(x.DeviceName));
+                device = MediaDevices.FirstOrDefault();
             }
             else
             {
