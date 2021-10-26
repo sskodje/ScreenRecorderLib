@@ -87,6 +87,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			if (options->OutputOptions->OutputFrameSize && !options->OutputOptions->OutputFrameSize->Equals(ScreenSize::Empty)) {
 				outputOptions->SetFrameSize(SIZE{ (long)round(options->OutputOptions->OutputFrameSize->Width),(long)round(options->OutputOptions->OutputFrameSize->Height) });
 			}
+			outputOptions->SetRecorderMode(static_cast<RecorderModeInternal>(options->OutputOptions->RecorderMode));
 			outputOptions->SetStretch(static_cast<TextureStretchMode>(options->OutputOptions->Stretch));
 			m_Rec->SetOutputOptions(outputOptions);
 		}
@@ -156,8 +157,6 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			}
 			m_Rec->SetLogSeverityLevel((UINT32)options->LogOptions->LogSeverityLevel);
 		}
-
-		m_Rec->SetRecorderMode((UINT32)options->RecorderMode);
 	}
 }
 

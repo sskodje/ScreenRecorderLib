@@ -78,7 +78,6 @@ RecordingManager::RecordingManager() :
 	m_MouseOptions(new MOUSE_OPTIONS),
 	m_SnapshotOptions(new SNAPSHOT_OPTIONS),
 	m_OutputOptions(new OUTPUT_OPTIONS),
-	m_RecorderMode(RecorderModeInternal::Video),
 	m_IsDestructing(false),
 	m_RecordingSources{}
 {
@@ -117,9 +116,10 @@ void RecordingManager::SetLogSeverityLevel(int value) {
 
 HRESULT RecordingManager::ConfigureOutputDir(_In_ std::wstring path) {
 	m_OutputFullPath = path;
+	auto recorderMode = GetOutputOptions()->GetRecorderMode();
 	if (!path.empty()) {
 		wstring dir = path;
-		if (m_RecorderMode == RecorderModeInternal::Slideshow) {
+		if (recorderMode == RecorderModeInternal::Slideshow) {
 			if (!dir.empty() && dir.back() != '\\')
 				dir += '\\';
 		}
@@ -140,8 +140,8 @@ HRESULT RecordingManager::ConfigureOutputDir(_In_ std::wstring path) {
 			return E_FAIL;
 		}
 
-		if (m_RecorderMode == RecorderModeInternal::Video || m_RecorderMode == RecorderModeInternal::Screenshot) {
-			wstring ext = m_RecorderMode == RecorderModeInternal::Video ? m_EncoderOptions->GetVideoExtension() : m_SnapshotOptions->GetImageExtension();
+		if (recorderMode == RecorderModeInternal::Video || recorderMode == RecorderModeInternal::Screenshot) {
+			wstring ext = recorderMode == RecorderModeInternal::Video ? m_EncoderOptions->GetVideoExtension() : m_SnapshotOptions->GetImageExtension();
 			LPWSTR pStrExtension = PathFindExtension(path.c_str());
 			if (pStrExtension == nullptr || pStrExtension[0] == 0)
 			{
@@ -370,7 +370,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 	RETURN_ON_BAD_HR(pCapture->Initialize(m_DeviceContext, m_Device));
 	HANDLE UnexpectedErrorEvent = nullptr;
 	HANDLE ExpectedErrorEvent = nullptr;
-
+	auto recorderMode = GetOutputOptions()->GetRecorderMode();
 	// Event used by the threads to signal an unexpected error and we want to quit the app
 	UnexpectedErrorEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 	if (nullptr == UnexpectedErrorEvent) {
@@ -394,14 +394,14 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 	RECT videoInputFrameRect{};
 	SIZE videoOutputFrameSize{};
 	RETURN_ON_BAD_HR(hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, &videoOutputFrameSize));
-	RETURN_ON_BAD_HR(hr = m_OutputManager->BeginRecording(m_OutputFullPath, videoOutputFrameSize, m_RecorderMode, pStream));
+	RETURN_ON_BAD_HR(hr = m_OutputManager->BeginRecording(m_OutputFullPath, videoOutputFrameSize, recorderMode, pStream));
 
 	std::unique_ptr<AudioManager> pAudioManager = make_unique<AudioManager>();
 	std::unique_ptr<MouseManager> pMouseManager = make_unique<MouseManager>();
 	RETURN_ON_BAD_HR(hr = pMouseManager->Initialize(m_DeviceContext, m_Device, GetMouseOptions()));
 	SetViewPort(m_DeviceContext, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
 
-	if (m_RecorderMode == RecorderModeInternal::Video) {
+	if (recorderMode == RecorderModeInternal::Video) {
 		hr = pAudioManager->Initialize(GetAudioOptions());
 		if (FAILED(hr)) {
 			LOG_ERROR(L"Audio capture failed to start: hr = 0x%08x", hr);
@@ -411,10 +411,10 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 	std::chrono::steady_clock::time_point lastFrame = std::chrono::steady_clock::now();
 	std::chrono::steady_clock::time_point previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
 	INT64 videoFrameDurationMillis = 0;
-	if (m_RecorderMode == RecorderModeInternal::Video) {
+	if (recorderMode == RecorderModeInternal::Video) {
 		videoFrameDurationMillis = 1000 / GetEncoderOptions()->GetVideoFps();
 	}
-	else if (m_RecorderMode == RecorderModeInternal::Slideshow) {
+	else if (recorderMode == RecorderModeInternal::Slideshow) {
 		videoFrameDurationMillis = GetSnapshotOptions()->GetSnapshotsInterval().count();
 	}
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
@@ -434,14 +434,14 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 
 	auto ShouldSkipDelay([&](CAPTURED_FRAME capturedFrame)
 	{
-		if ((m_RecorderMode == RecorderModeInternal::Video)
+		if ((recorderMode == RecorderModeInternal::Video)
 			&& (m_OutputManager->GetRenderedFrameCount() == 0 //never delay the first frame 
 				|| (GetMouseOptions()->IsMousePointerEnabled() && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
 				|| (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()))) // Or if we need to write a snapshot 
 		{
 			return true;
 		}
-		if (m_RecorderMode == RecorderModeInternal::Slideshow
+		if (recorderMode == RecorderModeInternal::Slideshow
 			&& (m_OutputManager->GetRenderedFrameCount() == 0)){ //never delay the first frame  
 			return true;
 		}
@@ -462,7 +462,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 		pTexture.Release();
 		pTexture.Attach(processedTexture);
 
-		if (m_RecorderMode == RecorderModeInternal::Video && GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()) {
+		if (recorderMode == RecorderModeInternal::Video && GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()) {
 			if (SUCCEEDED(renderHr = SaveTextureAsVideoSnapshot(pTexture, videoInputFrameRect))) {
 				previousSnapshotTaken = steady_clock::now();
 			}
@@ -533,8 +533,8 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 			}
 		}
 		else {
-			if ((m_RecorderMode == RecorderModeInternal::Slideshow
-				|| m_RecorderMode == RecorderModeInternal::Screenshot)
+			if ((recorderMode == RecorderModeInternal::Slideshow
+				|| recorderMode == RecorderModeInternal::Screenshot)
 			   && (!pCapture->IsInitialFrameWriteComplete() || !pCapture->IsInitialOverlayWriteComplete())) {
 				continue;
 			}
@@ -564,7 +564,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 				delay100Nanos = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
 			}
 			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-				if ((havePrematureFrame || m_RecorderMode == RecorderModeInternal::Slideshow || GetEncoderOptions()->GetIsFixedFramerate())
+				if ((havePrematureFrame || recorderMode == RecorderModeInternal::Slideshow || GetEncoderOptions()->GetIsFixedFramerate())
 					&& videoFrameDuration100Nanos > durationSinceLastFrame100Nanos) {
 					delay100Nanos = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
 				}
@@ -606,7 +606,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 				pPreviousFrameCopy.Release();
 			}
 			//Copy new frame to pPreviousFrameCopy
-			if (m_RecorderMode == RecorderModeInternal::Video || m_RecorderMode == RecorderModeInternal::Slideshow) {
+			if (recorderMode == RecorderModeInternal::Video || recorderMode == RecorderModeInternal::Slideshow) {
 				D3D11_TEXTURE2D_DESC desc;
 				pCurrentFrameCopy->GetDesc(&desc);
 				RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pPreviousFrameCopy));
@@ -632,7 +632,7 @@ HRESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOU
 			}
 		}
 		RETURN_ON_BAD_HR(hr = PrepareAndRenderFrame(pCurrentFrameCopy, durationSinceLastFrame100Nanos));
-		if (m_RecorderMode == RecorderModeInternal::Screenshot) {
+		if (recorderMode == RecorderModeInternal::Screenshot) {
 			break;
 		}
 	}

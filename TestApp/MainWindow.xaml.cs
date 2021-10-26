@@ -50,7 +50,7 @@ namespace TestApp
                     RaisePropertyChanged("RecordToStream");
                     if (value)
                     {
-                        RecorderOptions.RecorderMode = RecorderMode.Video;
+                        RecorderOptions.OutputOptions.RecorderMode = RecorderMode.Video;
                         this.RecordingModeComboBox.IsEnabled = false;
                     }
                     else
@@ -358,18 +358,18 @@ namespace TestApp
             OutputResultTextBlock.Text = "";
             UpdateProgress();
             string videoPath = "";
-            if (RecorderOptions.RecorderMode == RecorderMode.Video)
+            if (RecorderOptions.OutputOptions.RecorderMode == RecorderMode.Video)
             {
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
                 videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + ".mp4");
             }
-            else if (RecorderOptions.RecorderMode == RecorderMode.Slideshow)
+            else if (RecorderOptions.OutputOptions.RecorderMode == RecorderMode.Slideshow)
             {
                 //For slideshow just give a folder path as input.
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
                 videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp) + "\\";
             }
-            else if (RecorderOptions.RecorderMode == RecorderMode.Screenshot)
+            else if (RecorderOptions.OutputOptions.RecorderMode == RecorderMode.Screenshot)
             {
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss-ff");
                 videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + GetImageExtension());
@@ -734,7 +734,7 @@ namespace TestApp
         {
             if (this.IsLoaded)
             {
-                switch (RecorderOptions.RecorderMode)
+                switch (RecorderOptions.OutputOptions.RecorderMode)
                 {
                     case RecorderMode.Video:
                         this.EncoderOptionsPanel.Visibility = Visibility.Visible;
@@ -769,7 +769,7 @@ namespace TestApp
                     case RecorderMode.Screenshot:
                         this.EncoderOptionsPanel.Visibility = Visibility.Collapsed;
                         this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
-                        this.SnapshotsIntervalPanel.Visibility = RecorderOptions.RecorderMode == RecorderMode.Slideshow ? Visibility.Visible : Visibility.Collapsed;
+                        this.SnapshotsIntervalPanel.Visibility = RecorderOptions.OutputOptions.RecorderMode == RecorderMode.Slideshow ? Visibility.Visible : Visibility.Collapsed;
                         this.EncoderOptionsPanel.Visibility = Visibility.Collapsed;
                         this.CheckBoxSnapshotsWithVideo.Visibility = Visibility.Collapsed;
                         this.VideoEncoderOptionsPanel.Visibility = Visibility.Collapsed;

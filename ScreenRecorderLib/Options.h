@@ -92,11 +92,13 @@ namespace ScreenRecorderLib {
 		StretchMode _stretch;
 		ScreenSize^ _outputFrameSize;
 		ScreenRect^ _sourceRect;
+		RecorderMode _recorderMode;
 	public:
 		OutputOptions() {
 			Stretch = StretchMode::Uniform;
 			OutputFrameSize = ScreenSize::Empty;
 			SourceRect = ScreenRect::Empty;
+			RecorderMode = ScreenRecorderLib::RecorderMode::Video;
 		}
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
 		void OnPropertyChanged(String^ info)
@@ -137,6 +139,15 @@ namespace ScreenRecorderLib {
 			void set(ScreenRect^ value) {
 				_sourceRect = value;
 				OnPropertyChanged("SourceRect");
+			}
+		}
+		property ScreenRecorderLib::RecorderMode RecorderMode {
+			ScreenRecorderLib::RecorderMode get() {
+				return _recorderMode;
+			}
+			void set(ScreenRecorderLib::RecorderMode value) {
+				_recorderMode = value;
+				OnPropertyChanged("RecorderMode");
 			}
 		}
 	};
@@ -731,9 +742,8 @@ namespace ScreenRecorderLib {
 			}
 		}
 		RecorderOptions() {
-			RecorderMode = ScreenRecorderLib::RecorderMode::Video;
+
 		}
-		property RecorderMode RecorderMode;
 
 		property VideoEncoderOptions^ VideoEncoderOptions;
 		property SourceOptions^ SourceOptions;

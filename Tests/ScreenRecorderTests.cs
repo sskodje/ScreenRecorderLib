@@ -764,7 +764,7 @@ namespace ScreenRecorderLib
         public void Screenshot(RecorderApi api)
         {
             RecorderOptions options = new RecorderOptions();
-            options.RecorderMode = RecorderMode.Screenshot;
+            options.OutputOptions = new OutputOptions { RecorderMode = RecorderMode.Screenshot };
             options.SourceOptions = new SourceOptions { RecordingSources = { new DisplayRecordingSource { DeviceName = DisplayRecordingSource.MainMonitor.DeviceName, RecorderApi = api } } };
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".png"));
             try
@@ -811,7 +811,7 @@ namespace ScreenRecorderLib
         public void ScreenshotWithCropping()
         {
             RecorderOptions options = new RecorderOptions();
-            options.RecorderMode = RecorderMode.Screenshot;
+            options.OutputOptions = new OutputOptions { RecorderMode = RecorderMode.Screenshot };
             options.OutputOptions = new OutputOptions
             {
                 SourceRect = new ScreenRect(100, 100, 100, 100)
@@ -867,7 +867,7 @@ namespace ScreenRecorderLib
             try
             {
                 RecorderOptions options = new RecorderOptions();
-                options.RecorderMode = RecorderMode.Slideshow;
+                options.OutputOptions = new OutputOptions { RecorderMode = RecorderMode.Slideshow };
                 options.SnapshotOptions = new SnapshotOptions { SnapshotsIntervalMillis = 200 };
                 Directory.CreateDirectory(directoryPath);
                 Assert.IsTrue(Directory.Exists(directoryPath));

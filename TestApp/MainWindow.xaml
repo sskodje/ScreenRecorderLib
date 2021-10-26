@@ -657,7 +657,7 @@
                                           MinWidth="100"
                                           Margin="0,5,5,5"
                                           ItemsSource="{Binding Source={StaticResource RecorderModeData}}"
-                                          SelectedItem="{Binding ElementName=MainWin,Path=RecorderOptions.RecorderMode, Mode=TwoWay}"
+                                          SelectedItem="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.RecorderMode, Mode=TwoWay}"
                                           VerticalAlignment="Top"
                                           SelectionChanged="RecordingModeComboBox_SelectionChanged" />
                             </StackPanel>

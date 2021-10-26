@@ -69,7 +69,7 @@ public:
 		return m_Overlays;
 	}
 
-	void SetRecorderMode(UINT32 mode) { m_RecorderMode = (RecorderModeInternal)mode; }
+
 	void SetIsLogEnabled(bool value);
 	void SetLogFilePath(std::wstring value);
 	void SetLogSeverityLevel(int value);
@@ -103,7 +103,7 @@ private:
 	std::wstring m_OutputFullPath = L"";
 	INT64 m_MaxFrameLength100Nanos = MillisToHundredNanos(500); //500 milliseconds in 100 nanoseconds measure.
 
-	RecorderModeInternal m_RecorderMode;
+
 	std::vector<RECORDING_SOURCE*> m_RecordingSources;
 	std::vector<RECORDING_OVERLAY*> m_Overlays;
 	bool m_IsPaused = false;

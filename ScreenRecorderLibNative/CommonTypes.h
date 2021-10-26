@@ -359,6 +359,7 @@ protected:
 	SIZE m_FrameSize{};
 	RECT m_SourceRect{};
 	TextureStretchMode m_Stretch = TextureStretchMode::Uniform;
+	RecorderModeInternal m_RecorderMode = RecorderModeInternal::Video;
 public:
 	SIZE GetFrameSize() { return m_FrameSize; }
 	void SetFrameSize(SIZE size) { m_FrameSize = size; }
@@ -366,6 +367,8 @@ public:
 	RECT GetSourceRectangle() { return m_SourceRect; }
 	void SetStretch(TextureStretchMode stretch) { m_Stretch = stretch; }
 	TextureStretchMode GetStretch() { return m_Stretch; }
+	RecorderModeInternal GetRecorderMode() { return m_RecorderMode; }
+	void SetRecorderMode(RecorderModeInternal recorderMode) { m_RecorderMode = recorderMode; }
 };
 
 struct ENCODER_OPTIONS abstract {
