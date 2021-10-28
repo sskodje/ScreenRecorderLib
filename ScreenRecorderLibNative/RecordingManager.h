@@ -13,7 +13,7 @@
 #include "OutputManager.h"
 typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_map<std::wstring, int>);
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
-typedef void(__stdcall *CallbackErrorFunction)(std::wstring);
+typedef void(__stdcall *CallbackErrorFunction)(std::wstring, std::wstring);
 typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
 typedef void(__stdcall *CallbackFrameNumberChangedFunction)(int);
 
@@ -89,11 +89,7 @@ private:
 	struct TaskWrapper;
 	std::unique_ptr<TaskWrapper> m_TaskWrapperImpl;
 
-#if _DEBUG 
-	ID3D11Debug *m_Debug = nullptr;
-#endif
-	ID3D11DeviceContext *m_DeviceContext = nullptr;
-	ID3D11Device *m_Device = nullptr;
+	DX_RESOURCES m_DxResources;
 
 	std::unique_ptr<TextureManager> m_TextureManager;
 	std::unique_ptr<OutputManager> m_OutputManager;
@@ -117,7 +113,7 @@ private:
 
 	bool CheckDependencies(_Out_ std::wstring *error);
 	HRESULT ConfigureOutputDir(_In_ std::wstring path);
-	HRESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE*> &sources, _In_ const std::vector<RECORDING_OVERLAY*> &overlays, _In_opt_ IStream *pStream);
+	REC_RESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE*> &sources, _In_ const std::vector<RECORDING_OVERLAY*> &overlays, _In_opt_ IStream *pStream);
 
 	/// <summary>
 	/// Creates adjusted source and output rects from a recording frame rect. The source rect is normalized to start on [0,0], and the output is adjusted for any cropping.
@@ -153,7 +149,7 @@ private:
 	/// <summary>
 	///	Calls the RecordingComplete or RecordingFailed callbacks depending on the success of the recording result.
 	/// </summary>
-	/// <param name="hr">The recording result.</param>
+	/// <param name="result">The recording result.</param>
 	/// <param name="frameDelays">A map of paths to saved frames with corresponding delay between them. Only used for Slideshow mode.</param>
-	void SetRecordingCompleteStatus(_In_ HRESULT hr, nlohmann::fifo_map<std::wstring, int> frameDelays);
+	void SetRecordingCompleteStatus(_In_ REC_RESULT result, nlohmann::fifo_map<std::wstring, int> frameDelays);
 };

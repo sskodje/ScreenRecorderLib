@@ -61,7 +61,7 @@ HRESULT ScreenCaptureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContex
 //
 // Start up threads for video capture
 //
-HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hUnexpectedErrorEvent, _In_  HANDLE hExpectedErrorEvent)
+HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hErrorEvent, _Inout_ CAPTURE_RESULT *pResult)
 {
 	ResetEvent(m_TerminateThreadsEvent);
 
@@ -82,9 +82,8 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 	for (UINT i = 0; i < m_CaptureThreadCount; i++)
 	{
 		RECORDING_SOURCE_DATA *data = CreatedOutputs.at(i);
-		m_CaptureThreadData[i].ThreadResult = S_FALSE;
-		m_CaptureThreadData[i].UnexpectedErrorEvent = hUnexpectedErrorEvent;
-		m_CaptureThreadData[i].ExpectedErrorEvent = hExpectedErrorEvent;
+		m_CaptureThreadData[i].ThreadResult = pResult;
+		m_CaptureThreadData[i].ErrorEvent = hErrorEvent;
 		m_CaptureThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
 		m_CaptureThreadData[i].CanvasTexSharedHandle = sharedHandle;
 		m_CaptureThreadData[i].PtrInfo = &m_PtrInfo;
@@ -110,10 +109,10 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 	for (UINT i = 0; i < m_OverlayThreadCount; i++)
 	{
 		auto overlay = overlays.at(i);
-		m_OverlayThreadData[i].ThreadResult = S_FALSE;
+		m_CaptureThreadData[i].ThreadResult = pResult;
+		m_CaptureThreadData[i].ErrorEvent = hErrorEvent;
+		m_CaptureThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
 		m_OverlayThreadData[i].CanvasTexSharedHandle = sharedHandle;
-		m_OverlayThreadData[i].UnexpectedErrorEvent = hUnexpectedErrorEvent;
-		m_OverlayThreadData[i].ExpectedErrorEvent = hExpectedErrorEvent;
 		m_OverlayThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
 		m_OverlayThreadData[i].RecordingOverlay = new RECORDING_OVERLAY_DATA(overlay);
 		RtlZeroMemory(&m_OverlayThreadData[i].RecordingOverlay->DxRes, sizeof(DX_RESOURCES));
@@ -550,14 +549,10 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	CComPtr<ID3D11Texture2D> SharedSurf = nullptr;
 	CComPtr<IDXGIKeyedMutex> KeyMutex = nullptr;
 
-	bool isExpectedError = false;
-	bool isUnexpectedError = false;
-
 	// Data passed in from thread creation
 	CAPTURE_THREAD_DATA *pData = reinterpret_cast<CAPTURE_THREAD_DATA *>(Param);
 	RECORDING_SOURCE_DATA *pSourceData = pData->RecordingSource;
 	RECORDING_SOURCE *pSource = pSourceData->RecordingSource;
-
 	//This scope must be here for ReleaseOnExit to work.
 	{
 		std::unique_ptr<CaptureBase> pRecordingSourceCapture = nullptr;
@@ -700,55 +695,27 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			}
 			pData->UpdatedFrameCountSinceLastWrite++;
 			pData->TotalUpdatedFrameCount++;
-
 			QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
 		}
 	}
 Exit:
+	if (pData->ThreadResult) {
+		pData->ThreadResult->RecordingResult = hr;
 
-	pData->ThreadResult = hr;
-
-	if (FAILED(hr))
-	{
-		_com_error err(hr);
-		switch (hr)
+		if (FAILED(hr))
 		{
-			case DXGI_ERROR_DEVICE_REMOVED:
-			case DXGI_ERROR_DEVICE_RESET:
-				LOG_ERROR(L"Display device unavailable: %s", err.ErrorMessage());
-				isUnexpectedError = true;
-				break;
-			case E_ACCESSDENIED:
-			case DXGI_ERROR_MODE_CHANGE_IN_PROGRESS:
-			case DXGI_ERROR_SESSION_DISCONNECTED:
-				//case DXGI_ERROR_INVALID_CALL:
-			case DXGI_ERROR_ACCESS_LOST:
-				//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application is launching, or similar.
-				//We continue the recording, and instead of desktop texture just add a blank texture instead.
-				isExpectedError = true;
-				LOG_WARN(L"Desktop temporarily unavailable: hr = 0x%08x, error = %s", hr, err.ErrorMessage());
-				break;
-			case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
-				LOG_ERROR(L"Error reinitializing capture with DXGI_ERROR_NOT_CURRENTLY_AVAILABLE. This probably means DXGI reached the limit on the maximum number of concurrent duplication applications (default of four). Therefore, the calling application cannot create any desktop duplication interfaces until the other applications close");
-				isUnexpectedError = true;
-				break;
-			case E_ABORT: {
-				//This error is returned when the capture loop should be stopped, but the recording continue.
-				break;
+			//E_ABORT is returned when the capture loop should be stopped, but the recording continue. On other errors, we check how to handle them.
+			if (hr != E_ABORT) {
+				ProcessCaptureHRESULT(hr, pData->ThreadResult, pSourceData->DxRes.Device);
+				if (pData->ThreadResult->IsRecoverableError) {
+					LOG_INFO("Recoverable error in capture, reinitializing..");
+				}
+				else {
+					LOG_ERROR("Fatal error in capture, exiting..");
+				}
+				SetEvent(pData->ErrorEvent);
 			}
-			default:
-				//Unexpected error, return.
-				LOG_ERROR(L"Error reinitializing capture with unexpected error, aborting: %s", err.ErrorMessage());
-				isUnexpectedError = true;
-				break;
 		}
-	}
-
-	if (isExpectedError) {
-		SetEvent(pData->ExpectedErrorEvent);
-	}
-	else if (isUnexpectedError) {
-		SetEvent(pData->UnexpectedErrorEvent);
 	}
 	LOG_DEBUG("Exiting CaptureThreadProc");
 	return 0;
@@ -760,8 +727,6 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 	// Data passed in from thread creation
 	OVERLAY_THREAD_DATA *pData = reinterpret_cast<OVERLAY_THREAD_DATA *>(Param);
 
-	bool isExpectedError = false;
-	bool isUnexpectedError = false;
 	RECORDING_OVERLAY_DATA *pOverlayData = pData->RecordingOverlay;
 	RECORDING_OVERLAY *pOverlay = pOverlayData->RecordingOverlay;
 	unique_ptr<CaptureBase> overlayCapture = nullptr;
@@ -880,13 +845,73 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 		}
 	}
 Exit:
-	pData->ThreadResult = hr;
-	if (isExpectedError) {
-		SetEvent(pData->ExpectedErrorEvent);
-	}
-	else if (isUnexpectedError) {
-		SetEvent(pData->UnexpectedErrorEvent);
+	if (pData->ThreadResult) {
+		pData->ThreadResult->RecordingResult = hr;
+
+		if (FAILED(hr))
+		{
+			//E_ABORT is returned when the capture loop should be stopped, but the recording continue. On other errors, we check how to handle them.
+			if (hr != E_ABORT) {
+				ProcessCaptureHRESULT(hr, pData->ThreadResult, pOverlayData->DxRes.Device);
+				if (pData->ThreadResult->IsRecoverableError) {
+					LOG_INFO("Recoverable error in capture, reinitializing..");
+				}
+				else {
+					LOG_ERROR("Fatal error in capture, exiting..");
+				}
+				SetEvent(pData->ErrorEvent);
+			}
+		}
 	}
 	LOG_DEBUG("Exiting OverlayCaptureThreadProc");
 	return 0;
+}
+
+void ProcessCaptureHRESULT(_In_ HRESULT hr, _Inout_ CAPTURE_RESULT *pResult, _In_opt_ ID3D11Device *pDevice) {
+	pResult->RecordingResult = hr;
+	_com_error err(hr);
+	switch (hr)
+	{
+		case DXGI_ERROR_DEVICE_REMOVED:
+		{
+			if (pDevice) {
+				HRESULT DeviceRemovedReason = pDevice->GetDeviceRemovedReason();
+
+				switch (DeviceRemovedReason)
+				{
+					case DXGI_ERROR_DEVICE_REMOVED:
+					case DXGI_ERROR_DEVICE_RESET:
+					case static_cast<HRESULT>(E_OUTOFMEMORY):
+					{
+						LOG_INFO(L"Graphics device temporarily unavailable: hr = 0x%08x, error = %s", hr, err.ErrorMessage());
+						pResult->IsRecoverableError = true;
+						break;
+					}
+					default: {
+						LOG_ERROR(L"Graphics device unavailable: hr = 0x%08x, error = %s", hr, err.ErrorMessage());
+					}
+				}
+			}
+			break;
+		}
+		case static_cast<HRESULT>(E_ACCESSDENIED):
+		case DXGI_ERROR_MODE_CHANGE_IN_PROGRESS:
+		case DXGI_ERROR_SESSION_DISCONNECTED:
+		case DXGI_ERROR_ACCESS_LOST:
+			//Access to video output is denied, probably due to DRM, screen saver, desktop is switching, fullscreen application is launching, or similar.
+			//We continue the recording, and instead of desktop texture just add a blank texture instead.
+			pResult->IsRecoverableError = true;
+			pResult->Error = L"Desktop temporarily unavailable";
+			LOG_INFO(L"Desktop temporarily unavailable: hr = 0x%08x, error = %s", hr, err.ErrorMessage());
+			break;
+		case DXGI_ERROR_NOT_CURRENTLY_AVAILABLE:
+			pResult->Error = L"Desktop Duplication for output is currently unavailable.";
+			LOG_ERROR(L"Error in capture with DXGI_ERROR_NOT_CURRENTLY_AVAILABLE. This probably means DXGI reached the limit on the maximum number of concurrent duplication applications (default of four). Therefore, the calling application cannot create any desktop duplication interfaces until the other applications close");
+			break;
+		default:
+			//Unexpected error, return.
+			LOG_ERROR(L"Unexpected error, aborting capture: %s", err.ErrorMessage());
+			pResult->Error = L"Unexpected error, aborting capture";
+			break;
+	}
 }

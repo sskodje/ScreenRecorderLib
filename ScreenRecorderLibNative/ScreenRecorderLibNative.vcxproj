@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClInclude Include="AudioManager.h" />
     <ClInclude Include="CMFSinkWriterCallback.h" />
+    <ClInclude Include="DynamicWait.h" />
     <ClInclude Include="ImageReader.h" />
     <ClInclude Include="OutputManager.h" />
     <ClInclude Include="ScreenCaptureBase.h" />
@@ -54,6 +55,7 @@
   <ItemGroup>
     <ClCompile Include="AudioManager.cpp" />
     <ClCompile Include="CaptureBase.cpp" />
+    <ClCompile Include="DynamicWait.cpp" />
     <ClCompile Include="ImageReader.cpp" />
     <ClCompile Include="Log.cpp" />
     <ClCompile Include="OutputManager.cpp" />

@@ -766,7 +766,7 @@ void Recorder::CreateFrameNumberCallback() {
 	CallbackFrameNumberChangedFunction cb = static_cast<CallbackFrameNumberChangedFunction>(ip.ToPointer());
 	m_Rec->RecordingFrameNumberChangedCallback = cb;
 }
-void Recorder::EventComplete(std::wstring str, fifo_map<std::wstring, int> delays)
+void Recorder::EventComplete(std::wstring path, fifo_map<std::wstring, int> delays)
 {
 	ClearCallbacks();
 
@@ -779,17 +779,17 @@ void Recorder::EventComplete(std::wstring str, fifo_map<std::wstring, int> delay
 		delete m_ManagedStream;
 		m_ManagedStream = nullptr;
 	}
-	RecordingCompleteEventArgs^ args = gcnew RecordingCompleteEventArgs(gcnew String(str.c_str()), frameInfos);
+	RecordingCompleteEventArgs^ args = gcnew RecordingCompleteEventArgs(gcnew String(path.c_str()), frameInfos);
 	OnRecordingComplete(this, args);
 }
-void Recorder::EventFailed(std::wstring str)
+void Recorder::EventFailed(std::wstring error, std::wstring path)
 {
 	ClearCallbacks();
 	if (m_ManagedStream) {
 		delete m_ManagedStream;
 		m_ManagedStream = nullptr;
 	}
-	OnRecordingFailed(this, gcnew RecordingFailedEventArgs(gcnew String(str.c_str())));
+	OnRecordingFailed(this, gcnew RecordingFailedEventArgs(gcnew String(error.c_str()),gcnew String(path.c_str())));
 }
 void Recorder::EventStatusChanged(int status)
 {

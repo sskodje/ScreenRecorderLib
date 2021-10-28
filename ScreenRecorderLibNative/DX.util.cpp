@@ -295,7 +295,7 @@ HRESULT GetAdapterForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result
 }
 
 HRESULT GetOutputForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIOutput **ppOutput) {
-	HRESULT hr = E_FAIL;
+	HRESULT hr = DXGI_ERROR_NOT_FOUND;
 	if (ppOutput) {
 		*ppOutput = nullptr;
 	}

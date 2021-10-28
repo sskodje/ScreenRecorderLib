@@ -19,7 +19,7 @@ using namespace System::ComponentModel;
 
 delegate void InternalStatusCallbackDelegate(int status);
 delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fifo_map<std::wstring, int>);
-delegate void InternalErrorCallbackDelegate(std::wstring path);
+delegate void InternalErrorCallbackDelegate(std::wstring error, std::wstring path);
 delegate void InternalSnapshotCallbackDelegate(std::wstring path);
 delegate void InternalFrameNumberCallbackDelegate(int newFrameNumber);
 
@@ -61,8 +61,8 @@ namespace ScreenRecorderLib {
 		void CreateStatusCallback();
 		void CreateSnapshotCallback();
 		void CreateFrameNumberCallback();
-		void EventComplete(std::wstring str, nlohmann::fifo_map<std::wstring, int> delays);
-		void EventFailed(std::wstring str);
+		void EventComplete(std::wstring path, nlohmann::fifo_map<std::wstring, int> delays);
+		void EventFailed(std::wstring error, std::wstring path);
 		void EventStatusChanged(int status);
 		void EventSnapshotCreated(std::wstring str);
 		void FrameNumberChanged(int newFrameNumber);

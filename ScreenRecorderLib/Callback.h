@@ -40,8 +40,10 @@ namespace ScreenRecorderLib {
 	public ref class RecordingFailedEventArgs :System::EventArgs {
 	public:
 		property String^ Error;
-		RecordingFailedEventArgs(String^ error) {
+		property String^ FilePath;
+		RecordingFailedEventArgs(String^ error, String^ path) {
 			Error = error;
+			FilePath = path;
 		}
 	};
 

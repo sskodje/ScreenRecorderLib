@@ -156,6 +156,9 @@
     <ClInclude Include="ImageReader.h">
       <Filter>Header Files\Video Capture\Overlay Capture</Filter>
     </ClInclude>
+    <ClInclude Include="DynamicWait.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RecordingManager.cpp">
@@ -226,6 +229,9 @@
     </ClCompile>
     <ClCompile Include="CaptureBase.cpp">
       <Filter>Source Files\Video Capture</Filter>
+    </ClCompile>
+    <ClCompile Include="DynamicWait.cpp">
+      <Filter>Source Files\Utils</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

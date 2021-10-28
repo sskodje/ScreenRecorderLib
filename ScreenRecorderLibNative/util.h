@@ -23,6 +23,21 @@ std::wstring string_format(const std::wstring &format, Args ... args)
 	return std::wstring(buf.get(), buf.get() + size - 1); // We don't want the '\0' inside
 }
 
+#define RETURN_RESULT_ON_BAD_HR(hr,errorText) \
+{ \
+    HRESULT _hr_ = (hr); \
+	std::wstring _errorText_ = (errorText);\
+    if (FAILED(_hr_)) { \
+    {\
+        _com_error err(_hr_);\
+        LOG_ERROR(L"RETURN_RESULT_ON_BAD_HR: hr=0x%08x, error is: %ls", _hr_, err.ErrorMessage());\
+    }\
+	REC_RESULT captureResult{};\
+	captureResult.RecordingResult = _hr_;\
+	captureResult.Error = _errorText_;\
+    return captureResult; \
+    } \
+}
 
 #define RETURN_ON_BAD_HR(expr) \
 { \

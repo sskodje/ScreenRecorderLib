@@ -14,6 +14,30 @@
 #include <wincodec.h>
 #include <chrono>
 #include "util.h"
+
+struct REC_RESULT {
+	HRESULT RecordingResult;
+	HRESULT FinalizeResult;
+	std::wstring Error;
+	REC_RESULT() :
+		RecordingResult(E_FAIL),
+		FinalizeResult(E_FAIL),
+		Error(L"")
+	{
+
+	}
+};
+struct CAPTURE_RESULT :REC_RESULT {
+	// Used to indicate a transition event occurred e.g. PnpStop, PnpStart, mode change, TDR, desktop switch, and the application needs to recreate the capture interface
+	bool IsRecoverableError;
+	CAPTURE_RESULT() :
+		IsRecoverableError(false),
+		REC_RESULT()
+	{
+
+	}
+};
+
 //
 // Holds info about the pointer/cursor
 //
@@ -251,14 +275,12 @@ struct THREAD_DATA_BASE
 {
 	////Handle to shared surface texture
 	HANDLE CanvasTexSharedHandle{ nullptr };
-	// Used to indicate abnormal error condition
-	HANDLE UnexpectedErrorEvent{};
-	// Used to indicate a transition event occurred e.g. PnpStop, PnpStart, mode change, TDR, desktop switch and the application needs to recreate the capture interface
-	HANDLE ExpectedErrorEvent{};
+	// Used to signal an error in the ongoing capture
+	HANDLE ErrorEvent{};
 	// Used by WinProc to signal to threads to exit
 	HANDLE TerminateThreadsEvent{};
 	LARGE_INTEGER LastUpdateTimeStamp{};
-	HRESULT ThreadResult{ E_FAIL };
+	CAPTURE_RESULT *ThreadResult{ };
 };
 
 //

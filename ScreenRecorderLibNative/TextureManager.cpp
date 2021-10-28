@@ -26,6 +26,8 @@ HRESULT TextureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In
 	m_Device = pDevice;
 	m_DeviceContext = pDeviceContext;
 
+	CleanRefs();
+
 	HRESULT hr = S_OK;
 
 	// Create the sample state

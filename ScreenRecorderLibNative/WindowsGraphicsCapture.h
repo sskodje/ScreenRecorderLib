@@ -24,7 +24,7 @@ private:
 	void OnFrameArrived(winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &args);
 	HRESULT GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ GRAPHICS_FRAME_DATA *pData);
 private:
-	winrt::Windows::Graphics::Capture::GraphicsCaptureItem GetCaptureItem(_In_ RECORDING_SOURCE_BASE &recordingSource);
+	HRESULT GetCaptureItem(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem *item);
 	winrt::Windows::Graphics::Capture::GraphicsCaptureItem m_CaptureItem;
 	winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool m_framePool;
 	winrt::Windows::Graphics::Capture::GraphicsCaptureSession m_session;

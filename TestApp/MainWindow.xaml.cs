@@ -511,6 +511,12 @@ namespace TestApp
         {
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
             {
+                string filePath = e.FilePath;
+                if (RecordToStream)
+                {
+                    filePath = ((FileStream)_outputStream)?.Name;
+                }
+                OutputResultTextBlock.Text = filePath;
                 PauseButton.Visibility = Visibility.Collapsed;
                 RecordButton.Content = "Record";
                 RecordButton.IsEnabled = true;

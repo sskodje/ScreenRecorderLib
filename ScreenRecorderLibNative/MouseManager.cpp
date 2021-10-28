@@ -65,6 +65,7 @@ MouseManager::MouseManager() :
 
 MouseManager::~MouseManager()
 {
+	CleanDX();
 	StopMouseClickDetection();
 	CloseHandle(m_StopPollingTaskEvent);
 	DeleteCriticalSection(&m_CriticalSection);
@@ -108,6 +109,9 @@ HRESULT MouseManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ 
 	m_Device = pDevice;
 	m_DeviceContext = pDeviceContext;
 	m_MouseOptions = pOptions;
+
+	StopMouseClickDetection();
+	CloseHandle(m_StopPollingTaskEvent);
 	m_StopPollingTaskEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 	InitializeMouseClickDetection();
 	return hr;

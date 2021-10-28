@@ -173,9 +173,9 @@ HRESULT WindowsGraphicsCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordi
 		LOG_ERROR(L"Initialize must be called before StartCapture");
 		return E_FAIL;
 	}
-	m_CaptureItem = GetCaptureItem(recordingSource);
 	m_RecordingSource = &recordingSource;
-	if (m_CaptureItem) {
+	hr = GetCaptureItem(recordingSource, &m_CaptureItem);
+	if (SUCCEEDED(hr)) {
 		// Get DXGI device
 		CComPtr<IDXGIDevice> DxgiDevice = nullptr;
 		hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void **>(&DxgiDevice));
@@ -201,7 +201,6 @@ HRESULT WindowsGraphicsCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordi
 	}
 	else {
 		LOG_ERROR("Failed to create capture item");
-		return E_FAIL;
 	}
 	return hr;
 }
@@ -222,6 +221,7 @@ HRESULT WindowsGraphicsCapture::StopCapture()
 
 HRESULT WindowsGraphicsCapture::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize)
 {
+	HRESULT hr = S_OK;
 	switch (recordingSource.Type)
 	{
 		case RecordingSourceType::Window:
@@ -262,13 +262,15 @@ HRESULT WindowsGraphicsCapture::GetNativeSize(_In_ RECORDING_SOURCE_BASE &record
 		}
 		case RecordingSourceType::Display: {
 			if (!m_CaptureItem) {
-				m_CaptureItem = GetCaptureItem(recordingSource);
+				hr = GetCaptureItem(recordingSource, &m_CaptureItem);
 			}
-			if (!m_CaptureItem) {
+			if (SUCCEEDED(hr))
+			{
+				*nativeMediaSize = SIZE{ m_CaptureItem.Size().Width,m_CaptureItem.Size().Height };
+			}
+			else {
 				LOG_ERROR("GraphicsCaptureItem was NULL when a non-null value was expected");
-				return E_FAIL;
 			}
-			*nativeMediaSize = SIZE{ m_CaptureItem.Size().Width,m_CaptureItem.Size().Height };
 			break;
 		}
 		default:
@@ -276,7 +278,7 @@ HRESULT WindowsGraphicsCapture::GetNativeSize(_In_ RECORDING_SOURCE_BASE &record
 			break;
 	}
 
-	return S_OK;
+	return hr;
 }
 
 HRESULT WindowsGraphicsCapture::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ RECT frameCoordinates, _In_ int offsetX, _In_ int offsetY)
@@ -285,26 +287,27 @@ HRESULT WindowsGraphicsCapture::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ RECT f
 	return m_MouseManager->GetMouse(pPtrInfo, false, offsetX, offsetY);
 }
 
-winrt::GraphicsCaptureItem WindowsGraphicsCapture::GetCaptureItem(_In_ RECORDING_SOURCE_BASE &recordingSource)
+HRESULT WindowsGraphicsCapture::GetCaptureItem(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ winrt::GraphicsCaptureItem *item)
 {
+	HRESULT hr = S_OK;
 	if (recordingSource.Type == RecordingSourceType::Window) {
-		return CreateCaptureItemForWindow(recordingSource.SourceWindow);
+		*item = CreateCaptureItemForWindow(recordingSource.SourceWindow);
 	}
 	else {
 		CComPtr<IDXGIOutput> output = nullptr;
-		HRESULT hr = GetOutputForDeviceName(recordingSource.SourcePath, &output);
+		hr = GetOutputForDeviceName(recordingSource.SourcePath, &output);
 		if (FAILED(hr)) {
-			GetMainOutput(&output);
-			if (!output) {
+			hr = GetMainOutput(&output);
+			if (FAILED(hr)) {
 				LOG_ERROR("Failed to find any monitors to record");
-				return nullptr;
+				return hr;
 			}
 		}
 		DXGI_OUTPUT_DESC outputDesc;
 		output->GetDesc(&outputDesc);
-		return CreateCaptureItemForMonitor(outputDesc.Monitor);
+		*item = CreateCaptureItemForMonitor(outputDesc.Monitor);
 	}
-	return nullptr;
+	return hr;
 }
 
 void WindowsGraphicsCapture::OnFrameArrived(winrt::Direct3D11CaptureFramePool const &sender, winrt::IInspectable const &)
