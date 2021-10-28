@@ -330,11 +330,11 @@ namespace ScreenRecorderLib
                         rec.Stop();
                         finalizeResetEvent.WaitOne(5000);
                         outStream.Flush();
-                        var mediaInfo = new MediaInfoWrapper(filePath);
-                        Assert.IsTrue(mediaInfo.AudioStreams.Count > 0);
                         Assert.IsFalse(isError, error);
                         Assert.IsTrue(isComplete);
                         Assert.AreNotEqual(outStream.Length, 0);
+                        var mediaInfo = new MediaInfoWrapper(filePath);
+                        Assert.IsTrue(mediaInfo.AudioStreams.Count > 0);
                     }
                 }
             }
@@ -385,11 +385,11 @@ namespace ScreenRecorderLib
                         rec.Stop();
                         finalizeResetEvent.WaitOne(5000);
                         outStream.Flush();
-                        var mediaInfo = new MediaInfoWrapper(filePath);
-                        Assert.IsTrue(mediaInfo.AudioStreams.Count > 0);
                         Assert.IsFalse(isError, error);
                         Assert.IsTrue(isComplete);
                         Assert.AreNotEqual(outStream.Length, 0);
+                        var mediaInfo = new MediaInfoWrapper(filePath);
+                        Assert.IsTrue(mediaInfo.AudioStreams.Count > 0);
                     }
                 }
             }
@@ -684,7 +684,7 @@ namespace ScreenRecorderLib
                             recordingResetEvent.Set();
                         };
                         rec.Record(outStream);
-                        recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
+                        recordingResetEvent.WaitOne(5000);
                         rec.Stop();
                         finalizeResetEvent.WaitOne(5000);
                         outStream.Flush();
@@ -811,10 +811,10 @@ namespace ScreenRecorderLib
         public void ScreenshotWithCropping()
         {
             RecorderOptions options = new RecorderOptions();
-            options.OutputOptions = new OutputOptions { RecorderMode = RecorderMode.Screenshot };
             options.OutputOptions = new OutputOptions
             {
-                SourceRect = new ScreenRect(100, 100, 100, 100)
+                RecorderMode = RecorderMode.Screenshot,
+                SourceRect = new ScreenRect(100, 100, 200, 200)
             };
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".png"));
             try
