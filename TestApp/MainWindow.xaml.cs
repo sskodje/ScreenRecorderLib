@@ -391,7 +391,10 @@ namespace TestApp
             RecorderOptions.SourceOptions.RecordingSources = CreateSelectedRecordingSources();
             RecorderOptions.OverlayOptions.Overlays = this.Overlays.Where(x => x.IsEnabled && this.CheckBoxEnableOverlays.IsChecked.GetValueOrDefault(false)).Select(x => x.Overlay).ToList();
             RecorderOptions.VideoEncoderOptions.Encoder = videoEncoder;
-
+            if (!IsLogToFileEnabled)
+            {
+                RecorderOptions.LogOptions.LogFilePath = "";
+            }
             if (_rec == null)
             {
                 _rec = Recorder.CreateRecorder(RecorderOptions);
