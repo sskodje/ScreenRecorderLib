@@ -505,6 +505,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 
 		if (WaitForSingleObjectEx(ErrorEvent, 0, FALSE) == WAIT_OBJECT_0) {
 			if (captureResult.IsRecoverableError) {
+				//Reinitialize and restart capture
 				hr = pCapture->StopCapture();
 				if (SUCCEEDED(hr)) {
 					CleanDx(&m_DxResources);
@@ -514,8 +515,6 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 					// the wait periods will get progressively long to avoid wasting too much system resource if this state lasts a long time
 					DynamicWait.Wait();
 
-					//Reinitialize and restart capture
-					RtlZeroMemory(&captureResult, sizeof(captureResult));
 					hr = InitializeDx(nullptr, &m_DxResources);
 				}
 				if (SUCCEEDED(hr)) {
@@ -533,6 +532,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 				}
 				if (SUCCEEDED(hr)) {
 					ResetEvent(ErrorEvent);
+					captureResult = {};
 					hr = pCapture->StartCapture(sources, overlays, ErrorEvent, &captureResult);
 				}
 
