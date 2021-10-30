@@ -109,9 +109,9 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 	for (UINT i = 0; i < m_OverlayThreadCount; i++)
 	{
 		auto overlay = overlays.at(i);
-		m_CaptureThreadData[i].ThreadResult = pResult;
-		m_CaptureThreadData[i].ErrorEvent = hErrorEvent;
-		m_CaptureThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
+		m_OverlayThreadData[i].ThreadResult = pResult;
+		m_OverlayThreadData[i].ErrorEvent = hErrorEvent;
+		m_OverlayThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
 		m_OverlayThreadData[i].CanvasTexSharedHandle = sharedHandle;
 		m_OverlayThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
 		m_OverlayThreadData[i].RecordingOverlay = new RECORDING_OVERLAY_DATA(overlay);
