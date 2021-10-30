@@ -717,7 +717,7 @@ HRESULT internal_recorder::StartGraphicsCaptureRecorderLoop(IStream *pStream)
 		SetDebugName(pFrameCopy, "FrameCopy");
 
 		if (IsSnapshotsWithVideoEnabled() && IsTimeToTakeSnapshot()) {
-			TakeSnapshotsWithVideo(pFrameCopy, m_IsScalingEnabled ? rectForScaling : videoOutputFrameRect);
+			TakeSnapshotsWithVideo(pFrameCopy, m_IsScalingEnabled ? rectForScaling : videoInputFrameRect);
 		}
 
 		if (token.is_canceled()) {
