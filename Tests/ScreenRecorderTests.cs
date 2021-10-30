@@ -683,8 +683,9 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
+                        int durationMillis = 5000;
                         rec.Record(outStream);
-                        recordingResetEvent.WaitOne(5000);
+                        recordingResetEvent.WaitOne(durationMillis);
                         rec.Stop();
                         finalizeResetEvent.WaitOne(5000);
                         outStream.Flush();
@@ -692,6 +693,7 @@ namespace ScreenRecorderLib
                         Assert.IsTrue(isComplete);
                         Assert.AreNotEqual(outStream.Length, 0);
                         var mediaInfo = new MediaInfoWrapper(filePath);
+                        Assert.AreEqual(rec.CurrentFrameNumber, options.VideoEncoderOptions.Framerate * (durationMillis / 1000));
                         Assert.IsTrue(Math.Abs(mediaInfo.Framerate - options.VideoEncoderOptions.Framerate) <= 3, "MediaInfo framerate {0} not equal to configured framerate {1}", mediaInfo.Framerate, options.VideoEncoderOptions.Framerate);
                     }
                 }

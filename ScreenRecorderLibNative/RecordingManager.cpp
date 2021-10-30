@@ -358,10 +358,10 @@ void RecordingManager::SetRecordingCompleteStatus(_In_ REC_RESULT result, nlohma
 				}
 			}
 			if (SUCCEEDED(result.FinalizeResult)) {
-				RecordingFailedCallback(errMsg,m_OutputFullPath);
+				RecordingFailedCallback(errMsg, m_OutputFullPath);
 			}
 			else {
-				RecordingFailedCallback(errMsg,L"");
+				RecordingFailedCallback(errMsg, L"");
 			}
 
 			LOG_DEBUG("Sent Recording Failed callback");
@@ -424,11 +424,14 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 
 	int frameNr = 0;
-	INT64 lastFrameStartPos = 0;
+	INT64 lastFrameStartPos100Nanos = 0;
 	bool havePrematureFrame = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
 	INT64 minimumTimeForDelay100Nanons = 5000;//0.5ms
+	INT64 maxFrameLengthMillis = HundredNanosToMillis(m_MaxFrameLength100Nanos);
 	DynamicWait DynamicWait;
+
+
 	auto IsTimeToTakeSnapshot([&]()
 	{
 		// The first condition is needed since (now - min) yields negative value because of overflow...
@@ -438,16 +441,18 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 
 	auto ShouldSkipDelay([&](CAPTURED_FRAME capturedFrame)
 	{
-		if ((recorderMode == RecorderModeInternal::Video)
-			&& (m_OutputManager->GetRenderedFrameCount() == 0 //never delay the first frame 
-				|| (GetMouseOptions()->IsMousePointerEnabled() && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
-				|| (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()))) // Or if we need to write a snapshot 
-		{
+		if (m_OutputManager->GetRenderedFrameCount() == 0) {
 			return true;
 		}
-		if (recorderMode == RecorderModeInternal::Slideshow
-			&& (m_OutputManager->GetRenderedFrameCount() == 0)) { //never delay the first frame  
-			return true;
+
+		if (recorderMode == RecorderModeInternal::Video)
+		{
+			if (!GetEncoderOptions()->GetIsFixedFramerate()
+				&& (GetMouseOptions()->IsMousePointerEnabled() && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
+				|| (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot())) // Or if we need to write a snapshot 
+			{
+				return true;
+			}
 		}
 		return false;
 	});
@@ -466,20 +471,23 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		pTexture.Release();
 		pTexture.Attach(processedTexture);
 
-		if (recorderMode == RecorderModeInternal::Video && GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()) {
-			if (SUCCEEDED(renderHr = SaveTextureAsVideoSnapshot(pTexture, videoInputFrameRect))) {
-				previousSnapshotTaken = steady_clock::now();
-			}
-			else {
-				_com_error err(renderHr);
-				LOG_ERROR("Error saving video snapshot: %ls", err.ErrorMessage());
+		if (recorderMode == RecorderModeInternal::Video) {
+			if (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()) {
+				if (SUCCEEDED(renderHr = SaveTextureAsVideoSnapshot(pTexture, videoInputFrameRect))) {
+					previousSnapshotTaken = steady_clock::now();
+				}
+				else {
+					_com_error err(renderHr);
+					LOG_ERROR("Error saving video snapshot: %ls", err.ErrorMessage());
+				}
 			}
 		}
+
 
 		FrameWriteModel model{};
 		model.Frame = pTexture;
 		model.Duration = duration100Nanos;
-		model.StartPos = lastFrameStartPos;
+		model.StartPos = lastFrameStartPos100Nanos;
 		model.Audio = pAudioManager->GrabAudioFrame();
 		RETURN_ON_BAD_HR(renderHr = m_EncoderResult = m_OutputManager->RenderFrame(model));
 		frameNr++;
@@ -487,7 +495,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			RecordingFrameNumberChangedCallback(frameNr);
 		}
 		havePrematureFrame = false;
-		lastFrameStartPos += duration100Nanos;
+		lastFrameStartPos100Nanos += duration100Nanos;
 		return renderHr;
 	});
 
@@ -565,7 +573,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		CAPTURED_FRAME capturedFrame{};
 		// Get new frame
 		hr = pCapture->AcquireNextFrame(
-			havePrematureFrame || GetEncoderOptions()->GetIsFixedFramerate() ? 0 : 100,
+			havePrematureFrame || GetEncoderOptions()->GetIsFixedFramerate() ? 0 : maxFrameLengthMillis,
 			&capturedFrame);
 
 		if (SUCCEEDED(hr)) {
@@ -593,8 +601,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		{
 			bool cacheCurrentFrame = false;
 			INT64 delay100Nanos = 0;
-			if (ShouldSkipDelay(capturedFrame))
-			{
+			if (ShouldSkipDelay(capturedFrame)) {
 				if (capturedFrame.PtrInfo) {
 					capturedFrame.PtrInfo->IsPointerShapeUpdated = false;
 				}
@@ -606,8 +613,10 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 				delay100Nanos = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
 			}
 			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-				if ((havePrematureFrame || recorderMode == RecorderModeInternal::Slideshow || GetEncoderOptions()->GetIsFixedFramerate())
-					&& videoFrameDuration100Nanos > durationSinceLastFrame100Nanos) {
+				if (GetEncoderOptions()->GetIsFixedFramerate() || recorderMode == RecorderModeInternal::Slideshow) {
+					delay100Nanos = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
+				}
+				else if (havePrematureFrame && videoFrameDuration100Nanos > durationSinceLastFrame100Nanos) {
 					delay100Nanos = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
 				}
 				else if (!havePrematureFrame && m_MaxFrameLength100Nanos > durationSinceLastFrame100Nanos) {
@@ -625,9 +634,12 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 					m_DxResources.Context->CopyResource(pPreviousFrameCopy, pCurrentFrameCopy);
 					havePrematureFrame = true;
 				}
-				if (delay100Nanos > MillisToHundredNanos(2)) {
-					MeasureExecutionTime measureSleep(L"DelayRender");
+
+				if (delay100Nanos > MillisToHundredNanos(1)) {
+					//We recommend that you use Flush when the CPU waits for an arbitrary amount of time(such as when you call the Sleep function).
+					//https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-flush
 					m_DxResources.Context->Flush();
+					std::this_thread::yield();
 					Sleep(1);
 				}
 				else {
