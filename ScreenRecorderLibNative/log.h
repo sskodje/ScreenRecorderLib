@@ -20,16 +20,16 @@
 #define LOG_LVL_WARN 3
 #define LOG_LVL_ERR 4
 
-#define LOG_TRACE(format, ...) _log(LOG_LVL_TRACE, L"%s [TRACE] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
-#define LOG_DEBUG(format, ...) _log(LOG_LVL_DEBUG, L"%s [DEBUG] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
-#define LOG_INFO(format, ...) _log(LOG_LVL_INFO,L"%s [INFO]  [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
-#define LOG_WARN(format, ...) _log(LOG_LVL_ERR,L"%s [WARN]  [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
-#define LOG_ERROR(format, ...) _log(LOG_LVL_ERR,L"%s [ERROR] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__)
+#define LOG_TRACE(format, ...) if(isLoggingEnabled && LOG_LVL_TRACE >= logSeverityLevel) {_log(L"%s [TRACE] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
+#define LOG_DEBUG(format, ...) if(isLoggingEnabled && LOG_LVL_DEBUG >= logSeverityLevel) {_log(L"%s [DEBUG] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
+#define LOG_INFO(format, ...) if(isLoggingEnabled && LOG_LVL_INFO >= logSeverityLevel) {_log(L"%s [INFO]  [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
+#define LOG_WARN(format, ...) if(isLoggingEnabled && LOG_LVL_WARN >= logSeverityLevel) {_log(L"%s [WARN]  [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
+#define LOG_ERROR(format, ...) if(isLoggingEnabled && LOG_LVL_ERR >= logSeverityLevel) {_log(L"%s [ERROR] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
 
 extern bool isLoggingEnabled;
 extern int logSeverityLevel;
 extern std::wstring logFilePath;
-void _log(int logLvl, PCWSTR format, ...);
+void _log(PCWSTR format, ...);
 
 constexpr const char *file_name(const char *path) {
 	const char *file = path;
