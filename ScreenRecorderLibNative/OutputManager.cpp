@@ -47,7 +47,7 @@ HRESULT OutputManager::BeginRecording(_In_ std::wstring outputPath, _In_ SIZE vi
 	HRESULT hr = S_FALSE;
 	m_OutputFullPath = outputPath;
 	std::filesystem::path filePath = outputPath;
-	m_OutputFolder = filePath.parent_path().wstring();
+	m_OutputFolder = filePath.has_extension() ? filePath.parent_path().wstring() : filePath.wstring();
 	m_RecorderMode = recorderMode;
 	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 	if (m_RecorderMode == RecorderModeInternal::Video) {
@@ -111,7 +111,7 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 		 * If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
 		 * We ignore every instance where the last frame had audio, due to sometimes very short frame durations due to mouse cursor changes have zero audio length,
 		 * and inserting silence between two frames that has audio leads to glitching. */
-		if (GetAudioOptions()->IsAudioEnabled() &&  model.Audio.size() == 0 && model.Duration > 0) {
+		if (GetAudioOptions()->IsAudioEnabled() && model.Audio.size() == 0 && model.Duration > 0) {
 			if (!m_LastFrameHadAudio) {
 				int frameCount = int(ceil(GetAudioOptions()->GetAudioSamplesPerSecond() * HundredNanosToMillis(model.Duration) / 1000));
 				int byteCount = frameCount * (GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels();

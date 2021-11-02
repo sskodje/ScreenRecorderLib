@@ -894,13 +894,16 @@ namespace ScreenRecorderLib
                     };
 
                     rec.Record(directoryPath);
-                    recordingResetEvent.WaitOne(1000);
+                    recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError, error);
                     Assert.IsTrue(isComplete);
-                    foreach (string filePath in Directory.GetFiles(directoryPath))
+                    var files = Directory.GetFiles(directoryPath);
+                    //First image is written immediately, then there should be one per interval.
+                    Assert.IsTrue(files.Length == 1 + (DefaultMaxRecordingLengthMillis / options.SnapshotOptions.SnapshotsIntervalMillis));
+                    foreach (string filePath in files)
                     {
                         FileInfo fi = new FileInfo(filePath);
                         var mediaInfo = new MediaInfoWrapper(filePath);
