@@ -104,7 +104,7 @@ RecordingManager::~RecordingManager()
 	CleanDx(&m_DxResources);
 }
 
-void RecordingManager::SetIsLogEnabled(bool value) {
+void RecordingManager::SetLogEnabled(bool value) {
 	isLoggingEnabled = value;
 }
 void RecordingManager::SetLogFilePath(std::wstring value) {
@@ -377,7 +377,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	CAPTURE_RESULT captureResult{};
 	PTR_INFO *pPtrInfo{};
 	unique_ptr<ScreenCaptureManager> pCapture = make_unique<ScreenCaptureManager>();
-	HRESULT hr = pCapture->Initialize(m_DxResources.Context, m_DxResources.Device);
+	HRESULT hr = pCapture->Initialize(m_DxResources.Context, m_DxResources.Device, GetOutputOptions());
 	RETURN_RESULT_ON_BAD_HR(hr, L"Failed to initialize ScreenCaptureManager");
 	auto recorderMode = GetOutputOptions()->GetRecorderMode();
 
@@ -456,24 +456,27 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 		return false;
 	});
-	auto PrepareAndRenderFrame([&](CComPtr<ID3D11Texture2D> pTexture, INT64 duration100Nanos)->HRESULT {
+	auto PrepareAndRenderFrame([&](CComPtr<ID3D11Texture2D> pTextureToRender, INT64 duration100Nanos)->HRESULT {
 		HRESULT renderHr = E_FAIL;
 		if (pPtrInfo) {
-			renderHr = pMouseManager->ProcessMousePointer(pTexture, pPtrInfo);
+			renderHr = pMouseManager->ProcessMousePointer(pTextureToRender, pPtrInfo);
 			if (FAILED(renderHr)) {
 				_com_error err(renderHr);
 				LOG_ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
 				//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
 			}
 		}
+		if (IsValidRect(GetOutputOptions()->GetSourceRectangle())) {
+			RETURN_ON_BAD_HR(hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, nullptr));
+		}
 		ID3D11Texture2D *processedTexture;
-		RETURN_ON_BAD_HR(renderHr = ProcessTextureTransforms(pTexture, &processedTexture, videoInputFrameRect, videoOutputFrameSize));
-		pTexture.Release();
-		pTexture.Attach(processedTexture);
+		RETURN_ON_BAD_HR(renderHr = ProcessTextureTransforms(pTextureToRender, &processedTexture, videoInputFrameRect, videoOutputFrameSize));
+		pTextureToRender.Release();
+		pTextureToRender.Attach(processedTexture);
 
 		if (recorderMode == RecorderModeInternal::Video) {
 			if (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()) {
-				if (SUCCEEDED(renderHr = SaveTextureAsVideoSnapshot(pTexture, videoInputFrameRect))) {
+				if (SUCCEEDED(renderHr = SaveTextureAsVideoSnapshot(pTextureToRender, videoInputFrameRect))) {
 					previousSnapshotTaken = steady_clock::now();
 				}
 				else {
@@ -485,7 +488,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 
 
 		FrameWriteModel model{};
-		model.Frame = pTexture;
+		model.Frame = pTextureToRender;
 		model.Duration = duration100Nanos;
 		model.StartPos = lastFrameStartPos100Nanos;
 		model.Audio = pAudioManager->GrabAudioFrame();
@@ -536,7 +539,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 					hr = pMouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
 				}
 				if (SUCCEEDED(hr)) {
-					hr = pCapture->Initialize(m_DxResources.Context, m_DxResources.Device);
+					hr = pCapture->Initialize(m_DxResources.Context, m_DxResources.Device, GetOutputOptions());
 				}
 				if (SUCCEEDED(hr)) {
 					ResetEvent(ErrorEvent);
@@ -700,23 +703,27 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	return captureResult;
 }
 
-HRESULT RecordingManager::InitializeRects(_In_ SIZE captureFrameSize, _Out_ RECT *pAdjustedSourceRect, _Out_ SIZE *pAdjustedOutputFrameSize) {
+HRESULT RecordingManager::InitializeRects(_In_ SIZE captureFrameSize, _Out_opt_ RECT *pAdjustedSourceRect, _Out_opt_ SIZE *pAdjustedOutputFrameSize) {
 
-	RECT adjustedSourceRect = RECT{ 0,0, MakeEven(captureFrameSize.cx),  MakeEven(captureFrameSize.cy) };
-	SIZE adjustedOutputFrameSize = SIZE{ MakeEven(captureFrameSize.cx),MakeEven(captureFrameSize.cy) };
+	RECT adjustedSourceRect = RECT{ 0,0, MakeEven(captureFrameSize.cx), MakeEven(captureFrameSize.cy) };
+	SIZE adjustedOutputFrameSize = SIZE{ MakeEven(captureFrameSize.cx), MakeEven(captureFrameSize.cy) };
 	if (IsValidRect(GetOutputOptions()->GetSourceRectangle()))
 	{
 		adjustedSourceRect = GetOutputOptions()->GetSourceRectangle();
-		adjustedOutputFrameSize = SIZE{ MakeEven(RectWidth(adjustedSourceRect)),MakeEven(RectHeight(adjustedSourceRect)) };
+		adjustedOutputFrameSize = SIZE{ MakeEven(RectWidth(adjustedSourceRect)), MakeEven(RectHeight(adjustedSourceRect)) };
 	}
-	auto outputRect = GetOutputOptions()->GetFrameSize();
-	if (outputRect.cx > 0
-	&& outputRect.cy > 0)
-	{
-		adjustedOutputFrameSize = SIZE{ MakeEven(outputRect.cx),MakeEven(outputRect.cy) };
+	if (pAdjustedSourceRect) {
+		*pAdjustedSourceRect = MakeRectEven(adjustedSourceRect);
 	}
-	*pAdjustedSourceRect = MakeRectEven(adjustedSourceRect);
-	*pAdjustedOutputFrameSize = adjustedOutputFrameSize;
+	if (pAdjustedOutputFrameSize) {
+		auto outputRect = GetOutputOptions()->GetFrameSize();
+		if (outputRect.cx > 0
+		&& outputRect.cy > 0)
+		{
+			adjustedOutputFrameSize = SIZE{ MakeEven(outputRect.cx), MakeEven(outputRect.cy) };
+		}
+		*pAdjustedOutputFrameSize = adjustedOutputFrameSize;
+	}
 	return S_OK;
 }
 

@@ -43,12 +43,12 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			encoderOptions->SetVideoBitrate(options->VideoEncoderOptions->Bitrate);
 			encoderOptions->SetVideoQuality(options->VideoEncoderOptions->Quality);
 			encoderOptions->SetVideoFps(options->VideoEncoderOptions->Framerate);
-			encoderOptions->SetIsFixedFramerate(options->VideoEncoderOptions->IsFixedFramerate);
-			encoderOptions->SetIsThrottlingDisabled(options->VideoEncoderOptions->IsThrottlingDisabled);
-			encoderOptions->SetIsLowLatencyModeEnabled(options->VideoEncoderOptions->IsLowLatencyEnabled);
-			encoderOptions->SetIsFastStartEnabled(options->VideoEncoderOptions->IsMp4FastStartEnabled);
-			encoderOptions->SetIsHardwareEncodingEnabled(options->VideoEncoderOptions->IsHardwareEncodingEnabled);
-			encoderOptions->SetIsFragmentedMp4Enabled(options->VideoEncoderOptions->IsFragmentedMp4Enabled);
+			encoderOptions->SetFixedFramerate(options->VideoEncoderOptions->IsFixedFramerate);
+			encoderOptions->SetThrottlingDisabled(options->VideoEncoderOptions->IsThrottlingDisabled);
+			encoderOptions->SetLowLatencyModeEnabled(options->VideoEncoderOptions->IsLowLatencyEnabled);
+			encoderOptions->SetFastStartEnabled(options->VideoEncoderOptions->IsMp4FastStartEnabled);
+			encoderOptions->SetHardwareEncodingEnabled(options->VideoEncoderOptions->IsHardwareEncodingEnabled);
+			encoderOptions->SetFragmentedMp4Enabled(options->VideoEncoderOptions->IsFragmentedMp4Enabled);
 			m_Rec->SetEncoderOptions(encoderOptions);
 		}
 		if (options->SnapshotOptions) {
@@ -151,7 +151,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			m_Rec->SetOverlays(CreateOverlayList(options->OverlayOptions->Overlays));
 		}
 		if (options->LogOptions) {
-			m_Rec->SetIsLogEnabled(options->LogOptions->IsLogEnabled);
+			m_Rec->SetLogEnabled(options->LogOptions->IsLogEnabled);
 			if (options->LogOptions->LogFilePath != nullptr) {
 				m_Rec->SetLogFilePath(msclr::interop::marshal_as<std::wstring>(options->LogOptions->LogFilePath));
 			}
@@ -201,6 +201,14 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 			m_Rec->GetMouseOptions()->SetMouseClickDetectionDuration(options->MouseOptions->MouseClickDetectionDuration.Value);
 		}
 	}
+	if (options->OutputOptions) {
+		if (options->OutputOptions->SourceRect) {
+			m_Rec->GetOutputOptions()->SetSourceRectangle(options->OutputOptions->SourceRect->ToRECT());
+		}
+		if (options->OutputOptions->IsVideoCaptureEnabled.HasValue) {
+			m_Rec->GetOutputOptions()->SetVideoCaptureEnabled(options->OutputOptions->IsVideoCaptureEnabled.Value);
+		}
+	}
 	if (options->SourceRects) {
 		for each (KeyValuePair<String^, ScreenRect^> ^ kvp in options->SourceRects)
 		{
@@ -208,14 +216,18 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 			for each (RECORDING_SOURCE * nativeSource in m_Rec->GetRecordingSources())
 			{
 				if (nativeSource->ID == id) {
-					nativeSource->SourceRect = kvp->Value->ToRECT();
+					if (kvp->Value) {
+						nativeSource->SourceRect = kvp->Value->ToRECT();
+					}
+					else {
+						nativeSource->SourceRect = std::nullopt;
+					}
+					break;
 				}
 			}
 		}
 	}
-	if (options->GlobalSourceRect) {
-		m_Rec->GetOutputOptions()->SetSourceRectangle(options->GlobalSourceRect->ToRECT());
-	}
+
 	if (options->SourceCursorCaptures) {
 		for each (KeyValuePair<String^, bool> ^ kvp in options->SourceCursorCaptures)
 		{
@@ -224,6 +236,7 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 			{
 				if (nativeSource->ID == id) {
 					nativeSource->IsCursorCaptureEnabled = kvp->Value;
+					break;
 				}
 			}
 		}
@@ -236,6 +249,7 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 			{
 				if (nativeOverlay->ID == id) {
 					nativeOverlay->Anchor = static_cast<ContentAnchor>(kvp->Value);
+					break;
 				}
 			}
 		}
@@ -248,6 +262,7 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 			{
 				if (nativeOverlay->ID == id) {
 					nativeOverlay->Offset = kvp->Value->ToSIZE();
+					break;
 				}
 			}
 		}
@@ -260,6 +275,31 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 			{
 				if (nativeOverlay->ID == id) {
 					nativeOverlay->OutputSize = kvp->Value->ToSIZE();
+					break;
+				}
+			}
+		}
+	}
+	if (options->SourceVideoCaptures) {
+		for each (KeyValuePair<String^, bool>^ kvp in options->SourceVideoCaptures)
+		{
+			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
+			for each (RECORDING_SOURCE * nativeSource in m_Rec->GetRecordingSources())
+			{
+				if (nativeSource->ID == id) {
+					nativeSource->IsVideoCaptureEnabled = kvp->Value;
+				}
+			}
+		}
+	}
+	if (options->OverlayVideoCaptures) {
+		for each (KeyValuePair<String^, bool> ^ kvp in options->OverlayVideoCaptures)
+		{
+			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
+			for each (RECORDING_OVERLAY * nativeOverlay in m_Rec->GetRecordingOverlays())
+			{
+				if (nativeOverlay->ID == id) {
+					nativeOverlay->IsVideoCaptureEnabled = kvp->Value;
 				}
 			}
 		}
@@ -555,6 +595,7 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 		&& managedSource->SourceRect->Bottom > managedSource->SourceRect->Top) {
 		nativeSource.SourceRect = managedSource->SourceRect->ToRECT();
 	}
+	nativeSource.IsVideoCaptureEnabled = managedSource->IsVideoCaptureEnabled;
 	nativeSource.Stretch = static_cast<TextureStretchMode>(managedSource->Stretch);
 	nativeSource.Anchor = static_cast<ContentAnchor>(managedSource->AnchorPoint);
 	if (isinst<DisplayRecordingSource^>(managedSource)) {

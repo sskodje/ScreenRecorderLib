@@ -37,6 +37,7 @@ namespace TestApp
         public ObservableCollection<AudioDevice> AudioOutputsList { get; set; } = new ObservableCollection<AudioDevice>();
         public ObservableCollection<RecordableCamera> VideoCaptureDevices { get; set; } = new ObservableCollection<RecordableCamera>();
         public bool IsLogToFileEnabled { get; set; }
+        public string LogFilePath { get; set; } = "Log.txt";
 
         private bool _recordToStream;
         public bool RecordToStream
@@ -134,6 +135,20 @@ namespace TestApp
             }
         }
 
+        private ScreenRect _sourceRect;
+        public ScreenRect SourceRect
+        {
+            get { return _sourceRect; }
+            set
+            {
+                if (_sourceRect != value)
+                {
+                    _sourceRect = value;
+                    RaisePropertyChanged(nameof(SourceRect));
+                }
+            }
+        }
+
         private bool _isCustomOutputFrameSizeEnabled;
         public bool IsCustomOutputFrameSizeEnabled
         {
@@ -147,6 +162,21 @@ namespace TestApp
                 }
             }
         }
+
+        private ScreenSize _outputFrameSize;
+        public ScreenSize OutputFrameSize
+        {
+            get { return _outputFrameSize; }
+            set
+            {
+                if (_outputFrameSize != value)
+                {
+                    _outputFrameSize = value;
+                    RaisePropertyChanged(nameof(OutputFrameSize));
+                }
+            }
+        }
+
 
         private int _currentFrameNumber;
         public int CurrentFrameNumber
@@ -168,13 +198,68 @@ namespace TestApp
         public MainWindow()
         {
             InitializeComponent();
-            InitializeDefaultOverlays();
-            RefreshCaptureTargetItems();
             InitializeDefaultRecorderOptions();
-            RecorderOptions.OutputOptions.PropertyChanged += RecorderOptions_PropertyChanged;
+            this.PropertyChanged += MainWindow_PropertyChanged;
             RecorderOptions.SnapshotOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.AudioOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.MouseOptions.PropertyChanged += RecorderOptions_PropertyChanged;
+            RecordingSources.CollectionChanged += (s, args) =>
+            {
+                if (args.NewItems != null)
+                {
+                    foreach (RecordingSourceBase source in args.NewItems)
+                    {
+                        source.PropertyChanged += RecordingSource_PropertyChanged;
+                    }
+                }
+                if (args.OldItems != null)
+                {
+                    foreach (RecordingSourceBase source in args.OldItems)
+                    {
+                        source.PropertyChanged -= RecordingSource_PropertyChanged;
+                    }
+                }
+            };
+
+            InitializeDefaultOverlays();
+            RefreshCaptureTargetItems();
+        }
+
+        private void MainWindow_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(SourceRect):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                                .SetDynamicOutputOptions(new DynamicOutputOptions { SourceRect = SourceRect })
+                                .Apply();
+                        break;
+                    }
+            }
+        }
+
+        private void RecordingSource_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(RecordingSourceBase.IsVideoCaptureEnabled):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                                .SetVideoCaptureEnabledForRecordingSource(((RecordingSourceBase)sender).ID, ((RecordingSourceBase)sender).IsVideoCaptureEnabled)
+                                .Apply();
+                        break;
+                    }
+                case nameof(RecordingSourceBase.SourceRect):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                                .SetSourceRectForRecordingSource(((RecordingSourceBase)sender).ID, ((RecordingSourceBase)sender).SourceRect)
+                                .Apply();
+                        break;
+                    }
+                default:
+                    break;
+            }
         }
 
         private void RecorderOptions_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -232,28 +317,28 @@ namespace TestApp
                 case nameof(MouseOptions.IsMouseClicksDetected):
                     {
                         _rec?.GetDynamicOptionsBuilder()
-                                 .SetDynamicMouseOptions(new DynamicMouseOptions {  IsMouseClicksDetected = RecorderOptions.MouseOptions.IsMouseClicksDetected })
+                                 .SetDynamicMouseOptions(new DynamicMouseOptions { IsMouseClicksDetected = RecorderOptions.MouseOptions.IsMouseClicksDetected })
                                  .Apply();
                         break;
                     }
                 case nameof(MouseOptions.IsMousePointerEnabled):
                     {
                         _rec?.GetDynamicOptionsBuilder()
-                                 .SetDynamicMouseOptions(new DynamicMouseOptions {  IsMousePointerEnabled = RecorderOptions.MouseOptions.IsMousePointerEnabled })
+                                 .SetDynamicMouseOptions(new DynamicMouseOptions { IsMousePointerEnabled = RecorderOptions.MouseOptions.IsMousePointerEnabled })
                                  .Apply();
                         break;
                     }
                 case nameof(MouseOptions.MouseClickDetectionRadius):
                     {
                         _rec?.GetDynamicOptionsBuilder()
-                                 .SetDynamicMouseOptions(new DynamicMouseOptions {  MouseClickDetectionRadius = RecorderOptions.MouseOptions.MouseClickDetectionRadius })
+                                 .SetDynamicMouseOptions(new DynamicMouseOptions { MouseClickDetectionRadius = RecorderOptions.MouseOptions.MouseClickDetectionRadius })
                                  .Apply();
                         break;
                     }
                 case nameof(MouseOptions.MouseClickDetectionDuration):
                     {
                         _rec?.GetDynamicOptionsBuilder()
-                                 .SetDynamicMouseOptions(new DynamicMouseOptions {  MouseClickDetectionDuration = RecorderOptions.MouseOptions.MouseClickDetectionDuration })
+                                 .SetDynamicMouseOptions(new DynamicMouseOptions { MouseClickDetectionDuration = RecorderOptions.MouseOptions.MouseClickDetectionDuration })
                                  .Apply();
                         break;
                     }
@@ -264,7 +349,6 @@ namespace TestApp
 
         private void InitializeDefaultRecorderOptions()
         {
-            RecorderOptions.LogOptions.LogFilePath = "log.txt";
             RecorderOptions.AudioOptions.IsAudioEnabled = true;
             RecorderOptions.VideoEncoderOptions.Framerate = 60;
         }
@@ -391,9 +475,17 @@ namespace TestApp
             RecorderOptions.SourceOptions.RecordingSources = CreateSelectedRecordingSources();
             RecorderOptions.OverlayOptions.Overlays = this.Overlays.Where(x => x.IsEnabled && this.CheckBoxEnableOverlays.IsChecked.GetValueOrDefault(false)).Select(x => x.Overlay).ToList();
             RecorderOptions.VideoEncoderOptions.Encoder = videoEncoder;
-            if (!IsLogToFileEnabled)
+            if (IsCustomOutputFrameSizeEnabled)
             {
-                RecorderOptions.LogOptions.LogFilePath = "";
+                RecorderOptions.OutputOptions.OutputFrameSize = OutputFrameSize;
+            }
+            if (IsCustomOutputSourceRectEnabled)
+            {
+                RecorderOptions.OutputOptions.SourceRect = SourceRect;
+            }
+            if (IsLogToFileEnabled)
+            {
+                RecorderOptions.LogOptions.LogFilePath = LogFilePath;
             }
             if (_rec == null)
             {
@@ -942,11 +1034,11 @@ namespace TestApp
             var allMonitorsSize = outputDimens.CombinedOutputSize;
             if (!IsCustomOutputSourceRectEnabled)
             {
-                RecorderOptions.OutputOptions.SourceRect = new ScreenRect(0, 0, allMonitorsSize.Width, allMonitorsSize.Height);
+                SourceRect = new ScreenRect(0, 0, allMonitorsSize.Width, allMonitorsSize.Height);
             }
             if (!IsCustomOutputFrameSizeEnabled)
             {
-                RecorderOptions.OutputOptions.OutputFrameSize = new ScreenSize(allMonitorsSize.Width, allMonitorsSize.Height);
+                OutputFrameSize = new ScreenSize(SourceRect.Width, SourceRect.Height);
             }
             foreach (SourceCoordinates sourceCoord in outputDimens.OutputCoordinates)
             {
@@ -977,7 +1069,7 @@ namespace TestApp
         }
         private void WindowsViewSource_Filter(object sender, FilterEventArgs e)
         {
-            e.Accepted = e.Item is RecordableWindow && ((RecordableWindow)e.Item).IsValidWindow() && !((RecordableWindow)e.Item).IsMinmimized();
+            e.Accepted = e.Item is RecordableWindow window && window.IsValidWindow() && !window.IsMinmimized();
         }
         private void MainWin_Activated(object sender, EventArgs e)
         {
@@ -989,6 +1081,20 @@ namespace TestApp
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, (Action)(() =>
             {
                 SetOutputDimensions();
+                if ((sender as FrameworkElement).DataContext is ICheckableRecordingSource source)
+                {
+                    if (source.IsCustomOutputSourceRectEnabled)
+                    {
+                        ((RecordingSourceBase)source).OnPropertyChanged(nameof(source.SourceRect));
+                    }
+                }
+                else if((sender as FrameworkElement).DataContext is null)
+                {
+                    if (this.IsCustomOutputSourceRectEnabled)
+                    {
+                        this.RaisePropertyChanged(nameof(SourceRect));
+                    }
+                }
             }));
         }
 

@@ -29,7 +29,8 @@ ScreenCaptureManager::ScreenCaptureManager() :
 	m_OverlayThreadHandles(nullptr),
 	m_OverlayThreadData(nullptr),
 	m_TextureManager(nullptr),
-	m_IsCapturing(false)
+	m_IsCapturing(false),
+	m_OutputOptions(nullptr)
 {
 	RtlZeroMemory(&m_PtrInfo, sizeof(m_PtrInfo));
 	// Event to tell spawned threads to quit
@@ -47,11 +48,13 @@ ScreenCaptureManager::~ScreenCaptureManager()
 //
 // Initialize shaders for drawing to screen
 //
-HRESULT ScreenCaptureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice)
+HRESULT ScreenCaptureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<OUTPUT_OPTIONS> pOutputOptions)
 {
 	HRESULT hr = S_OK;
 	m_Device = pDevice;
 	m_DeviceContext = pDeviceContext;
+
+	m_OutputOptions = pOutputOptions;
 
 	m_TextureManager = make_unique<TextureManager>();
 	RETURN_ON_BAD_HR(hr = m_TextureManager->Initialize(m_DeviceContext, m_Device));
@@ -180,8 +183,9 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout
 		desc.MiscFlags = 0;
 		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
 		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pDesktopFrame));
-		m_DeviceContext->CopyResource(pDesktopFrame, m_SharedSurf);
-
+		if (m_OutputOptions->IsVideoCaptureEnabled()) {
+			m_DeviceContext->CopyResource(pDesktopFrame, m_SharedSurf);
+		}
 		int updatedOverlaysCount = 0;
 		ProcessOverlays(pDesktopFrame, &updatedOverlaysCount);
 
@@ -630,7 +634,16 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			goto Exit;
 		}
 
+		TextureManager textureManager{};
+		hr = textureManager.Initialize(pSourceData->DxRes.Context, pSourceData->DxRes.Device);
+		if (FAILED(hr))
+		{
+			LOG_ERROR(L"Failed to initialize TextureManager");
+			goto Exit;
+		}
 		// Main duplication loop
+		bool IsCapturingVideo = true;
+		bool IsSharedSurfaceDirty = false;
 		bool WaitToProcessCurrentFrame = false;
 		while (true)
 		{
@@ -638,11 +651,23 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				hr = S_OK;
 				break;
 			}
-
+			if (!IsCapturingVideo) {
+				Sleep(1);
+				if (pSource->IsVideoCaptureEnabled.value_or(true)) {
+					IsCapturingVideo = true;
+					IsSharedSurfaceDirty = true;
+				}
+				continue;
+			}
+			CComPtr<ID3D11Texture2D> pFrame = nullptr;
 			if (!WaitToProcessCurrentFrame)
 			{
-				hr = pRecordingSourceCapture->AcquireNextFrame(10, nullptr);
-
+				if (IsSharedSurfaceDirty) {
+					hr = pRecordingSourceCapture->AcquireNextFrame(10, &pFrame);
+				}
+				else {
+					hr = pRecordingSourceCapture->AcquireNextFrame(10, nullptr);
+				}
 				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 					continue;
 				}
@@ -683,8 +708,24 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 						LOG_ERROR("Failed to get mouse data");
 					}
 				}
+				if (pSource->IsVideoCaptureEnabled.value_or(true)) {
+					if (IsSharedSurfaceDirty) {
+						//The screen has been blacked out, so we restore a full frame to the shared surface before starting to apply updates.
+						RECT offsetFrameCoordinates = pSourceData->FrameCoordinates;
+						OffsetRect(&offsetFrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+						hr = textureManager.DrawTexture(SharedSurf, pFrame, offsetFrameCoordinates);
+						IsSharedSurfaceDirty = false;
+					}
 
-				hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates);
+					hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates);
+				}
+				else {
+					hr = textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+					if (SUCCEEDED(hr)) {
+						IsCapturingVideo = false;
+					}
+				}
+
 			}
 			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 				continue;
@@ -695,7 +736,6 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			else if (hr == S_FALSE) {
 				continue;
 			}
-
 			pData->UpdatedFrameCountSinceLastWrite++;
 			pData->TotalUpdatedFrameCount++;
 			QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
@@ -798,8 +838,7 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 		LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");
 		goto Exit;
 	}
-
-	bool WaitToProcessCurrentFrame = false;
+	bool IsCapturingVideo = true;
 	// Main capture loop
 	while (true)
 	{
@@ -807,21 +846,22 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 			hr = S_OK;
 			break;
 		}
-
-		if (!WaitToProcessCurrentFrame)
-		{
-			pCurrentFrame.Release();
-			// Get new frame from video capture
-			hr = overlayCapture->AcquireNextFrame(10, &pCurrentFrame);
-			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-				continue;
-			}
-			else if (FAILED(hr)) {
-				break;
-			}
+		if (!IsCapturingVideo) {
+			Sleep(1);
+			IsCapturingVideo = pOverlay->IsVideoCaptureEnabled.value_or(true);
+			continue;
+		}
+		pCurrentFrame.Release();
+		// Get new frame from video capture
+		hr = overlayCapture->AcquireNextFrame(10, &pCurrentFrame);
+		if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+			continue;
+		}
+		else if (FAILED(hr)) {
+			break;
 		}
 
-		WaitToProcessCurrentFrame = false;
+
 		if (pSharedTexture == nullptr) {
 			D3D11_TEXTURE2D_DESC desc;
 			pCurrentFrame->GetDesc(&desc);
@@ -835,6 +875,15 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 			HANDLE sharedHandle = GetSharedHandle(pSharedTexture);
 			pData->OverlayTexSharedHandle = sharedHandle;
 		}
+
+		if (!pOverlay->IsVideoCaptureEnabled.value_or(true)) {
+			D3D11_TEXTURE2D_DESC desc;
+			pCurrentFrame->GetDesc(&desc);
+			pCurrentFrame.Release();
+			pOverlayData->DxRes.Device->CreateTexture2D(&desc, nullptr, &pCurrentFrame);
+			IsCapturingVideo = false;
+		}
+
 		pOverlayData->DxRes.Context->CopyResource(pSharedTexture, pCurrentFrame);
 		//If a shared texture is updated on one device ID3D11DeviceContext::Flush must be called on that device. 
 		//https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-opensharedresource

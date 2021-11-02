@@ -87,24 +87,59 @@ namespace ScreenRecorderLib {
 		}
 	};
 
-	public ref class OutputOptions : public INotifyPropertyChanged {
+	public ref class DynamicOutputOptions : public INotifyPropertyChanged {
 	private:
-		StretchMode _stretch;
-		ScreenSize^ _outputFrameSize;
 		ScreenRect^ _sourceRect;
-		RecorderMode _recorderMode;
+		Nullable<bool> _isVideoCaptureEnabled;
 	public:
-		OutputOptions() {
-			Stretch = StretchMode::Uniform;
-			OutputFrameSize = ScreenSize::Empty;
+		DynamicOutputOptions() {
 			SourceRect = ScreenRect::Empty;
-			RecorderMode = ScreenRecorderLib::RecorderMode::Video;
+			IsVideoCaptureEnabled = true;
 		}
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
 		void OnPropertyChanged(String^ info)
 		{
 			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
 		}
+
+		/// <summary>
+		/// The part of the output to record. Null or empty records the entire source area, else the output is cropped to the rectangle.
+		/// </summary>
+		property ScreenRect^ SourceRect {
+			ScreenRect^ get() {
+				return _sourceRect;
+			}
+			void set(ScreenRect^ value) {
+				_sourceRect = value;
+				OnPropertyChanged("SourceRect");
+			}
+		}
+		/// <summary>
+		/// Controls whether the video output is recorded. If false, only audio is recorded if enabled, and video will be black.
+		/// </summary>
+		property Nullable<bool> IsVideoCaptureEnabled {
+			Nullable<bool> get() {
+				return _isVideoCaptureEnabled;
+			}
+			void set(Nullable<bool> value) {
+				_isVideoCaptureEnabled = value;
+				OnPropertyChanged("IsVideoCaptureEnabled");
+			}
+		}
+	};
+
+	public ref class OutputOptions :public DynamicOutputOptions {
+	private:
+		StretchMode _stretch;
+		ScreenSize^ _outputFrameSize;
+		RecorderMode _recorderMode;
+	public:
+		OutputOptions():DynamicOutputOptions(){
+			Stretch = StretchMode::Uniform;
+			OutputFrameSize = ScreenSize::Empty;
+			RecorderMode = ScreenRecorderLib::RecorderMode::Video;
+		}
+
 		/// <summary>
 		/// How the output should be stretched to fill the destination rectangle.
 		/// </summary>
@@ -129,18 +164,7 @@ namespace ScreenRecorderLib {
 				OnPropertyChanged("OutputFrameSize");
 			}
 		}
-		/// <summary>
-		/// The part of the output to record. Null or empty records the entire source area, else the output is cropped to the rectangle.
-		/// </summary>
-		property ScreenRect^ SourceRect {
-			ScreenRect^ get() {
-				return _sourceRect;
-			}
-			void set(ScreenRect^ value) {
-				_sourceRect = value;
-				OnPropertyChanged("SourceRect");
-			}
-		}
+
 		property ScreenRecorderLib::RecorderMode RecorderMode {
 			ScreenRecorderLib::RecorderMode get() {
 				return _recorderMode;
@@ -760,9 +784,11 @@ namespace ScreenRecorderLib {
 	public:
 		property DynamicAudioOptions^ AudioOptions;
 		property DynamicMouseOptions^ MouseOptions;
+		property DynamicOutputOptions^ OutputOptions;
+		property Dictionary<String^, bool>^ SourceVideoCaptures;
+		property Dictionary<String^, bool>^ OverlayVideoCaptures;
 		property Dictionary<String^, ScreenRect^>^ SourceRects;
 		property Dictionary<String^, bool>^ SourceCursorCaptures;
-		property ScreenRect^ GlobalSourceRect;
 		property Dictionary<String^, ScreenSize^>^ OverlaySizes;
 		property Dictionary<String^, ScreenSize^>^ OverlayOffsets;
 		property Dictionary<String^, Anchor>^ OverlayAnchors;

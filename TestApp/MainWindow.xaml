@@ -11,7 +11,7 @@
         mc:Ignorable="d"
         Title="ScreenRecorderLib Demo"
         Height="800"
-        Width="920"
+        Width="1000"
         SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
         Activated="MainWin_Activated">
@@ -396,26 +396,22 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <Label Content="{Binding}"
                                        MinWidth="100"
                                        MaxWidth="200"
                                        ToolTip="{Binding}"
                                        VerticalAlignment="Center" />
-                                <Grid Grid.Column="1">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
+                                <StackPanel Grid.Column="2"
+                                            Orientation="Horizontal">
+
                                     <ComboBox x:Name="RecordingApiComboBox"
                                               Grid.Column="0"
+                                              Grid.Row="1"
                                               Width="55"
-                                              Padding="0"
-                                              Margin="0,0,5,0"
+                                              Margin="5,0,5,0"
                                               VerticalAlignment="Center"
                                               IsEditable="True"
                                               IsReadOnly="True"
@@ -423,31 +419,21 @@
                                               SelectionChanged="RecordingApiComboBox_SelectionChanged"
                                               ItemsSource="{Binding Source={StaticResource RecorderApiData}}"
                                               SelectedItem="{Binding RecorderApi, Mode=TwoWay}" />
-                                    <DockPanel Grid.Column="1">
-                                        <CheckBox VerticalAlignment="Center"
-                                                  Padding="0"
-                                                  DockPanel.Dock="Left"
-                                                  x:Name="CheckBoxIsCursorCaptureEnabledForSource"
-                                                  IsChecked="{Binding IsCursorCaptureEnabled,Mode=TwoWay}" />
-                                        <Label Content="Show cursor"
-                                               Padding="5,0,0,0"
-                                               DockPanel.Dock="Right"
-                                               VerticalContentAlignment="Center" />
-                                    </DockPanel>
-                                    <DockPanel Grid.ColumnSpan="2"
-                                               Grid.Row="1">
-                                        <Label Content="Stretch: "
-                                               Margin="0,0,0,0"
-                                               DockPanel.Dock="Left" />
-                                        <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
-                                                  SelectedItem="{Binding Stretch}"
-                                                  Padding="5,1,1,1"
-                                                  DockPanel.Dock="Right"
-                                                  VerticalAlignment="Center" />
-                                    </DockPanel>
-                                </Grid>
-
-                                <StackPanel Grid.Column="2"
+                                    <CheckBox VerticalAlignment="Center"
+                                              x:Name="CheckBoxIsCursorCaptureEnabledForSource"
+                                              Content="Cursor"
+                                              IsChecked="{Binding IsCursorCaptureEnabled,Mode=TwoWay}" />
+                                    <CheckBox VerticalAlignment="Center"
+                                              Content="Video"
+                                              Margin="5,0,0,0"
+                                              x:Name="CheckBoxIsVideoCaptureEnabledForSource"
+                                              IsChecked="{Binding IsVideoCaptureEnabled,Mode=TwoWay}" />
+                                    <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
+                                              SelectedItem="{Binding Stretch}"
+                                              Margin="5,0,0,0"
+                                              VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="3"
                                             Margin="0,0,0,0"
                                             VerticalAlignment="Center"
                                             Orientation="Horizontal">
@@ -469,7 +455,13 @@
                                        ToolTip="{Binding}" />
                                 <StackPanel Grid.Column="1"
                                             Orientation="Horizontal">
-                                    <Label Content="Stretch: " />
+                                    <CheckBox VerticalAlignment="Center"
+                                              Padding="0"
+                                              x:Name="CheckBoxIsVideoCaptureEnabledForSource"
+                                              IsChecked="{Binding IsVideoCaptureEnabled,Mode=TwoWay}" />
+                                    <Label Content="Video"
+                                           VerticalContentAlignment="Center" />
+
                                     <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
                                               SelectedItem="{Binding Stretch}"
                                               VerticalAlignment="Center" />
@@ -494,9 +486,13 @@
                                        ToolTip="{Binding}" />
                                 <StackPanel Grid.Column="1"
                                             Orientation="Horizontal">
-                                    <Label Content="Stretch: " />
+                                    <CheckBox VerticalAlignment="Center"
+                                              Content="Video"
+                                              x:Name="CheckBoxIsVideoCaptureEnabledForSource"
+                                              IsChecked="{Binding IsVideoCaptureEnabled,Mode=TwoWay}" />
                                     <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
                                               SelectedItem="{Binding Stretch}"
+                                              Margin="5,0,0,0"
                                               VerticalAlignment="Center" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2"
@@ -520,9 +516,13 @@
                                          ToolTip="{Binding}" />
                                 <StackPanel Grid.Column="1"
                                             Orientation="Horizontal">
-                                    <Label Content="Stretch: " />
+                                    <CheckBox VerticalAlignment="Center"
+                                              Content="Video"
+                                              x:Name="CheckBoxIsVideoCaptureEnabledForSource"
+                                              IsChecked="{Binding IsVideoCaptureEnabled,Mode=TwoWay}" />
                                     <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
                                               SelectedItem="{Binding Stretch}"
+                                              Margin="5,0,0,0"
                                               VerticalAlignment="Center" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2"
@@ -546,9 +546,13 @@
                                          ToolTip="{Binding}" />
                                 <StackPanel Grid.Column="1"
                                             Orientation="Horizontal">
-                                    <Label Content="Stretch: " />
+                                    <CheckBox VerticalAlignment="Center"
+                                              Content="Video"
+                                              x:Name="CheckBoxIsVideoCaptureEnabledForSource"
+                                              IsChecked="{Binding IsVideoCaptureEnabled,Mode=TwoWay}" />
                                     <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
                                               SelectedItem="{Binding Stretch}"
+                                              Margin="5,0,0,0"
                                               VerticalAlignment="Center" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2"
@@ -573,11 +577,14 @@
                         <StackPanel Orientation="Horizontal"
                                     Margin="5,0,145,0"
                                     Grid.Column="1">
-                            <Label Content="Stretch: " />
+                            <CheckBox VerticalAlignment="Center"
+                                      Content="Video"
+                                      x:Name="CheckBoxIsVideoCaptureEnabledForSource"
+                                      IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.IsVideoCaptureEnabled}" />
                             <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
                                       SelectedItem="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.Stretch}"
                                       VerticalAlignment="Center"
-                                      Margin="0,0,5,0" />
+                                      Margin="5,0,5,0" />
                             <CheckBox VerticalAlignment="Center"
                                       IsChecked="{Binding ElementName=MainWin,Path=IsCustomOutputSourceRectEnabled}"
                                       Checked="CustomCoordinates_CheckedChanged"
@@ -587,28 +594,28 @@
                                 <Label Content="Source rect:" />
                                 <TextBox x:Name="RecordingAreaLeftTextBox"
                                          VerticalContentAlignment="Center"
-                                         Text="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.SourceRect.Left}"
+                                         Text="{Binding ElementName=MainWin,Path=SourceRect.Left, UpdateSourceTrigger=PropertyChanged}"
                                          GotFocus="TextBox_GotFocus"
                                          PreviewTextInput="UserInput_TextInput"
                                          MinWidth="32" />
                                 <TextBox x:Name="RecordingAreaTopTextBox"
                                          VerticalContentAlignment="Center"
                                          MinWidth="32"
-                                         Text="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.SourceRect.Top}"
+                                         Text="{Binding ElementName=MainWin,Path=SourceRect.Top, UpdateSourceTrigger=PropertyChanged}"
                                          GotFocus="TextBox_GotFocus"
                                          PreviewTextInput="UserInput_TextInput"
                                          Margin="5,0,0,0" />
                                 <TextBox x:Name="RecordingAreaRightTextBox"
                                          VerticalContentAlignment="Center"
                                          MinWidth="32"
-                                         Text="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.SourceRect.Right}"
+                                         Text="{Binding ElementName=MainWin,Path=SourceRect.Right, UpdateSourceTrigger=PropertyChanged}"
                                          GotFocus="TextBox_GotFocus"
                                          PreviewTextInput="UserInput_TextInput"
                                          Margin="5,0,0,0" />
                                 <TextBox x:Name="RecordingAreaBottomTextBox"
                                          VerticalContentAlignment="Center"
                                          MinWidth="32"
-                                         Text="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.SourceRect.Bottom}"
+                                         Text="{Binding ElementName=MainWin,Path=SourceRect.Bottom, UpdateSourceTrigger=PropertyChanged}"
                                          GotFocus="TextBox_GotFocus"
                                          PreviewTextInput="UserInput_TextInput"
                                          Margin="5,0,0,0" />
@@ -626,13 +633,13 @@
                                 <Label Content="Size:" />
                                 <TextBox x:Name="FinalRecordingOutputWidthTextBox"
                                          VerticalContentAlignment="Center"
-                                         Text="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.OutputFrameSize.Width}"
+                                         Text="{Binding ElementName=MainWin,Path=OutputFrameSize.Width, UpdateSourceTrigger=PropertyChanged}"
                                          GotFocus="TextBox_GotFocus"
                                          PreviewTextInput="UserInput_TextInput"
                                          MinWidth="32" />
                                 <TextBox x:Name="FinalRecordingOutputHeightTextBox"
                                          VerticalContentAlignment="Center"
-                                         Text="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.OutputFrameSize.Height}"
+                                         Text="{Binding ElementName=MainWin,Path=OutputFrameSize.Height, UpdateSourceTrigger=PropertyChanged}"
                                          GotFocus="TextBox_GotFocus"
                                          PreviewTextInput="UserInput_TextInput"
                                          MinWidth="32"
@@ -904,7 +911,7 @@
                                     <CheckBox Content="Log to file"
                                               IsChecked="{Binding ElementName=MainWin,Path=IsLogToFileEnabled}"
                                               Width="85" />
-                                    <TextBox Text="{Binding ElementName=MainWin,Path=RecorderOptions.LogOptions.LogFilePath}"
+                                    <TextBox Text="{Binding ElementName=MainWin,Path=LogFilePath}"
                                              MinWidth="80" />
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal"

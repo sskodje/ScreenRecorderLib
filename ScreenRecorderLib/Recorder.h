@@ -145,10 +145,14 @@ namespace ScreenRecorderLib {
 			_options->MouseOptions = options;
 			return this;
 		}
+		DynamicOptionsBuilder^ SetDynamicOutputOptions(DynamicOutputOptions^ options) {
+			_options->OutputOptions = options;
+			return this;
+		}
 		/// <summary>
 		/// Set the source rect (crop) for a recording source with the given ID.
 		/// </summary>
-		/// <param name="recordingSourceID"></param>
+		/// <param name="recordingSourceID">ID for a recording source in progress</param>
 		/// <param name="sourceRect"></param>
 		/// <returns></returns>
 		DynamicOptionsBuilder^ SetSourceRectForRecordingSource(String^ recordingSourceID, ScreenRect^ sourceRect) {
@@ -161,7 +165,7 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// Enable or disable mouse cursor capture for the recording source with the given ID.
 		/// </summary>
-		/// <param name="recordingSourceID"></param>
+		/// <param name="recordingSourceID">ID for a recording source in progress</param>
 		/// <param name="isCursorCaptureEnabled"></param>
 		/// <returns></returns>
 		DynamicOptionsBuilder^ SetCursorCaptureForRecordingSource(String^ recordingSourceID, bool isCursorCaptureEnabled) {
@@ -172,19 +176,10 @@ namespace ScreenRecorderLib {
 			return this;
 		}
 		/// <summary>
-		/// Set the source rect (crop) for the entire recording.
-		/// </summary>
-		/// <param name="sourceRect"></param>
-		/// <returns></returns>
-		DynamicOptionsBuilder^ SetGlobalSourceRect(ScreenRect^ sourceRect) {
-			_options->GlobalSourceRect = sourceRect;
-			return this;
-		}
-		/// <summary>
 		/// Set the size of the overlay with the given ID.
 		/// </summary>
-		/// <param name="overlayID"></param>
-		/// <param name="size"></param>
+		/// <param name="overlayID">ID for a recording source in progress</param>
+		/// <param name="size">The size of the overlay in pixels</param>
 		/// <returns></returns>
 		DynamicOptionsBuilder^ SetSizeForOverlay(String^ overlayID, ScreenSize^ size) {
 			if (!_options->OverlaySizes) {
@@ -196,8 +191,8 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// Set the position offset of the overlay with the given ID.
 		/// </summary>
-		/// <param name="overlayID"></param>
-		/// <param name="offset"></param>
+		/// <param name="overlayID">ID for an overlay in progress</param>
+		/// <param name="offset">The offset for the overlay, relative to the configured Anchor.</param>
 		/// <returns></returns>
 		DynamicOptionsBuilder^ SetOffsetForOverlay(String^ overlayID, ScreenSize^ offset) {
 			if (!_options->OverlayOffsets) {
@@ -209,8 +204,8 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// Set the position anchor for the overlay with the given ID.
 		/// </summary>
-		/// <param name="overlayID"></param>
-		/// <param name="anchor"></param>
+		/// <param name="overlayID">ID for an overlay in progress</param>
+		/// <param name="anchor">Where to anchor the overlay</param>
 		/// <returns></returns>
 		DynamicOptionsBuilder^ SetAnchorForOverlay(String^ overlayID, Anchor anchor) {
 			if (!_options->OverlayAnchors) {
@@ -219,6 +214,33 @@ namespace ScreenRecorderLib {
 			_options->OverlayAnchors[overlayID] = anchor;
 			return this;
 		}
+		/// <summary>
+		/// Configure if video capture is enabled for the recording source with the given ID.
+		/// </summary>
+		/// <param name="recordingSourceID">ID for a recording source in progress</param>
+		/// <param name="isCaptureEnabled">If false, the source will be blacked out for the duration.</param>
+		/// <returns></returns>
+		DynamicOptionsBuilder^ SetVideoCaptureEnabledForRecordingSource(String^ recordingSourceID, bool isCaptureEnabled) {
+			if (!_options->SourceVideoCaptures) {
+				_options->SourceVideoCaptures = gcnew Dictionary<String^, bool>();
+			}
+			_options->SourceVideoCaptures[recordingSourceID] = isCaptureEnabled;
+			return this;
+		}
+		/// <summary>
+		/// Configure if video capture is enabled for the overlay with the given ID.
+		/// </summary>
+		/// <param name="overlayID">ID for a recording source in progress</param>
+		/// <param name="isCaptureEnabled">If false, the overlay will be blacked out for the duration.</param>
+		/// <returns></returns>
+		DynamicOptionsBuilder^ SetVideoCaptureEnabledForOverlay(String^ overlayID, bool isCaptureEnabled) {
+			if (!_options->OverlayVideoCaptures) {
+				_options->OverlayVideoCaptures = gcnew Dictionary<String^, bool>();
+			}
+			_options->OverlayVideoCaptures[overlayID] = isCaptureEnabled;
+			return this;
+		}
+
 		/// <summary>
 		/// Apply the changes to the current active recording. Fails if no recording is in progress.
 		/// </summary>

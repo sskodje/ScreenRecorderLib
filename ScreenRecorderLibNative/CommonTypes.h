@@ -170,6 +170,11 @@ struct RECORDING_SOURCE_BASE abstract {
 	/// The anchor position for the content inside the parent frame.
 	/// </summary>
 	ContentAnchor Anchor;
+	/// <summary>
+	/// Determines if the source is capturing video. If false, it will be blacked out.
+	/// </summary>
+	std::optional<bool> IsVideoCaptureEnabled;
+
 	RECORDING_SOURCE_BASE() :
 		Type(RecordingSourceType::Display),
 		SourceWindow(nullptr),
@@ -177,7 +182,8 @@ struct RECORDING_SOURCE_BASE abstract {
 		OutputSize{ std::nullopt },
 		ID(L""),
 		Stretch(TextureStretchMode::Uniform),
-		Anchor(ContentAnchor::TopLeft)
+		Anchor(ContentAnchor::TopLeft),
+		IsVideoCaptureEnabled(std::nullopt)
 	{
 
 	}
@@ -188,15 +194,13 @@ struct RECORDING_SOURCE_BASE abstract {
 
 struct RECORDING_OVERLAY :RECORDING_SOURCE_BASE
 {
-	std::wstring ID;
 	/// <summary>
 	/// Optional custom offset for the source frame.
 	/// </summary>
 	std::optional<SIZE> Offset;
 	RECORDING_OVERLAY() :
 		RECORDING_SOURCE_BASE(),
-		Offset{ std::nullopt },
-		ID(L"")
+		Offset{ std::nullopt }
 	{
 
 	}
@@ -220,7 +224,7 @@ struct RECORDING_OVERLAY_DATA
 struct RECORDING_SOURCE : RECORDING_SOURCE_BASE
 {
 	std::optional<RecordingSourceApi> SourceApi;
-	std::optional<bool> IsCursorCaptureEnabled{};
+	std::optional<bool> IsCursorCaptureEnabled;
 	/// <summary>
 	/// An optional custom area of the source to record. Must be equal or smaller than the source area. A smaller area will crop the source.
 	/// </summary>
@@ -382,6 +386,7 @@ protected:
 	RECT m_SourceRect{};
 	TextureStretchMode m_Stretch = TextureStretchMode::Uniform;
 	RecorderModeInternal m_RecorderMode = RecorderModeInternal::Video;
+	bool m_IsVideoCaptureEnabled = true;
 public:
 	SIZE GetFrameSize() { return m_FrameSize; }
 	void SetFrameSize(SIZE size) { m_FrameSize = size; }
@@ -391,6 +396,9 @@ public:
 	TextureStretchMode GetStretch() { return m_Stretch; }
 	RecorderModeInternal GetRecorderMode() { return m_RecorderMode; }
 	void SetRecorderMode(RecorderModeInternal recorderMode) { m_RecorderMode = recorderMode; }
+	bool IsVideoCaptureEnabled() { return m_IsVideoCaptureEnabled; }
+	void SetVideoCaptureEnabled(bool value) { m_IsVideoCaptureEnabled = value; }
+
 };
 
 struct ENCODER_OPTIONS abstract {
@@ -413,12 +421,12 @@ public:
 	void SetVideoFps(UINT32 fps) { m_VideoFps = fps; }
 	void SetVideoBitrate(UINT32 bitrate) { m_VideoBitrate = bitrate; }
 	void SetVideoQuality(UINT32 quality) { m_VideoQuality = quality; }
-	void SetIsFixedFramerate(bool value) { m_IsFixedFramerate = value; }
-	void SetIsThrottlingDisabled(bool value) { m_IsThrottlingDisabled = value; }
-	void SetIsFastStartEnabled(bool value) { m_IsMp4FastStartEnabled = value; }
-	void SetIsFragmentedMp4Enabled(bool value) { m_IsFragmentedMp4Enabled = value; }
-	void SetIsHardwareEncodingEnabled(bool value) { m_IsHardwareEncodingEnabled = value; }
-	void SetIsLowLatencyModeEnabled(bool value) { m_IsLowLatencyModeEnabled = value; }
+	void SetFixedFramerate(bool value) { m_IsFixedFramerate = value; }
+	void SetThrottlingDisabled(bool value) { m_IsThrottlingDisabled = value; }
+	void SetFastStartEnabled(bool value) { m_IsMp4FastStartEnabled = value; }
+	void SetFragmentedMp4Enabled(bool value) { m_IsFragmentedMp4Enabled = value; }
+	void SetHardwareEncodingEnabled(bool value) { m_IsHardwareEncodingEnabled = value; }
+	void SetLowLatencyModeEnabled(bool value) { m_IsLowLatencyModeEnabled = value; }
 	void SetVideoBitrateMode(UINT32 bitrateMode) { m_VideoBitrateControlMode = bitrateMode; }
 	void SetEncoderProfile(UINT32 profile) { m_EncoderProfile = profile; }
 

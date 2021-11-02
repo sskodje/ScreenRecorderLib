@@ -19,6 +19,7 @@ namespace TestApp.Sources
         bool IsCustomPositionEnabled { get; set; }
         bool IsCustomOutputSizeEnabled { get; set; }
         bool IsCustomOutputSourceRectEnabled { get; set; }
+        bool IsVideoCaptureEnabled { get; set; }
 
         void UpdateScreenCoordinates(ScreenPoint position, ScreenSize size);
     }

@@ -70,7 +70,7 @@ public:
 	}
 
 
-	void SetIsLogEnabled(bool value);
+	void SetLogEnabled(bool value);
 	void SetLogFilePath(std::wstring value);
 	void SetLogSeverityLevel(int value);
 
@@ -99,7 +99,6 @@ private:
 	std::wstring m_OutputFullPath = L"";
 	INT64 m_MaxFrameLength100Nanos = MillisToHundredNanos(500); //500 milliseconds in 100 nanoseconds measure.
 
-
 	std::vector<RECORDING_SOURCE*> m_RecordingSources;
 	std::vector<RECORDING_OVERLAY*> m_Overlays;
 	bool m_IsPaused = false;
@@ -122,7 +121,7 @@ private:
 	/// <param name="pAdjustedSourceRect">The source rect adjusted to start on [0,0] and with custom cropping if any</param>
 	/// <param name="pAdjustedOutputFrameSize">The destination rect adjusted to start on [0,0] and with custom render size if any</param>
 	/// <returns></returns>
-	HRESULT InitializeRects(_In_ SIZE outputSize, _Out_ RECT *pAdjustedSourceRect, _Out_ SIZE *pAdjustedOutputFrameSize);
+	HRESULT InitializeRects(_In_ SIZE outputSize, _Out_opt_ RECT *pAdjustedSourceRect, _Out_opt_ SIZE *pAdjustedOutputFrameSize);
 
 	/// <summary>
 	/// Save texture as image to video snapshot folder.

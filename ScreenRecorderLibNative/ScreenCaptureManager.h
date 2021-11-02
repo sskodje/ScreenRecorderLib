@@ -13,7 +13,7 @@ class ScreenCaptureManager
 public:
 	ScreenCaptureManager();
 	virtual ~ScreenCaptureManager();
-	virtual HRESULT Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice);
+	virtual HRESULT Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<OUTPUT_OPTIONS> pOutputOptions);
 	virtual inline PTR_INFO *GetPointerInfo() {
 		return &m_PtrInfo;
 	}
@@ -41,6 +41,8 @@ protected:
 private:
 	bool m_IsCapturing;
 	HANDLE m_TerminateThreadsEvent;
+
+	std::shared_ptr<OUTPUT_OPTIONS> m_OutputOptions;
 
 	std::unique_ptr<TextureManager> m_TextureManager;
 

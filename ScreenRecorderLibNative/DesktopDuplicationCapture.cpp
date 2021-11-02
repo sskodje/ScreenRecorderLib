@@ -93,10 +93,21 @@ HRESULT DesktopDuplicationCapture::Initialize(_In_ ID3D11DeviceContext *pDeviceC
 HRESULT DesktopDuplicationCapture::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame)
 {
 	HRESULT hr = GetNextFrame(timeoutMillis, &m_CurrentData);
+
 	if (SUCCEEDED(hr) && ppFrame) {
-		*ppFrame = m_CurrentData.Frame;
-		QueryPerformanceCounter(&m_LastGrabTimeStamp);
+		D3D11_TEXTURE2D_DESC desc;
+		m_CurrentData.Frame->GetDesc(&desc);
+		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		desc.MiscFlags = 0;
+		ID3D11Texture2D *pFrame = nullptr;
+		hr = m_Device->CreateTexture2D(&desc, nullptr, &pFrame);
+		if (SUCCEEDED(hr)) {
+			m_DeviceContext->CopyResource(pFrame, m_CurrentData.Frame);
+			QueryPerformanceCounter(&m_LastGrabTimeStamp);
+		}
+		*ppFrame = pFrame;
 	}
+
 	return hr;
 }
 
@@ -112,7 +123,7 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 		DXGI_MODE_ROTATION rotation = m_OutputDesc.Rotation;
 		D3D11_TEXTURE2D_DESC frameDesc;
 		m_CurrentData.Frame->GetDesc(&frameDesc);
-		if (m_CurrentData.FrameInfo.TotalMetadataBufferSize)
+		if (m_CurrentData.FrameInfo.AccumulatedFrames > 0)
 		{
 			TextureStretchMode stretch = m_RecordingSource->Stretch;
 			MeasureExecutionTime measure(L"Duplication WriteFrameUpdatesToSurface");

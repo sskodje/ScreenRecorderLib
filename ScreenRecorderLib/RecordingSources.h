@@ -21,11 +21,13 @@ namespace ScreenRecorderLib {
 		Anchor _anchorPoint;
 		StretchMode _stretch;
 		ScreenRect^ _sourceRect;
+		bool _isVideoCaptureEnabled;
 	internal:
 		RecordingSourceBase() {
 			ID = Guid::NewGuid().ToString();
 			Stretch = StretchMode::Uniform;
 			AnchorPoint = Anchor::Center;
+			IsVideoCaptureEnabled = true;
 		}
 		RecordingSourceBase(RecordingSourceBase^ base) :RecordingSourceBase() {
 			ID = base->ID;
@@ -34,6 +36,7 @@ namespace ScreenRecorderLib {
 			AnchorPoint = base->AnchorPoint;
 			Stretch = base->Stretch;
 			SourceRect = base->SourceRect;
+			IsVideoCaptureEnabled = base->IsVideoCaptureEnabled;
 		}
 	public:
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
@@ -105,6 +108,15 @@ namespace ScreenRecorderLib {
 			void set(ScreenRect^ rect) {
 				_sourceRect = rect;
 				OnPropertyChanged("SourceRect");
+			}
+		}
+		property bool IsVideoCaptureEnabled {
+			bool get() {
+				return _isVideoCaptureEnabled;
+			}
+			void set(bool value) {
+				_isVideoCaptureEnabled = value;
+				OnPropertyChanged("IsVideoCaptureEnabled");
 			}
 		}
 		void OnPropertyChanged(String^ info)
