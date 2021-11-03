@@ -373,8 +373,6 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 {
 	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 	CComPtr<ID3D11Texture2D> pCurrentFrameCopy = nullptr;
-
-	CAPTURE_RESULT captureResult{};
 	PTR_INFO *pPtrInfo{};
 	unique_ptr<ScreenCaptureManager> pCapture = make_unique<ScreenCaptureManager>();
 	HRESULT hr = pCapture->Initialize(m_DxResources.Context, m_DxResources.Device, GetOutputOptions());
@@ -385,13 +383,11 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	HANDLE ErrorEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 	if (nullptr == ErrorEvent) {
 		LOG_ERROR(L"CreateEvent failed: last error is %u", GetLastError());
-		captureResult.RecordingResult = E_FAIL;
-		captureResult.Error = L"Failed to create event";
-		return captureResult;
+		return CAPTURE_RESULT(E_FAIL, L"Failed to create event");
 	}
 	CloseHandleOnExit closeExpectedErrorEvent(ErrorEvent);
 
-	RETURN_RESULT_ON_BAD_HR(hr = pCapture->StartCapture(sources, overlays, ErrorEvent, &captureResult), L"Failed to start capture");
+	RETURN_RESULT_ON_BAD_HR(hr = pCapture->StartCapture(sources, overlays, ErrorEvent), L"Failed to start capture");
 
 	CaptureStopOnExit stopCaptureOnExit(pCapture.get());
 
@@ -513,56 +509,69 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			break;
 		}
 
-
 		if (WaitForSingleObjectEx(ErrorEvent, 0, FALSE) == WAIT_OBJECT_0) {
-			if (captureResult.IsRecoverableError) {
-				//Reinitialize and restart capture
-				hr = pCapture->StopCapture();
-				if (SUCCEEDED(hr)) {
-					CleanDx(&m_DxResources);
-					pCapture.reset(new ScreenCaptureManager());
-					stopCaptureOnExit.Reset(pCapture.get());
-					// As we have encountered an error due to a system transition we wait before trying again, using this dynamic wait
-					// the wait periods will get progressively long to avoid wasting too much system resource if this state lasts a long time
-					DynamicWait.Wait();
+			std::vector<CAPTURE_RESULT *> results;
+			for each (CAPTURE_THREAD_DATA threadData in pCapture->GetCaptureThreadData())
+			{
+				results.push_back(threadData.ThreadResult);
+			}
+			for each (OVERLAY_THREAD_DATA threadData in pCapture->GetOverlayThreadData())
+			{
+				results.push_back(threadData.ThreadResult);
+			}
+			for each (CAPTURE_RESULT *result in results)
+			{
+				if (FAILED(result->RecordingResult)) {
+					if (result->IsRecoverableError) {
+						//Reinitialize and restart capture
+						hr = pCapture->StopCapture();
+						if (SUCCEEDED(hr)) {
+							CleanDx(&m_DxResources);
+							pCapture.reset(new ScreenCaptureManager());
+							stopCaptureOnExit.Reset(pCapture.get());
+							// As we have encountered an error due to a system transition we wait before trying again, using this dynamic wait
+							// the wait periods will get progressively long to avoid wasting too much system resource if this state lasts a long time
+							DynamicWait.Wait();
 
-					hr = InitializeDx(nullptr, &m_DxResources);
-				}
-				if (SUCCEEDED(hr)) {
-					SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
-					hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
-				}
-				if (SUCCEEDED(hr)) {
-					hr = m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, m_EncoderOptions, m_AudioOptions, m_SnapshotOptions);
-				}
-				if (SUCCEEDED(hr)) {
-					hr = pMouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
-				}
-				if (SUCCEEDED(hr)) {
-					hr = pCapture->Initialize(m_DxResources.Context, m_DxResources.Device, GetOutputOptions());
-				}
-				if (SUCCEEDED(hr)) {
-					ResetEvent(ErrorEvent);
-					captureResult = {};
-					hr = pCapture->StartCapture(sources, overlays, ErrorEvent, &captureResult);
-				}
+							hr = InitializeDx(nullptr, &m_DxResources);
+						}
+						if (SUCCEEDED(hr)) {
+							SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
+							hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
+						}
+						if (SUCCEEDED(hr)) {
+							hr = m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, m_EncoderOptions, m_AudioOptions, m_SnapshotOptions);
+						}
+						if (SUCCEEDED(hr)) {
+							hr = pMouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
+						}
+						if (SUCCEEDED(hr)) {
+							hr = pCapture->Initialize(m_DxResources.Context, m_DxResources.Device, GetOutputOptions());
+						}
+						if (SUCCEEDED(hr)) {
+							ResetEvent(ErrorEvent);
+							hr = pCapture->StartCapture(sources, overlays, ErrorEvent);
+						}
 
-				if (FAILED(hr)) {
-					ProcessCaptureHRESULT(hr, &captureResult, m_DxResources.Device);
-					if (captureResult.IsRecoverableError) {
-						SetEvent(ErrorEvent);
-						LOG_INFO("Recoverable error while reinitializing capture, retrying..");
+						if (FAILED(hr)) {
+							CAPTURE_RESULT captureResult{};
+							ProcessCaptureHRESULT(hr, &captureResult, m_DxResources.Device);
+							if (captureResult.IsRecoverableError) {
+								SetEvent(ErrorEvent);
+								LOG_INFO("Recoverable error while reinitializing capture, retrying..");
+								continue;
+							}
+							else {
+								LOG_ERROR("Fatal error while reinitializing capture, exiting..");
+								return captureResult;
+							}
+						}
 						continue;
 					}
 					else {
-						LOG_ERROR("Fatal error while reinitializing capture, exiting..");
-						return captureResult;
+						return *result;
 					}
 				}
-				continue;
-			}
-			else {
-				return captureResult;
 			}
 		}
 		if (m_IsPaused) {
@@ -699,8 +708,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		INT64 duration = duration_cast<nanoseconds>(chrono::steady_clock::now() - lastFrame).count() / 100;
 		RETURN_RESULT_ON_BAD_HR(hr = PrepareAndRenderFrame(pPreviousFrameCopy, duration), L"Failed to render frame");
 	}
-	captureResult.RecordingResult = hr;
-	return captureResult;
+	return CAPTURE_RESULT(hr);
 }
 
 HRESULT RecordingManager::InitializeRects(_In_ SIZE captureFrameSize, _Out_opt_ RECT *pAdjustedSourceRect, _Out_opt_ SIZE *pAdjustedOutputFrameSize) {

@@ -20,13 +20,15 @@ public:
 	virtual RECT GetOutputRect() { return m_OutputRect; }
 	virtual SIZE GetOutputSize() { return SIZE{ RectWidth(m_OutputRect),RectHeight(m_OutputRect) }; }
 	virtual HRESULT AcquireNextFrame(_In_ DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame);
-	virtual HRESULT StartCapture(_In_ const std::vector<RECORDING_SOURCE*> &sources, _In_ const std::vector<RECORDING_OVERLAY*> &overlays, _In_  HANDLE hErrorEvent, _Inout_ CAPTURE_RESULT *pResult);
+	virtual HRESULT StartCapture(_In_ const std::vector<RECORDING_SOURCE*> &sources, _In_ const std::vector<RECORDING_OVERLAY*> &overlays, _In_  HANDLE hErrorEvent);
 	virtual HRESULT StopCapture();
 	virtual bool IsUpdatedFramesAvailable();
 	virtual bool IsInitialFrameWriteComplete();
 	virtual bool IsInitialOverlayWriteComplete();
 	virtual bool IsCapturing() { return m_IsCapturing; }
 	virtual UINT GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCounts);
+	std::vector<CAPTURE_THREAD_DATA> GetCaptureThreadData();
+	std::vector<OVERLAY_THREAD_DATA> GetOverlayThreadData();
 protected:
 	LARGE_INTEGER m_LastAcquiredFrameTimeStamp;
 	ID3D11Texture2D *m_SharedSurf;

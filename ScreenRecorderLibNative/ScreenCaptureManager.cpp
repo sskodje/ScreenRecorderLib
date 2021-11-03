@@ -64,7 +64,7 @@ HRESULT ScreenCaptureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContex
 //
 // Start up threads for video capture
 //
-HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hErrorEvent, _Inout_ CAPTURE_RESULT *pResult)
+HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hErrorEvent)
 {
 	ResetEvent(m_TerminateThreadsEvent);
 
@@ -85,7 +85,7 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 	for (UINT i = 0; i < m_CaptureThreadCount; i++)
 	{
 		RECORDING_SOURCE_DATA *data = CreatedOutputs.at(i);
-		m_CaptureThreadData[i].ThreadResult = pResult;
+		m_CaptureThreadData[i].ThreadResult = new CAPTURE_RESULT();
 		m_CaptureThreadData[i].ErrorEvent = hErrorEvent;
 		m_CaptureThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
 		m_CaptureThreadData[i].CanvasTexSharedHandle = sharedHandle;
@@ -112,7 +112,7 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 	for (UINT i = 0; i < m_OverlayThreadCount; i++)
 	{
 		auto overlay = overlays.at(i);
-		m_OverlayThreadData[i].ThreadResult = pResult;
+		m_OverlayThreadData[i].ThreadResult = new CAPTURE_RESULT();
 		m_OverlayThreadData[i].ErrorEvent = hErrorEvent;
 		m_OverlayThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
 		m_OverlayThreadData[i].CanvasTexSharedHandle = sharedHandle;
@@ -242,6 +242,8 @@ void ScreenCaptureManager::Clean()
 				CleanDx(&m_CaptureThreadData[i].RecordingSource->DxRes);
 				delete m_CaptureThreadData[i].RecordingSource;
 				m_CaptureThreadData[i].RecordingSource = nullptr;
+				delete m_CaptureThreadData[i].ThreadResult;
+				m_CaptureThreadData[i].ThreadResult = nullptr;
 			}
 		}
 		delete[] m_CaptureThreadData;
@@ -270,6 +272,8 @@ void ScreenCaptureManager::Clean()
 				CleanDx(&m_OverlayThreadData[i].RecordingOverlay->DxRes);
 				delete m_OverlayThreadData[i].RecordingOverlay;
 				m_OverlayThreadData[i].RecordingOverlay = nullptr;
+				delete m_OverlayThreadData[i].ThreadResult;
+				m_OverlayThreadData[i].ThreadResult = nullptr;
 			}
 		}
 		delete[] m_OverlayThreadData;
@@ -352,7 +356,7 @@ bool ScreenCaptureManager::IsInitialOverlayWriteComplete()
 	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
 	{
 		if (m_OverlayThreadData[i].RecordingOverlay) {
-			if (!FAILED(m_OverlayThreadData[i].ThreadResult) && m_OverlayThreadData[i].LastUpdateTimeStamp.QuadPart == 0) {
+			if (!FAILED(m_OverlayThreadData[i].ThreadResult->RecordingResult) && m_OverlayThreadData[i].LastUpdateTimeStamp.QuadPart == 0) {
 				//If any of the overlays have not yet written a frame, we return and wait for them.
 				return false;
 			}
@@ -375,6 +379,26 @@ UINT ScreenCaptureManager::GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCount
 		}
 	}
 	return updatedFrameCount;
+}
+
+std::vector<CAPTURE_THREAD_DATA> ScreenCaptureManager::GetCaptureThreadData()
+{
+	std::vector<CAPTURE_THREAD_DATA> threadData;
+	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
+	{
+		threadData.push_back(m_CaptureThreadData[i]);
+	}
+	return threadData;
+}
+
+std::vector<OVERLAY_THREAD_DATA> ScreenCaptureManager::GetOverlayThreadData()
+{
+	std::vector<OVERLAY_THREAD_DATA> threadData;
+	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
+	{
+		threadData.push_back(m_OverlayThreadData[i]);
+	}
+	return threadData;
 }
 
 RECT ScreenCaptureManager::GetOverlayRect(_In_ SIZE canvasSize, _In_ SIZE overlayTextureSize, _In_ RECORDING_OVERLAY *pOverlay)
@@ -743,21 +767,21 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	}
 Exit:
 	if (pData->ThreadResult) {
+		//E_ABORT is returned when the capture loop should be stopped, but the recording continue. On other errors, we check how to handle them.
+		if (hr == E_ABORT) {
+			hr = S_OK;
+		}
 		pData->ThreadResult->RecordingResult = hr;
-
 		if (FAILED(hr))
 		{
-			//E_ABORT is returned when the capture loop should be stopped, but the recording continue. On other errors, we check how to handle them.
-			if (hr != E_ABORT) {
-				ProcessCaptureHRESULT(hr, pData->ThreadResult, pSourceData->DxRes.Device);
-				if (pData->ThreadResult->IsRecoverableError) {
-					LOG_INFO("Recoverable error in capture, reinitializing..");
-				}
-				else {
-					LOG_ERROR("Fatal error in capture, exiting..");
-				}
-				SetEvent(pData->ErrorEvent);
+			ProcessCaptureHRESULT(hr, pData->ThreadResult, pSourceData->DxRes.Device);
+			if (pData->ThreadResult->IsRecoverableError) {
+				LOG_INFO("Recoverable error in capture, reinitializing..");
 			}
+			else {
+				LOG_ERROR("Fatal error in capture, exiting..");
+			}
+			SetEvent(pData->ErrorEvent);
 		}
 	}
 	LOG_DEBUG("Exiting CaptureThreadProc");
@@ -898,21 +922,21 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 	}
 Exit:
 	if (pData->ThreadResult) {
+		//E_ABORT is returned when the capture loop should be stopped, but the recording continue. On other errors, we check how to handle them.
+		if (hr == E_ABORT) {
+			hr = S_OK;
+		}
 		pData->ThreadResult->RecordingResult = hr;
-
 		if (FAILED(hr))
 		{
-			//E_ABORT is returned when the capture loop should be stopped, but the recording continue. On other errors, we check how to handle them.
-			if (hr != E_ABORT) {
-				ProcessCaptureHRESULT(hr, pData->ThreadResult, pOverlayData->DxRes.Device);
-				if (pData->ThreadResult->IsRecoverableError) {
-					LOG_INFO("Recoverable error in capture, reinitializing..");
-				}
-				else {
-					LOG_ERROR("Fatal error in capture, exiting..");
-				}
-				SetEvent(pData->ErrorEvent);
+			ProcessCaptureHRESULT(hr, pData->ThreadResult, pOverlayData->DxRes.Device);
+			if (pData->ThreadResult->IsRecoverableError) {
+				LOG_INFO("Recoverable error in capture, reinitializing..");
 			}
+			else {
+				LOG_ERROR("Fatal error in capture, exiting..");
+			}
+			SetEvent(pData->ErrorEvent);
 		}
 	}
 	LOG_DEBUG("Exiting OverlayCaptureThreadProc");

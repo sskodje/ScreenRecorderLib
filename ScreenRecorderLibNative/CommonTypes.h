@@ -26,6 +26,12 @@ struct REC_RESULT {
 	{
 
 	}
+	REC_RESULT(HRESULT recordingResult, std::wstring error = L"") :
+		REC_RESULT()	
+	{
+		RecordingResult = recordingResult;
+		Error = error;
+	}
 };
 struct CAPTURE_RESULT :REC_RESULT {
 	// Used to indicate a transition event occurred e.g. PnpStop, PnpStart, mode change, TDR, desktop switch, and the application needs to recreate the capture interface
@@ -33,6 +39,12 @@ struct CAPTURE_RESULT :REC_RESULT {
 	CAPTURE_RESULT() :
 		IsRecoverableError(false),
 		REC_RESULT()
+	{
+
+	}
+	CAPTURE_RESULT(HRESULT recordingResult, std::wstring error = L"") :
+		IsRecoverableError(false),
+		REC_RESULT(recordingResult,error)
 	{
 
 	}
