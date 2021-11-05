@@ -93,8 +93,8 @@ private:
 
 	std::unique_ptr<TextureManager> m_TextureManager;
 	std::unique_ptr<OutputManager> m_OutputManager;
-	HRESULT m_EncoderResult = S_FALSE;
-
+	HRESULT m_EncoderResult = E_FAIL;
+	HRESULT m_MfStartupResult = E_FAIL;
 	std::wstring m_OutputFolder = L"";
 	std::wstring m_OutputFullPath = L"";
 	INT64 m_MaxFrameLength100Nanos = MillisToHundredNanos(500); //500 milliseconds in 100 nanoseconds measure.
@@ -141,9 +141,9 @@ private:
 	HRESULT ProcessTextureTransforms(_In_ ID3D11Texture2D *pTexture,_Out_ ID3D11Texture2D **ppProcessedTexture, RECT videoInputFrameRect, SIZE videoOutputFrameSize);
 
 	/// <summary>
-	/// Releases DirectX resources and shuts down Media Foundation.
+	/// Releases DirectX resources and reports any leaks
 	/// </summary>
-	void CleanupResourcesAndShutDownMF();
+	void CleanupDxResources();
 
 	/// <summary>
 	///	Calls the RecordingComplete or RecordingFailed callbacks depending on the success of the recording result.

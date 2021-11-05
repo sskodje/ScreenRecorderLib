@@ -622,6 +622,11 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				break;
 		}
 
+		hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
+		if (FAILED(hr)) {
+			goto Exit;
+		}
+
 		if (!pRecordingSourceCapture) {
 			LOG_ERROR(L"Failed to create recording source");
 			hr = E_FAIL;
@@ -784,6 +789,7 @@ Exit:
 			SetEvent(pData->ErrorEvent);
 		}
 	}
+	CoUninitialize();
 	LOG_DEBUG("Exiting CaptureThreadProc");
 	return 0;
 }
@@ -835,6 +841,11 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 		}
 		default:
 			break;
+	}
+
+	hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
+	if (FAILED(hr)) {
+		goto Exit;
 	}
 
 	if (!overlayCapture) {
@@ -939,6 +950,7 @@ Exit:
 			SetEvent(pData->ErrorEvent);
 		}
 	}
+	CoUninitialize();
 	LOG_DEBUG("Exiting OverlayCaptureThreadProc");
 	return 0;
 }

@@ -23,13 +23,13 @@ OutputManager::OutputManager() :
 	m_RenderedFrameCount(0),
 	m_RecorderMode(RecorderModeInternal::Video)
 {
+	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 }
 
 OutputManager::~OutputManager()
 {
 	CloseHandle(m_FinalizeEvent);
 	m_FinalizeEvent = nullptr;
-	LOG_DEBUG("Destructed OutputManager");
 }
 
 HRESULT OutputManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<ENCODER_OPTIONS> &pEncoderOptions, _In_ std::shared_ptr<AUDIO_OPTIONS> pAudioOptions, _In_ std::shared_ptr<SNAPSHOT_OPTIONS> pSnapshotOptions)
@@ -49,7 +49,7 @@ HRESULT OutputManager::BeginRecording(_In_ std::wstring outputPath, _In_ SIZE vi
 	std::filesystem::path filePath = outputPath;
 	m_OutputFolder = filePath.has_extension() ? filePath.parent_path().wstring() : filePath.wstring();
 	m_RecorderMode = recorderMode;
-	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	ResetEvent(m_FinalizeEvent);
 	if (m_RecorderMode == RecorderModeInternal::Video) {
 		CComPtr<IMFByteStream> outputStream = nullptr;
 		if (pStream != nullptr) {

@@ -82,6 +82,13 @@ RecordingManager::RecordingManager() :
 	m_DxResources{}
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+	m_MfStartupResult = MFStartup(MF_VERSION, MFSTARTUP_LITE);
+	if (SUCCEEDED(m_MfStartupResult)) {
+		LOG_INFO(L"Media Foundation started");
+	}
+	else {
+		LOG_ERROR("Media foundation failed to start: hr = 0x%08x", m_MfStartupResult);
+	}
 }
 
 RecordingManager::~RecordingManager()
@@ -102,6 +109,8 @@ RecordingManager::~RecordingManager()
 		delete overlay;
 	}
 	CleanDx(&m_DxResources);
+	MFShutdown();
+	LOG_INFO(L"Media Foundation shut down");
 }
 
 void RecordingManager::SetLogEnabled(bool value) {
@@ -217,9 +226,9 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		LOG_INFO(L"Starting recording task");
 		m_IsRecording = true;
 		REC_RESULT result{};
+		RETURN_RESULT_ON_BAD_HR(m_MfStartupResult, L"Media Foundation failed to initialize");
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 		RETURN_RESULT_ON_BAD_HR(hr, L"CoInitializeEx failed");
-		RETURN_RESULT_ON_BAD_HR(hr = MFStartup(MF_VERSION, MFSTARTUP_LITE), L"MFStartup failed");
 		RETURN_RESULT_ON_BAD_HR(hr = InitializeDx(nullptr, &m_DxResources), L"Failed to initialize DirectX");
 
 		m_TextureManager = make_unique<TextureManager>();
@@ -228,15 +237,15 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, m_EncoderOptions, m_AudioOptions, m_SnapshotOptions);
 
 		result = StartRecorderLoop(m_RecordingSources, m_Overlays, stream);
+		if (RecordingStatusChangedCallback != nullptr && !m_IsDestructing) {
+			RecordingStatusChangedCallback(STATUS_FINALIZING);
+		}
+		result.FinalizeResult = m_OutputManager->FinalizeRecording();
+		CoUninitialize();
+
 		LOG_INFO("Exiting recording task");
 		return result;
-		}).then([this](REC_RESULT recordingResult) {
-			if (RecordingStatusChangedCallback != nullptr && !m_IsDestructing) {
-				RecordingStatusChangedCallback(STATUS_FINALIZING);
-			}
-			recordingResult.FinalizeResult = m_OutputManager->FinalizeRecording();
-			return recordingResult;
-			}).then([this](concurrency::task<REC_RESULT> t)
+		}).then([this](concurrency::task<REC_RESULT> t)
 				{
 					m_IsRecording = false;
 					REC_RESULT result{ };
@@ -251,22 +260,23 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 					catch (...) {
 						LOG_ERROR(L"Exception in RecordTask");
 					}
+					CleanupDxResources();
 					if (!m_IsDestructing) {
-						SetRecordingCompleteStatus(result, m_OutputManager->GetFrameDelays());
+						nlohmann::fifo_map<std::wstring, int> delays{};
+						if (m_OutputManager) {
+							delays = m_OutputManager->GetFrameDelays();
+						}
+						SetRecordingCompleteStatus(result, delays);
 					}
-					CleanupResourcesAndShutDownMF();
-					m_OutputManager.reset();
-					LOG_DEBUG("Released OutputManager");
-					m_TextureManager.reset();
-					LOG_DEBUG("Released TextureManager");
 				});
-			return S_OK;
+		return S_OK;
 }
 
 void RecordingManager::EndRecording() {
 	if (m_IsRecording) {
 		m_IsPaused = false;
 		m_TaskWrapperImpl->m_RecordTaskCts.cancel();
+		LOG_DEBUG(L"Stopped recording");
 	}
 }
 void RecordingManager::PauseRecording() {
@@ -298,22 +308,16 @@ bool RecordingManager::SetExcludeFromCapture(HWND hwnd, bool isExcluded) {
 		return false;
 }
 
-void RecordingManager::CleanupResourcesAndShutDownMF()
+void RecordingManager::CleanupDxResources()
 {
 	SafeRelease(&m_DxResources.Context);
-	LOG_DEBUG("Released ID3D11DeviceContext");
 	SafeRelease(&m_DxResources.Device);
-	LOG_DEBUG("Released ID3D11Device");
 #if _DEBUG
 	if (m_DxResources.Debug) {
 		m_DxResources.Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
 		SafeRelease(&m_DxResources.Debug);
-		LOG_DEBUG("Released ID3D11Debug");
 	}
 #endif
-	MFShutdown();
-	CoUninitialize();
-	LOG_INFO(L"Media Foundation shut down");
 }
 
 void RecordingManager::SetRecordingCompleteStatus(_In_ REC_RESULT result, nlohmann::fifo_map<std::wstring, int> frameDelays)
