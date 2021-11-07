@@ -150,7 +150,7 @@ HRESULT ImageReader::InitializeDecoder(_In_ std::wstring source)
 	}
 	DeleteArrayOnExit deleteOnExit(pFrameBuffer);
 	RETURN_ON_BAD_HR(hr = pBitmap->CopyPixels(nullptr, stride, bitmapSize, pFrameBuffer));
-	RETURN_ON_BAD_HR(m_TextureManager->CreateTextureFromBuffer(pFrameBuffer, stride, width, height, &m_Texture));
+	RETURN_ON_BAD_HR(m_TextureManager->CreateTextureFromBuffer(pFrameBuffer, stride, width, height, &m_Texture, 0, D3D11_BIND_SHADER_RESOURCE));
 	m_NativeSize = SIZE{ static_cast<long>(width),static_cast<long>(height) };
 	return hr;
 }

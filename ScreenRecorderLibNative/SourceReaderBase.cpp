@@ -140,7 +140,7 @@ HRESULT SourceReaderBase::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt
 				);
 
 				CComPtr<ID3D11Texture2D> pTexture;
-				hr = m_TextureManager->CreateTextureFromBuffer(m_PtrFrameBuffer, m_Stride, m_FrameSize.cx, m_FrameSize.cy, &pTexture);
+				hr = m_TextureManager->CreateTextureFromBuffer(m_PtrFrameBuffer, m_Stride, m_FrameSize.cx, m_FrameSize.cy, &pTexture, 0, D3D11_BIND_SHADER_RESOURCE);
 				if (SUCCEEDED(hr)) {
 					*ppFrame = pTexture;
 					(*ppFrame)->AddRef();

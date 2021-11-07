@@ -636,7 +636,7 @@ HRESULT TextureManager::CopyTextureWithCPU(_In_ ID3D11Device *pDevice, _In_ ID3D
 	return hr;
 }
 
-HRESULT TextureManager::CreateTextureFromBuffer(_In_ BYTE *pFrameBuffer, _In_ LONG stride, _In_ UINT width, _In_ UINT height, _Outptr_ ID3D11Texture2D **ppTexture, std::optional<D3D11_RESOURCE_MISC_FLAG> miscFlag)
+HRESULT TextureManager::CreateTexture(_In_ UINT width, _In_ UINT height, _Outptr_ ID3D11Texture2D **ppTexture, UINT miscFlag, UINT bindFlag)
 {
 	D3D11_TEXTURE2D_DESC desc = { 0 };
 	desc.MipLevels = 1;
@@ -645,15 +645,33 @@ HRESULT TextureManager::CreateTextureFromBuffer(_In_ BYTE *pFrameBuffer, _In_ LO
 	desc.SampleDesc.Count = 1;
 	desc.SampleDesc.Quality = 0;
 	desc.Usage = D3D11_USAGE_DEFAULT;
-	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.BindFlags = bindFlag;
 	desc.CPUAccessFlags = 0;
-	if (miscFlag.has_value()) {
-		desc.MiscFlags = miscFlag.value();
-	}
-	else {
-		desc.MiscFlags = 0;
-	}
+	desc.MiscFlags = miscFlag;
 
+
+	// Set texture properties
+	desc.Width = width;
+	desc.Height = height;
+
+	// Create overlay as texture
+
+	HRESULT hr = m_Device->CreateTexture2D(&desc, nullptr, ppTexture);
+	return hr;
+}
+
+HRESULT TextureManager::CreateTextureFromBuffer(_In_ BYTE *pFrameBuffer, _In_ LONG stride, _In_ UINT width, _In_ UINT height, _Outptr_ ID3D11Texture2D **ppTexture, UINT miscFlag, UINT bindFlag)
+{
+	D3D11_TEXTURE2D_DESC desc = { 0 };
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+	desc.SampleDesc.Count = 1;
+	desc.SampleDesc.Quality = 0;
+	desc.Usage = D3D11_USAGE_DEFAULT;
+	desc.BindFlags = bindFlag;
+	desc.CPUAccessFlags = 0;
+	desc.MiscFlags = miscFlag;
 
 	// Set texture properties
 	desc.Width = width;
