@@ -774,6 +774,7 @@ HRESULT RecordingManager::ProcessTextureTransforms(_In_ ID3D11Texture2D *pTextur
 		Box.right = RectWidth(contentRect);
 		Box.bottom = RectHeight(contentRect);
 		m_DxResources.Context->CopySubresourceRegion(pCanvas, 0, leftMargin, topMargin, 0, pResizedFrameCopy, 0, &Box);
+		pResizedFrameCopy->Release();
 		pProcessedTexture.Release();
 		pProcessedTexture.Attach(pCanvas);
 	}
