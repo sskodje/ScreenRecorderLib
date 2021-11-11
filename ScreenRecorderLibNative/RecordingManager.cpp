@@ -469,11 +469,13 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		if (IsValidRect(GetOutputOptions()->GetSourceRectangle())) {
 			RETURN_ON_BAD_HR(hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, nullptr));
 		}
-		ID3D11Texture2D *processedTexture;
+		CComPtr<ID3D11Texture2D> processedTexture;
 		RETURN_ON_BAD_HR(renderHr = ProcessTextureTransforms(pTextureToRender, &processedTexture, videoInputFrameRect, videoOutputFrameSize));
-		pTextureToRender.Release();
-		pTextureToRender.Attach(processedTexture);
-
+		if (renderHr == S_OK) {
+			pTextureToRender.Release();
+			pTextureToRender.Attach(processedTexture);
+			(*pTextureToRender).AddRef();
+		}
 		if (recorderMode == RecorderModeInternal::Video) {
 			if (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()) {
 				if (SUCCEEDED(renderHr = SaveTextureAsVideoSnapshot(pTextureToRender, videoInputFrameRect))) {
@@ -743,7 +745,7 @@ HRESULT RecordingManager::ProcessTextureTransforms(_In_ ID3D11Texture2D *pTextur
 {
 	D3D11_TEXTURE2D_DESC desc;
 	pTexture->GetDesc(&desc);
-	HRESULT hr = S_OK;
+	HRESULT hr = S_FALSE;
 	CComPtr<ID3D11Texture2D> pProcessedTexture = pTexture;
 	if (RectWidth(videoInputFrameRect) < static_cast<long>(desc.Width)
 		|| RectHeight(videoInputFrameRect) < static_cast<long>(round(desc.Height))) {

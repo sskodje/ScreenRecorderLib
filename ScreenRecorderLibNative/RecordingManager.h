@@ -138,6 +138,7 @@ private:
 	/// <param name="ppProcessedTexture">The output texture. If no transformations are done, the original texture is returned.</param>
 	/// <param name="videoInputFrameRect">The source rectangle. The texture will be cropped to these coordinates if larger.</param>
 	/// <param name="videoOutputFrameSize">The output dimensions. The texture will be resized to these coordinates if differing.</param>
+	/// <returns>S_OK if any processing has been done, S_FALSE if no changes, else an error code</returns>
 	HRESULT ProcessTextureTransforms(_In_ ID3D11Texture2D *pTexture,_Out_ ID3D11Texture2D **ppProcessedTexture, RECT videoInputFrameRect, SIZE videoOutputFrameSize);
 
 	/// <summary>
