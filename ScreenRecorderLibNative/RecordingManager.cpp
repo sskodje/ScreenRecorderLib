@@ -600,23 +600,23 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 				pPtrInfo = capturedFrame.PtrInfo;
 			}
 		}
-		else {
-			if ((recorderMode == RecorderModeInternal::Slideshow
-				|| recorderMode == RecorderModeInternal::Screenshot)
-			   && (!pCapture->IsInitialFrameWriteComplete() || !pCapture->IsInitialOverlayWriteComplete())) {
-				continue;
-			}
-			else if ((!pCurrentFrameCopy && !pPreviousFrameCopy)
-				|| !pCapture->IsInitialFrameWriteComplete()) {
-				//There is no first frame yet, so retry.
-				wait(1);
-				continue;
-			}
-		}
+
 		INT64 durationSinceLastFrame100Nanos = max(duration_cast<nanoseconds>(chrono::steady_clock::now() - lastFrame).count() / 100, 0);
-		//Delay frames that comes quicker than selected framerate to see if we can skip them.
-		if (hr == DXGI_ERROR_WAIT_TIMEOUT || durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) //attempt to wait if frame timeouted or duration is under our chosen framerate
-		{
+
+		if ((recorderMode == RecorderModeInternal::Slideshow
+			|| recorderMode == RecorderModeInternal::Screenshot)
+		   && (!pCapture->IsInitialFrameWriteComplete() || !pCapture->IsInitialOverlayWriteComplete())
+		   && durationSinceLastFrame100Nanos < max(videoFrameDuration100Nanos, m_MaxFrameLength100Nanos)) {
+			continue;
+		}
+		else if (((!pCurrentFrameCopy && !pPreviousFrameCopy) || !pCapture->IsInitialFrameWriteComplete())
+			&& durationSinceLastFrame100Nanos < max(videoFrameDuration100Nanos, m_MaxFrameLength100Nanos)) {
+			//There is no first frame yet, so retry.
+			wait(1);
+			continue;
+		}
+		else if (durationSinceLastFrame100Nanos < videoFrameDuration100Nanos) {
+			//attempt to wait if frame timeouted or duration is under our chosen framerate
 			bool cacheCurrentFrame = false;
 			INT64 delay100Nanos = 0;
 			if (ShouldSkipDelay(capturedFrame)) {
@@ -669,6 +669,10 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 
 		if (hr != DXGI_ERROR_WAIT_TIMEOUT) {
 			RETURN_RESULT_ON_BAD_HR(hr, L"");
+		}
+
+		if (!pCurrentFrameCopy && !pPreviousFrameCopy) {
+			m_TextureManager->CreateTexture(videoOutputFrameSize.cx, videoOutputFrameSize.cy, &pCurrentFrameCopy, 0, D3D11_BIND_RENDER_TARGET);
 		}
 
 		lastFrame = steady_clock::now();
