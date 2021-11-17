@@ -184,7 +184,6 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 				HRESULT hr = reader.GetNativeSize(*source, &size);
 				if (SUCCEEDED(hr)) {
 					RECT sourceRect = GetOffsetSourceRect(RECT{ 0,0,size.cx,size.cx }, source);
-					LONG width = RectWidth(sourceRect);
 					std::pair<RECORDING_SOURCE *, RECT> tuple(source, sourceRect);
 					validOutputs.push_back(tuple);
 				}
@@ -196,7 +195,6 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 				HRESULT hr = reader.GetNativeSize(*source, &size);
 				if (SUCCEEDED(hr)) {
 					RECT sourceRect = GetOffsetSourceRect(RECT{ 0,0,size.cx,size.cy }, source);
-					LONG width = RectWidth(sourceRect);
 					std::pair<RECORDING_SOURCE *, RECT> tuple(source, sourceRect);
 					validOutputs.push_back(tuple);
 				}
@@ -216,7 +214,6 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 				HRESULT hr = reader->GetNativeSize(*source, &size);
 				if (SUCCEEDED(hr)) {
 					RECT sourceRect = GetOffsetSourceRect(RECT{ 0,0,size.cx,size.cy }, source);
-					LONG width = RectWidth(sourceRect);
 					std::pair<RECORDING_SOURCE *, RECT> tuple(source, sourceRect);
 					validOutputs.push_back(tuple);
 				}
