@@ -197,7 +197,9 @@ HRESULT WindowsGraphicsCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordi
 		m_framePool.FrameArrived({ this, &WindowsGraphicsCapture::OnFrameArrived });
 
 		WINRT_ASSERT(m_session != nullptr);
-		m_session.IsCursorCaptureEnabled(m_IsCursorCaptureEnabled);
+		if (IsGraphicsCaptureCursorCapturePropertyAvailable()) {
+			m_session.IsCursorCaptureEnabled(m_IsCursorCaptureEnabled);
+		}
 		m_session.StartCapture();
 		m_closed.store(false);
 	}

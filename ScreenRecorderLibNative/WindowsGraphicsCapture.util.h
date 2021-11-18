@@ -61,9 +61,14 @@ namespace Graphics::Capture::Util
 		winrt::check_hresult(interop_factory->CreateForMonitor(hmon, winrt::guid_of<ABI::Windows::Graphics::Capture::IGraphicsCaptureItem>(), winrt::put_abi(item)));
 		return item;
 	}
-
 	inline bool IsGraphicsCaptureAvailable() {
-		return winrt::Windows::Foundation::Metadata::ApiInformation::IsTypePresent(L"Windows.Graphics.Capture.GraphicsCaptureSession") &&
-			winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported();
+		return winrt::Windows::Foundation::Metadata::ApiInformation::IsApiContractPresent(L"Windows.Foundation.UniversalApiContract", 8)
+			&& winrt::Windows::Foundation::Metadata::ApiInformation::IsTypePresent(L"Windows.Graphics.Capture.GraphicsCaptureSession")
+			&& winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported();
+	}
+
+	inline bool IsGraphicsCaptureCursorCapturePropertyAvailable() {
+		return IsGraphicsCaptureAvailable()
+			&& winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"IsCursorCaptureEnabled");
 	}
 }

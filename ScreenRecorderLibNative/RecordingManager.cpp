@@ -276,7 +276,7 @@ void RecordingManager::EndRecording() {
 	if (m_IsRecording) {
 		m_IsPaused = false;
 		m_TaskWrapperImpl->m_RecordTaskCts.cancel();
-		LOG_DEBUG(L"Stopped recording");
+		LOG_DEBUG(L"Stopped recording task");
 	}
 }
 void RecordingManager::PauseRecording() {
@@ -812,7 +812,7 @@ bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
 			}
 			else if (source->SourceApi.has_value() && source->SourceApi == RecordingSourceApi::WindowsGraphicsCapture && !Graphics::Capture::Util::IsGraphicsCaptureAvailable())
 			{
-				errorText = L"Windows Graphics Capture requires Windows 10 version 1803 or greater.";
+				errorText = L"Windows Graphics Capture requires Windows 10 version 1903 or greater.";
 				result = false;
 				break;
 			}
