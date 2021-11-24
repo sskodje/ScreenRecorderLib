@@ -651,6 +651,22 @@ namespace ScreenRecorderLib
                },
                new ScreenSize(1030,1050)
             };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif",//400x400px
+                               Position = new ScreenPoint(-400,-400)
+                            }
+               },
+               new ScreenSize(900,900)
+            };
         }
 
         [TestMethod]
