@@ -12,49 +12,49 @@ namespace ScreenRecorderLib {
 	public ref class ManagedStreamWrapper
 	{
 	public:
-		ManagedStreamWrapper(System::IO::Stream ^stream);
+		ManagedStreamWrapper(System::IO::Stream^ stream);
 
 
-		SeekFnc *GetSeekFunctionPointer()
+		SeekFnc* GetSeekFunctionPointer()
 		{
 			return   (SeekFnc*)(System::Runtime::InteropServices::Marshal::GetFunctionPointerForDelegate(m_SeekDelegate).ToPointer());
 		}
 
-		WriteFnc *GetWriteFunctionPointer()
+		WriteFnc* GetWriteFunctionPointer()
 		{
 			return   (WriteFnc*)(System::Runtime::InteropServices::Marshal::GetFunctionPointerForDelegate(m_WriteDelegate).ToPointer());
 		}
 
-		ReadFnc *GetReadFunctionPointer()
+		ReadFnc* GetReadFunctionPointer()
 		{
 			return   (ReadFnc*)(System::Runtime::InteropServices::Marshal::GetFunctionPointerForDelegate(m_ReadDelegate).ToPointer());
 		}
 
-		SetLengthFnc *GetSetLengthFunctionPointer()
+		SetLengthFnc* GetSetLengthFunctionPointer()
 		{
 			return   (SetLengthFnc*)(System::Runtime::InteropServices::Marshal::GetFunctionPointerForDelegate(m_SetLengthDelegate).ToPointer());
 		}
 
-		GetLengthFnc *GetLengthFunctionPointer()
+		GetLengthFnc* GetLengthFunctionPointer()
 		{
 			return   (GetLengthFnc*)(System::Runtime::InteropServices::Marshal::GetFunctionPointerForDelegate(m_GetLengthDelegate).ToPointer());
 		}
-		CanReadFnc *GetCanReadFunctionPointer()
+		CanReadFnc* GetCanReadFunctionPointer()
 		{
 			return   (CanReadFnc*)(System::Runtime::InteropServices::Marshal::GetFunctionPointerForDelegate(m_CanReadDelegate).ToPointer());
 		}
-		CanWriteFnc *GetCanWriteFunctionPointer()
+		CanWriteFnc* GetCanWriteFunctionPointer()
 		{
 			return   (CanWriteFnc*)(System::Runtime::InteropServices::Marshal::GetFunctionPointerForDelegate(m_CanWriteDelegate).ToPointer());
 		}
-		CanSeekFnc *GetCanSeekFunctionPointer()
+		CanSeekFnc* GetCanSeekFunctionPointer()
 		{
 			return   (CanSeekFnc*)(System::Runtime::InteropServices::Marshal::GetFunctionPointerForDelegate(m_CanSeekDelegate).ToPointer());
 		}
 
 
 	private:
-		System::IO::Stream ^m_Stream;
+		System::IO::Stream^ m_Stream;
 		delegate long long LongDelegate();
 		delegate long long SeekDelegate(long long offset, System::IO::SeekOrigin origin);
 		delegate int ReadDelegate(System::IntPtr dest, int offset, int count);
@@ -64,14 +64,14 @@ namespace ScreenRecorderLib {
 		delegate bool BoolDelegate();
 		delegate array<byte, 1>^ BufferDelegate();
 
-		LongDelegate ^m_GetLengthDelegate;
-		BoolDelegate ^m_CanWriteDelegate;
-		BoolDelegate ^m_CanReadDelegate;
-		BoolDelegate ^m_CanSeekDelegate;
-		SeekDelegate ^m_SeekDelegate;
-		ReadDelegate ^m_ReadDelegate;
-		WriteDelegate ^m_WriteDelegate;
-		SetLengthDelegate ^m_SetLengthDelegate;
+		LongDelegate^ m_GetLengthDelegate;
+		BoolDelegate^ m_CanWriteDelegate;
+		BoolDelegate^ m_CanReadDelegate;
+		BoolDelegate^ m_CanSeekDelegate;
+		SeekDelegate^ m_SeekDelegate;
+		ReadDelegate^ m_ReadDelegate;
+		WriteDelegate^ m_WriteDelegate;
+		SetLengthDelegate^ m_SetLengthDelegate;
 
 		long long GetLength() {
 			return m_Stream->Length;
@@ -105,7 +105,7 @@ namespace ScreenRecorderLib {
 	};
 
 
-	ManagedStreamWrapper::ManagedStreamWrapper(System::IO::Stream ^stream)
+	ManagedStreamWrapper::ManagedStreamWrapper(System::IO::Stream^ stream)
 	{
 		m_Stream = stream;
 		m_GetLengthDelegate = gcnew LongDelegate(this, &ManagedStreamWrapper::GetLength);

@@ -1,11 +1,11 @@
-// cleanup.h
+// Cleanup.h
 #pragma once
 #include <audioclient.h>
 #include "WWMFResampler.h"
-#include <atlbase.h>
-#include <dxgi1_2.h>
-#include <wincodec.h>
-#include "log.h"
+#include "Log.h"
+#include "ScreenCaptureManager.h"
+#include "SourceReaderBase.h"
+//#include <mutex>
 template <class T> void SafeRelease(T **ppT)
 {
 	if (*ppT)
@@ -14,18 +14,31 @@ template <class T> void SafeRelease(T **ppT)
 		*ppT = nullptr;
 	}
 }
+class LeaveCriticalSectionOnExit {
+public:
+	LeaveCriticalSectionOnExit(CRITICAL_SECTION *p, std::wstring tag = L"") : m_p(p), m_tag(tag) {}
+	~LeaveCriticalSectionOnExit() {
+		LeaveCriticalSection(m_p);
+		if (!m_tag.empty()) {
+			//LOG_TRACE("Exited critical section %ls", m_tag.c_str());
+		}
+	}
 
+private:
+	CRITICAL_SECTION *m_p;
+	std::wstring m_tag;
+};
 
 class DeleteFileOnExit
 {
 public:
-	DeleteFileOnExit(ATL::CComPtr<IWICStream>& hFile, LPCWSTR szFile) noexcept : m_filename(szFile), m_handle(hFile) {}
+	DeleteFileOnExit(ATL::CComPtr<IWICStream> &hFile, LPCWSTR szFile) noexcept : m_filename(szFile), m_handle(hFile) {}
 
-	DeleteFileOnExit(const DeleteFileOnExit&) = delete;
-	DeleteFileOnExit& operator=(const DeleteFileOnExit&) = delete;
+	DeleteFileOnExit(const DeleteFileOnExit &) = delete;
+	DeleteFileOnExit &operator=(const DeleteFileOnExit &) = delete;
 
-	DeleteFileOnExit(const DeleteFileOnExit&&) = delete;
-	DeleteFileOnExit& operator=(const DeleteFileOnExit&&) = delete;
+	DeleteFileOnExit(const DeleteFileOnExit &&) = delete;
+	DeleteFileOnExit &operator=(const DeleteFileOnExit &&) = delete;
 
 	~DeleteFileOnExit()
 	{
@@ -40,7 +53,21 @@ public:
 
 private:
 	LPCWSTR m_filename;
-	ATL::CComPtr<IWICStream>& m_handle;
+	ATL::CComPtr<IWICStream> &m_handle;
+};
+
+class CaptureStopOnExit {
+public:
+	CaptureStopOnExit(ScreenCaptureManager *p) : m_p(p) {}
+	~CaptureStopOnExit() {
+		m_p->StopCapture();
+	}
+	void Reset(ScreenCaptureManager *p) {
+		m_p = p;
+	}
+
+private:
+	ScreenCaptureManager *m_p;
 };
 
 
@@ -50,7 +77,7 @@ public:
 	~AudioClientStopOnExit() {
 		HRESULT hr = m_p->Stop();
 		if (FAILED(hr)) {
-			ERROR(L"IAudioClient::Stop failed: hr = 0x%08x", hr);
+			LOG_ERROR(L"IAudioClient::Stop failed: hr = 0x%08x", hr);
 		}
 	}
 
@@ -63,7 +90,7 @@ public:
 	AvRevertMmThreadCharacteristicsOnExit(HANDLE hTask) : m_hTask(hTask) {}
 	~AvRevertMmThreadCharacteristicsOnExit() {
 		if (!AvRevertMmThreadCharacteristics(m_hTask)) {
-			ERROR(L"AvRevertMmThreadCharacteristics failed: last error is %d", GetLastError());
+			LOG_ERROR(L"AvRevertMmThreadCharacteristics failed: last error is %d", GetLastError());
 		}
 	}
 private:
@@ -75,7 +102,7 @@ public:
 	CancelWaitableTimerOnExit(HANDLE h) : m_h(h) {}
 	~CancelWaitableTimerOnExit() {
 		if (!CancelWaitableTimer(m_h)) {
-			ERROR(L"CancelWaitableTimer failed: last error is %d", GetLastError());
+			LOG_ERROR(L"CancelWaitableTimer failed: last error is %d", GetLastError());
 		}
 	}
 private:
@@ -87,7 +114,7 @@ public:
 	CloseHandleOnExit(HANDLE h) : m_h(h) {}
 	~CloseHandleOnExit() {
 		if (!CloseHandle(m_h)) {
-			ERROR(L"CloseHandle failed: last error is %d", GetLastError());
+			LOG_ERROR(L"CloseHandle failed: last error is %d", GetLastError());
 		}
 	}
 
@@ -119,7 +146,7 @@ public:
 	~PropVariantClearOnExit() {
 		HRESULT hr = PropVariantClear(m_p);
 		if (FAILED(hr)) {
-			ERROR(L"PropVariantClear failed: hr = 0x%08x", hr);
+			LOG_ERROR(L"PropVariantClear failed: hr = 0x%08x", hr);
 		}
 	}
 
@@ -149,6 +176,17 @@ private:
 	void *m_p;
 };
 
+class DeleteArrayOnExit {
+public:
+	DeleteArrayOnExit(void *p) : m_p(p) {}
+	~DeleteArrayOnExit() {
+		delete[] m_p;
+	}
+
+private:
+	void *m_p;
+};
+
 class DeleteGdiObjectOnExit {
 public:
 	DeleteGdiObjectOnExit(HGDIOBJ p) : m_p(p) {}
@@ -165,7 +203,7 @@ public:
 	SetEventOnExit(HANDLE h) : m_h(h) {}
 	~SetEventOnExit() {
 		if (!SetEvent(m_h)) {
-			ERROR(L"SetEvent failed: last error is %d", GetLastError());
+			LOG_ERROR(L"SetEvent failed: last error is %d", GetLastError());
 		}
 	}
 private:
@@ -179,7 +217,7 @@ public:
 	~WaitForSingleObjectOnExit() {
 		DWORD dwWaitResult = WaitForSingleObject(m_h, m_millis);
 		if (WAIT_OBJECT_0 != dwWaitResult) {
-			ERROR(L"WaitForSingleObject returned unexpected result 0x%08x, last error is %d", dwWaitResult, GetLastError());
+			LOG_ERROR(L"WaitForSingleObject returned unexpected result 0x%08x, last error is %d", dwWaitResult, GetLastError());
 		}
 	}
 
@@ -214,9 +252,76 @@ class ReleaseDCOnExit {
 public:
 	ReleaseDCOnExit(HDC p) : m_p(p) {}
 	~ReleaseDCOnExit() {
-		ReleaseDC(NULL,m_p);
+		ReleaseDC(NULL, m_p);
 	}
 
 private:
 	HDC m_p;
+};
+
+class ReleaseKeyedMutexOnExit {
+public:
+	ReleaseKeyedMutexOnExit(IDXGIKeyedMutex *p, UINT64 key) : m_p(p), m_key(key) {}
+	~ReleaseKeyedMutexOnExit() {
+
+		if (m_p) {
+			m_p->ReleaseSync(m_key);
+			//LOG_TRACE(L"Released keyed mutex with key %d", m_key);
+		}
+	}
+
+private:
+	IDXGIKeyedMutex *m_p;
+	UINT64 m_key;
+};
+
+class ReleaseMutexHandleOnExit {
+public:
+	ReleaseMutexHandleOnExit(HANDLE p) : m_p(p) {}
+	~ReleaseMutexHandleOnExit() {
+
+		if (m_p) {
+			if (!ReleaseMutex(m_p)) {
+				LOG_ERROR(L"Failed to release mutex");
+			}
+		}
+	}
+
+private:
+	HANDLE m_p;
+};
+
+class CloseMediaReaderOnExit {
+public:
+	CloseMediaReaderOnExit(SourceReaderBase *capture) : m_p(capture) {}
+	~CloseMediaReaderOnExit() {
+
+		if (m_p) {
+			m_p->Close();
+		}
+	}
+
+private:
+	SourceReaderBase *m_p;
+};
+
+class ReleaseCOMArrayOnExit {
+public:
+	ReleaseCOMArrayOnExit(IUnknown **array, UINT32 &count) : m_p(array), m_count(count) {}
+	~ReleaseCOMArrayOnExit() {
+
+		if (m_p) {
+			for (DWORD i = 0; i < m_count; i++)
+			{
+				SafeRelease(&m_p[i]);
+			}
+			CoTaskMemFree(m_p);
+		}
+	}
+	void SetCount(int &count) {
+		m_count = count;
+	}
+private:
+	IUnknown **m_p;
+	UINT32 &m_count;
 };

@@ -44,13 +44,13 @@ namespace nlohmann
 	{
 	public:
 		/// constructor given a pointer to a key storage
-		fifo_map_compare(std::unordered_map<Key, std::size_t>* k) : keys(k) {}
+		fifo_map_compare(std::unordered_map<Key, std::size_t> *k) : keys(k) {}
 
 		/*!
 		This function compares two keys with respect to the order in which they
 		were added to the container. For this, the mapping keys is used.
 		*/
-		bool operator()(const Key& lhs, const Key& rhs) const
+		bool operator()(const Key &lhs, const Key &rhs) const
 		{
 			// look up timestamps for both keys
 			const auto timestamp_lhs = keys->find(lhs);
@@ -72,19 +72,19 @@ namespace nlohmann
 			return timestamp_lhs->second < timestamp_rhs->second;
 		}
 
-		void add_key(const Key& key)
+		void add_key(const Key &key)
 		{
 			keys->insert({ key, timestamp++ });
 		}
 
-		void remove_key(const Key& key)
+		void remove_key(const Key &key)
 		{
 			keys->erase(key);
 		}
 
 	private:
 		/// pointer to a mapping from keys to insertion timestamps
-		std::unordered_map<Key, std::size_t>* keys = nullptr;
+		std::unordered_map<Key, std::size_t> *keys = nullptr;
 		/// the next valid insertion timestamp
 		size_t timestamp = 1;
 	};
@@ -105,8 +105,8 @@ namespace nlohmann
 		using difference_type = std::ptrdiff_t;
 		using key_compare = Compare;
 		using allocator_type = Allocator;
-		using reference = value_type&;
-		using const_reference = const value_type&;
+		using reference = value_type &;
+		using const_reference = const value_type &;
 		using pointer = typename std::allocator_traits<Allocator>::pointer;
 		using const_pointer = typename std::allocator_traits<Allocator>::const_pointer;
 
@@ -150,26 +150,26 @@ namespace nlohmann
 		*/
 
 		/// access specified element with bounds checking
-		T& at(const Key& key)
+		T &at(const Key &key)
 		{
 			return m_map.at(key);
 		}
 
 		/// access specified element with bounds checking
-		const T& at(const Key& key) const
+		const T &at(const Key &key) const
 		{
 			return m_map.at(key);
 		}
 
 		/// access specified element
-		T& operator[](const Key& key)
+		T &operator[](const Key &key)
 		{
 			m_compare.add_key(key);
 			return m_map[key];
 		}
 
 		/// access specified element
-		T& operator[](Key&& key)
+		T &operator[](Key &&key)
 		{
 			m_compare.add_key(key);
 			return m_map[key];
@@ -288,7 +288,7 @@ namespace nlohmann
 		}
 
 		/// insert value
-		std::pair<iterator, bool> insert(const value_type& value)
+		std::pair<iterator, bool> insert(const value_type &value)
 		{
 			m_compare.add_key(value.first);
 			return m_map.insert(value);
@@ -296,21 +296,21 @@ namespace nlohmann
 
 		/// insert value
 		template<class P>
-		std::pair<iterator, bool> insert(P&& value)
+		std::pair<iterator, bool> insert(P &&value)
 		{
 			m_compare.add_key(value.first);
 			return m_map.insert(value);
 		}
 
 		/// insert value with hint
-		iterator insert(const_iterator hint, const value_type& value)
+		iterator insert(const_iterator hint, const value_type &value)
 		{
 			m_compare.add_key(value.first);
 			return m_map.insert(hint, value);
 		}
 
 		/// insert value with hint
-		iterator insert(const_iterator hint, value_type&& value)
+		iterator insert(const_iterator hint, value_type &&value)
 		{
 			m_compare.add_key(value.first);
 			return m_map.insert(hint, value);
@@ -376,7 +376,7 @@ namespace nlohmann
 		}
 
 		/// remove elements with key
-		size_type erase(const key_type& key)
+		size_type erase(const key_type &key)
 		{
 			size_type res = m_map.erase(key);
 
@@ -389,7 +389,7 @@ namespace nlohmann
 		}
 
 		/// swaps the contents
-		void swap(fifo_map& other)
+		void swap(fifo_map &other)
 		{
 			std::swap(m_map, other.m_map);
 			std::swap(m_compare, other.m_compare);
@@ -402,55 +402,55 @@ namespace nlohmann
 		*/
 
 		/// returns the number of elements matching specific key
-		size_type count(const Key& key) const
+		size_type count(const Key &key) const
 		{
 			return m_map.count(key);
 		}
 
 		/// finds element with specific key
-		iterator find(const Key& key)
+		iterator find(const Key &key)
 		{
 			return m_map.find(key);
 		}
 
 		/// finds element with specific key
-		const_iterator find(const Key& key) const
+		const_iterator find(const Key &key) const
 		{
 			return m_map.find(key);
 		}
 
 		/// returns range of elements matching a specific key
-		std::pair<iterator, iterator> equal_range(const Key& key)
+		std::pair<iterator, iterator> equal_range(const Key &key)
 		{
 			return m_map.equal_range(key);
 		}
 
 		/// returns range of elements matching a specific key
-		std::pair<const_iterator, const_iterator> equal_range(const Key& key) const
+		std::pair<const_iterator, const_iterator> equal_range(const Key &key) const
 		{
 			return m_map.equal_range(key);
 		}
 
 		/// returns an iterator to the first element not less than the given key
-		iterator lower_bound(const Key& key)
+		iterator lower_bound(const Key &key)
 		{
 			return m_map.lower_bound(key);
 		}
 
 		/// returns an iterator to the first element not less than the given key
-		const_iterator lower_bound(const Key& key) const
+		const_iterator lower_bound(const Key &key) const
 		{
 			return m_map.lower_bound(key);
 		}
 
 		/// returns an iterator to the first element greater than the given key
-		iterator upper_bound(const Key& key)
+		iterator upper_bound(const Key &key)
 		{
 			return m_map.upper_bound(key);
 		}
 
 		/// returns an iterator to the first element greater than the given key
-		const_iterator upper_bound(const Key& key) const
+		const_iterator upper_bound(const Key &key) const
 		{
 			return m_map.upper_bound(key);
 		}
@@ -471,32 +471,32 @@ namespace nlohmann
 		* Non-member functions
 		*/
 
-		friend bool operator==(const fifo_map& lhs, const fifo_map& rhs)
+		friend bool operator==(const fifo_map &lhs, const fifo_map &rhs)
 		{
 			return lhs.m_map == rhs.m_map;
 		}
 
-		friend bool operator!=(const fifo_map& lhs, const fifo_map& rhs)
+		friend bool operator!=(const fifo_map &lhs, const fifo_map &rhs)
 		{
 			return lhs.m_map != rhs.m_map;
 		}
 
-		friend bool operator<(const fifo_map& lhs, const fifo_map& rhs)
+		friend bool operator<(const fifo_map &lhs, const fifo_map &rhs)
 		{
 			return lhs.m_map < rhs.m_map;
 		}
 
-		friend bool operator<=(const fifo_map& lhs, const fifo_map& rhs)
+		friend bool operator<=(const fifo_map &lhs, const fifo_map &rhs)
 		{
 			return lhs.m_map <= rhs.m_map;
 		}
 
-		friend bool operator>(const fifo_map& lhs, const fifo_map& rhs)
+		friend bool operator>(const fifo_map &lhs, const fifo_map &rhs)
 		{
 			return lhs.m_map > rhs.m_map;
 		}
 
-		friend bool operator>=(const fifo_map& lhs, const fifo_map& rhs)
+		friend bool operator>=(const fifo_map &lhs, const fifo_map &rhs)
 		{
 			return lhs.m_map >= rhs.m_map;
 		}
@@ -516,8 +516,8 @@ namespace nlohmann
 namespace std
 {
 	template <class Key, class T, class Compare, class Allocator>
-	inline void swap(nlohmann::fifo_map<Key, T, Compare, Allocator>& m1,
-		nlohmann::fifo_map<Key, T, Compare, Allocator>& m2)
+	inline void swap(nlohmann::fifo_map<Key, T, Compare, Allocator> &m1,
+		nlohmann::fifo_map<Key, T, Compare, Allocator> &m2)
 	{
 		m1.swap(m2);
 	}

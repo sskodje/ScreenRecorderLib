@@ -1,3 +1,4 @@
+#pragma warning (disable : 26451)
 #pragma once
 
 //#define WINVER _WIN32_WINNT_WIN7
@@ -9,7 +10,7 @@
 
 /// sample data type. int or float
 /// it is compatible to WWBitFormatType on WasapiUser.h
-enum WWMFBitFormatType {
+enum class WWMFBitFormatType {
 	WWMFBitFormatUnknown = -1,
 	WWMFBitFormatInt,
 	WWMFBitFormatFloat,
@@ -25,7 +26,7 @@ struct WWMFPcmFormat {
 	WORD  validBitsPerSample;
 
 	WWMFPcmFormat(void) {
-		sampleFormat = WWMFBitFormatUnknown;
+		sampleFormat = WWMFBitFormatType::WWMFBitFormatUnknown;
 		nChannels = 0;
 		bits = 0;
 		sampleRate = 0;
@@ -55,7 +56,7 @@ struct WWMFPcmFormat {
 /// WWMFSampleData contains new[] ed byte buffer pointer(data) and buffer size(bytes).
 struct WWMFSampleData {
 	DWORD  bytes;
-	BYTE  *data;
+	BYTE *data;
 
 	WWMFSampleData(void) : bytes(0), data(NULL) { }
 
@@ -115,7 +116,14 @@ struct WWMFSampleData {
 
 class WWMFResampler {
 public:
-	WWMFResampler(void) : m_pTransform(NULL), m_isMFStartuped(false) { }
+	WWMFResampler(void) :
+		m_pTransform(NULL),
+		m_isMFStartuped(false),
+		m_inputFrameTotal(0),
+		m_outputFrameTotal(0)
+	{
+
+	}
 	~WWMFResampler(void);
 
 	/// @param halfFilterLength conversion quality. 1(min) to 60 (max)

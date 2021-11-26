@@ -21,15 +21,15 @@ namespace TestConsoleApp
             //just leave the AudioInputDevice or AudioOutputDevice properties unset or pass null or empty string.
             var audioInputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices);
             var audioOutputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices);
-            string selectedAudioInputDevice = audioInputDevices.Count > 0 ? audioInputDevices.First().Key : null;
-            string selectedAudioOutputDevice = audioOutputDevices.Count > 0 ? audioOutputDevices.First().Key : null;
-            
+            string selectedAudioInputDevice = audioInputDevices.Count > 0 ? audioInputDevices.First().DeviceName : null;
+            string selectedAudioOutputDevice = audioOutputDevices.Count > 0 ? audioOutputDevices.First().DeviceName : null;
+
             var opts = new RecorderOptions
             {
                 AudioOptions = new AudioOptions
                 {
                     AudioInputDevice = selectedAudioInputDevice,
-                    AudioOutputDevice= selectedAudioOutputDevice,
+                    AudioOutputDevice = selectedAudioOutputDevice,
                     IsAudioEnabled = true,
                     IsInputDeviceEnabled = true,
                     IsOutputDeviceEnabled = true,
@@ -66,7 +66,7 @@ namespace TestConsoleApp
                     {
                         Dispatcher.CurrentDispatcher.Invoke(() =>
                         {
-                            Console.Write(String.Format("\rElapsed: {0}s:{1}ms", _stopWatch.Elapsed.Seconds, _stopWatch.Elapsed.Milliseconds));
+                            Console.Write(String.Format("\rElapsed: {0}",_stopWatch.Elapsed.ToString(@"mm\:ss\:fff")));
                         });
                     }
                     await Task.Delay(10);

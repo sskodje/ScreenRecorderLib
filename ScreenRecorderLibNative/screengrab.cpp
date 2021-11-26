@@ -1,10 +1,9 @@
 #pragma once
-#include "screengrab.h"
+#include "Screengrab.h"
 #include <Windows.h>
-#include <wincodec.h>
-#include "log.h"
+#include "Log.h"
 #include <atlbase.h>
-#include "cleanup.h"
+#include "Cleanup.h"
 namespace {
 	bool g_WIC2 = false;
 
@@ -13,49 +12,49 @@ namespace {
 		return g_WIC2;
 	}
 
-	IWICImagingFactory* _GetWIC()
+	IWICImagingFactory *_GetWIC()
 	{
 		static INIT_ONCE s_initOnce = INIT_ONCE_STATIC_INIT;
 
-		IWICImagingFactory* factory = nullptr;
+		IWICImagingFactory *factory = nullptr;
 		InitOnceExecuteOnce(&s_initOnce,
 			[](PINIT_ONCE, PVOID, PVOID *factory) -> BOOL
-		{
+			{
 #if (_WIN32_WINNT >= _WIN32_WINNT_WIN8) || defined(_WIN7_PLATFORM_UPDATE)
-			HRESULT hr = CoCreateInstance(
-				CLSID_WICImagingFactory2,
-				nullptr,
-				CLSCTX_INPROC_SERVER,
-				__uuidof(IWICImagingFactory2),
-				factory
-			);
+				HRESULT hr = CoCreateInstance(
+					CLSID_WICImagingFactory2,
+					nullptr,
+					CLSCTX_INPROC_SERVER,
+					__uuidof(IWICImagingFactory2),
+					factory
+				);
 
-			if (SUCCEEDED(hr))
-			{
-				// WIC2 is available on Windows 10, Windows 8.x, and Windows 7 SP1 with KB 2670838 installed
-				g_WIC2 = true;
-				return TRUE;
-			}
-			else
-			{
-				hr = CoCreateInstance(
-					CLSID_WICImagingFactory1,
+				if (SUCCEEDED(hr))
+				{
+					// WIC2 is available on Windows 10, Windows 8.x, and Windows 7 SP1 with KB 2670838 installed
+					g_WIC2 = true;
+					return TRUE;
+				}
+				else
+				{
+					hr = CoCreateInstance(
+						CLSID_WICImagingFactory1,
+						nullptr,
+						CLSCTX_INPROC_SERVER,
+						__uuidof(IWICImagingFactory),
+						factory
+					);
+					return SUCCEEDED(hr) ? TRUE : FALSE;
+				}
+#else
+				return SUCCEEDED(CoCreateInstance(
+					CLSID_WICImagingFactory,
 					nullptr,
 					CLSCTX_INPROC_SERVER,
 					__uuidof(IWICImagingFactory),
-					factory
-				);
-				return SUCCEEDED(hr) ? TRUE : FALSE;
-			}
-#else
-			return SUCCEEDED(CoCreateInstance(
-				CLSID_WICImagingFactory,
-				nullptr,
-				CLSCTX_INPROC_SERVER,
-				__uuidof(IWICImagingFactory),
-				factory)) ? TRUE : FALSE;
+					factory)) ? TRUE : FALSE;
 #endif
-		}, nullptr, reinterpret_cast<LPVOID*>(&factory));
+			}, nullptr, reinterpret_cast<LPVOID *>(&factory));
 
 		return factory;
 	}
@@ -90,10 +89,10 @@ namespace {
 	}
 
 	//--------------------------------------------------------------------------------------
-	HRESULT CaptureTexture(_In_ ID3D11DeviceContext* pContext,
-		_In_ ID3D11Resource* pSource,
-		D3D11_TEXTURE2D_DESC& desc,
-		CComPtr<ID3D11Texture2D>& pStaging)
+	HRESULT CaptureTexture(_In_ ID3D11DeviceContext *pContext,
+		_In_ ID3D11Resource *pSource,
+		D3D11_TEXTURE2D_DESC &desc,
+		CComPtr<ID3D11Texture2D> &pStaging)
 	{
 		if (!pContext || !pSource)
 			return E_INVALIDARG;
@@ -186,14 +185,16 @@ namespace {
 	}
 } // anonymous namespace
 
-HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
-	ID3D11Resource* pSource,
-	REFGUID guidContainerFormat,
-	const wchar_t* fileName,
-	const GUID* targetFormat,
-	std::function<void(IPropertyBag2*)> setCustomProps)
+HRESULT __cdecl SaveWICTextureToFile(
+	_In_ ID3D11DeviceContext *pContext,
+	_In_ ID3D11Resource *pSource,
+	_In_ REFGUID guidContainerFormat,
+	_In_z_ const wchar_t *filePath,
+	_In_opt_ const std::optional<SIZE> destSize,
+	_In_opt_ const GUID *targetFormat,
+	_In_opt_ std::function<void(IPropertyBag2 *)> setCustomProps)
 {
-	if (!fileName)
+	if (!filePath)
 		return E_INVALIDARG;
 
 	D3D11_TEXTURE2D_DESC desc = {};
@@ -251,20 +252,19 @@ HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
 		return HRESULT_FROM_WIN32(ERROR_NOT_SUPPORTED);
 	}
 
-	auto pWIC = _GetWIC();
+	CComPtr<IWICImagingFactory> pWIC = _GetWIC();
 	if (!pWIC)
 		return E_NOINTERFACE;
-
 	CComPtr<IWICStream> stream;
 	hr = pWIC->CreateStream(&stream);
 	if (FAILED(hr))
 		return hr;
 
-	hr = stream->InitializeFromFilename(fileName, GENERIC_WRITE);
+	hr = stream->InitializeFromFilename(filePath, GENERIC_WRITE);
 	if (FAILED(hr))
 		return hr;
 
-	DeleteFileOnExit delonfail(stream, fileName);
+	DeleteFileOnExit delonfail(stream, filePath);
 
 	CComPtr<IWICBitmapEncoder> encoder;
 	hr = pWIC->CreateEncoder(guidContainerFormat, 0, &encoder);
@@ -285,7 +285,7 @@ HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
 	{
 		// Opt-in to the WIC2 support for writing 32-bit Windows BMP files with an alpha channel
 		PROPBAG2 option = {};
-		option.pstrName = const_cast<wchar_t*>(L"EnableV5Header32bppBGRA");
+		option.pstrName = const_cast<wchar_t *>(L"EnableV5Header32bppBGRA");
 
 		VARIANT varValue;
 		varValue.vt = VT_BOOL;
@@ -302,7 +302,14 @@ HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
 	if (FAILED(hr))
 		return hr;
 
-	hr = frame->SetSize(desc.Width, desc.Height);
+	int outputWidth = desc.Width;
+	int outputHeight = desc.Height;
+	if (destSize.has_value()) {
+		outputWidth = destSize.value().cx;
+		outputHeight = destSize.value().cy;
+	}
+
+	hr = frame->SetSize(outputWidth, outputHeight);
 	if (FAILED(hr))
 		return hr;
 
@@ -371,7 +378,7 @@ HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
 		PropVariantInit(&value);
 
 		value.vt = VT_LPSTR;
-		value.pszVal = const_cast<char*>("DirectXTK");
+		value.pszVal = const_cast<char *>("DirectXTK");
 
 		if (memcmp(&guidContainerFormat, &GUID_ContainerFormatPng, sizeof(GUID)) == 0)
 		{
@@ -406,19 +413,31 @@ HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
 	if (FAILED(hr))
 		return hr;
 
+
+	CComPtr<IWICBitmap> source;
+	hr = pWIC->CreateBitmapFromMemory(desc.Width, desc.Height, pfGuid,
+		mapped.RowPitch, mapped.RowPitch * desc.Height,
+		reinterpret_cast<BYTE *>(mapped.pData), &source);
+	if (FAILED(hr))
+	{
+		pContext->Unmap(pStaging, 0);
+		return hr;
+	}
+	CComPtr<IWICBitmapScaler> bitmapScaler;
+	hr = pWIC->CreateBitmapScaler(&bitmapScaler);
+	if (FAILED(hr))
+		return hr;
+	CComPtr<IWICBitmapSource> imageSource;
+	if (outputWidth != desc.Width || outputHeight != desc.Height) {
+		bitmapScaler->Initialize(source, outputWidth, outputHeight, WICBitmapInterpolationMode::WICBitmapInterpolationModeNearestNeighbor);
+		imageSource = bitmapScaler;
+	}
+	else {
+		imageSource = source;
+	}
 	if (memcmp(&targetGuid, &pfGuid, sizeof(WICPixelFormatGUID)) != 0)
 	{
 		// Conversion required to write
-		CComPtr<IWICBitmap> source;
-		hr = pWIC->CreateBitmapFromMemory(desc.Width, desc.Height, pfGuid,
-			mapped.RowPitch, mapped.RowPitch * desc.Height,
-			reinterpret_cast<BYTE*>(mapped.pData), &source);
-		if (FAILED(hr))
-		{
-			pContext->Unmap(pStaging, 0);
-			return hr;
-		}
-
 		CComPtr<IWICFormatConverter> FC;
 		hr = pWIC->CreateFormatConverter(&FC);
 		if (FAILED(hr))
@@ -434,30 +453,20 @@ HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
 			return E_UNEXPECTED;
 		}
 
-		hr = FC->Initialize(source, targetGuid, WICBitmapDitherTypeNone, 0, 0, WICBitmapPaletteTypeMedianCut);
+		hr = FC->Initialize(imageSource, targetGuid, WICBitmapDitherTypeNone, 0, 0, WICBitmapPaletteTypeMedianCut);
 		if (FAILED(hr))
 		{
 			pContext->Unmap(pStaging, 0);
 			return hr;
 		}
-
-		WICRect rect = { 0, 0, static_cast<INT>(desc.Width), static_cast<INT>(desc.Height) };
-		hr = frame->WriteSource(FC, &rect);
-		if (FAILED(hr))
-		{
-			pContext->Unmap(pStaging, 0);
-			return hr;
-		}
-	}
-	else
-	{
-		// No conversion required
-		hr = frame->WritePixels(desc.Height, mapped.RowPitch, mapped.RowPitch * desc.Height, reinterpret_cast<BYTE*>(mapped.pData));
-		if (FAILED(hr))
-			return hr;
+		imageSource.Release();
+		imageSource = FC;
 	}
 
+	hr = frame->WriteSource(imageSource, NULL);
 	pContext->Unmap(pStaging, 0);
+	if (FAILED(hr))
+		return hr;
 
 	hr = frame->Commit();
 	if (FAILED(hr))
@@ -472,3 +481,46 @@ HRESULT SaveWICTextureToFile(ID3D11DeviceContext* pContext,
 	return S_OK;
 }
 
+HRESULT CreateWICBitmapFromFile(_In_z_ const wchar_t *filePath, _In_ const GUID targetFormat, _Outptr_ IWICBitmapSource **ppIWICBitmapSource)
+{
+	HRESULT hr = S_OK;
+	if (ppIWICBitmapSource) {
+		*ppIWICBitmapSource = nullptr;
+	}
+
+	if (!filePath)
+		return E_INVALIDARG;
+
+	// Step 1: Decode the source image
+	auto pWIC = _GetWIC();
+	if (!pWIC)
+		return E_NOINTERFACE;
+	// Create a decoder
+	CComPtr<IWICBitmapDecoder> pDecoder = NULL;
+	RETURN_ON_BAD_HR(hr = pWIC->CreateDecoderFromFilename(
+		filePath,                      // Image to be decoded
+		NULL,                            // Do not prefer a particular vendor
+		GENERIC_READ,                    // Desired read access to the file
+		WICDecodeMetadataCacheOnDemand,  // Cache metadata when needed
+		&pDecoder                        // Pointer to the decoder
+	));
+
+	CComPtr<IWICBitmapFrameDecode> pFrame = NULL;
+	RETURN_ON_BAD_HR(hr = pDecoder->GetFrame(0, &pFrame));
+
+	WICPixelFormatGUID sourcePixelFormat;
+	RETURN_ON_BAD_HR(hr = pFrame->GetPixelFormat(&sourcePixelFormat));
+
+	// Convert to 32bpp RGBA for easier processing.
+	CComPtr<IWICBitmapSource> pConvertedFrame = NULL;
+	RETURN_ON_BAD_HR(hr = WICConvertBitmapSource(targetFormat, pFrame, &pConvertedFrame));
+
+	if (SUCCEEDED(hr))
+	{
+		if (ppIWICBitmapSource) {
+			*ppIWICBitmapSource = pConvertedFrame;
+			(*ppIWICBitmapSource)->AddRef();
+		}
+	}
+	return hr;
+}

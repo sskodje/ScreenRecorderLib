@@ -1,3 +1,6 @@
 #pragma once
-#include "internal_recorder.h"
+#include "RecordingManager.h"
 #include "fifo_map.h"
+#include "DX.util.h"
+#include "MF.util.h"
+#include "CommonTypes.h"

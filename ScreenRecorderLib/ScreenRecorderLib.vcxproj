@@ -74,17 +74,16 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86)</LibraryPath>
-    <OutDir>$(SolutionDir)Release</OutDir>
-    <IntDir>$(ProjectDir)Bin</IntDir>
+    <LibraryPath>$(DXSDK_DIR)\lib\x86;$(LibraryPath)</LibraryPath>
     <LinkKeyFile>$(ProjectDir)ScreenRecorderLib.snk</LinkKeyFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <LibraryPath>$(DXSDK_DIR)\lib\x64;$(LibraryPath)</LibraryPath>
+    <LinkKeyFile>$(ProjectDir)ScreenRecorderLib.snk</LinkKeyFile>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LinkIncremental>true</LinkIncremental>
+    <LinkIncremental>false</LinkIncremental>
     <LibraryPath>$(DXSDK_DIR)\lib\x86;$(LibraryPath)</LibraryPath>
     <LinkKeyFile>$(ProjectDir)ScreenRecorderLib.snk</LinkKeyFile>
   </PropertyGroup>
@@ -127,6 +126,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>D3D11.lib;dxgi.lib;Mfuuid.lib;Mfplat.lib;evr.lib;mfreadwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <TargetMachine>MachineX64</TargetMachine>
     </Link>
     <FxCompile>
       <EntryPointName>main</EntryPointName>
@@ -147,7 +147,6 @@
     <Link />
     <Link>
       <AdditionalDependencies>D3D11.lib;dxgi.lib;Mfuuid.lib;Mfplat.lib;evr.lib;mfreadwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AssemblyDebug>true</AssemblyDebug>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -159,6 +158,7 @@
       <GenerateXMLDocumentationFiles>true</GenerateXMLDocumentationFiles>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard_C>Default</LanguageStandard_C>
     </ClCompile>
     <Link>
       <AdditionalDependencies>D3D11.lib;dxgi.lib;Mfuuid.lib;Mfplat.lib;evr.lib;mfreadwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -170,10 +170,17 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AudioDevice.h" />
+    <ClInclude Include="Callback.h" />
+    <ClInclude Include="Coordinates.h" />
     <ClInclude Include="ManagedIStream.h" />
+    <ClInclude Include="Options.h" />
+    <ClInclude Include="RecordingOverlays.h" />
+    <ClInclude Include="RecordingSources.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Recorder.h" />
     <ClInclude Include="ManagedStreamWrapper.h" />
+    <ClInclude Include="VideoEncoders.h" />
     <ClInclude Include="Win32WindowEnumeration.h" />
   </ItemGroup>
   <ItemGroup>
@@ -194,9 +201,6 @@
     <ProjectReference Include="..\ScreenRecorderLibNative\ScreenRecorderLibNative.vcxproj">
       <Project>{f2652fd6-eaf0-466d-b1cf-a7d19c1540ea}</Project>
     </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="ScreenRecorderLib.snk" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets" />

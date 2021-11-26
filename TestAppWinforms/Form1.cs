@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using ScreenRecorderLib;
 using System.IO;
-using System.Collections.Generic;
+
 
 namespace TestAppWinforms
 {
@@ -48,7 +48,7 @@ namespace TestAppWinforms
 
 
             string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
-            string videoPath = Path.Combine("ScreenRecorder", timestamp, timestamp + ".mp4");
+            string videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + ".mp4");
 
 
             _progressTimer = new Timer();
@@ -60,57 +60,7 @@ namespace TestAppWinforms
 
             if (_rec == null)
             {
-                Dictionary<string, string> inputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices);
-                Dictionary<string, string> outputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices); 
-
-                RecorderOptions options = new RecorderOptions
-                {
-                    RecorderMode = RecorderMode.Video,
-                    //If throttling is disabled, out of memory exceptions may eventually crash the program,
-                    //depending on encoder settings and system specifications.
-                    IsThrottlingDisabled = false,
-                    //Hardware encoding is enabled by default.
-                    IsHardwareEncodingEnabled = true,
-                    //Low latency mode provides faster encoding, but can reduce quality.
-                    IsLowLatencyEnabled = false,
-                    //Fast start writes the mp4 header at the beginning of the file, to facilitate streaming.
-                    IsMp4FastStartEnabled = false,
-                    AudioOptions = new AudioOptions
-                    {
-                        InputVolume = 2,
-                        OutputVolume = 2,
-                        Bitrate = AudioBitrate.bitrate_128kbps,
-                        Channels = AudioChannels.Stereo,
-                        IsAudioEnabled = true,
-                        AudioInputDevice = inputDevices.OrderBy(kvp => kvp.Key).First().ToString(),
-                        AudioOutputDevice = outputDevices.OrderBy(kvp => kvp.Key).First().ToString(),
-                    },
-                    VideoOptions = new VideoOptions
-                    {
-                        BitrateMode = BitrateControlMode.UnconstrainedVBR,
-                        Bitrate = 8000 * 1000,
-                        Framerate = 60,
-                        IsFixedFramerate = true,
-                        EncoderProfile = H264Profile.Main
-                    },
-                    MouseOptions = new MouseOptions
-                    {
-                        //Displays a colored dot under the mouse cursor when the left mouse button is pressed.	
-                        IsMouseClicksDetected = true,
-                        MouseClickDetectionColor = "#FFFF00",
-                        MouseRightClickDetectionColor = "#FFFF00",
-                        MouseClickDetectionRadius = 30,
-                        MouseClickDetectionDuration = 100,
-
-                        IsMousePointerEnabled = true,
-                        /* Polling checks every millisecond if a mouse button is pressed.
-                           Hook works better with programmatically generated mouse clicks, but may affect
-                           mouse performance and interferes with debugging.*/
-                        MouseClickDetectionMode = MouseDetectionMode.Hook
-                    }
-                };
-
-                _rec = Recorder.CreateRecorder(options);
+                _rec = Recorder.CreateRecorder();
                 _rec.OnRecordingComplete += Rec_OnRecordingComplete;
                 _rec.OnRecordingFailed += Rec_OnRecordingFailed;
                 _rec.OnStatusChanged += _rec_OnStatusChanged;
