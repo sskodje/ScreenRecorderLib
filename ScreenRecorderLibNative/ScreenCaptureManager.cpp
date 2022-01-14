@@ -32,7 +32,6 @@ ScreenCaptureManager::ScreenCaptureManager() :
 	m_IsCapturing(false),
 	m_OutputOptions(nullptr)
 {
-	RtlZeroMemory(&m_PtrInfo, sizeof(m_PtrInfo));
 	// Event to tell spawned threads to quit
 	m_TerminateThreadsEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 }

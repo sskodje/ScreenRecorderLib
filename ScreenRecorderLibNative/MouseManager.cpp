@@ -200,25 +200,29 @@ long MouseManager::ParseColorString(std::string color)
 
 void MouseManager::GetPointerPosition(_In_ PTR_INFO *pPtrInfo, DXGI_MODE_ROTATION rotation, int desktopWidth, int desktopHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop)
 {
+	int left = (pPtrInfo->Position.x + pPtrInfo->Offset.x) * pPtrInfo->Scale.cx;
+	int top = (pPtrInfo->Position.y + pPtrInfo->Offset.y) * pPtrInfo->Scale.cy;
+	int width = pPtrInfo->ShapeInfo.Width * pPtrInfo->Scale.cx;
+	int height = pPtrInfo->ShapeInfo.Height * pPtrInfo->Scale.cy;
 	switch (rotation)
 	{
 		default:
 		case DXGI_MODE_ROTATION_UNSPECIFIED:
 		case DXGI_MODE_ROTATION_IDENTITY:
-			*PtrLeft = pPtrInfo->Position.x;
-			*PtrTop = pPtrInfo->Position.y;
+			*PtrLeft = left;
+			*PtrTop = top;
 			break;
 		case DXGI_MODE_ROTATION_ROTATE90:
-			*PtrLeft = pPtrInfo->Position.y;
-			*PtrTop = desktopHeight - pPtrInfo->Position.x - (pPtrInfo->ShapeInfo.Height);
+			*PtrLeft = top;
+			*PtrTop = desktopHeight - left - height;
 			break;
 		case DXGI_MODE_ROTATION_ROTATE180:
-			*PtrLeft = desktopWidth - pPtrInfo->Position.x - (pPtrInfo->ShapeInfo.Width);
-			*PtrTop = desktopHeight - pPtrInfo->Position.y - (pPtrInfo->ShapeInfo.Height);
+			*PtrLeft = desktopWidth - left - width;
+			*PtrTop = desktopHeight - top - height;
 			break;
 		case DXGI_MODE_ROTATION_ROTATE270:
-			*PtrLeft = desktopWidth - pPtrInfo->Position.y - pPtrInfo->ShapeInfo.Height;
-			*PtrTop = pPtrInfo->Position.x;
+			*PtrLeft = desktopWidth - top - width;
+			*PtrTop = left;
 			break;
 	}
 }
@@ -290,23 +294,23 @@ HRESULT MouseManager::DrawMouseClick(_In_ PTR_INFO *pPtrInfo, _In_ ID3D11Texture
 	GetPointerPosition(pPtrInfo, rotation, desc.Width, desc.Height, &ptrLeft, &ptrTop);
 
 	if (rotation == DXGI_MODE_ROTATION_ROTATE90) {
-		ptrTop += pPtrInfo->ShapeInfo.Height;
+		ptrTop += pPtrInfo->ShapeInfo.Height * pPtrInfo->Scale.cy;
 	}
 	else if (rotation == DXGI_MODE_ROTATION_ROTATE180) {
-		ptrLeft += pPtrInfo->ShapeInfo.Width;
-		ptrTop += pPtrInfo->ShapeInfo.Height;
+		ptrLeft += pPtrInfo->ShapeInfo.Width * pPtrInfo->Scale.cx;
+		ptrTop += pPtrInfo->ShapeInfo.Height * pPtrInfo->Scale.cy;
 	}
 	else if (rotation == DXGI_MODE_ROTATION_ROTATE270) {
-		ptrLeft += pPtrInfo->ShapeInfo.Height;
+		ptrLeft += pPtrInfo->ShapeInfo.Height * pPtrInfo->Scale.cy;
 	}
-	ptrLeft += pPtrInfo->ShapeInfo.HotSpot.x;
-	ptrTop += pPtrInfo->ShapeInfo.HotSpot.y;
+	ptrLeft += pPtrInfo->ShapeInfo.HotSpot.x * pPtrInfo->Scale.cx;
+	ptrTop += pPtrInfo->ShapeInfo.HotSpot.y * pPtrInfo->Scale.cy;
 	mousePoint.x = ptrLeft / dpiScale;
 	mousePoint.y = ptrTop / dpiScale;
 
 	ellipse.point = mousePoint;
-	ellipse.radiusX = radius;
-	ellipse.radiusY = radius;
+	ellipse.radiusX = radius * pPtrInfo->Scale.cx;
+	ellipse.radiusY = radius * pPtrInfo->Scale.cy;
 	pRenderTarget->BeginDraw();
 
 	pRenderTarget->FillEllipse(ellipse, color);
@@ -380,9 +384,7 @@ HRESULT MouseManager::DrawMousePointer(_In_ PTR_INFO *pPtrInfo, _Inout_ ID3D11Te
 		{
 			PtrWidth = static_cast<INT>(pPtrInfo->ShapeInfo.Width);
 			PtrHeight = static_cast<INT>(pPtrInfo->ShapeInfo.Height);
-
 			GetPointerPosition(pPtrInfo, rotation, DesktopWidth, DesktopHeight, &PtrLeft, &PtrTop);
-
 			break;
 		}
 		case DXGI_OUTDUPL_POINTER_SHAPE_TYPE_MONOCHROME:
@@ -399,6 +401,19 @@ HRESULT MouseManager::DrawMousePointer(_In_ PTR_INFO *pPtrInfo, _Inout_ ID3D11Te
 			LOG_ERROR("Unrecognized mouse pointer type");
 			return E_FAIL;
 	}
+	// Set original texture properties
+	Desc.Width = PtrWidth;
+	Desc.Height = PtrHeight;
+
+	// Set up init data
+	InitData.pSysMem = (pPtrInfo->ShapeInfo.Type == DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR) ? pPtrInfo->PtrShapeBuffer : InitBuffer;
+	InitData.SysMemPitch = (pPtrInfo->ShapeInfo.Type == DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR) ? pPtrInfo->ShapeInfo.Pitch : PtrWidth * BPP;
+	InitData.SysMemSlicePitch = 0;
+
+	// Scaled width and height
+	PtrWidth *= pPtrInfo->Scale.cx;
+	PtrHeight *= pPtrInfo->Scale.cy;
+
 	// VERTEX creation
 	if (rotation == DXGI_MODE_ROTATION_UNSPECIFIED
 		|| rotation == DXGI_MODE_ROTATION_IDENTITY) {
@@ -447,15 +462,8 @@ HRESULT MouseManager::DrawMousePointer(_In_ PTR_INFO *pPtrInfo, _Inout_ ID3D11Te
 	Vertices[4].Pos.x = Vertices[1].Pos.x;
 	Vertices[4].Pos.y = Vertices[1].Pos.y;
 
-	// Set texture properties
-	Desc.Width = PtrWidth;
-	Desc.Height = PtrHeight;
-
-	// Set up init data
-	InitData.pSysMem = (pPtrInfo->ShapeInfo.Type == DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR) ? pPtrInfo->PtrShapeBuffer : InitBuffer;
-	InitData.SysMemPitch = (pPtrInfo->ShapeInfo.Type == DXGI_OUTDUPL_POINTER_SHAPE_TYPE_COLOR) ? pPtrInfo->ShapeInfo.Pitch : PtrWidth * BPP;
-	InitData.SysMemSlicePitch = 0;
-
+	TextureManager m_TextureManager;
+	m_TextureManager.Initialize(m_DeviceContext, m_Device);
 	// Create mouseshape as texture
 	HRESULT hr = m_Device->CreateTexture2D(&Desc, &InitData, &MouseTex);
 	if (FAILED(hr))
@@ -465,6 +473,12 @@ HRESULT MouseManager::DrawMousePointer(_In_ PTR_INFO *pPtrInfo, _Inout_ ID3D11Te
 		return hr;
 	}
 
+	if (pPtrInfo->Scale.cx != 1.0 || pPtrInfo->Scale.cy != 1.0) {
+		ID3D11Texture2D *pResizedTexture;
+		RETURN_ON_BAD_HR(hr = m_TextureManager.ResizeTexture(MouseTex, SIZE{ PtrWidth,PtrHeight }, TextureStretchMode::Uniform, &pResizedTexture));
+		SafeRelease(&MouseTex);
+		MouseTex = pResizedTexture;
+	}
 	// Create shader resource from texture
 	hr = m_Device->CreateShaderResourceView(MouseTex, &SDesc, &ShaderRes);
 	if (FAILED(hr))
@@ -564,8 +578,8 @@ HRESULT MouseManager::ProcessMonoMask(
 	INT DesktopWidth = desc.Width;
 	INT DesktopHeight = desc.Height;
 	// Pointer position
-	INT GivenLeft = pPtrInfo->Position.x;
-	INT GivenTop = pPtrInfo->Position.y;
+	INT GivenLeft = 0;
+	INT GivenTop = 0;
 	GetPointerPosition(pPtrInfo, rotation, DesktopWidth, DesktopHeight, &GivenLeft, &GivenTop);
 
 	// Figure out if any adjustment is needed for out of bound positions
@@ -718,6 +732,7 @@ HRESULT MouseManager::ProcessMonoMask(
 
 	if (IsMono)
 	{
+		//https://docs.microsoft.com/en-us/windows-hardware/drivers/display/drawing-monochrome-pointers
 		for (INT Row = 0; Row < *ptrHeight; ++Row)
 		{
 			// Set mask
@@ -728,11 +743,18 @@ HRESULT MouseManager::ProcessMonoMask(
 				// Get masks using appropriate offsets
 				BYTE AndMask = pPtrInfo->PtrShapeBuffer[((Col + SkipX) / 8) + ((Row + SkipY) * (pPtrInfo->ShapeInfo.Pitch))] & Mask;
 				BYTE XorMask = pPtrInfo->PtrShapeBuffer[((Col + SkipX) / 8) + ((Row + SkipY + (pPtrInfo->ShapeInfo.Height / 2)) * (pPtrInfo->ShapeInfo.Pitch))] & Mask;
-				UINT AndMask32 = (AndMask) ? 0xFFFFFFFF : 0xFF000000;
-				UINT XorMask32 = (XorMask) ? 0x00FFFFFF : 0x00000000;
+				UINT AndMask32 = (AndMask) ? OPAQUE_WHITE : OPAQUE_BLACK;
+				UINT XorMask32 = (XorMask) ? TRANSPARENT_WHITE : TRANSPARENT_BLACK;
 
-				// Set new pixel
-				InitBuffer32[(Row * *ptrWidth) + Col] = (DesktopBuffer32[(Row * DesktopPitchInPixels) + Col] & AndMask32) ^ XorMask32;
+				if (AndMask && !XorMask) {
+					// Instead of copying the desktop pixel for parts where the cursor is not visible, transparent white is used instead,
+					// to enable the pointer texture to be resized independently of the background and drawn on top of it.
+					InitBuffer32[(Row * *ptrWidth) + Col] = TRANSPARENT_WHITE;
+				}
+				else {
+					// Set new pixel with background from desktop
+					InitBuffer32[(Row * *ptrWidth) + Col] = (DesktopBuffer32[(Row * DesktopPitchInPixels) + Col] & AndMask32) ^ XorMask32;
+				}
 
 				// Adjust mask
 				if (Mask == 0x01)
@@ -748,6 +770,7 @@ HRESULT MouseManager::ProcessMonoMask(
 	}
 	else
 	{
+		//https://docs.microsoft.com/en-us/windows-hardware/drivers/display/drawing-color-pointers
 		UINT *Buffer32 = reinterpret_cast<UINT *>(pPtrInfo->PtrShapeBuffer);
 
 		// Iterate through pixels
@@ -755,17 +778,25 @@ HRESULT MouseManager::ProcessMonoMask(
 		{
 			for (INT Col = 0; Col < *ptrWidth; ++Col)
 			{
+				UINT RgbValue = Buffer32[(Col + SkipX) + ((Row + SkipY) * (pPtrInfo->ShapeInfo.Pitch / sizeof(UINT)))];
 				// Set up mask
-				UINT MaskVal = 0xFF000000 & Buffer32[(Col + SkipX) + ((Row + SkipY) * (pPtrInfo->ShapeInfo.Pitch / sizeof(UINT)))];
+				UINT MaskVal = OPAQUE_BLACK & RgbValue;
 				if (MaskVal)
 				{
 					// Mask was 0xFF
-					InitBuffer32[(Row * *ptrWidth) + Col] = (DesktopBuffer32[(Row * DesktopPitchInPixels) + Col] ^ Buffer32[(Col + SkipX) + ((Row + SkipY) * (pPtrInfo->ShapeInfo.Pitch / sizeof(UINT)))]) | 0xFF000000;
+					if (RgbValue == MaskVal) {
+						// Instead of copying the desktop pixel for parts where the cursor is not visible, we use transparent white,
+						// to enable the pointer texture to be resized independently of the background and drawn on top of it.
+						InitBuffer32[(Row * *ptrWidth) + Col] = TRANSPARENT_WHITE;
+					}
+					else {
+						InitBuffer32[(Row * *ptrWidth) + Col] = (DesktopBuffer32[(Row * DesktopPitchInPixels) + Col] ^ RgbValue) | OPAQUE_BLACK;
+					}
 				}
 				else
 				{
 					// Mask was 0x00
-					InitBuffer32[(Row * *ptrWidth) + Col] = Buffer32[(Col + SkipX) + ((Row + SkipY) * (pPtrInfo->ShapeInfo.Pitch / sizeof(UINT)))] | 0xFF000000;
+					InitBuffer32[(Row * *ptrWidth) + Col] = RgbValue | OPAQUE_BLACK;
 				}
 			}
 		}
@@ -783,9 +814,6 @@ HRESULT MouseManager::ProcessMonoMask(
 	}
 	return hr;
 }
-
-
-
 
 
 HRESULT MouseManager::ResizeShapeBuffer(_Inout_ PTR_INFO *pPtrInfo, _In_ int bufferSize) {
