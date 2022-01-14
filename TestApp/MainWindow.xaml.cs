@@ -252,9 +252,12 @@ namespace TestApp
                     }
                 case nameof(RecordingSourceBase.SourceRect):
                     {
-                        _rec?.GetDynamicOptionsBuilder()
-                                .SetSourceRectForRecordingSource(((RecordingSourceBase)sender).ID, ((RecordingSourceBase)sender).SourceRect)
-                                .Apply();
+                        if (((ICheckableRecordingSource)sender).IsCustomOutputSourceRectEnabled)
+                        {
+                            _rec?.GetDynamicOptionsBuilder()
+                                    .SetSourceRectForRecordingSource(((RecordingSourceBase)sender).ID, ((RecordingSourceBase)sender).SourceRect)
+                                    .Apply();
+                        }
                         break;
                     }
                 default:
