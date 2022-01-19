@@ -90,6 +90,23 @@ HRESULT OutputManager::FinalizeRecording()
 				LOG_DEBUG("Shut down IMFMediaSink");
 			}
 		};
+		if (!m_OutputFullPath.empty()) {
+			bool isFileAvailable = false;
+			for (int i = 0; i < 10; i++) {
+				isFileAvailable = IsFileAvailableForReading(m_OutputFullPath);
+				if (isFileAvailable) {
+					LOG_TRACE(L"Output file is ready");
+					break;
+				}
+				else {
+					Sleep(100);
+					LOG_TRACE(L"Output file is still locked for reading, waiting..");
+				}
+			}
+			if (!isFileAvailable) {
+				LOG_WARN("Output file is still locked after maximum retries");
+			}
+		}
 	}
 	return finalizeResult;
 }
