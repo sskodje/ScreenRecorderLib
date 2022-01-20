@@ -18,8 +18,8 @@ namespace TestConsoleAppDotNetCore
             //just leave the AudioInputDevice or AudioOutputDevice properties unset or pass null or empty string.
             var audioInputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices);
             var audioOutputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices);
-            string selectedAudioInputDevice = audioInputDevices.Count > 0 ? audioInputDevices.First().Key : null;
-            string selectedAudioOutputDevice = audioOutputDevices.Count > 0 ? audioOutputDevices.First().Key : null;
+            string selectedAudioInputDevice = audioInputDevices.Count > 0 ? audioInputDevices.First().DeviceName : null;
+            string selectedAudioOutputDevice = audioOutputDevices.Count > 0 ? audioOutputDevices.First().DeviceName : null;
 
             var opts = new RecorderOptions
             {

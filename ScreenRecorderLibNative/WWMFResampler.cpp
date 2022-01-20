@@ -3,8 +3,8 @@
 //#define WINVER _WIN32_WINNT_WIN7
 
 #include "WWMFResampler.h"
-#include "utilities.h"
-#include "cleanup.h"
+#include "Util.h"
+#include "Cleanup.h"
 #include <windows.h>
 #include <atlbase.h>
 #include <mfapi.h>
@@ -26,7 +26,7 @@ enum WWAvailableType {
 };
 
 static HRESULT
-CreateAudioMediaType(const WWMFPcmFormat &fmt, IMFMediaType** ppMediaType)
+CreateAudioMediaType(const WWMFPcmFormat &fmt, IMFMediaType **ppMediaType)
 {
 	CComPtr<IMFMediaType> pMediaType = NULL;
 	*ppMediaType = NULL;
@@ -34,7 +34,7 @@ CreateAudioMediaType(const WWMFPcmFormat &fmt, IMFMediaType** ppMediaType)
 	RETURN_ON_BAD_HR(MFCreateMediaType(&pMediaType));
 	RETURN_ON_BAD_HR(pMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio));
 	RETURN_ON_BAD_HR(pMediaType->SetGUID(MF_MT_SUBTYPE,
-		(fmt.sampleFormat == WWMFBitFormatInt) ? MFAudioFormat_PCM : MFAudioFormat_Float));
+		(fmt.sampleFormat == WWMFBitFormatType::WWMFBitFormatInt) ? MFAudioFormat_PCM : MFAudioFormat_Float));
 	RETURN_ON_BAD_HR(pMediaType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, fmt.nChannels));
 	RETURN_ON_BAD_HR(pMediaType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, fmt.sampleRate));
 	RETURN_ON_BAD_HR(pMediaType->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, fmt.FrameBytes()));
@@ -71,7 +71,7 @@ CreateResamplerMFT(
 	*ppTransform = NULL;
 
 	RETURN_ON_BAD_HR(CoCreateInstance(CLSID_CResamplerMediaObject, NULL, CLSCTX_INPROC_SERVER,
-		IID_IUnknown, (void**)&spTransformUnk));
+		IID_IUnknown, (void **)&spTransformUnk));
 
 	RETURN_ON_BAD_HR(spTransformUnk->QueryInterface(IID_PPV_ARGS(&pTransform)));
 
@@ -118,9 +118,8 @@ WWMFResampler::ConvertWWSampleDataToMFSample(WWMFSampleData &sampleData, IMFSamp
 	CComPtr<IMFSample> pSample;
 
 	CComPtr<IMFMediaBuffer> spBuffer;
-	BYTE  *pByteBufferTo = NULL;
-	//LONGLONG hnsSampleDuration;
-	//LONGLONG hnsSampleTime;
+	BYTE *pByteBufferTo = NULL;
+
 	int frameCount;
 
 	assert(ppSample);
@@ -139,12 +138,6 @@ WWMFResampler::ConvertWWSampleDataToMFSample(WWMFSampleData &sampleData, IMFSamp
 	RETURN_ON_BAD_HR(pSample->AddBuffer(spBuffer));
 
 	frameCount = sampleData.bytes / m_inputFormat.FrameBytes();
-	/*
-	hnsSampleDuration = (LONGLONG)(10.0 * 1000 * 1000 * frameCount        / m_inputFormat.sampleRate);
-	hnsSampleTime     = (LONGLONG)(10.0 * 1000 * 1000 * m_inputFrameTotal / m_inputFormat.sampleRate);
-	RETURN_ON_BAD_HR(pSample->SetSampleDuration(hnsSampleDuration));
-	RETURN_ON_BAD_HR(pSample->SetSampleTime(hnsSampleTime));
-	*/
 
 	m_inputFrameTotal += frameCount;
 
@@ -160,7 +153,7 @@ HRESULT
 WWMFResampler::ConvertMFSampleToWWSampleData(IMFSample *pSample, WWMFSampleData *sampleData_return)
 {
 	CComPtr<IMFMediaBuffer> spBuffer;
-	BYTE  *pByteBuffer = NULL;
+	BYTE *pByteBuffer = NULL;
 	assert(pSample);
 	DWORD cbBytes = 0;
 
@@ -235,7 +228,7 @@ WWMFResampler::Resample(const BYTE *buff, DWORD bytes, WWMFSampleData *sampleDat
 	IMFSample *pSample = NULL;
 	WWMFSampleData tmpData;
 	ReleaseWWMFSampleDataOnExit releaseTmpData(&tmpData);
-	WWMFSampleData inputData((BYTE*)buff, bytes);
+	WWMFSampleData inputData((BYTE *)buff, bytes);
 	ForgetWWMFSampleDataOnExit forgetTmpData(&inputData);
 	DWORD dwStatus;
 	DWORD cbOutputBytes = (DWORD)((int64_t)bytes * m_outputFormat.BytesPerSec() / m_inputFormat.BytesPerSec());
@@ -252,7 +245,7 @@ WWMFResampler::Resample(const BYTE *buff, DWORD bytes, WWMFSampleData *sampleDat
 
 	RETURN_ON_BAD_HR(m_pTransform->GetInputStatus(0, &dwStatus));
 	if (MFT_INPUT_STATUS_ACCEPT_DATA != dwStatus) {
-		ERROR("ApplyTransform() pTransform->GetInputStatus() not accept data.\n");
+		LOG_ERROR("ApplyTransform() pTransform->GetInputStatus() not accept data.\n");
 		return E_FAIL;
 	}
 

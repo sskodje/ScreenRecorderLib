@@ -13,9 +13,9 @@ namespace ScreenRecorderLib {
 		{
 			this->baseStream = gcnew ManagedStreamWrapper(stream);
 
-		   /* https://stackoverflow.com/a/39712297/2129964
-			* We need to call all functions on the managed stream through delegates,
-			* or we get errors if the code is running in a non-default AppDomain.*/
+			/* https://stackoverflow.com/a/39712297/2129964
+			 * We need to call all functions on the managed stream through delegates,
+			 * or we get errors if the code is running in a non-default AppDomain.*/
 			m_pSeekFnc = baseStream->GetSeekFunctionPointer();
 			m_pWriteFnc = baseStream->GetWriteFunctionPointer();
 			m_pReadFnc = baseStream->GetReadFunctionPointer();
@@ -27,7 +27,7 @@ namespace ScreenRecorderLib {
 		}
 
 	public:
-		virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, _COM_Outptr_ void __RPC_FAR *__RPC_FAR *ppvObject)
+		virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, _COM_Outptr_ void __RPC_FAR* __RPC_FAR* ppvObject)
 		{
 			if (riid == __uuidof (IStream)) { *ppvObject = this; AddRef(); return S_OK; }
 			else { *ppvObject = NULL; return E_NOINTERFACE; }
@@ -42,7 +42,7 @@ namespace ScreenRecorderLib {
 
 	public:
 		// IStream
-		virtual HRESULT STDMETHODCALLTYPE Read(void *pv, _In_  ULONG cb, _Out_opt_ ULONG *pcbRead)override
+		virtual HRESULT STDMETHODCALLTYPE Read(void* pv, _In_  ULONG cb, _Out_opt_ ULONG* pcbRead)override
 		{
 			if (!m_pCanReadFnc())
 				return E_ACCESSDENIED;
@@ -51,16 +51,16 @@ namespace ScreenRecorderLib {
 			if (pcbRead != nullptr) *pcbRead = bytesRead;
 			return S_OK;
 		}
-		virtual HRESULT STDMETHODCALLTYPE Write(const void *pv, ULONG cb, ULONG *pcbWritten) override
+		virtual HRESULT STDMETHODCALLTYPE Write(const void* pv, ULONG cb, ULONG* pcbWritten) override
 		{
 			if (!m_pCanWriteFnc())
 				return E_ACCESSDENIED;
 
-			m_pWriteFnc(System::IntPtr((void *)pv), 0, cb);
+			m_pWriteFnc(System::IntPtr((void*)pv), 0, cb);
 			if (pcbWritten != nullptr) *pcbWritten = cb;
 			return S_OK;
 		}
-		virtual HRESULT STDMETHODCALLTYPE Seek(LARGE_INTEGER dlibMove, DWORD dwOrigin, _Out_opt_  ULARGE_INTEGER *plibNewPosition) override
+		virtual HRESULT STDMETHODCALLTYPE Seek(LARGE_INTEGER dlibMove, DWORD dwOrigin, _Out_opt_  ULARGE_INTEGER* plibNewPosition) override
 		{
 			if (!m_pCanSeekFnc())
 				return E_ACCESSDENIED;
@@ -84,7 +84,7 @@ namespace ScreenRecorderLib {
 			m_pSetLengthFnc(libNewSize.QuadPart);
 			return S_OK;
 		}
-		virtual HRESULT STDMETHODCALLTYPE CopyTo(IStream *pstm, ULARGE_INTEGER cb, ULARGE_INTEGER *pcbRead, ULARGE_INTEGER *pcbWritten) override
+		virtual HRESULT STDMETHODCALLTYPE CopyTo(IStream* pstm, ULARGE_INTEGER cb, ULARGE_INTEGER* pcbRead, ULARGE_INTEGER* pcbWritten) override
 		{
 			return E_NOTIMPL;
 		}
@@ -93,7 +93,7 @@ namespace ScreenRecorderLib {
 		virtual HRESULT STDMETHODCALLTYPE LockRegion(ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType) override { return E_NOTIMPL; }
 		virtual HRESULT STDMETHODCALLTYPE UnlockRegion(ULARGE_INTEGER libOffset, ULARGE_INTEGER cb, DWORD dwLockType) override { return E_NOTIMPL; }
 
-		virtual HRESULT STDMETHODCALLTYPE Stat(::STATSTG * pstatstg, DWORD grfStatFlag) override
+		virtual HRESULT STDMETHODCALLTYPE Stat(::STATSTG* pstatstg, DWORD grfStatFlag) override
 		{
 			memset(pstatstg, 0, sizeof(::STATSTG));
 			pstatstg->type = STGTY_STREAM;
@@ -108,19 +108,19 @@ namespace ScreenRecorderLib {
 			else throw gcnew System::IO::IOException();
 			return S_OK;
 		}
-		virtual HRESULT STDMETHODCALLTYPE Clone(IStream **ppstm) override { return E_NOTIMPL; }
+		virtual HRESULT STDMETHODCALLTYPE Clone(IStream** ppstm) override { return E_NOTIMPL; }
 
 	private:
 		ULONG refCount;
 		gcroot<ManagedStreamWrapper^> baseStream;
 
-		SeekFnc *m_pSeekFnc;
-		ReadFnc *m_pReadFnc;
-		WriteFnc *m_pWriteFnc;
-		CanReadFnc *m_pCanReadFnc;
-		CanWriteFnc *m_pCanWriteFnc;
-		CanSeekFnc *m_pCanSeekFnc;
-		SetLengthFnc *m_pSetLengthFnc;
-		GetLengthFnc *m_pGetLengthFnc;
+		SeekFnc* m_pSeekFnc;
+		ReadFnc* m_pReadFnc;
+		WriteFnc* m_pWriteFnc;
+		CanReadFnc* m_pCanReadFnc;
+		CanWriteFnc* m_pCanWriteFnc;
+		CanSeekFnc* m_pCanSeekFnc;
+		SetLengthFnc* m_pSetLengthFnc;
+		GetLengthFnc* m_pGetLengthFnc;
 	};
 }

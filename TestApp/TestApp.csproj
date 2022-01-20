@@ -100,9 +100,6 @@
     <Reference Include="WindowsBase" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
-    <Reference Include="WindowsDisplayAPI, Version=1.2.0.1, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\WindowsDisplayAPI.1.2.0.2\lib\net45\WindowsDisplayAPI.dll</HintPath>
-    </Reference>
     <Reference Include="WindowsFormsIntegration" />
   </ItemGroup>
   <ItemGroup>
@@ -110,6 +107,8 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="BytesToKilobytesConverter.cs" />
+    <Compile Include="RecordingSourceTemplateSelector.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
@@ -118,12 +117,20 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Sources\CheckableRecordableCamera.cs" />
+    <Compile Include="Sources\CheckableRecordableImage.cs" />
+    <Compile Include="Sources\CheckableRecordableVideo.cs" />
+    <Compile Include="Sources\CheckableRecordableWindow.cs" />
+    <Compile Include="Sources\CheckableRecordableDisplay.cs" />
+    <Compile Include="Sources\ICheckableRecordingSource.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="OverlayModel.cs" />
+    <Compile Include="OverlayTemplateSelector.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -159,6 +166,28 @@
       <Project>{b3ae257d-b561-4fcb-ae82-ebccbf3d20cb}</Project>
       <Name>ScreenRecorderLib</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\Testmedia\alphatest.png">
+      <Link>Testmedia\alphatest.png</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Testmedia\cat.mp4">
+      <Link>Testmedia\cat.mp4</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Testmedia\renault.png">
+      <Link>Testmedia\renault.png</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Testmedia\earth.gif">
+      <Link>Testmedia\earth.gif</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\Testmedia\giftest.gif">
+      <Link>Testmedia\giftest.gif</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

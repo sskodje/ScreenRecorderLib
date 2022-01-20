@@ -154,6 +154,7 @@
       <GenerateXMLDocumentationFiles>true</GenerateXMLDocumentationFiles>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard_C>Default</LanguageStandard_C>
     </ClCompile>
     <Link>
       <AdditionalDependencies>D3D11.lib;dxgi.lib;Mfuuid.lib;Mfplat.lib;evr.lib;mfreadwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -165,10 +166,17 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AudioDevice.h" />
+    <ClInclude Include="Callback.h" />
+    <ClInclude Include="Coordinates.h" />
     <ClInclude Include="ManagedIStream.h" />
+    <ClInclude Include="Options.h" />
+    <ClInclude Include="RecordingOverlays.h" />
+    <ClInclude Include="RecordingSources.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Recorder.h" />
     <ClInclude Include="ManagedStreamWrapper.h" />
+    <ClInclude Include="VideoEncoders.h" />
     <ClInclude Include="Win32WindowEnumeration.h" />
   </ItemGroup>
   <ItemGroup>

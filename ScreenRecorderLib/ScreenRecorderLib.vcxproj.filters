@@ -30,6 +30,27 @@
     <ClInclude Include="Win32WindowEnumeration.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Coordinates.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RecordingSources.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Options.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RecordingOverlays.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="VideoEncoders.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Callback.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="AudioDevice.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AssemblyInfo.cpp">

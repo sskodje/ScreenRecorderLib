@@ -1,18 +1,19 @@
 ﻿using ScreenRecorderLib;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
+
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
-using Win32Interop.WinHandles;
-using WindowsDisplayAPI;
+using TestApp.Sources;
 
 namespace TestApp
 {
@@ -23,44 +24,20 @@ namespace TestApp
     {
         private Recorder _rec;
         private DispatcherTimer _progressTimer;
-        private int _secondsElapsed;
+        private DateTimeOffset? _recordingStartTime = null;
+        private DateTimeOffset? _recordingPauseTime = null;
         private Stream _outputStream;
-        private bool _isRecording;
 
-        public bool IsRecording
-        {
-            get { return _isRecording; }
-            set
-            {
-                _isRecording = value;
-            }
-        }
-
-        public int VideoBitrate { get; set; } = 7000;
-        public int VideoFramerate { get; set; } = 60;
-        public int VideoQuality { get; set; } = 70;
-        public int SnapshotsIntervalInSec { get; set; } = 10;
-        public bool IsAudioEnabled { get; set; } = true;
-        public bool IsMousePointerEnabled { get; set; } = true;
-        public bool IsFixedFramerate { get; set; } = false;
-        public bool IsThrottlingDisabled { get; set; } = false;
-        public bool IsHardwareEncodingEnabled { get; set; } = true;
-        public bool IsLowLatencyEnabled { get; set; } = false;
-        public bool IsMp4FastStartEnabled { get; set; } = false;
-        public bool IsFragmentedMp4Enabled { get; set; } = false;
-        public bool IsMouseClicksDetected { get; set; } = false;
-        public string MouseLeftClickColor { get; set; } = "#ffff00";
-        public string MouseRightClickColor { get; set; } = "#006aff";
-        public int MouseClickRadius { get; set; } = 20;
-        public int MouseClickDuration { get; set; } = 50;
-        public Dictionary<string, string> AudioInputsList { get; set; } = new Dictionary<string, string>();
-        public Dictionary<string, string> AudioOutputsList { get; set; } = new Dictionary<string, string>();
-        public bool IsAudioInEnabled { get; set; } = false;
-        public bool IsAudioOutEnabled { get; set; } = true;
-        public string LogFilePath { get; set; } = "log.txt";
+        public bool IsRecording { get; set; }
+        public RecorderOptions RecorderOptions { get; } = RecorderOptions.Default;
+        public ICheckableRecordingSource SelectedRecordingSource { get; set; }
+        public ObservableCollection<ICheckableRecordingSource> RecordingSources { get; } = new ObservableCollection<ICheckableRecordingSource>();
+        public List<OverlayModel> Overlays { get; } = new List<OverlayModel>();
+        public ObservableCollection<AudioDevice> AudioInputsList { get; set; } = new ObservableCollection<AudioDevice>();
+        public ObservableCollection<AudioDevice> AudioOutputsList { get; set; } = new ObservableCollection<AudioDevice>();
+        public ObservableCollection<RecordableCamera> VideoCaptureDevices { get; set; } = new ObservableCollection<RecordableCamera>();
         public bool IsLogToFileEnabled { get; set; }
-        public bool IsLogEnabled { get; set; } = true;
-        public LogLevel LogSeverityLevel { get; set; } = LogLevel.Debug;
+        public string LogFilePath { get; set; } = "Log.txt";
 
         private bool _recordToStream;
         public bool RecordToStream
@@ -74,7 +51,7 @@ namespace TestApp
                     RaisePropertyChanged("RecordToStream");
                     if (value)
                     {
-                        CurrentRecordingMode = RecorderMode.Video;
+                        RecorderOptions.OutputOptions.RecorderMode = RecorderMode.Video;
                         this.RecordingModeComboBox.IsEnabled = false;
                     }
                     else
@@ -101,114 +78,352 @@ namespace TestApp
                 }
             }
         }
-        private bool _snapshotsWithVideo = false;
-        public bool SnapshotsWithVideo
+
+        private VideoEncoderFormat _currentVideoEncoderFormat;
+        public VideoEncoderFormat CurrentVideoEncoderFormat
         {
-            get { return _snapshotsWithVideo; }
+            get { return _currentVideoEncoderFormat; }
             set
             {
-                if (_snapshotsWithVideo != value)
+                if (_currentVideoEncoderFormat != value)
                 {
-                    _snapshotsWithVideo = value;
-                    RaisePropertyChanged("SnapshotsWithVideo");
-                    if (value)
-                    {
-                        this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
-                        this.SnapshotsIntervalPanel.Visibility = Visibility.Visible;
-                    }
-                    else
-                    {
-                        this.SnapshotImageFormatPanel.Visibility = Visibility.Collapsed;
-                        this.SnapshotsIntervalPanel.Visibility = Visibility.Collapsed;
-                    }
+                    _currentVideoEncoderFormat = value;
+                    RaisePropertyChanged(nameof(CurrentVideoEncoderFormat));
                 }
             }
         }
 
-        private RecorderMode _currentRecordingMode;
-        public RecorderMode CurrentRecordingMode
+        private H264BitrateControlMode _currentH264VideoBitrateMode = H264BitrateControlMode.Quality;
+        public H264BitrateControlMode CurrentH264VideoBitrateMode
         {
-            get { return _currentRecordingMode; }
+            get { return _currentH264VideoBitrateMode; }
             set
             {
-                if (_currentRecordingMode != value)
+                if (_currentH264VideoBitrateMode != value)
                 {
-                    _currentRecordingMode = value;
-                    RaisePropertyChanged("CurrentRecordingMode");
+                    _currentH264VideoBitrateMode = value;
+                    RaisePropertyChanged(nameof(CurrentH264VideoBitrateMode));
                 }
             }
         }
 
-        private RecorderApi _currentRecordingApi;
-        public RecorderApi CurrentRecordingApi
+        private H265BitrateControlMode _currentH265VideoBitrateMode = H265BitrateControlMode.Quality;
+        public H265BitrateControlMode CurrentH265VideoBitrateMode
         {
-            get { return _currentRecordingApi; }
+            get { return _currentH265VideoBitrateMode; }
             set
             {
-                if (_currentRecordingApi != value)
+                if (_currentH265VideoBitrateMode != value)
                 {
-                    _currentRecordingApi = value;
-                    RaisePropertyChanged("CurrentRecordingApi");
+                    _currentH265VideoBitrateMode = value;
+                    RaisePropertyChanged(nameof(CurrentH265VideoBitrateMode));
                 }
             }
         }
 
-        private BitrateControlMode _currentVideoBitrateMode = BitrateControlMode.Quality;
-        public BitrateControlMode CurrentVideoBitrateMode
+        private bool _isCustomOutputSourceRectEnabled;
+        public bool IsCustomOutputSourceRectEnabled
         {
-            get { return _currentVideoBitrateMode; }
+            get { return _isCustomOutputSourceRectEnabled; }
             set
             {
-                if (_currentVideoBitrateMode != value)
+                if (_isCustomOutputSourceRectEnabled != value)
                 {
-                    _currentVideoBitrateMode = value;
-                    RaisePropertyChanged("CurrentVideoBitrateMode");
+                    _isCustomOutputSourceRectEnabled = value;
+                    RaisePropertyChanged(nameof(IsCustomOutputSourceRectEnabled));
                 }
             }
         }
 
-        private ImageFormat _currentImageFormat;
-        public ImageFormat CurrentImageFormat
+        private ScreenRect _sourceRect;
+        public ScreenRect SourceRect
         {
-            get { return _currentImageFormat; }
+            get { return _sourceRect; }
             set
             {
-                if (_currentImageFormat != value)
+                if (_sourceRect != value)
                 {
-                    _currentImageFormat = value;
-                    RaisePropertyChanged("CurrentImageFormat");
+                    _sourceRect = value;
+                    RaisePropertyChanged(nameof(SourceRect));
                 }
             }
         }
 
-        private MouseDetectionMode _currentMouseDetectionMode;
-        public MouseDetectionMode CurrentMouseDetectionMode
+        private bool _isCustomOutputFrameSizeEnabled;
+        public bool IsCustomOutputFrameSizeEnabled
         {
-            get { return _currentMouseDetectionMode; }
+            get { return _isCustomOutputFrameSizeEnabled; }
             set
             {
-                if (_currentMouseDetectionMode != value)
+                if (_isCustomOutputFrameSizeEnabled != value)
                 {
-                    _currentMouseDetectionMode = value;
-                    RaisePropertyChanged("CurrentMouseDetectionMode");
+                    _isCustomOutputFrameSizeEnabled = value;
+                    RaisePropertyChanged(nameof(IsCustomOutputFrameSizeEnabled));
+                }
+            }
+        }
+
+        private ScreenSize _outputFrameSize;
+        public ScreenSize OutputFrameSize
+        {
+            get { return _outputFrameSize; }
+            set
+            {
+                if (_outputFrameSize != value)
+                {
+                    _outputFrameSize = value;
+                    RaisePropertyChanged(nameof(OutputFrameSize));
                 }
             }
         }
 
 
-        public H264Profile CurrentH264Profile { get; set; } = H264Profile.Main;
+        private int _currentFrameNumber;
+        public int CurrentFrameNumber
+        {
+            get { return _currentFrameNumber; }
+            set
+            {
+                if (_currentFrameNumber != value)
+                {
+                    _currentFrameNumber = value;
+                    RaisePropertyChanged(nameof(CurrentFrameNumber));
+                }
+            }
+        }
 
+        public H264Profile CurrentH264Profile { get; set; } = H264Profile.High;
+        public H265Profile CurrentH265Profile { get; set; } = H265Profile.Main;
 
         public MainWindow()
         {
             InitializeComponent();
+            InitializeDefaultRecorderOptions();
+            this.PropertyChanged += MainWindow_PropertyChanged;
+            RecorderOptions.SnapshotOptions.PropertyChanged += RecorderOptions_PropertyChanged;
+            RecorderOptions.AudioOptions.PropertyChanged += RecorderOptions_PropertyChanged;
+            RecorderOptions.MouseOptions.PropertyChanged += RecorderOptions_PropertyChanged;
+            RecordingSources.CollectionChanged += (s, args) =>
+            {
+                if (args.NewItems != null)
+                {
+                    foreach (RecordingSourceBase source in args.NewItems)
+                    {
+                        source.PropertyChanged += RecordingSource_PropertyChanged;
+                    }
+                }
+                if (args.OldItems != null)
+                {
+                    foreach (RecordingSourceBase source in args.OldItems)
+                    {
+                        source.PropertyChanged -= RecordingSource_PropertyChanged;
+                    }
+                }
+            };
 
+            InitializeDefaultOverlays();
             RefreshCaptureTargetItems();
         }
 
-        private bool IsValidWindow(WindowHandle window)
+        private void MainWindow_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            return window.IsVisible() && window.IsValid && !String.IsNullOrEmpty(window.GetWindowText());
+            switch (e.PropertyName)
+            {
+                case nameof(SourceRect):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                                .SetDynamicOutputOptions(new DynamicOutputOptions { SourceRect = SourceRect })
+                                .Apply();
+                        break;
+                    }
+            }
+        }
+
+        private void RecordingSource_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(RecordingSourceBase.IsVideoCaptureEnabled):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                                .SetVideoCaptureEnabledForRecordingSource(((RecordingSourceBase)sender).ID, ((RecordingSourceBase)sender).IsVideoCaptureEnabled)
+                                .Apply();
+                        break;
+                    }
+                case nameof(RecordingSourceBase.SourceRect):
+                    {
+                        if (((ICheckableRecordingSource)sender).IsCustomOutputSourceRectEnabled)
+                        {
+                            _rec?.GetDynamicOptionsBuilder()
+                                    .SetSourceRectForRecordingSource(((RecordingSourceBase)sender).ID, ((RecordingSourceBase)sender).SourceRect)
+                                    .Apply();
+                        }
+                        break;
+                    }
+                default:
+                    break;
+            }
+        }
+
+        private void RecorderOptions_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(OutputOptions.RecorderMode):
+                case nameof(SnapshotOptions.SnapshotsWithVideo):
+                    {
+                        UpdateUiState();
+                        break;
+                    }
+                case nameof(AudioOptions.InputVolume):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                                .SetDynamicAudioOptions(new DynamicAudioOptions { InputVolume = RecorderOptions.AudioOptions.InputVolume })
+                                .Apply();
+                        break;
+                    }
+                case nameof(AudioOptions.OutputVolume):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                                .SetDynamicAudioOptions(new DynamicAudioOptions { OutputVolume = RecorderOptions.AudioOptions.OutputVolume })
+                                .Apply();
+                        break;
+                    }
+                case nameof(AudioOptions.IsInputDeviceEnabled):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                             .SetDynamicAudioOptions(new DynamicAudioOptions { IsInputDeviceEnabled = RecorderOptions.AudioOptions.IsInputDeviceEnabled })
+                             .Apply();
+                        break;
+                    }
+                case nameof(AudioOptions.IsOutputDeviceEnabled):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                             .SetDynamicAudioOptions(new DynamicAudioOptions { IsOutputDeviceEnabled = RecorderOptions.AudioOptions.IsOutputDeviceEnabled })
+                             .Apply();
+                        break;
+                    }
+                case nameof(MouseOptions.MouseLeftClickDetectionColor):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                                 .SetDynamicMouseOptions(new DynamicMouseOptions { MouseLeftClickDetectionColor = RecorderOptions.MouseOptions.MouseLeftClickDetectionColor })
+                                 .Apply();
+                        break;
+                    }
+                case nameof(MouseOptions.MouseRightClickDetectionColor):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                                 .SetDynamicMouseOptions(new DynamicMouseOptions { MouseRightClickDetectionColor = RecorderOptions.MouseOptions.MouseRightClickDetectionColor })
+                                 .Apply();
+                        break;
+                    }
+                case nameof(MouseOptions.IsMouseClicksDetected):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                                 .SetDynamicMouseOptions(new DynamicMouseOptions { IsMouseClicksDetected = RecorderOptions.MouseOptions.IsMouseClicksDetected })
+                                 .Apply();
+                        break;
+                    }
+                case nameof(MouseOptions.IsMousePointerEnabled):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                                 .SetDynamicMouseOptions(new DynamicMouseOptions { IsMousePointerEnabled = RecorderOptions.MouseOptions.IsMousePointerEnabled })
+                                 .Apply();
+                        break;
+                    }
+                case nameof(MouseOptions.MouseClickDetectionRadius):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                                 .SetDynamicMouseOptions(new DynamicMouseOptions { MouseClickDetectionRadius = RecorderOptions.MouseOptions.MouseClickDetectionRadius })
+                                 .Apply();
+                        break;
+                    }
+                case nameof(MouseOptions.MouseClickDetectionDuration):
+                    {
+                        _rec?.GetDynamicOptionsBuilder()
+                                 .SetDynamicMouseOptions(new DynamicMouseOptions { MouseClickDetectionDuration = RecorderOptions.MouseOptions.MouseClickDetectionDuration })
+                                 .Apply();
+                        break;
+                    }
+                default:
+                    break;
+            }
+        }
+
+        private void InitializeDefaultRecorderOptions()
+        {
+            RecorderOptions.AudioOptions.IsAudioEnabled = true;
+            RecorderOptions.VideoEncoderOptions.Framerate = 60;
+        }
+
+        private void InitializeDefaultOverlays()
+        {
+            Overlays.Clear();
+            Overlays.Add(new OverlayModel
+            {
+                Overlay = new VideoCaptureOverlay
+                {
+                    AnchorPoint = Anchor.TopLeft,
+                    Offset = new ScreenSize(100, 100),
+                    Size = new ScreenSize(0, 250)
+
+                },
+                IsEnabled = true
+            });
+            Overlays.Add(new OverlayModel
+            {
+                Overlay = new VideoOverlay
+                {
+                    AnchorPoint = Anchor.TopRight,
+                    SourcePath = @"testmedia\cat.mp4",
+                    Offset = new ScreenSize(50, 50),
+                    Size = new ScreenSize(0, 200)
+
+                },
+                IsEnabled = false
+            });
+            Overlays.Add(new OverlayModel
+            {
+                Overlay = new ImageOverlay
+                {
+                    AnchorPoint = Anchor.BottomLeft,
+                    SourcePath = @"testmedia\alphatest.png",
+                    Offset = new ScreenSize(0, 100),
+                    Size = new ScreenSize(0, 300)
+                },
+                IsEnabled = false
+            });
+            Overlays.Add(new OverlayModel
+            {
+                Overlay = new ImageOverlay()
+                {
+                    AnchorPoint = Anchor.Center,
+                    SourcePath = @"testmedia\giftest.gif",
+                    Offset = new ScreenSize(0, 0),
+                    Size = new ScreenSize(0, 300)
+                },
+                IsEnabled = false
+            });
+            Overlays.Add(new OverlayModel
+            {
+                Overlay = new DisplayOverlay()
+                {
+                    AnchorPoint = Anchor.TopLeft,
+                    Offset = new ScreenSize(400, 100),
+                    Size = new ScreenSize(300, 0)
+                },
+                IsEnabled = false
+            });
+            Overlays.Add(new OverlayModel
+            {
+                Overlay = new WindowOverlay()
+                {
+                    AnchorPoint = Anchor.BottomRight,
+                    Offset = new ScreenSize(100, 100),
+                    Size = new ScreenSize(300, 0)
+                },
+                IsEnabled = false
+            });
         }
 
         protected void RaisePropertyChanged(string propertyName)
@@ -218,130 +433,75 @@ namespace TestApp
         }
         public event PropertyChangedEventHandler PropertyChanged;
 
-        private async void RecordButton_Click(object sender, RoutedEventArgs e)
+        private void RecordButton_Click(object sender, RoutedEventArgs e)
         {
             if (IsRecording)
             {
                 _rec.Stop();
                 _progressTimer?.Stop();
                 _progressTimer = null;
-                _secondsElapsed = 0;
                 RecordButton.IsEnabled = false;
                 return;
             }
+            CurrentFrameNumber = 0;
             OutputResultTextBlock.Text = "";
             UpdateProgress();
             string videoPath = "";
-            if (CurrentRecordingMode == RecorderMode.Video)
+            if (RecorderOptions.OutputOptions.RecorderMode == RecorderMode.Video)
             {
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
                 videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + ".mp4");
             }
-            else if (CurrentRecordingMode == RecorderMode.Slideshow)
+            else if (RecorderOptions.OutputOptions.RecorderMode == RecorderMode.Slideshow)
             {
                 //For slideshow just give a folder path as input.
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
                 videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp) + "\\";
             }
-            else if (CurrentRecordingMode == RecorderMode.Snapshot)
+            else if (RecorderOptions.OutputOptions.RecorderMode == RecorderMode.Screenshot)
             {
                 string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss-ff");
                 videoPath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + GetImageExtension());
             }
-            _progressTimer = new DispatcherTimer();
-            _progressTimer.Tick += _progressTimer_Tick;
-            _progressTimer.Interval = TimeSpan.FromSeconds(1);
-            _progressTimer.Start();
 
-            Int32.TryParse(this.RecordingAreaRightTextBox.Text, out int right);
-            Int32.TryParse(this.RecordingAreaBottomTextBox.Text, out int bottom);
-            Int32.TryParse(this.RecordingAreaLeftTextBox.Text, out int left);
-            Int32.TryParse(this.RecordingAreaTopTextBox.Text, out int top);
-            Int32.TryParse(this.ScaledWidthTextBox.Text, out int scaledWidth);
-            Int32.TryParse(this.ScaledHeightTextBox.Text, out int scaledHeight);
-            Double.TryParse(this.ScaledFrameRatioTextBox.Text, out double scaledFrameRatio);
-            if (scaledFrameRatio == 0)
-                scaledFrameRatio = 1.0;
-
-            Display selectedDisplay = (Display)this.ScreenComboBox.SelectedItem;
-
-            IntPtr selectedWindowHandle = this.WindowComboBox.Items.Count > 0 ? ((RecordableWindow)this.WindowComboBox.SelectedItem).Handle : IntPtr.Zero;
-
-            string audioOutputDevice = AudioOutputsComboBox.SelectedValue as string;
-            string audioInputDevice = AudioInputsComboBox.SelectedValue as string;
-
-            RecorderOptions options = new RecorderOptions
+            IVideoEncoder videoEncoder;
+            switch (CurrentVideoEncoderFormat)
             {
-                RecorderMode = CurrentRecordingMode,
-                RecorderApi = CurrentRecordingApi,
-                IsThrottlingDisabled = this.IsThrottlingDisabled,
-                IsHardwareEncodingEnabled = this.IsHardwareEncodingEnabled,
-                IsLowLatencyEnabled = this.IsLowLatencyEnabled,
-                IsMp4FastStartEnabled = this.IsMp4FastStartEnabled,
-                IsFragmentedMp4Enabled = this.IsFragmentedMp4Enabled,
-                IsLogEnabled = this.IsLogEnabled,
-                LogSeverityLevel = this.LogSeverityLevel,
-                LogFilePath = IsLogToFileEnabled ? this.LogFilePath : "",
-
-                AudioOptions = new AudioOptions
-                {
-                    Bitrate = AudioBitrate.bitrate_96kbps,
-                    Channels = AudioChannels.Stereo,
-                    IsAudioEnabled = this.IsAudioEnabled,
-                    IsOutputDeviceEnabled = IsAudioOutEnabled,
-                    IsInputDeviceEnabled = IsAudioInEnabled,
-                    AudioOutputDevice = audioOutputDevice,
-                    AudioInputDevice = audioInputDevice,
-                    InputVolume = (float)InputVolumeSlider.Value,
-                    OutputVolume = (float)OutputVolumeSlider.Value
-                },
-                VideoOptions = new VideoOptions
-                {
-                    BitrateMode = this.CurrentVideoBitrateMode,
-                    Bitrate = VideoBitrate * 1000,
-                    Framerate = this.VideoFramerate,
-                    Quality = this.VideoQuality,
-                    IsFixedFramerate = this.IsFixedFramerate,
-                    EncoderProfile = this.CurrentH264Profile,
-                    SnapshotFormat = CurrentImageFormat,
-                    SnapshotsWithVideo = this.SnapshotsWithVideo,
-                    SnapshotsInterval = this.SnapshotsIntervalInSec,
-                    ScaledFrameWidth = scaledWidth,
-                    ScaledFrameHeight = scaledHeight,
-                    ScaledFrameRatio = scaledFrameRatio
-                },
-                DisplayOptions = new DisplayOptions
-                {
-                    MonitorDeviceName = selectedDisplay.DisplayName,
-                    WindowHandle = selectedWindowHandle,
-                    Left = left,
-                    Top = top,
-                    Right = right,
-                    Bottom = bottom
-                },
-                MouseOptions = new MouseOptions
-                {
-                    IsMouseClicksDetected = this.IsMouseClicksDetected,
-                    IsMousePointerEnabled = this.IsMousePointerEnabled,
-                    MouseClickDetectionColor = this.MouseLeftClickColor,
-                    MouseRightClickDetectionColor = this.MouseRightClickColor,
-                    MouseClickDetectionRadius = this.MouseClickRadius,
-                    MouseClickDetectionDuration = this.MouseClickDuration,
-                    MouseClickDetectionMode = this.CurrentMouseDetectionMode
-                }
-            };
-
+                default:
+                case VideoEncoderFormat.H264:
+                    videoEncoder = new H264VideoEncoder { BitrateMode = CurrentH264VideoBitrateMode, EncoderProfile = CurrentH264Profile };
+                    break;
+                case VideoEncoderFormat.H265:
+                    videoEncoder = new H265VideoEncoder { BitrateMode = CurrentH265VideoBitrateMode, EncoderProfile = CurrentH265Profile };
+                    break;
+            }
+            RecorderOptions.SourceOptions.RecordingSources = CreateSelectedRecordingSources();
+            RecorderOptions.OverlayOptions.Overlays = this.Overlays.Where(x => x.IsEnabled && this.CheckBoxEnableOverlays.IsChecked.GetValueOrDefault(false)).Select(x => x.Overlay).ToList();
+            RecorderOptions.VideoEncoderOptions.Encoder = videoEncoder;
+            if (IsCustomOutputFrameSizeEnabled)
+            {
+                RecorderOptions.OutputOptions.OutputFrameSize = OutputFrameSize;
+            }
+            if (IsCustomOutputSourceRectEnabled)
+            {
+                RecorderOptions.OutputOptions.SourceRect = SourceRect;
+            }
+            if (IsLogToFileEnabled)
+            {
+                RecorderOptions.LogOptions.LogFilePath = LogFilePath;
+            }
             if (_rec == null)
             {
-                _rec = Recorder.CreateRecorder(options);
+                _rec = Recorder.CreateRecorder(RecorderOptions);
                 _rec.OnRecordingComplete += Rec_OnRecordingComplete;
                 _rec.OnRecordingFailed += Rec_OnRecordingFailed;
-                _rec.OnStatusChanged += _rec_OnStatusChanged;
-                _rec.OnSnapshotSaved += _rec_OnSnapshotSaved;
+                _rec.OnStatusChanged += Rec_OnStatusChanged;
+                _rec.OnSnapshotSaved += Rec_OnSnapshotSaved;
+                _rec.OnFrameRecorded += _rec_OnFrameRecorded;
             }
             else
             {
-                _rec.SetOptions(options);
+                _rec.SetOptions(RecorderOptions);
             }
             if (RecordToStream)
             {
@@ -353,13 +513,82 @@ namespace TestApp
             {
                 _rec.Record(videoPath);
             }
-            _secondsElapsed = 0;
             IsRecording = true;
+        }
+
+        private void _rec_OnFrameRecorded(object sender, FrameRecordedEventArgs e)
+        {
+            CurrentFrameNumber = e.FrameNumber;
+        }
+
+        private List<RecordingSourceBase> CreateSelectedRecordingSources()
+        {
+            var sourcesToRecord = RecordingSources.Where(x => x.IsSelected).ToList();
+            if (sourcesToRecord.Count == 0
+                && SelectedRecordingSource != null
+                && SelectedRecordingSource.IsCheckable)
+            {
+                sourcesToRecord.Add(SelectedRecordingSource);
+            }
+            //We could pass in the sources directly, but since the models have been used for custom dimensions and positions, 
+            //we create new ones to pass in, with null values for non-modified values.
+            return sourcesToRecord.Select(x =>
+            {
+                if (x is CheckableRecordableWindow win)
+                {
+                    return new WindowRecordingSource(win)
+                    {
+                        OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
+                        SourceRect = win.IsCustomOutputSourceRectEnabled ? win.SourceRect : null,
+                        Position = win.IsCustomPositionEnabled ? win.Position : null,
+                    };
+                }
+                else if (x is CheckableRecordableDisplay disp)
+                {
+                    return new DisplayRecordingSource(disp)
+                    {
+                        OutputSize = disp.IsCustomOutputSizeEnabled ? disp.OutputSize : null,
+                        SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
+                        Position = disp.IsCustomPositionEnabled ? disp.Position : null
+                    };
+                }
+                else if (x is CheckableRecordableCamera cam)
+                {
+                    return new VideoCaptureRecordingSource(cam)
+                    {
+                        OutputSize = cam.IsCustomOutputSizeEnabled ? cam.OutputSize : null,
+                        SourceRect = cam.IsCustomOutputSourceRectEnabled ? cam.SourceRect : null,
+                        Position = cam.IsCustomPositionEnabled ? cam.Position : null
+                    };
+                }
+                else if (x is CheckableRecordableImage img)
+                {
+                    return new ImageRecordingSource(img)
+                    {
+                        OutputSize = img.IsCustomOutputSizeEnabled ? img.OutputSize : null,
+                        SourceRect = img.IsCustomOutputSourceRectEnabled ? img.SourceRect : null,
+                        Position = img.IsCustomPositionEnabled ? img.Position : null
+                    };
+                }
+                else if (x is CheckableRecordableVideo vid)
+                {
+                    return new VideoRecordingSource(vid)
+                    {
+                        OutputSize = vid.IsCustomOutputSizeEnabled ? vid.OutputSize : null,
+                        SourceRect = vid.IsCustomOutputSourceRectEnabled ? vid.SourceRect : null,
+                        Position = vid.IsCustomPositionEnabled ? vid.Position : null
+                    };
+                }
+                else
+                {
+                    return null as RecordingSourceBase;
+                }
+            }).ToList();
         }
 
         private string GetImageExtension()
         {
-            switch (CurrentImageFormat)
+            switch (RecorderOptions.SnapshotOptions.SnapshotFormat)
             {
                 case ImageFormat.JPEG:
                     return ".jpg";
@@ -377,6 +606,12 @@ namespace TestApp
         {
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
             {
+                string filePath = e.FilePath;
+                if (RecordToStream)
+                {
+                    filePath = ((FileStream)_outputStream)?.Name;
+                }
+                OutputResultTextBlock.Text = filePath;
                 PauseButton.Visibility = Visibility.Collapsed;
                 RecordButton.Content = "Record";
                 RecordButton.IsEnabled = true;
@@ -406,9 +641,9 @@ namespace TestApp
                 CleanupResources();
             }));
         }
-        private void _rec_OnSnapshotSaved(object sender, SnapshotSavedEventArgs e)
+        private void Rec_OnSnapshotSaved(object sender, SnapshotSavedEventArgs e)
         {
-            string filepath = e.SnapshotPath;
+            //string filepath = e.SnapshotPath;
         }
         private void CleanupResources()
         {
@@ -418,13 +653,12 @@ namespace TestApp
 
             _progressTimer?.Stop();
             _progressTimer = null;
-            _secondsElapsed = 0;
 
             _rec?.Dispose();
             _rec = null;
         }
 
-        private void _rec_OnStatusChanged(object sender, RecordingStatusEventArgs e)
+        private void Rec_OnStatusChanged(object sender, RecordingStatusEventArgs e)
         {
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
             {
@@ -433,20 +667,38 @@ namespace TestApp
                 {
                     case RecorderStatus.Idle:
                         this.StatusTextBlock.Text = "Idle";
-                        this.SettingsPanel.IsEnabled = true;
+                        this.VideoSettingsPanel.IsEnabled = true;
+                        this.LoggingPanel.IsEnabled = true;
+                        this.CheckBoxIsAudioEnabled.IsEnabled = true;
+                        this.MouseClickModePanel.IsEnabled = true;
                         break;
                     case RecorderStatus.Recording:
+                        _recordingStartTime = DateTimeOffset.Now;
                         PauseButton.Visibility = Visibility.Visible;
+                        this.FrameNumberTextBlock.Visibility = Visibility.Visible;
                         if (_progressTimer != null)
                             _progressTimer.IsEnabled = true;
+                        if (_recordingPauseTime != null)
+                        {
+                            _recordingStartTime = _recordingStartTime.Value.AddTicks((DateTimeOffset.Now.Subtract(_recordingPauseTime.Value)).Ticks);
+                            _recordingPauseTime = null;
+                        }
                         RecordButton.Content = "Stop";
                         PauseButton.Content = "Pause";
                         this.StatusTextBlock.Text = "Recording";
-                        this.SettingsPanel.IsEnabled = false;
+                        this.VideoSettingsPanel.IsEnabled = false;
+                        this.LoggingPanel.IsEnabled = false;
+                        this.MouseClickModePanel.IsEnabled = false;
+                        this.CheckBoxIsAudioEnabled.IsEnabled = false;
+                        _progressTimer = new DispatcherTimer();
+                        _progressTimer.Tick += ProgressTimer_Tick;
+                        _progressTimer.Interval = TimeSpan.FromMilliseconds(30);
+                        _progressTimer.Start();
                         break;
                     case RecorderStatus.Paused:
                         if (_progressTimer != null)
                             _progressTimer.IsEnabled = false;
+                        _recordingPauseTime = DateTimeOffset.Now;
                         PauseButton.Content = "Resume";
                         this.StatusTextBlock.Text = "Paused";
                         break;
@@ -460,14 +712,16 @@ namespace TestApp
             }));
         }
 
-        private void _progressTimer_Tick(object sender, EventArgs e)
+        private void ProgressTimer_Tick(object sender, EventArgs e)
         {
-            _secondsElapsed++;
             UpdateProgress();
         }
         private void UpdateProgress()
         {
-            TimeStampTextBlock.Text = TimeSpan.FromSeconds(_secondsElapsed).ToString();
+            if (_recordingStartTime != null)
+            {
+                TimeStampTextBlock.Text = DateTimeOffset.Now.Subtract(_recordingStartTime.Value).ToString("hh\\:mm\\:ss");
+            }
         }
         private void PauseButton_Click(object sender, RoutedEventArgs e)
         {
@@ -479,27 +733,13 @@ namespace TestApp
             _rec.Pause();
         }
 
-        private void ScreenComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void SourceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (e.AddedItems.Count == 0)
                 return;
-
-            if (this.WindowComboBox.SelectedIndex==0)
-            {
-                SetScreenRect();
-            }
-        }
-
-        private void SetScreenRect()
-        {
-            if (this.ScreenComboBox.SelectedIndex >= 0 && WindowsDisplayAPI.Display.GetDisplays().Count() > this.ScreenComboBox.SelectedIndex)
-            {
-                var screen = WindowsDisplayAPI.Display.GetDisplays().ToList()[this.ScreenComboBox.SelectedIndex];
-                this.RecordingAreaRightTextBox.Text = screen.CurrentSetting.Resolution.Width.ToString();
-                this.RecordingAreaBottomTextBox.Text = screen.CurrentSetting.Resolution.Height.ToString();
-                this.RecordingAreaLeftTextBox.Text = 0.ToString();
-                this.RecordingAreaTopTextBox.Text = 0.ToString();
-            }
+            SetSourceComboBoxTitle();
+            SetOutputDimensions();
+            ((CollectionViewSource)Resources["SelectedRecordingSourcesViewSource"]).View.Refresh();
         }
 
         private void Hyperlink_Click(object sender, RoutedEventArgs e)
@@ -509,7 +749,10 @@ namespace TestApp
 
         private void TextBox_GotFocus(object sender, RoutedEventArgs e)
         {
-            ((TextBox)sender).SelectAll();
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, (Action)(() =>
+             {
+                 ((TextBox)sender).SelectAll();
+             }));
         }
 
         private void DeleteTempFilesButton_Click(object sender, RoutedEventArgs e)
@@ -533,15 +776,19 @@ namespace TestApp
             }
             Process.Start(directory);
         }
-        private void RecordingBitrateModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (VideoQualityPanel != null)
-            {
-                VideoQualityPanel.Visibility = CurrentVideoBitrateMode == BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
-                VideoBitratePanel.Visibility = CurrentVideoBitrateMode == BitrateControlMode.Quality ? Visibility.Collapsed : Visibility.Visible;
-            }
-        }
 
+        private void VideoEncoderComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateUiState();
+        }
+        private void H264VideoBitrateModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateUiState();
+        }
+        private void H265VideoBitrateModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateUiState();
+        }
         private void ColorTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
             try
@@ -554,24 +801,24 @@ namespace TestApp
             }
         }
 
-        private void RecordingModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void RecordingApiComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (this.AudioInPanel != null)
+            if (e.AddedItems.Count > 0)
             {
-                switch (CurrentRecordingMode)
+                RecorderApi api = (RecorderApi)e.AddedItems[0];
+                switch (api)
                 {
-                    case RecorderMode.Video:
-                        this.VideoBitrateModePanel.Visibility = Visibility.Visible;
-                        this.VideoProfilePanel.Visibility = Visibility.Visible;
-                        this.SnapshotImageFormatPanel.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
-                        this.SnapshotsIntervalPanel.Visibility = SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
+                    case RecorderApi.DesktopDuplication:
+                        this.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
+                        {
+                            ((ComboBox)sender).Text = "DD";
+                        }));
                         break;
-                    case RecorderMode.Slideshow:
-                    case RecorderMode.Snapshot:
-                        this.VideoBitrateModePanel.Visibility = Visibility.Collapsed;
-                        this.VideoProfilePanel.Visibility = Visibility.Collapsed;
-                        this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
-                        this.SnapshotsIntervalPanel.Visibility = Visibility.Collapsed;
+                    case RecorderApi.WindowsGraphicsCapture:
+                        this.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
+                        {
+                            ((ComboBox)sender).Text = "WGC";
+                        }));
                         break;
                     default:
                         break;
@@ -579,162 +826,289 @@ namespace TestApp
             }
         }
 
-        private void OnInputVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (_rec != null)
-            {
-                _rec.SetInputVolume((float)e.NewValue);
-            }
-
-        }
-
-        private void OnOutputVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            if (_rec != null)
-            {
-                _rec.SetOutputVolume((float)e.NewValue);
-            }
-        }
-
-        private void RecordingApiComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (CurrentRecordingApi == RecorderApi.DesktopDuplication)
-            {
-                this.WindowComboBox.Visibility = Visibility.Collapsed;
-                this.CoordinatesPanel.IsEnabled = true;
-                SetScreenRect();
-            }
-            else if (CurrentRecordingApi == RecorderApi.WindowsGraphicsCapture)
-            {
-                this.WindowComboBox.Visibility = Visibility.Visible;
-                this.CoordinatesPanel.IsEnabled = false;
-            }
-        }
-
-        private void WindowComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            if (e.AddedItems.Count == 0)
-                return;
-            
-            var window = this.WindowComboBox.Items[this.WindowComboBox.SelectedIndex] as RecordableWindow;
-            if (window.Handle == IntPtr.Zero)
-            {
-                SetScreenRect();
-            }
-            else
-            {
-                if (0 == NativeMethods.DwmGetWindowAttribute(window.Handle, 9, out NativeMethods.RECT windowRect, Marshal.SizeOf(typeof(NativeMethods.RECT))))
-                {
-                    this.RecordingAreaRightTextBox.Text = windowRect.Right.ToString();
-                    this.RecordingAreaBottomTextBox.Text = windowRect.Bottom.ToString();
-                    this.RecordingAreaLeftTextBox.Text = windowRect.Left.ToString();
-                    this.RecordingAreaTopTextBox.Text = windowRect.Top.ToString();
-                }
-            }
-        }
         private void RefreshButton_Click(object sender, RoutedEventArgs e)
         {
             RefreshCaptureTargetItems();
         }
+
+        private void UpdateUiState()
+        {
+            if (this.IsLoaded)
+            {
+                switch (RecorderOptions.OutputOptions.RecorderMode)
+                {
+                    case RecorderMode.Video:
+                        this.EncoderOptionsPanel.Visibility = Visibility.Visible;
+                        this.SnapshotImageFormatPanel.Visibility = RecorderOptions.SnapshotOptions.SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
+                        this.SnapshotsIntervalPanel.Visibility = RecorderOptions.SnapshotOptions.SnapshotsWithVideo ? Visibility.Visible : Visibility.Collapsed;
+                        this.EncoderOptionsPanel.Visibility = Visibility.Visible;
+                        this.CheckBoxSnapshotsWithVideo.Visibility = Visibility.Visible;
+                        this.VideoEncoderOptionsPanel.Visibility = Visibility.Visible;
+                        this.VideoBitratePanel.Visibility = Visibility.Visible;
+                        this.VideoQualityPanel.Visibility = Visibility.Visible;
+                        this.AudioPanel.Visibility = Visibility.Visible;
+
+                        switch (CurrentVideoEncoderFormat)
+                        {
+                            case VideoEncoderFormat.H264:
+                                H264OptionsPanel.Visibility = Visibility.Visible;
+                                H265OptionsPanel.Visibility = Visibility.Collapsed;
+                                VideoQualityPanel.Visibility = CurrentH264VideoBitrateMode == H264BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
+                                VideoQualityPanel.Visibility = CurrentH264VideoBitrateMode == H264BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
+                                break;
+                            case VideoEncoderFormat.H265:
+                                H264OptionsPanel.Visibility = Visibility.Collapsed;
+                                H265OptionsPanel.Visibility = Visibility.Visible;
+                                VideoQualityPanel.Visibility = CurrentH265VideoBitrateMode == H265BitrateControlMode.Quality ? Visibility.Visible : Visibility.Collapsed;
+                                VideoBitratePanel.Visibility = CurrentH265VideoBitrateMode == H265BitrateControlMode.Quality ? Visibility.Collapsed : Visibility.Visible;
+                                break;
+                            default:
+                                break;
+                        }
+                        break;
+                    case RecorderMode.Slideshow:
+                    case RecorderMode.Screenshot:
+                        this.EncoderOptionsPanel.Visibility = Visibility.Collapsed;
+                        this.SnapshotImageFormatPanel.Visibility = Visibility.Visible;
+                        this.SnapshotsIntervalPanel.Visibility = RecorderOptions.OutputOptions.RecorderMode == RecorderMode.Slideshow ? Visibility.Visible : Visibility.Collapsed;
+                        this.EncoderOptionsPanel.Visibility = Visibility.Collapsed;
+                        this.CheckBoxSnapshotsWithVideo.Visibility = Visibility.Collapsed;
+                        this.VideoEncoderOptionsPanel.Visibility = Visibility.Collapsed;
+                        this.VideoBitratePanel.Visibility = Visibility.Collapsed;
+                        this.VideoQualityPanel.Visibility = Visibility.Collapsed;
+                        this.AudioPanel.Visibility = Visibility.Collapsed;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
         private void RefreshCaptureTargetItems()
         {
-            RefreshScreenComboBox();
-            RefreshWindowComboBox();
+            RefreshVideoCaptureItems();
+            RefreshSourceComboBox();
             RefreshAudioComboBoxes();
         }
-        private void RefreshScreenComboBox()
-        {
-            this.ScreenComboBox.Items.Clear();
 
-            foreach (var target in WindowsDisplayAPI.Display.GetDisplays())
+        private void RefreshVideoCaptureItems()
+        {
+            VideoCaptureDevices.Clear();
+            var devices = Recorder.GetSystemVideoCaptureDevices().ToList();
+            foreach (var device in devices)
             {
-                this.ScreenComboBox.Items.Add(target);
+                VideoCaptureDevices.Add(device);
             }
-
-            ScreenComboBox.SelectedIndex = 0;
+            (this.Resources["MediaDeviceToDeviceIdConverter"] as MediaDeviceToDeviceIdConverter).MediaDevices = VideoCaptureDevices.ToList();
         }
-        private void RefreshWindowComboBox()
+
+        private void RefreshSourceComboBox()
         {
-            this.WindowComboBox.Items.Clear();
-            this.WindowComboBox.Items.Add(new RecordableWindow("-- No window selected --", IntPtr.Zero));
+            RecordingSources.Clear();
+            foreach (var target in Recorder.GetDisplays())
+            {
+                RecordingSources.Add(new CheckableRecordableDisplay(target));
+            }
 
             foreach (RecordableWindow window in Recorder.GetWindows())
             {
-                this.WindowComboBox.Items.Add(window);
+                RecordingSources.Add(new CheckableRecordableWindow(window));
             }
 
-            WindowComboBox.SelectedIndex = 0;
+            foreach (RecordableCamera cam in Recorder.GetSystemVideoCaptureDevices())
+            {
+                RecordingSources.Add(new CheckableRecordableCamera(cam));
+            }
+
+            RecordingSources.Add(new CheckableRecordableVideo(@"testmedia\cat.mp4"));
+            RecordingSources.Add(new CheckableRecordableImage(@"testmedia\renault.png"));
+            RecordingSources.Add(new CheckableRecordableImage(@"testmedia\earth.gif"));
+
+            (this.Resources["RecordableDisplayToDeviceIdConverter"] as RecordableDisplayToDeviceIdConverter).Displays = RecordingSources.Where(x => x is RecordableDisplay).Cast<RecordableDisplay>().ToList();
+            (this.Resources["RecordableWindowToHandleConverter"] as RecordableWindowToHandleConverter).Windows = RecordingSources.Where(x => x is RecordableWindow).Cast<RecordableWindow>().ToList();
+
+            var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(RecordingSources.Cast<RecordingSourceBase>());
+            foreach (var source in RecordingSources)
+            {
+                var sourceCoord = outputDimens.OutputCoordinates.FirstOrDefault(x => x.Source == source);
+                ScreenPoint position;
+                ScreenSize size;
+                if (sourceCoord != null)
+                {
+                    position = source is CheckableRecordableDisplay ? new ScreenPoint(sourceCoord.Coordinates.Left, sourceCoord.Coordinates.Top) : new ScreenPoint(0, 0);
+                    size = new ScreenSize(sourceCoord.Coordinates.Width, sourceCoord.Coordinates.Height);
+                }
+                else
+                {
+                    position = new ScreenPoint();
+                    size = new ScreenSize();
+                }
+                source.UpdateScreenCoordinates(position, size);
+            }
+            RefreshWindowSizeAndAvailability();
+
+            SourceComboBox.SelectedIndex = 0;
         }
+
+        private void RefreshWindowSizeAndAvailability()
+        {
+            var windowSources = RecordingSources.Where(x => x is CheckableRecordableWindow).Cast<CheckableRecordableWindow>();
+            var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(windowSources);
+            foreach (var source in windowSources)
+            {
+                var sourceCoord = outputDimens.OutputCoordinates.FirstOrDefault(x => x.Source == source);
+
+                if (sourceCoord != null)
+                {
+                    var position = new ScreenPoint(0, 0);
+                    var size = new ScreenSize(sourceCoord.Coordinates.Width, sourceCoord.Coordinates.Height);
+                    source.UpdateScreenCoordinates(position, size);
+                }
+                else
+                {
+                    source.UpdateScreenCoordinates(new ScreenPoint(), new ScreenSize());
+                }
+                source.IsCheckable = true;
+            }
+
+        }
+
         private void RefreshAudioComboBoxes()
         {
             AudioOutputsList.Clear();
             AudioInputsList.Clear();
 
-            AudioOutputsList.Add("", "Default playback device");
-            AudioInputsList.Add("", "Default recording device");
-            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices))
+            AudioOutputsList.Add(new AudioDevice("", "Default playback device"));
+            AudioInputsList.Add(new AudioDevice("", "Default recording device"));
+            foreach (var outputDevice in Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices))
             {
-                AudioOutputsList.Add(kvp.Key, kvp.Value);
+                AudioOutputsList.Add(outputDevice);
             }
-            foreach (var kvp in Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices))
+            foreach (var inputDevice in Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices))
             {
-                AudioInputsList.Add(kvp.Key, kvp.Value);
+                AudioInputsList.Add(inputDevice);
             }
-
-            // Since Dictionary is not "observable", reset the reference.
-            AudioOutputsComboBox.ItemsSource = null;
-            AudioInputsComboBox.ItemsSource = null;
-
-            AudioOutputsComboBox.ItemsSource = AudioOutputsList;
-            AudioInputsComboBox.ItemsSource = AudioInputsList;
 
             AudioOutputsComboBox.SelectedIndex = 0;
             AudioInputsComboBox.SelectedIndex = 0;
         }
 
-        private void ScaledWidthTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private void ScreenCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
         {
-            ScaledFrameRatioTextBox.IsEnabled = !IsValidSizeInScaledWidthHeight();
+            SetSourceComboBoxTitle();
+            SetOutputDimensions();
+            ((CollectionViewSource)Resources["SelectedRecordingSourcesViewSource"]).View.Refresh();
         }
-        private void ScaledHeightTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        private void SetSourceComboBoxTitle()
         {
-            ScaledFrameRatioTextBox.IsEnabled = !IsValidSizeInScaledWidthHeight();
+            this.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
+            {
+                if (RecordingSources.Any(x => x.IsSelected))
+                {
+                    var sources = RecordingSources.Where(x => x.IsSelected).Select(x => x.ToString());
+                    this.SourceComboBox.Text = string.Join(", ", sources);
+                }
+            }));
         }
-        private bool IsValidSizeInScaledWidthHeight()
+        private void SetOutputDimensions()
         {
-            int width = 0;
-            Int32.TryParse(this.ScaledWidthTextBox.Text, out width);
-            int height = 0;
-            Int32.TryParse(this.ScaledHeightTextBox.Text, out height);
-            return width != 0 && height != 0;
+            List<ICheckableRecordingSource> selectedSources = RecordingSources.Where(x => x.IsSelected && x.IsCheckable).ToList();
+            if (selectedSources.Count == 0)
+            {
+                selectedSources.Add(SelectedRecordingSource);
+            }
+
+            foreach (var source in selectedSources)
+            {
+                if (!source.IsCustomPositionEnabled)
+                {
+                    source.Position = null;
+                }
+                if (!source.IsCustomOutputSizeEnabled)
+                {
+                    source.OutputSize = null;
+                }
+                if (!source.IsCustomOutputSourceRectEnabled)
+                {
+                    source.SourceRect = null;
+                }
+            }
+            var outputDimens = Recorder.GetOutputDimensionsForRecordingSources(selectedSources.Cast<RecordingSourceBase>());
+            var allMonitorsSize = outputDimens.CombinedOutputSize;
+            if (!IsCustomOutputSourceRectEnabled)
+            {
+                SourceRect = new ScreenRect(0, 0, allMonitorsSize.Width, allMonitorsSize.Height);
+            }
+            if (!IsCustomOutputFrameSizeEnabled)
+            {
+                OutputFrameSize = new ScreenSize(SourceRect.Width, SourceRect.Height);
+            }
+            foreach (SourceCoordinates sourceCoord in outputDimens.OutputCoordinates)
+            {
+                var source = selectedSources.FirstOrDefault(x => x == sourceCoord.Source);
+                if (source != null)
+                {
+                    source.UpdateScreenCoordinates(new ScreenPoint(sourceCoord.Coordinates.Left, sourceCoord.Coordinates.Top), new ScreenSize(sourceCoord.Coordinates.Width, sourceCoord.Coordinates.Height));
+                }
+            }
         }
-    }
 
-    internal class NativeMethods
-    {
-        [DllImport("user32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-        /// <summary>
-        /// Retrieves actual window size that is not affected by the drop shadow or DPI setting.
-        /// Specify DWMWA_EXTENDED_FRAME_BOUNDS (9) as dwAttribute.
-        /// </summary>
-        /// <param name="hWnd"></param>
-        /// <param name="dwAttribute"></param>
-        /// <param name="rect">out parameter of RECT</param>
-        /// <param name="cbAttribute">size of RECT</param>
-        /// <returns>0 if success</returns>
-        [DllImport("dwmapi.dll")]
-        public static extern int DwmGetWindowAttribute(IntPtr hWnd, int dwAttribute, out RECT rect, int cbAttribute);
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct RECT
+        private void SelectedRecordingSourcesViewSource_Filter(object sender, System.Windows.Data.FilterEventArgs e)
         {
-            public int Left;        // x position of upper-left corner
-            public int Top;         // y position of upper-left corner
-            public int Right;       // x position of lower-right corner
-            public int Bottom;      // y position of lower-right corner
+            if (!RecordingSources.Any(x => x.IsSelected))
+            {
+                e.Accepted = e.Item == SelectedRecordingSource
+                    && SelectedRecordingSource.IsCheckable;
+            }
+            else
+            {
+                e.Accepted = ((ICheckableRecordingSource)e.Item).IsSelected
+                    && ((ICheckableRecordingSource)e.Item).IsCheckable;
+            }
+        }
+        private void DisplaysViewSource_Filter(object sender, FilterEventArgs e)
+        {
+            e.Accepted = e.Item is DisplayRecordingSource;
+        }
+        private void WindowsViewSource_Filter(object sender, FilterEventArgs e)
+        {
+            e.Accepted = e.Item is RecordableWindow window && window.IsValidWindow() && !window.IsMinmimized();
+        }
+        private void MainWin_Activated(object sender, EventArgs e)
+        {
+            SetOutputDimensions();
+        }
+
+        private void UserInput_TextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+        {
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, (Action)(() =>
+            {
+                SetOutputDimensions();
+                if ((sender as FrameworkElement).DataContext is ICheckableRecordingSource source)
+                {
+                    if (source.IsCustomOutputSourceRectEnabled)
+                    {
+                        ((RecordingSourceBase)source).OnPropertyChanged(nameof(source.SourceRect));
+                    }
+                }
+                else if((sender as FrameworkElement).DataContext is null)
+                {
+                    if (this.IsCustomOutputSourceRectEnabled)
+                    {
+                        this.RaisePropertyChanged(nameof(SourceRect));
+                    }
+                }
+            }));
+        }
+
+        private void CustomCoordinates_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            SetOutputDimensions();
+        }
+
+        private void SourceComboBox_DropDownOpened(object sender, EventArgs e)
+        {
+            RefreshWindowSizeAndAvailability();
         }
     }
 }
