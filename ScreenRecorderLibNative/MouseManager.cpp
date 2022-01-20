@@ -200,10 +200,10 @@ long MouseManager::ParseColorString(std::string color)
 
 void MouseManager::GetPointerPosition(_In_ PTR_INFO *pPtrInfo, DXGI_MODE_ROTATION rotation, int desktopWidth, int desktopHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop)
 {
-	int left = (pPtrInfo->Position.x + pPtrInfo->Offset.x) * pPtrInfo->Scale.cx;
-	int top = (pPtrInfo->Position.y + pPtrInfo->Offset.y) * pPtrInfo->Scale.cy;
-	int width = pPtrInfo->ShapeInfo.Width * pPtrInfo->Scale.cx;
-	int height = pPtrInfo->ShapeInfo.Height * pPtrInfo->Scale.cy;
+	int left = static_cast<int>(round((pPtrInfo->Position.x + pPtrInfo->Offset.x) * pPtrInfo->Scale.cx));
+	int top = static_cast<int>(round((pPtrInfo->Position.y + pPtrInfo->Offset.y) * pPtrInfo->Scale.cy));
+	int width = static_cast<int>(round(pPtrInfo->ShapeInfo.Width * pPtrInfo->Scale.cx));
+	int height = static_cast<int>(round(pPtrInfo->ShapeInfo.Height * pPtrInfo->Scale.cy));
 	switch (rotation)
 	{
 		default:
@@ -294,17 +294,17 @@ HRESULT MouseManager::DrawMouseClick(_In_ PTR_INFO *pPtrInfo, _In_ ID3D11Texture
 	GetPointerPosition(pPtrInfo, rotation, desc.Width, desc.Height, &ptrLeft, &ptrTop);
 
 	if (rotation == DXGI_MODE_ROTATION_ROTATE90) {
-		ptrTop += pPtrInfo->ShapeInfo.Height * pPtrInfo->Scale.cy;
+		ptrTop += static_cast<int>(round(pPtrInfo->ShapeInfo.Height * pPtrInfo->Scale.cy));
 	}
 	else if (rotation == DXGI_MODE_ROTATION_ROTATE180) {
-		ptrLeft += pPtrInfo->ShapeInfo.Width * pPtrInfo->Scale.cx;
-		ptrTop += pPtrInfo->ShapeInfo.Height * pPtrInfo->Scale.cy;
+		ptrLeft += static_cast<int>(round(pPtrInfo->ShapeInfo.Width * pPtrInfo->Scale.cx));
+		ptrTop += static_cast<int>(round(pPtrInfo->ShapeInfo.Height * pPtrInfo->Scale.cy));
 	}
 	else if (rotation == DXGI_MODE_ROTATION_ROTATE270) {
-		ptrLeft += pPtrInfo->ShapeInfo.Height * pPtrInfo->Scale.cy;
+		ptrLeft += static_cast<int>(round(pPtrInfo->ShapeInfo.Height * pPtrInfo->Scale.cy));
 	}
-	ptrLeft += pPtrInfo->ShapeInfo.HotSpot.x * pPtrInfo->Scale.cx;
-	ptrTop += pPtrInfo->ShapeInfo.HotSpot.y * pPtrInfo->Scale.cy;
+	ptrLeft += static_cast<int>(round(pPtrInfo->ShapeInfo.HotSpot.x * pPtrInfo->Scale.cx));
+	ptrTop += static_cast<int>(round(pPtrInfo->ShapeInfo.HotSpot.y * pPtrInfo->Scale.cy));
 	mousePoint.x = ptrLeft / dpiScale;
 	mousePoint.y = ptrTop / dpiScale;
 
@@ -411,8 +411,8 @@ HRESULT MouseManager::DrawMousePointer(_In_ PTR_INFO *pPtrInfo, _Inout_ ID3D11Te
 	InitData.SysMemSlicePitch = 0;
 
 	// Scaled width and height
-	PtrWidth *= pPtrInfo->Scale.cx;
-	PtrHeight *= pPtrInfo->Scale.cy;
+	PtrWidth = static_cast<int>(round(PtrWidth * pPtrInfo->Scale.cx));
+	PtrHeight = static_cast<int>(round(PtrHeight * pPtrInfo->Scale.cy));
 
 	// VERTEX creation
 	if (rotation == DXGI_MODE_ROTATION_UNSPECIFIED
