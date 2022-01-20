@@ -203,6 +203,7 @@ namespace TestApp
             RecorderOptions.SnapshotOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.AudioOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.MouseOptions.PropertyChanged += RecorderOptions_PropertyChanged;
+            RecorderOptions.OutputOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecordingSources.CollectionChanged += (s, args) =>
             {
                 if (args.NewItems != null)
@@ -497,7 +498,7 @@ namespace TestApp
                 _rec.OnRecordingFailed += Rec_OnRecordingFailed;
                 _rec.OnStatusChanged += Rec_OnStatusChanged;
                 _rec.OnSnapshotSaved += Rec_OnSnapshotSaved;
-                _rec.OnFrameRecorded += _rec_OnFrameRecorded;
+                _rec.OnFrameRecorded += Rec_OnFrameRecorded;
             }
             else
             {
@@ -516,7 +517,7 @@ namespace TestApp
             IsRecording = true;
         }
 
-        private void _rec_OnFrameRecorded(object sender, FrameRecordedEventArgs e)
+        private void Rec_OnFrameRecorded(object sender, FrameRecordedEventArgs e)
         {
             CurrentFrameNumber = e.FrameNumber;
         }
@@ -1091,7 +1092,7 @@ namespace TestApp
                         ((RecordingSourceBase)source).OnPropertyChanged(nameof(source.SourceRect));
                     }
                 }
-                else if((sender as FrameworkElement).DataContext is null)
+                else if ((sender as FrameworkElement).DataContext is null)
                 {
                     if (this.IsCustomOutputSourceRectEnabled)
                     {
