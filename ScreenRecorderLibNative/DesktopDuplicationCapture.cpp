@@ -159,8 +159,6 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 					pProcessedTexture->GetDesc(&frameDesc);
 				}
 
-				int leftMargin = 0;
-				int topMargin = 0;
 				RECT contentRect = destinationRect;
 				if (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height) {
 					ID3D11Texture2D *pResizedTexture;
@@ -178,6 +176,8 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 				D3D11_TEXTURE2D_DESC processedFrameDesc;
 				pProcessedTexture->GetDesc(&processedFrameDesc);
 
+				SIZE contentOffset = GetContentOffset(m_RecordingSource->Anchor, destinationRect, contentRect);
+
 				D3D11_BOX Box;
 				Box.front = 0;
 				Box.back = 1;
@@ -185,7 +185,7 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 				Box.top = 0;
 				Box.right = MakeEven(processedFrameDesc.Width);
 				Box.bottom = MakeEven(processedFrameDesc.Height);
-				m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, destinationRect.left + offsetX + leftMargin, destinationRect.top + offsetY + topMargin, 0, pProcessedTexture, 0, &Box);
+				m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, destinationRect.left + offsetX + contentOffset.cx, destinationRect.top + offsetY + contentOffset.cy, 0, pProcessedTexture, 0, &Box);
 			}
 			else
 			{
