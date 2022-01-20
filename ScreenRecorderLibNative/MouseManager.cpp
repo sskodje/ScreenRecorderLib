@@ -401,6 +401,11 @@ HRESULT MouseManager::DrawMousePointer(_In_ PTR_INFO *pPtrInfo, _Inout_ ID3D11Te
 			LOG_ERROR("Unrecognized mouse pointer type");
 			return E_FAIL;
 	}
+
+	if (PtrWidth <= 0 || PtrHeight <= 0 || unsigned(PtrWidth) > DesktopDesc.Width || unsigned(PtrHeight) > DesktopDesc.Height) {
+		return S_FALSE;
+	}
+
 	// Set original texture properties
 	Desc.Width = PtrWidth;
 	Desc.Height = PtrHeight;
@@ -621,6 +626,10 @@ HRESULT MouseManager::ProcessMonoMask(
 
 	*ptrLeft = (GivenLeft < 0) ? 0 : GivenLeft;
 	*ptrTop = (GivenTop < 0) ? 0 : GivenTop;
+
+	if (*ptrWidth <= 0 || *ptrHeight <= 0 || unsigned(*ptrWidth) > desc.Width || unsigned(*ptrHeight) > desc.Height) {
+		return S_FALSE;
+	}
 
 	// Staging buffer/texture
 	D3D11_TEXTURE2D_DESC CopyBufferDesc;
