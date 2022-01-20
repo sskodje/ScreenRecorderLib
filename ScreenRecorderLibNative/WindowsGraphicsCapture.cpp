@@ -36,7 +36,11 @@ WindowsGraphicsCapture::WindowsGraphicsCapture() :
 	m_MouseManager(nullptr),
 	m_LastSampleReceivedTimeStamp{ 0 },
 	m_LastGrabTimeStamp{ 0 },
-	m_RecordingSource(nullptr)
+	m_RecordingSource(nullptr),
+	m_CursorOffsetX(0),
+	m_CursorOffsetY(0),
+	m_CursorScaleX(1.0),
+	m_CursorScaleY(1.0)
 {
 	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -117,8 +121,16 @@ HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeout
 		D3D11_TEXTURE2D_DESC frameDesc;
 		pProcessedTexture->GetDesc(&frameDesc);
 		RECORDING_SOURCE *recordingSource = dynamic_cast<RECORDING_SOURCE *>(m_RecordingSource);
-		if (recordingSource
-			&& recordingSource->SourceRect.has_value()
+		if (!recordingSource) {
+			LOG_ERROR("Recording source cannot be NULL");
+			return E_FAIL;
+		}
+		int cursorOffsetX = 0;
+		int cursorOffsetY = 0;
+		float cursorScaleX = 1.0;
+		float cursorScaleY = 1.0;
+
+		if (recordingSource->SourceRect.has_value()
 			&& IsValidRect(recordingSource->SourceRect.value())
 			&& (RectWidth(recordingSource->SourceRect.value()) != frameDesc.Width || (RectHeight(recordingSource->SourceRect.value()) != frameDesc.Height))) {
 			ID3D11Texture2D *pCroppedTexture;
@@ -127,17 +139,23 @@ HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeout
 				pProcessedTexture.Release();
 				pProcessedTexture.Attach(pCroppedTexture);
 			}
+			pProcessedTexture->GetDesc(&frameDesc);
+			cursorOffsetX = 0 - recordingSource->SourceRect.value().left;
+			cursorOffsetY = 0 - recordingSource->SourceRect.value().top;
 		}
-		pProcessedTexture->GetDesc(&frameDesc);
 		RECT contentRect = destinationRect;
 		if (m_RecordingSource
 			&& (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height)) {
 			ID3D11Texture2D *pResizedTexture;
 			RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pProcessedTexture, SIZE{ RectWidth(destinationRect),RectHeight(destinationRect) }, m_RecordingSource->Stretch, &pResizedTexture, &contentRect));
+			int prescaleWidth = frameDesc.Width;
+			int prescaleHeight = frameDesc.Height;
 			pProcessedTexture.Release();
 			pProcessedTexture.Attach(pResizedTexture);
+			pProcessedTexture->GetDesc(&frameDesc);
+			cursorScaleX = (float)RectWidth(contentRect) / prescaleWidth;
+			cursorScaleY = (float)RectHeight(contentRect) / prescaleHeight;
 		}
-		pProcessedTexture->GetDesc(&frameDesc);
 
 		RECT finalFrameRect = MakeRectEven(RECT
 			{
@@ -151,7 +169,9 @@ HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeout
 			m_TextureManager->BlankTexture(pSharedSurf, MakeRectEven(destinationRect), offsetX, offsetY);
 		}
 
-		SIZE contentOffset = GetContentOffset(m_RecordingSource->Anchor, destinationRect, contentRect);
+		SIZE contentOffset = GetContentOffset(recordingSource->Anchor, destinationRect, contentRect);
+		cursorOffsetX += static_cast<int>(round(contentOffset.cx / cursorScaleX));
+		cursorOffsetY += static_cast<int>(round(contentOffset.cy / cursorScaleY));
 
 		D3D11_BOX Box;
 		Box.front = 0;
@@ -163,6 +183,10 @@ HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeout
 
 		m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, finalFrameRect.left + offsetX + contentOffset.cx, finalFrameRect.top + offsetY + contentOffset.cy, 0, pProcessedTexture, 0, &Box);
 		m_LastFrameRect = finalFrameRect;
+		m_CursorOffsetX = cursorOffsetX;
+		m_CursorOffsetY = cursorOffsetY;
+		m_CursorScaleX = cursorScaleX;
+		m_CursorScaleY = cursorScaleY;
 		QueryPerformanceCounter(&m_LastGrabTimeStamp);
 	}
 	return hr;
@@ -288,7 +312,10 @@ HRESULT WindowsGraphicsCapture::GetNativeSize(_In_ RECORDING_SOURCE_BASE &record
 HRESULT WindowsGraphicsCapture::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ RECT frameCoordinates, _In_ int offsetX, _In_ int offsetY)
 {
 	// Windows Graphics Capture includes the mouse cursor on the texture, so we only get the positioning info for mouse click draws.
-	return m_MouseManager->GetMouse(pPtrInfo, false, offsetX, offsetY);
+	HRESULT hr = m_MouseManager->GetMouse(pPtrInfo, false, offsetX, offsetY);
+	pPtrInfo->Scale = SIZE_F{ m_CursorScaleX, m_CursorScaleY };
+	pPtrInfo->Offset = POINT{ m_CursorOffsetX, m_CursorOffsetY };
+	return hr;
 }
 
 HRESULT WindowsGraphicsCapture::GetCaptureItem(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ winrt::GraphicsCaptureItem *item)
