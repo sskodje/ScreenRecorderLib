@@ -42,3 +42,8 @@ This will start a video recording to a file, using the default settings:
 ```
 
 For more info and examples, see the [quickstart guide](https://github.com/sskodje/ScreenRecorderLib/wiki/Quickstart-guide-v5.x.x), or check out the sample projects.
+
+## Donation
+If this project is useful to you, please consider supporting the development with a donation :) 
+
+[![paypal](https://www.paypalobjects.com/en_US/NO/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=A8YE92K9QM7NA)
