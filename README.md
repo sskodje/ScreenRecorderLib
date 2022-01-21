@@ -46,4 +46,4 @@ For more info and examples, see the [quickstart guide](https://github.com/sskodj
 ## Donation
 If this project is useful to you, please consider supporting the development with a donation :) 
 
-[![paypal](https://www.paypalobjects.com/en_US/NO/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=A8YE92K9QM7NA)
+[![paypal](https://www.paypalobjects.com/en_US/NO/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/donate/?business=RBE7933GCPLZU&no_recurring=0&item_name=Thanks+for+supporting+my+open+source+work%21&currency_code=USD)
