@@ -197,6 +197,69 @@ HRESULT __cdecl SaveWICTextureToFile(
 	if (!filePath)
 		return E_INVALIDARG;
 
+	CComPtr<IWICImagingFactory> pWIC = _GetWIC();
+	if (!pWIC)
+		return E_NOINTERFACE;
+
+	CComPtr<IWICStream> wicStream;
+	HRESULT hr = pWIC->CreateStream(&wicStream);
+	if (FAILED(hr))
+		return hr;
+
+	hr = wicStream->InitializeFromFilename(filePath, GENERIC_WRITE);
+	if (FAILED(hr))
+		return hr;
+	hr = SaveWICTextureToWicStream(pContext, pSource, guidContainerFormat, wicStream, destSize, targetFormat, setCustomProps);
+	if (FAILED(hr)) {
+		wicStream.Release();
+		DeleteFileW(filePath);
+	}
+	return hr;
+}
+
+HRESULT __cdecl SaveWICTextureToStream(
+	_In_ ID3D11DeviceContext *pContext,
+	_In_ ID3D11Resource *pSource,
+	_In_ REFGUID guidContainerFormat,
+	_In_ IStream *pStream,
+	_In_opt_ const std::optional<SIZE> destSize,
+	_In_opt_ const GUID *targetFormat,
+	_In_opt_ std::function<void(IPropertyBag2 *)> setCustomProps)
+{
+	if (!pStream)
+		return E_INVALIDARG;
+
+	CComPtr<IWICImagingFactory> pWIC = _GetWIC();
+	if (!pWIC)
+		return E_NOINTERFACE;
+
+	CComPtr<IWICStream> wicStream;
+	HRESULT hr = pWIC->CreateStream(&wicStream);
+	if (FAILED(hr))
+		return hr;
+
+	hr = wicStream->InitializeFromIStream(pStream);
+	if (FAILED(hr))
+		return hr;
+	hr = SaveWICTextureToWicStream(pContext, pSource, guidContainerFormat, wicStream, destSize, targetFormat, setCustomProps);
+	if (FAILED(hr)) {
+		wicStream.Release();
+	}
+	return hr;
+}
+
+HRESULT __cdecl SaveWICTextureToWicStream(
+	_In_ ID3D11DeviceContext *pContext,
+	_In_ ID3D11Resource *pSource,
+	_In_ REFGUID guidContainerFormat,
+	_Inout_ IWICStream *pStream,
+	_In_opt_ const std::optional<SIZE> destSize,
+	_In_opt_ const GUID *targetFormat,
+	_In_opt_ std::function<void(IPropertyBag2 *)> setCustomProps)
+{
+	if (!pStream)
+		return E_INVALIDARG;
+
 	D3D11_TEXTURE2D_DESC desc = {};
 	CComPtr<ID3D11Texture2D> pStaging;
 	HRESULT hr = CaptureTexture(pContext, pSource, desc, pStaging);
@@ -255,23 +318,13 @@ HRESULT __cdecl SaveWICTextureToFile(
 	CComPtr<IWICImagingFactory> pWIC = _GetWIC();
 	if (!pWIC)
 		return E_NOINTERFACE;
-	CComPtr<IWICStream> stream;
-	hr = pWIC->CreateStream(&stream);
-	if (FAILED(hr))
-		return hr;
-
-	hr = stream->InitializeFromFilename(filePath, GENERIC_WRITE);
-	if (FAILED(hr))
-		return hr;
-
-	DeleteFileOnExit delonfail(stream, filePath);
 
 	CComPtr<IWICBitmapEncoder> encoder;
 	hr = pWIC->CreateEncoder(guidContainerFormat, 0, &encoder);
 	if (FAILED(hr))
 		return hr;
 
-	hr = encoder->Initialize(stream, WICBitmapEncoderNoCache);
+	hr = encoder->Initialize(pStream, WICBitmapEncoderNoCache);
 	if (FAILED(hr))
 		return hr;
 
@@ -475,8 +528,6 @@ HRESULT __cdecl SaveWICTextureToFile(
 	hr = encoder->Commit();
 	if (FAILED(hr))
 		return hr;
-
-	delonfail.clear();
 
 	return S_OK;
 }

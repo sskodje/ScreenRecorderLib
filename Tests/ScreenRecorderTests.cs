@@ -16,11 +16,178 @@ namespace ScreenRecorderLib
     {
         const int DefaultMaxRecordingLengthMillis = 3000;
 
-        private string GetTempPath()
+        private static string GetTempPath()
         {
             string path = Path.Combine(Path.GetTempPath(), "ScreenRecorder", "Tests");
             Directory.CreateDirectory(path);
             return path;
+        }
+
+        private static string MediaInfoFormatForImageFormat(ImageFormat format)
+        {
+            switch (format)
+            {
+                case ImageFormat.PNG:
+                    return "PNG";
+                case ImageFormat.JPEG:
+                    return "JPEG";
+                case ImageFormat.TIFF:
+                    return "TIFF";
+                case ImageFormat.BMP:
+                    return "Bitmap";
+                default:
+                    return "";
+            }
+        }
+
+        private static IEnumerable<object[]> GetVideoEncoders()
+        {
+            yield return new object[] { new H264VideoEncoder() };
+            yield return new object[] { new H265VideoEncoder() };
+        }
+
+        private static IEnumerable<object[]> GetRecordingSources()
+        {
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500)
+                            }
+               },
+               new ScreenSize(500,500)
+            };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif" //400x400px
+                            }
+               },
+               new ScreenSize(900,500)
+            };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500),
+                                Position = new ScreenPoint(50,50)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif"//400x400px
+                            }
+               },
+               new ScreenSize(950,550)
+            };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500),
+                                Position = new ScreenPoint(50,50)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif",//400x400px
+                               OutputSize = new ScreenSize(500,500)
+                            }
+               },
+               new ScreenSize(1050,550)
+            };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500),
+                                Position = new ScreenPoint(50,50)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif",//400x400px
+                               OutputSize = new ScreenSize(500,500),
+                               Position = new ScreenPoint(600,0)
+                            }
+               },
+               new ScreenSize(1100,550)
+            };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500),
+                                Position = new ScreenPoint(50,50)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif",//400x400px
+                               OutputSize = new ScreenSize(500,500),
+                               Position = new ScreenPoint(0,550)
+                            }
+               },
+               new ScreenSize(550,1050)
+            };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500),
+                                SourceRect = new ScreenRect(100,100,500,500),
+                                Position = new ScreenPoint(50,50)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif",//400x400px
+                               OutputSize = new ScreenSize(500,500),
+                               Position = new ScreenPoint(0,550)
+                            },
+                            new VideoRecordingSource
+                            {
+                               SourcePath=@"testmedia\cat.mp4",//480x480px
+                            }
+               },
+               new ScreenSize(1030,1050)
+            };
+            yield return new object[] {
+               new List<RecordingSourceBase>()
+               {
+                   new DisplayRecordingSource
+                            {
+                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
+                                OutputSize = new ScreenSize(500, 500)
+                            },
+                            new ImageRecordingSource
+                            {
+                               SourcePath=@"testmedia\earth.gif",//400x400px
+                               Position = new ScreenPoint(-400,-400)
+                            }
+               },
+               new ScreenSize(900,900)
+            };
         }
 
         [TestMethod]
@@ -525,149 +692,6 @@ namespace ScreenRecorderLib
                 File.Delete(filePath);
             }
         }
-        public static IEnumerable<object[]> GetRecordingSources()
-        {
-            yield return new object[] {
-               new List<RecordingSourceBase>()
-               {
-                   new DisplayRecordingSource
-                            {
-                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
-                                OutputSize = new ScreenSize(500, 500),
-                                SourceRect = new ScreenRect(100,100,500,500)
-                            }
-               },
-               new ScreenSize(500,500)
-            };
-            yield return new object[] {
-               new List<RecordingSourceBase>()
-               {
-                   new DisplayRecordingSource
-                            {
-                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
-                                OutputSize = new ScreenSize(500, 500),
-                                SourceRect = new ScreenRect(100,100,500,500)
-                            },
-                            new ImageRecordingSource
-                            {
-                               SourcePath=@"testmedia\earth.gif" //400x400px
-                            }
-               },
-               new ScreenSize(900,500)
-            };
-            yield return new object[] {
-               new List<RecordingSourceBase>()
-               {
-                   new DisplayRecordingSource
-                            {
-                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
-                                OutputSize = new ScreenSize(500, 500),
-                                SourceRect = new ScreenRect(100,100,500,500),
-                                Position = new ScreenPoint(50,50)
-                            },
-                            new ImageRecordingSource
-                            {
-                               SourcePath=@"testmedia\earth.gif"//400x400px
-                            }
-               },
-               new ScreenSize(950,550)
-            };
-            yield return new object[] {
-               new List<RecordingSourceBase>()
-               {
-                   new DisplayRecordingSource
-                            {
-                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
-                                OutputSize = new ScreenSize(500, 500),
-                                SourceRect = new ScreenRect(100,100,500,500),
-                                Position = new ScreenPoint(50,50)
-                            },
-                            new ImageRecordingSource
-                            {
-                               SourcePath=@"testmedia\earth.gif",//400x400px
-                               OutputSize = new ScreenSize(500,500)
-                            }
-               },
-               new ScreenSize(1050,550)
-            };
-            yield return new object[] {
-               new List<RecordingSourceBase>()
-               {
-                   new DisplayRecordingSource
-                            {
-                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
-                                OutputSize = new ScreenSize(500, 500),
-                                SourceRect = new ScreenRect(100,100,500,500),
-                                Position = new ScreenPoint(50,50)
-                            },
-                            new ImageRecordingSource
-                            {
-                               SourcePath=@"testmedia\earth.gif",//400x400px
-                               OutputSize = new ScreenSize(500,500),
-                               Position = new ScreenPoint(600,0)
-                            }
-               },
-               new ScreenSize(1100,550)
-            };
-            yield return new object[] {
-               new List<RecordingSourceBase>()
-               {
-                   new DisplayRecordingSource
-                            {
-                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
-                                OutputSize = new ScreenSize(500, 500),
-                                SourceRect = new ScreenRect(100,100,500,500),
-                                Position = new ScreenPoint(50,50)
-                            },
-                            new ImageRecordingSource
-                            {
-                               SourcePath=@"testmedia\earth.gif",//400x400px
-                               OutputSize = new ScreenSize(500,500),
-                               Position = new ScreenPoint(0,550)
-                            }
-               },
-               new ScreenSize(550,1050)
-            };
-            yield return new object[] {
-               new List<RecordingSourceBase>()
-               {
-                   new DisplayRecordingSource
-                            {
-                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
-                                OutputSize = new ScreenSize(500, 500),
-                                SourceRect = new ScreenRect(100,100,500,500),
-                                Position = new ScreenPoint(50,50)
-                            },
-                            new ImageRecordingSource
-                            {
-                               SourcePath=@"testmedia\earth.gif",//400x400px
-                               OutputSize = new ScreenSize(500,500),
-                               Position = new ScreenPoint(0,550)
-                            },
-                            new VideoRecordingSource
-                            {
-                               SourcePath=@"testmedia\cat.mp4",//480x480px
-                            }
-               },
-               new ScreenSize(1030,1050)
-            };
-            yield return new object[] {
-               new List<RecordingSourceBase>()
-               {
-                   new DisplayRecordingSource
-                            {
-                                DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
-                                OutputSize = new ScreenSize(500, 500)
-                            },
-                            new ImageRecordingSource
-                            {
-                               SourcePath=@"testmedia\earth.gif",//400x400px
-                               Position = new ScreenPoint(-400,-400)
-                            }
-               },
-               new ScreenSize(900,900)
-            };
-        }
 
         [TestMethod]
         public void FixedFramerate()
@@ -777,14 +801,21 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        [DataRow(RecorderApi.DesktopDuplication)]
-        [DataRow(RecorderApi.WindowsGraphicsCapture)]
-        public void Screenshot(RecorderApi api)
+        [DataRow(RecorderApi.DesktopDuplication, ImageFormat.PNG)]
+        [DataRow(RecorderApi.DesktopDuplication, ImageFormat.JPEG)]
+        [DataRow(RecorderApi.DesktopDuplication, ImageFormat.TIFF)]
+        [DataRow(RecorderApi.DesktopDuplication, ImageFormat.BMP)]
+        [DataRow(RecorderApi.WindowsGraphicsCapture, ImageFormat.PNG)]
+        [DataRow(RecorderApi.WindowsGraphicsCapture, ImageFormat.JPEG)]
+        [DataRow(RecorderApi.WindowsGraphicsCapture, ImageFormat.TIFF)]
+        [DataRow(RecorderApi.WindowsGraphicsCapture, ImageFormat.BMP)]
+        public void Screenshot(RecorderApi api, ImageFormat format)
         {
             RecorderOptions options = new RecorderOptions();
             options.OutputOptions = new OutputOptions { RecorderMode = RecorderMode.Screenshot };
+            options.SnapshotOptions = new SnapshotOptions { SnapshotFormat = format };
             options.SourceOptions = new SourceOptions { RecordingSources = { new DisplayRecordingSource { DeviceName = DisplayRecordingSource.MainMonitor.DeviceName, RecorderApi = api } } };
-            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".png"));
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), "." + format.ToString().ToLower()));
             try
             {
                 using (var rec = Recorder.CreateRecorder(options))
@@ -793,30 +824,79 @@ namespace ScreenRecorderLib
                     bool isError = false;
                     bool isComplete = false;
                     ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
-                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
                         finalizeResetEvent.Set();
-                        recordingResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
                         isError = true;
                         error = args.Error;
                         finalizeResetEvent.Set();
-                        recordingResetEvent.Set();
                     };
                     rec.Record(filePath);
-                    recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
-                    rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
 
                     Assert.IsFalse(isError, error);
                     Assert.IsTrue(isComplete);
                     Assert.IsTrue(new FileInfo(filePath).Length > 0);
                     var mediaInfo = new MediaInfoWrapper(filePath);
-                    Assert.IsTrue(mediaInfo.Format == "PNG");
+                    Assert.IsTrue(mediaInfo.Format == MediaInfoFormatForImageFormat(format));
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+            }
+        }
+
+        [TestMethod]
+        [DataRow(RecorderApi.DesktopDuplication, ImageFormat.PNG)]
+        [DataRow(RecorderApi.DesktopDuplication, ImageFormat.JPEG)]
+        [DataRow(RecorderApi.DesktopDuplication, ImageFormat.TIFF)]
+        [DataRow(RecorderApi.DesktopDuplication, ImageFormat.BMP)]
+        [DataRow(RecorderApi.WindowsGraphicsCapture, ImageFormat.PNG)]
+        [DataRow(RecorderApi.WindowsGraphicsCapture, ImageFormat.JPEG)]
+        [DataRow(RecorderApi.WindowsGraphicsCapture, ImageFormat.TIFF)]
+        [DataRow(RecorderApi.WindowsGraphicsCapture, ImageFormat.BMP)]
+        public void ScreenshotToStream(RecorderApi api, ImageFormat format)
+        {
+            RecorderOptions options = new RecorderOptions();
+            options.OutputOptions = new OutputOptions { RecorderMode = RecorderMode.Screenshot };
+            options.SnapshotOptions = new SnapshotOptions { SnapshotFormat = format };
+            options.SourceOptions = new SourceOptions { RecordingSources = { new DisplayRecordingSource { DeviceName = DisplayRecordingSource.MainMonitor.DeviceName, RecorderApi = api } } };
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), "." + format.ToString().ToLower()));
+            try
+            {
+                using (var rec = Recorder.CreateRecorder(options))
+                {
+                    string error = "";
+                    bool isError = false;
+                    bool isComplete = false;
+
+                    using (Stream ms = File.Create(filePath))
+                    {
+                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                        rec.OnRecordingComplete += (s, args) =>
+                        {
+                            isComplete = true;
+                            finalizeResetEvent.Set();
+                        };
+                        rec.OnRecordingFailed += (s, args) =>
+                        {
+                            isError = true;
+                            error = args.Error;
+                            finalizeResetEvent.Set();
+                        };
+                        rec.Record(ms);
+                        finalizeResetEvent.WaitOne(5000);
+                    }
+                    Assert.IsFalse(isError, error);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath);
+                    Assert.IsTrue(mediaInfo.Format == MediaInfoFormatForImageFormat(format));
                 }
             }
             finally
@@ -938,12 +1018,13 @@ namespace ScreenRecorderLib
 
 
         [TestMethod]
-        public void RecordingWithH265Encoder()
+        [DynamicData(nameof(GetVideoEncoders), DynamicDataSourceType.Method)]
+        public void Encoders(IVideoEncoder encoder)
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
             {
-                using (var rec = Recorder.CreateRecorder(new RecorderOptions { VideoEncoderOptions = new VideoEncoderOptions { Encoder = new H265VideoEncoder() } }))
+                using (var rec = Recorder.CreateRecorder(new RecorderOptions { VideoEncoderOptions = new VideoEncoderOptions { Encoder = encoder} }))
                 {
                     string error = "";
                     bool isError = false;
@@ -1092,7 +1173,9 @@ namespace ScreenRecorderLib
                     var mediaInfo = new MediaInfoWrapper(filePath);
                     Assert.IsTrue(mediaInfo.Format == "MPEG-4", "wrong video format");
                     Assert.IsTrue(mediaInfo.VideoStreams.Count > 0, "no video streams found");
-                    Assert.IsTrue(Math.Round(mediaInfo.VideoStreams[0].Duration.TotalSeconds) == (int)Math.Round((double)recordingTimeMillis / 1000), "video length does not match recording time");
+                    int videoDuration = (int)Math.Round(mediaInfo.VideoStreams[0].Duration.TotalSeconds);
+                    int expectedDuration = (int)Math.Round((double)recordingTimeMillis / 1000);
+                    Assert.IsTrue(videoDuration == expectedDuration, $"video length {videoDuration} does not match recording time {expectedDuration}");
                 }
             }
             finally

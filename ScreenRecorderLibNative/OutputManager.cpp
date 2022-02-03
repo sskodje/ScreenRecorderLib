@@ -12,16 +12,17 @@ OutputManager::OutputManager() :
 	m_CallBack(nullptr),
 	m_FinalizeEvent(nullptr),
 	m_SinkWriter(nullptr),
+	m_OutStream(nullptr),
 	m_EncoderOptions(nullptr),
 	m_AudioOptions(nullptr),
 	m_SnapshotOptions(nullptr),
+	m_OutputOptions(nullptr),
 	m_VideoStreamIndex(0),
 	m_AudioStreamIndex(0),
 	m_OutputFolder(L""),
 	m_OutputFullPath(L""),
 	m_LastFrameHadAudio(false),
-	m_RenderedFrameCount(0),
-	m_RecorderMode(RecorderModeInternal::Video)
+	m_RenderedFrameCount(0)
 {
 	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 }
@@ -32,38 +33,68 @@ OutputManager::~OutputManager()
 	m_FinalizeEvent = nullptr;
 }
 
-HRESULT OutputManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<ENCODER_OPTIONS> &pEncoderOptions, _In_ std::shared_ptr<AUDIO_OPTIONS> pAudioOptions, _In_ std::shared_ptr<SNAPSHOT_OPTIONS> pSnapshotOptions)
+HRESULT OutputManager::Initialize(
+	_In_ ID3D11DeviceContext *pDeviceContext,
+	_In_ ID3D11Device *pDevice,
+	_In_ std::shared_ptr<ENCODER_OPTIONS> &pEncoderOptions,
+	_In_ std::shared_ptr<AUDIO_OPTIONS> pAudioOptions,
+	_In_ std::shared_ptr<SNAPSHOT_OPTIONS> pSnapshotOptions,
+	_In_ std::shared_ptr<OUTPUT_OPTIONS> pOutputOptions)
 {
 	m_DeviceContext = pDeviceContext;
 	m_Device = pDevice;
 	m_EncoderOptions = pEncoderOptions;
 	m_AudioOptions = pAudioOptions;
 	m_SnapshotOptions = pSnapshotOptions;
+	m_OutputOptions = pOutputOptions;
 	return S_OK;
 }
 
-HRESULT OutputManager::BeginRecording(_In_ std::wstring outputPath, _In_ SIZE videoOutputFrameSize, _In_ RecorderModeInternal recorderMode, _In_opt_ IStream *pStream)
+HRESULT OutputManager::BeginRecording(_In_ std::wstring outputPath, _In_ SIZE videoOutputFrameSize)
 {
 	HRESULT hr = S_FALSE;
 	m_OutputFullPath = outputPath;
+	if (outputPath.empty()) {
+		LOG_ERROR("Failed to start recording due to output path parameter being empty");
+		return E_INVALIDARG;
+	}
 	std::filesystem::path filePath = outputPath;
 	m_OutputFolder = filePath.has_extension() ? filePath.parent_path().wstring() : filePath.wstring();
-	m_RecorderMode = recorderMode;
 	ResetEvent(m_FinalizeEvent);
-	if (m_RecorderMode == RecorderModeInternal::Video) {
-		CComPtr<IMFByteStream> outputStream = nullptr;
-		if (pStream != nullptr) {
-			RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &outputStream));
-		}
+
+	if (GetOutputOptions()->GetRecorderMode() == RecorderModeInternal::Video) {
 		if (m_FinalizeEvent) {
 			m_CallBack = new (std::nothrow)CMFSinkWriterCallback(m_FinalizeEvent, nullptr);
 		}
 		RECT inputMediaFrameRect = RECT{ 0,0,videoOutputFrameSize.cx,videoOutputFrameSize.cy };
-		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(m_OutputFullPath, outputStream, m_Device, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, m_CallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+		CComPtr<IMFByteStream> mfByteStream = nullptr;
+		RETURN_ON_BAD_HR(MFCreateFile(MF_ACCESSMODE_READWRITE, MF_OPENMODE_FAIL_IF_EXIST, MF_FILEFLAGS_NONE, outputPath.c_str(), &mfByteStream));
+		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(mfByteStream, m_Device, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, m_CallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
 	return hr;
 }
 
+HRESULT OutputManager::BeginRecording(_In_ IStream *pStream, _In_ SIZE videoOutputFrameSize)
+{
+	HRESULT hr = S_FALSE;
+	if (pStream == nullptr) {
+		LOG_ERROR("Failed to start recording due to output stream parameter being NULL");
+		return E_INVALIDARG;
+	}
+	m_OutStream = pStream;
+	ResetEvent(m_FinalizeEvent);
+	if (GetOutputOptions()->GetRecorderMode() == RecorderModeInternal::Video) {
+		CComPtr<IMFByteStream> mfByteStream = nullptr;
+		RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &mfByteStream));
+
+		if (m_FinalizeEvent) {
+			m_CallBack = new (std::nothrow)CMFSinkWriterCallback(m_FinalizeEvent, nullptr);
+		}
+		RECT inputMediaFrameRect = RECT{ 0,0,videoOutputFrameSize.cx,videoOutputFrameSize.cy };
+		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(mfByteStream, m_Device, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, m_CallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+	}
+	return hr;
+}
 
 HRESULT OutputManager::FinalizeRecording()
 {
@@ -113,8 +144,8 @@ HRESULT OutputManager::FinalizeRecording()
 
 HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 	HRESULT hr(S_OK);
-
-	if (m_RecorderMode == RecorderModeInternal::Video) {
+	auto recorderMode = GetOutputOptions()->GetRecorderMode();
+	if (recorderMode == RecorderModeInternal::Video) {
 		hr = WriteFrameToVideo(model.StartPos, model.Duration, m_VideoStreamIndex, model.Frame);
 		bool wroteAudioSample = false;
 		if (FAILED(hr)) {
@@ -155,7 +186,7 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 		auto frameInfoStr = wroteAudioSample ? (paddedAudio ? L"video sample and audio padding" : L"video and audio sample") : L"video sample";
 		LOG_TRACE(L"Wrote %s with duration %.2f ms", frameInfoStr, HundredNanosToMillisDouble(model.Duration));
 	}
-	else if (m_RecorderMode == RecorderModeInternal::Slideshow) {
+	else if (recorderMode == RecorderModeInternal::Slideshow) {
 		wstring	path = m_OutputFolder + L"\\" + to_wstring(m_RenderedFrameCount) + GetSnapshotOptions()->GetImageExtension();
 		hr = WriteFrameToImage(model.Frame, path);
 		INT64 startposMs = HundredNanosToMillis(model.StartPos);
@@ -171,9 +202,15 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 			LOG_TRACE(L"Wrote video slideshow frame with start pos %lld ms and with duration %lld ms", startposMs, durationMs);
 		}
 	}
-	else if (m_RecorderMode == RecorderModeInternal::Screenshot) {
-		hr = WriteFrameToImage(model.Frame, m_OutputFullPath);
-		LOG_TRACE(L"Wrote snapshot to %s", m_OutputFullPath.c_str());
+	else if (recorderMode == RecorderModeInternal::Screenshot) {
+		if (m_OutStream) {
+			hr = WriteFrameToImage(model.Frame, m_OutStream);
+			LOG_TRACE(L"Wrote snapshot to stream");
+		}
+		else {
+			hr = WriteFrameToImage(model.Frame, m_OutputFullPath);
+			LOG_TRACE(L"Wrote snapshot to %s", m_OutputFullPath.c_str());
+		}
 	}
 	model.Frame.Release();
 	m_RenderedFrameCount++;
@@ -184,7 +221,10 @@ HRESULT OutputManager::WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopI
 {
 	return SaveWICTextureToFile(m_DeviceContext, pAcquiredDesktopImage, GetSnapshotOptions()->GetSnapshotEncoderFormat(), filePath.c_str());
 }
-
+HRESULT OutputManager::WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ IStream *pStream)
+{
+	return SaveWICTextureToStream(m_DeviceContext, pAcquiredDesktopImage, GetSnapshotOptions()->GetSnapshotEncoderFormat(), pStream);
+}
 void OutputManager::WriteTextureToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath, _In_opt_ std::function<void(HRESULT)> onCompletion)
 {
 	pAcquiredDesktopImage->AddRef();
@@ -292,8 +332,7 @@ HRESULT OutputManager::ConfigureInputMediaTypes(
 }
 
 HRESULT OutputManager::InitializeVideoSinkWriter(
-	_In_ std::wstring path,
-	_In_opt_ IMFByteStream *pOutStream,
+	_In_ IMFByteStream *pOutStream,
 	_In_ ID3D11Device *pDevice,
 	_In_ RECT sourceRect,
 	_In_ SIZE outputFrameSize,
@@ -331,15 +370,7 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 	DWORD videoStreamIndex;
 	RETURN_ON_BAD_HR(MFCreateDXGIDeviceManager(&pResetToken, &pDeviceManager));
 	RETURN_ON_BAD_HR(pDeviceManager->ResetDevice(pDevice, pResetToken));
-	const wchar_t *pathString = nullptr;
-	if (!path.empty()) {
-		pathString = path.c_str();
-	}
 
-	if (pOutStream == nullptr)
-	{
-		RETURN_ON_BAD_HR(MFCreateFile(MF_ACCESSMODE_READWRITE, MF_OPENMODE_FAIL_IF_EXIST, MF_FILEFLAGS_NONE, pathString, &pOutStream));
-	};
 
 	UINT sourceWidth = RectWidth(sourceRect);
 	UINT sourceHeight = RectHeight(sourceRect);

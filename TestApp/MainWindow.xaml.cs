@@ -49,15 +49,6 @@ namespace TestApp
                 {
                     _recordToStream = value;
                     RaisePropertyChanged("RecordToStream");
-                    if (value)
-                    {
-                        RecorderOptions.OutputOptions.RecorderMode = RecorderMode.Video;
-                        this.RecordingModeComboBox.IsEnabled = false;
-                    }
-                    else
-                    {
-                        this.RecordingModeComboBox.IsEnabled = true;
-                    }
                 }
             }
         }
@@ -848,7 +839,7 @@ namespace TestApp
                         this.VideoBitratePanel.Visibility = Visibility.Visible;
                         this.VideoQualityPanel.Visibility = Visibility.Visible;
                         this.AudioPanel.Visibility = Visibility.Visible;
-
+                        this.CheckBoxRecordToStream.Visibility = Visibility.Visible;
                         switch (CurrentVideoEncoderFormat)
                         {
                             case VideoEncoderFormat.H264:
@@ -878,6 +869,7 @@ namespace TestApp
                         this.VideoBitratePanel.Visibility = Visibility.Collapsed;
                         this.VideoQualityPanel.Visibility = Visibility.Collapsed;
                         this.AudioPanel.Visibility = Visibility.Collapsed;
+                        this.CheckBoxRecordToStream.Visibility = RecorderOptions.OutputOptions.RecorderMode == RecorderMode.Slideshow ? Visibility.Collapsed : Visibility.Visible;
                         break;
                     default:
                         break;

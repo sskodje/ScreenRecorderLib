@@ -771,10 +771,7 @@
                                                  HorizontalAlignment="Left"
                                                  VerticalAlignment="Center" />
                                     </StackPanel>
-                                    <CheckBox Content="Record to stream"
-                                              x:Name="CheckBoxRecordToStream"
-                                              IsChecked="{Binding ElementName=MainWin,Path=RecordToStream}"
-                                              Margin="0" />
+
                                     <CheckBox IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.VideoEncoderOptions.IsHardwareEncodingEnabled}"
                                               Content="Enable hardware encoding"
                                               ToolTip="" />
@@ -829,6 +826,10 @@
                                     <Label Content="ms" />
                                 </StackPanel>
                             </StackPanel>
+                            <CheckBox Content="Record to stream"
+                                      x:Name="CheckBoxRecordToStream"
+                                      IsChecked="{Binding ElementName=MainWin,Path=RecordToStream}"
+                                      Margin="0,10,0,0" />
                         </StackPanel>
                         <Grid Margin="25,0,0,0"
                               Grid.Column="1">
