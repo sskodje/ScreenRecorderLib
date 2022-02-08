@@ -7,6 +7,9 @@
 #include "ImageReader.h"
 #include "GifReader.h"
 #include "WindowsGraphicsCapture.h"
+#include "PixelShader.h"
+#include "VertexShader.h"
+
 using namespace DirectX;
 //
 // Get DX_RESOURCES

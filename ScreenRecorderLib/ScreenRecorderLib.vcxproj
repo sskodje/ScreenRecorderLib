@@ -75,18 +75,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <LibraryPath>$(DXSDK_DIR)\lib\x86;$(LibraryPath)</LibraryPath>
+    <OutDir>bin\$(PlatformTarget)\$(Configuration)\</OutDir>
+    <IntDir>obj\$(PlatformTarget)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <LibraryPath>$(DXSDK_DIR)\lib\x64;$(LibraryPath)</LibraryPath>
+    <OutDir>bin\$(PlatformTarget)\$(Configuration)\</OutDir>
+    <IntDir>obj\$(PlatformTarget)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
     <LibraryPath>$(DXSDK_DIR)\lib\x86;$(LibraryPath)</LibraryPath>
+    <OutDir>bin\$(PlatformTarget)\$(Configuration)\</OutDir>
+    <IntDir>obj\$(PlatformTarget)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <LibraryPath>$(DXSDK_DIR)\lib\x64;$(LibraryPath)</LibraryPath>
+    <OutDir>bin\$(PlatformTarget)\$(Configuration)\</OutDir>
+    <IntDir>obj\$(PlatformTarget)\$(Configuration)\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
