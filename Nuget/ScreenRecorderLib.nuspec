@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
     <id>ScreenRecorderLib</id>
-    <version>5.0.0</version>
+    <version>5.1.0</version>
     <authors>Sverre Kristoffer Skodje</authors>
     <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
@@ -10,7 +10,8 @@
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to video or image files.</description>
     <summary />
     <releaseNotes>
-      - A large update with numerous new features, including multi-monitor support, overlays, scaling and resizing, and more.
+      - Added support for taking screenshots to a stream
+      - Fixed issue where output-crop rectangle could be set to an invalid value
     </releaseNotes>
     <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
     <language>en-GB</language>
@@ -18,9 +19,9 @@
   </metadata>
   <files>
     <file src="ScreenRecorderLib.targets" target="build\ScreenRecorderLib.targets" />
-    <file src="..\x64\Release\ScreenRecorderLib.dll" target="build\x64\ScreenRecorderLib.dll" />
-    <file src="..\x64\Release\ScreenRecorderLib.xml" target="build\x64\ScreenRecorderLib.xml" />
-    <file src="..\Release\ScreenRecorderLib.dll" target="build\x86\ScreenRecorderLib.dll" />
-    <file src="..\Release\ScreenRecorderLib.xml" target="build\x86\ScreenRecorderLib.xml" />
+    <file src="..\ScreenRecorderLib\bin\x64\Release\ScreenRecorderLib.dll" target="build\x64\ScreenRecorderLib.dll" />
+    <file src="..\ScreenRecorderLib\bin\x64\Release\ScreenRecorderLib.xml" target="build\x64\ScreenRecorderLib.xml" />
+    <file src="..\ScreenRecorderLib\bin\x86\Release\ScreenRecorderLib.dll" target="build\x86\ScreenRecorderLib.dll" />
+    <file src="..\ScreenRecorderLib\bin\x86\Release\ScreenRecorderLib.xml" target="build\x86\ScreenRecorderLib.xml" />
   </files>
 </package>
