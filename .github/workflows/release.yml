@@ -22,12 +22,12 @@ jobs:
     - uses: microsoft/setup-msbuild@v1
     - run: nuget restore ${{ env.SOLUTION_NAME }}.sln
     - run: msbuild /m '/p:Configuration=Release;Platform="${{ matrix.platform }}"' ${{ env.SOLUTION_NAME }}.sln
-    - name: Archive Release {{ matrix.platform }}
+    - name: Archive Release ${{ matrix.platform }}
       uses: thedoctor0/zip-release@master
       with:
         type: 'zip'
         path: ${{ env.PROJECT_NAME }}\bin\${{ matrix.platform }}\Release\ScreenRecorderLib.dll
-        filename: 'Release.{{ matrix.platform }}.zip'
+        filename: Release.${{ matrix.platform }}.zip
         exclusions: '*.pdg *.metagen *.xml'
   release:
       name: Upload Release
