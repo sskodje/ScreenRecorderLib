@@ -27,7 +27,7 @@ jobs:
       with:
         type: 'zip'
         path: ${{ env.PROJECT_NAME }}\bin\${{ matrix.platform }}\Release\ScreenRecorderLib.dll
-        filename: ${{matrix.platform}}.zip
+        filename: ScreenRecorderLib.${{matrix.platform}}.zip
         exclusions: '*.pdg *.metagen *.xml'
   release:
       name: Upload Release
