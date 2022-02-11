@@ -101,16 +101,6 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 	auto GetOffsetSourceRect([&](const RECT &originalSourceRect, RECORDING_SOURCE *source) {
 
 		RECT offsetSourceRect = originalSourceRect;
-		if (IsValidRect(source->SourceRect.value_or(RECT{}))) {
-			offsetSourceRect = source->SourceRect.value();
-		}
-		if (source->Position.has_value()) {
-			OffsetRect(&offsetSourceRect, source->Position.value().x - offsetSourceRect.left, source->Position.value().y - offsetSourceRect.top);
-		}
-		else if (validOutputs.size() == 0) {
-			//For the first source, we start at [0,0]
-			OffsetRect(&offsetSourceRect, -offsetSourceRect.left, -offsetSourceRect.top);
-		}
 
 		if (source->OutputSize.has_value() && (source->OutputSize.value().cx > 0 || source->OutputSize.value().cy > 0)) {
 			long cx = source->OutputSize.value().cx;
@@ -124,8 +114,29 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 			offsetSourceRect.right = offsetSourceRect.left + cx;
 			offsetSourceRect.bottom = offsetSourceRect.top + cy;
 		}
+		else if (IsValidRect(source->SourceRect.value_or(RECT{}))) {
+			long cx = RectWidth(offsetSourceRect) - RectWidth(source->SourceRect.value());
+			long cy = RectHeight(offsetSourceRect) - RectHeight(source->SourceRect.value());
+			offsetSourceRect.right = offsetSourceRect.right - cx;
+			offsetSourceRect.bottom = offsetSourceRect.bottom - cy;
+		}
+
+		if (source->Position.has_value()) {
+			OffsetRect(&offsetSourceRect, source->Position.value().x - offsetSourceRect.left, source->Position.value().y - offsetSourceRect.top);
+		}
+		else if (validOutputs.size() == 0)
+		{
+			//For the first source, start at [0,0] if the position is positive and the position is not manually configured, to avoid black bars above or before the content.
+			if (offsetSourceRect.left > 0) {
+				OffsetRect(&offsetSourceRect, -offsetSourceRect.left, 0);
+			}
+			if (offsetSourceRect.top > 0) {
+				OffsetRect(&offsetSourceRect, 0, -offsetSourceRect.top);
+			}
+		}
 
 		if (validOutputs.size() > 0) {
+			//Iterate over all previous sources and offset this source rect if it intersects with any of them, to prevent overlap.
 			for each (std::pair<RECORDING_SOURCE *, RECT> var in validOutputs)
 			{
 				RECT prevRect = var.second;
@@ -142,7 +153,7 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 		}
 
 		return offsetSourceRect;
-		});
+});
 
 	for each (RECORDING_SOURCE * source in sources)
 	{
@@ -229,7 +240,27 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 		RECT r2 = p2.second;
 		return std::tie(r1.left, r1.top) < std::tie(r2.left, r2.top);
 	};
+	//Sort all sources according to leftmost and then topmost edge
 	std::sort(validOutputs.begin(), validOutputs.end(), sortRect);
+
+	for (int i = 0; i < validOutputs.size(); i++) {
+		if (validOutputs.size() > i + 1) {
+			//Compare to the next source rect and offset this source rect if there is a gap in the coordinates
+			//not manually configured with Position property.
+			auto source = validOutputs[i].first;
+			RECT &curRect = validOutputs[i].second;
+			RECT nextRect = validOutputs[i + 1].second;
+			int xPosOffset = max(0, (nextRect.left - curRect.right) - abs((source->Position.value_or(POINT{ 0 })).x));
+			int yPosOffset = max(0, nextRect.top - curRect.bottom - abs((source->Position.value_or(POINT{ 0 })).y));
+			if (curRect.left >= 0) {
+				OffsetRect(&curRect, -xPosOffset, -yPosOffset);
+			}
+			else {
+				OffsetRect(&curRect, xPosOffset, yPosOffset);
+			}
+		}
+	}
+
 	*outputs = validOutputs;
 	return S_OK;
 }

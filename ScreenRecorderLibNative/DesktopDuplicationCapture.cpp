@@ -26,7 +26,11 @@ DesktopDuplicationCapture::DesktopDuplicationCapture() :
 	m_OutputIsOnSeparateGraphicsAdapter(false),
 	m_LastGrabTimeStamp{ 0 },
 	m_LastSampleUpdatedTimeStamp{ 0 },
-	m_RecordingSource(nullptr)
+	m_RecordingSource(nullptr),
+	m_CursorOffsetX(0),
+	m_CursorOffsetY(0),
+	m_CursorScaleX(1.0),
+	m_CursorScaleY(1.0)
 {
 	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 	RtlZeroMemory(&m_OutputDesc, sizeof(m_OutputDesc));
@@ -119,7 +123,6 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 	}
 
 	if (SUCCEEDED(hr)) {
-		//RETURN_ON_BAD_HR(hr = WriteFrameUpdatesToSurface(&m_CurrentData, pSharedSurf, offsetX, offsetY, destinationRect,stretch, sourceRect));
 		DXGI_MODE_ROTATION rotation = m_OutputDesc.Rotation;
 		D3D11_TEXTURE2D_DESC frameDesc;
 		m_CurrentData.Frame->GetDesc(&frameDesc);
@@ -128,19 +131,28 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 			TextureStretchMode stretch = m_RecordingSource->Stretch;
 			MeasureExecutionTime measure(L"Duplication WriteFrameUpdatesToSurface");
 			RECORDING_SOURCE *recordingSource = dynamic_cast<RECORDING_SOURCE *>(m_RecordingSource);
-			if (recordingSource
-				&& (recordingSource->SourceRect.has_value() && !EqualRect(&recordingSource->SourceRect.value(), &destinationRect)
-					|| (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height))) {
+			if (!recordingSource) {
+				LOG_ERROR("Recording source cannot be NULL");
+				return E_FAIL;
+			}
+			if (recordingSource->SourceRect.has_value()
+				&& !EqualRect(&recordingSource->SourceRect.value(), &destinationRect)
+					|| (RectWidth(destinationRect) != frameDesc.Width
+					|| RectHeight(destinationRect) != frameDesc.Height)) {
 				CComPtr<ID3D11Texture2D> pProcessedTexture = m_CurrentData.Frame;
+				D3D11_TEXTURE2D_DESC frameDesc;
+				pProcessedTexture->GetDesc(&frameDesc);
 
 				if (rotation != DXGI_MODE_ROTATION_IDENTITY && rotation != DXGI_MODE_ROTATION_UNSPECIFIED) {
 					ID3D11Texture2D *pRotatedTexture = nullptr;
 					RETURN_ON_BAD_HR(hr = m_TextureManager->RotateTexture(pProcessedTexture, rotation, &pRotatedTexture));
 					pProcessedTexture.Attach(pRotatedTexture);
+					pProcessedTexture->GetDesc(&frameDesc);
 				}
-
-				D3D11_TEXTURE2D_DESC frameDesc;
-				pProcessedTexture->GetDesc(&frameDesc);
+				int cursorOffsetX = 0;
+				int cursorOffsetY = 0;
+				float cursorScaleX = 1.0;
+				float cursorScaleY = 1.0;
 
 				if (recordingSource->SourceRect.has_value()
 					&& IsValidRect(recordingSource->SourceRect.value())
@@ -151,32 +163,44 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 						pProcessedTexture.Release();
 						pProcessedTexture.Attach(pCroppedTexture);
 					}
+					pProcessedTexture->GetDesc(&frameDesc);
+					cursorOffsetX = 0 - recordingSource->SourceRect.value().left;
+					cursorOffsetY = 0 - recordingSource->SourceRect.value().top;
 				}
-				pProcessedTexture->GetDesc(&frameDesc);
 
-				int leftMargin = 0;
-				int topMargin = 0;
 				RECT contentRect = destinationRect;
 				if (RectWidth(destinationRect) != frameDesc.Width || RectHeight(destinationRect) != frameDesc.Height) {
 					ID3D11Texture2D *pResizedTexture;
 					RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pProcessedTexture, SIZE{ RectWidth(destinationRect),RectHeight(destinationRect) }, stretch, &pResizedTexture, &contentRect));
+					int prescaleWidth = frameDesc.Width;
+					int prescaleHeight = frameDesc.Height;
 					pProcessedTexture.Release();
 					pProcessedTexture.Attach(pResizedTexture);
+					pProcessedTexture->GetDesc(&frameDesc);
+					cursorScaleX = (float)RectWidth(contentRect) / prescaleWidth;
+					cursorScaleY = (float)RectHeight(contentRect) / prescaleHeight;
 				}
-
-				pProcessedTexture->GetDesc(&frameDesc);
 
 				D3D11_TEXTURE2D_DESC processedFrameDesc;
 				pProcessedTexture->GetDesc(&processedFrameDesc);
+
+				SIZE contentOffset = GetContentOffset(m_RecordingSource->Anchor, destinationRect, contentRect);
+				cursorOffsetX += static_cast<int>(round(contentOffset.cx / cursorScaleX));
+				cursorOffsetY += static_cast<int>(round(contentOffset.cy / cursorScaleY));
 
 				D3D11_BOX Box;
 				Box.front = 0;
 				Box.back = 1;
 				Box.left = 0;
 				Box.top = 0;
-				Box.right = MakeEven(processedFrameDesc.Width);
-				Box.bottom = MakeEven(processedFrameDesc.Height);
-				m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, destinationRect.left + offsetX + leftMargin, destinationRect.top + offsetY + topMargin, 0, pProcessedTexture, 0, &Box);
+				Box.right = MakeEven(RectWidth(contentRect));
+				Box.bottom = MakeEven(RectHeight(contentRect));
+				m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, destinationRect.left + offsetX + contentOffset.cx, destinationRect.top + offsetY + contentOffset.cy, 0, pProcessedTexture, 0, &Box);
+
+				m_CursorOffsetX = cursorOffsetX;
+				m_CursorOffsetY = cursorOffsetY;
+				m_CursorScaleX = cursorScaleX;
+				m_CursorScaleY = cursorScaleY;
 			}
 			else
 			{
@@ -226,7 +250,10 @@ HRESULT DesktopDuplicationCapture::GetNativeSize(_In_ RECORDING_SOURCE_BASE &rec
 }
 HRESULT DesktopDuplicationCapture::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ RECT frameCoordinates, _In_ int offsetX, _In_ int offsetY)
 {
-	return m_MouseManager->GetMouse(pPtrInfo, true, &m_CurrentData.FrameInfo, frameCoordinates, m_DeskDupl, offsetX, offsetY);
+	HRESULT hr = m_MouseManager->GetMouse(pPtrInfo, true, &m_CurrentData.FrameInfo, frameCoordinates, m_DeskDupl, offsetX, offsetY);
+	pPtrInfo->Scale = SIZE_F{ m_CursorScaleX, m_CursorScaleY };
+	pPtrInfo->Offset = POINT{ m_CursorOffsetX, m_CursorOffsetY };
+	return hr;
 }
 
 HRESULT DesktopDuplicationCapture::InitializeDesktopDuplication(std::wstring deviceName)

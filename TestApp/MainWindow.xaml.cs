@@ -203,6 +203,7 @@ namespace TestApp
             RecorderOptions.SnapshotOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.AudioOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.MouseOptions.PropertyChanged += RecorderOptions_PropertyChanged;
+            RecorderOptions.OutputOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecordingSources.CollectionChanged += (s, args) =>
             {
                 if (args.NewItems != null)
@@ -252,9 +253,12 @@ namespace TestApp
                     }
                 case nameof(RecordingSourceBase.SourceRect):
                     {
-                        _rec?.GetDynamicOptionsBuilder()
-                                .SetSourceRectForRecordingSource(((RecordingSourceBase)sender).ID, ((RecordingSourceBase)sender).SourceRect)
-                                .Apply();
+                        if (((ICheckableRecordingSource)sender).IsCustomOutputSourceRectEnabled)
+                        {
+                            _rec?.GetDynamicOptionsBuilder()
+                                    .SetSourceRectForRecordingSource(((RecordingSourceBase)sender).ID, ((RecordingSourceBase)sender).SourceRect)
+                                    .Apply();
+                        }
                         break;
                     }
                 default:
@@ -494,7 +498,7 @@ namespace TestApp
                 _rec.OnRecordingFailed += Rec_OnRecordingFailed;
                 _rec.OnStatusChanged += Rec_OnStatusChanged;
                 _rec.OnSnapshotSaved += Rec_OnSnapshotSaved;
-                _rec.OnFrameRecorded += _rec_OnFrameRecorded;
+                _rec.OnFrameRecorded += Rec_OnFrameRecorded;
             }
             else
             {
@@ -513,7 +517,7 @@ namespace TestApp
             IsRecording = true;
         }
 
-        private void _rec_OnFrameRecorded(object sender, FrameRecordedEventArgs e)
+        private void Rec_OnFrameRecorded(object sender, FrameRecordedEventArgs e)
         {
             CurrentFrameNumber = e.FrameNumber;
         }
@@ -526,108 +530,61 @@ namespace TestApp
                 && SelectedRecordingSource.IsCheckable)
             {
                 sourcesToRecord.Add(SelectedRecordingSource);
-                return sourcesToRecord.Select(x =>
-                {
-                    switch (x)
-                    {
-                        case CheckableRecordableWindow win:
-                            return new WindowRecordingSource(win)
-                            {
-                                OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
-                                SourceRect = win.IsCustomOutputSourceRectEnabled ? win.SourceRect : null,
-                                Position = win.IsCustomPositionEnabled ? win.Position : null,
-                            };
-                        case CheckableRecordableDisplay disp:
-                            return new DisplayRecordingSource(disp)
-                            {
-                                OutputSize = disp.IsCustomOutputSizeEnabled ? disp.OutputSize : null,
-                                SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
-                                Position = disp.IsCustomPositionEnabled ? disp.Position : null
-                            };
-                        case CheckableRecordableCamera cam:
-                            return new VideoCaptureRecordingSource(cam)
-                            {
-                                OutputSize = cam.IsCustomOutputSizeEnabled ? cam.OutputSize : null,
-                                SourceRect = cam.IsCustomOutputSourceRectEnabled ? cam.SourceRect : null,
-                                Position = cam.IsCustomPositionEnabled ? cam.Position : null
-                            };
-                        case CheckableRecordableImage img:
-                            return new ImageRecordingSource(img)
-                            {
-                                OutputSize = img.IsCustomOutputSizeEnabled ? img.OutputSize : null,
-                                SourceRect = img.IsCustomOutputSourceRectEnabled ? img.SourceRect : null,
-                                Position = img.IsCustomPositionEnabled ? img.Position : null
-                            };
-                        case CheckableRecordableVideo vid:
-                            return new VideoRecordingSource(vid)
-                            {
-                                OutputSize = vid.IsCustomOutputSizeEnabled ? vid.OutputSize : null,
-                                SourceRect = vid.IsCustomOutputSourceRectEnabled ? vid.SourceRect : null,
-                                Position = vid.IsCustomPositionEnabled ? vid.Position : null
-                            };
-                        default:
-                            return null as RecordingSourceBase;
-                    }
-                }).ToList();
             }
-            else
-            {
-                return sourcesToRecord.Select(x =>
-                {
-                    if (x is CheckableRecordableWindow win)
-                    {
-                        return new WindowRecordingSource(win)
-                        {
-                            OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
-                            SourceRect = win.IsCustomOutputSourceRectEnabled ? win.SourceRect : null,
-                            Position = win.IsCustomPositionEnabled ? win.Position : null,
-                        };
-                    }
-                    else if (x is CheckableRecordableDisplay disp)
-                    {
-                        return new DisplayRecordingSource(disp)
-                        {
-                            OutputSize = disp.IsCustomOutputSizeEnabled ? disp.OutputSize : null,
-                            SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
-                            Position = disp.IsCustomPositionEnabled ? disp.Position : null
-                        };
-                    }
-                    else if (x is CheckableRecordableCamera cam)
-                    {
-                        return new VideoCaptureRecordingSource(cam)
-                        {
-                            OutputSize = cam.IsCustomOutputSizeEnabled ? cam.OutputSize : null,
-                            SourceRect = cam.IsCustomOutputSourceRectEnabled ? cam.SourceRect : null,
-                            Position = cam.IsCustomPositionEnabled ? cam.Position : null
-                        };
-                    }
-                    else if (x is CheckableRecordableImage img)
-                    {
-                        return new ImageRecordingSource(img)
-                        {
-                            OutputSize = img.IsCustomOutputSizeEnabled ? img.OutputSize : null,
-                            SourceRect = img.IsCustomOutputSourceRectEnabled ? img.SourceRect : null,
-                            Position = img.IsCustomPositionEnabled ? img.Position : null
-                        };
-                    }
-                    else if (x is CheckableRecordableVideo vid)
-                    {
-                        return new VideoRecordingSource(vid)
-                        {
-                            OutputSize = vid.IsCustomOutputSizeEnabled ? vid.OutputSize : null,
-                            SourceRect = vid.IsCustomOutputSourceRectEnabled ? vid.SourceRect : null,
-                            Position = vid.IsCustomPositionEnabled ? vid.Position : null
-                        };
-                    }
-                    else
-                    {
-                        return null as RecordingSourceBase;
-                    }
-                }).ToList();
-            }
-
             //We could pass in the sources directly, but since the models have been used for custom dimensions and positions, 
             //we create new ones to pass in, with null values for non-modified values.
+            return sourcesToRecord.Select(x =>
+            {
+                if (x is CheckableRecordableWindow win)
+                {
+                    return new WindowRecordingSource(win)
+                    {
+                        OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
+                        SourceRect = win.IsCustomOutputSourceRectEnabled ? win.SourceRect : null,
+                        Position = win.IsCustomPositionEnabled ? win.Position : null,
+                    };
+                }
+                else if (x is CheckableRecordableDisplay disp)
+                {
+                    return new DisplayRecordingSource(disp)
+                    {
+                        OutputSize = disp.IsCustomOutputSizeEnabled ? disp.OutputSize : null,
+                        SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
+                        Position = disp.IsCustomPositionEnabled ? disp.Position : null
+                    };
+                }
+                else if (x is CheckableRecordableCamera cam)
+                {
+                    return new VideoCaptureRecordingSource(cam)
+                    {
+                        OutputSize = cam.IsCustomOutputSizeEnabled ? cam.OutputSize : null,
+                        SourceRect = cam.IsCustomOutputSourceRectEnabled ? cam.SourceRect : null,
+                        Position = cam.IsCustomPositionEnabled ? cam.Position : null
+                    };
+                }
+                else if (x is CheckableRecordableImage img)
+                {
+                    return new ImageRecordingSource(img)
+                    {
+                        OutputSize = img.IsCustomOutputSizeEnabled ? img.OutputSize : null,
+                        SourceRect = img.IsCustomOutputSourceRectEnabled ? img.SourceRect : null,
+                        Position = img.IsCustomPositionEnabled ? img.Position : null
+                    };
+                }
+                else if (x is CheckableRecordableVideo vid)
+                {
+                    return new VideoRecordingSource(vid)
+                    {
+                        OutputSize = vid.IsCustomOutputSizeEnabled ? vid.OutputSize : null,
+                        SourceRect = vid.IsCustomOutputSourceRectEnabled ? vid.SourceRect : null,
+                        Position = vid.IsCustomPositionEnabled ? vid.Position : null
+                    };
+                }
+                else
+                {
+                    return null as RecordingSourceBase;
+                }
+            }).ToList();
         }
 
         private string GetImageExtension()
@@ -1135,7 +1092,7 @@ namespace TestApp
                         ((RecordingSourceBase)source).OnPropertyChanged(nameof(source.SourceRect));
                     }
                 }
-                else if((sender as FrameworkElement).DataContext is null)
+                else if ((sender as FrameworkElement).DataContext is null)
                 {
                     if (this.IsCustomOutputSourceRectEnabled)
                     {

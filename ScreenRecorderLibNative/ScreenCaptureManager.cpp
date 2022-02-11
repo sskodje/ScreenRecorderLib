@@ -32,7 +32,6 @@ ScreenCaptureManager::ScreenCaptureManager() :
 	m_IsCapturing(false),
 	m_OutputOptions(nullptr)
 {
-	RtlZeroMemory(&m_PtrInfo, sizeof(m_PtrInfo));
 	// Event to tell spawned threads to quit
 	m_TerminateThreadsEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 }
@@ -578,7 +577,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	CComPtr<IDXGIKeyedMutex> KeyMutex = nullptr;
 
 	// Data passed in from thread creation
-	CAPTURE_THREAD_DATA *pData = reinterpret_cast<CAPTURE_THREAD_DATA *>(Param);
+	CAPTURE_THREAD_DATA *pData = static_cast<CAPTURE_THREAD_DATA *>(Param);
 	RECORDING_SOURCE_DATA *pSourceData = pData->RecordingSource;
 	RECORDING_SOURCE *pSource = pSourceData->RecordingSource;
 	//This scope must be here for ReleaseOnExit to work.
@@ -798,7 +797,7 @@ Exit:
 DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 	HRESULT hr = E_FAIL;
 	// Data passed in from thread creation
-	OVERLAY_THREAD_DATA *pData = reinterpret_cast<OVERLAY_THREAD_DATA *>(Param);
+	OVERLAY_THREAD_DATA *pData = static_cast<OVERLAY_THREAD_DATA *>(Param);
 
 	RECORDING_OVERLAY_DATA *pOverlayData = pData->RecordingOverlay;
 	RECORDING_OVERLAY *pOverlay = pOverlayData->RecordingOverlay;

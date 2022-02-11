@@ -34,6 +34,10 @@ private:
 	std::unique_ptr<TextureManager> m_TextureManager;
 	std::unique_ptr<MouseManager> m_MouseManager;
 	RECORDING_SOURCE_BASE *m_RecordingSource;
+	int m_CursorOffsetX;
+	int m_CursorOffsetY;
+	float m_CursorScaleX;
+	float m_CursorScaleY;
 	bool m_IsCursorCaptureEnabled;
 	bool m_IsInitialized;
 	HANDLE m_NewFrameEvent;
@@ -43,4 +47,5 @@ private:
 	GRAPHICS_FRAME_DATA m_CurrentData;
 	LARGE_INTEGER m_LastSampleReceivedTimeStamp;
 	LARGE_INTEGER m_LastGrabTimeStamp;
+
 };

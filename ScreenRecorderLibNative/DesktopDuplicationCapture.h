@@ -35,6 +35,11 @@ private:
 	RECORDING_SOURCE_BASE *m_RecordingSource;
 	DUPL_FRAME_DATA m_CurrentData;
 
+	int m_CursorOffsetX;
+	int m_CursorOffsetY;
+	float m_CursorScaleX;
+	float m_CursorScaleY;
+
 	bool m_IsCursorCaptureEnabled;
 	bool m_IsInitialized;
 	LARGE_INTEGER m_LastGrabTimeStamp;

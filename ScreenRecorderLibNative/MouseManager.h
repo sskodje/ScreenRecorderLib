@@ -24,8 +24,13 @@ protected:
 	HRESULT DrawMousePointer(_In_ PTR_INFO *pPtrInfo, _Inout_ ID3D11Texture2D *pBbgTexture, DXGI_MODE_ROTATION rotation);
 	HRESULT DrawMouseClick(_In_ PTR_INFO *pPtrInfo, _In_ ID3D11Texture2D *pBgTexture, std::string colorStr, float radius, DXGI_MODE_ROTATION rotation);
 private:
+	static const UINT TRANSPARENT_WHITE = 0x00FFFFFF;
+	static const UINT TRANSPARENT_BLACK = 0x00000000;
+	static const UINT OPAQUE_WHITE = 0xFFFFFFFF;
+	static const UINT OPAQUE_BLACK = 0xFF000000;
 	static const int NUMVERTICES = 6;
 	static const int BPP = 4;
+
 	ATL::CComPtr<ID3D11SamplerState> m_SamplerLinear;
 	ATL::CComPtr<ID3D11BlendState> m_BlendState;
 	ATL::CComPtr<ID3D11VertexShader> m_VertexShader;

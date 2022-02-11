@@ -27,7 +27,7 @@ struct REC_RESULT {
 
 	}
 	REC_RESULT(HRESULT recordingResult, std::wstring error = L"") :
-		REC_RESULT()	
+		REC_RESULT()
 	{
 		RecordingResult = recordingResult;
 		Error = error;
@@ -44,12 +44,15 @@ struct CAPTURE_RESULT :REC_RESULT {
 	}
 	CAPTURE_RESULT(HRESULT recordingResult, std::wstring error = L"") :
 		IsRecoverableError(false),
-		REC_RESULT(recordingResult,error)
+		REC_RESULT(recordingResult, error)
 	{
 
 	}
 };
-
+struct SIZE_F {
+	float cx;
+	float cy;
+};
 //
 // Holds info about the pointer/cursor
 //
@@ -58,11 +61,27 @@ struct PTR_INFO
 	_Field_size_bytes_(BufferSize) BYTE *PtrShapeBuffer;
 	DXGI_OUTDUPL_POINTER_SHAPE_INFO ShapeInfo;
 	POINT Position;
+	POINT Offset;
+	SIZE_F Scale;
 	bool Visible;
 	bool IsPointerShapeUpdated;
 	UINT BufferSize;
 	RECT WhoUpdatedPositionLast;
 	LARGE_INTEGER LastTimeStamp;
+
+	PTR_INFO() :
+		Position{},
+		Offset{},
+		Scale{ 1.0, 1.0 },
+		Visible(false),
+		IsPointerShapeUpdated(false),
+		BufferSize(0),
+		WhoUpdatedPositionLast{},
+		LastTimeStamp{},
+		PtrShapeBuffer(nullptr)
+	{
+		RtlZeroMemory(&ShapeInfo, sizeof(ShapeInfo));
+	}
 };
 
 //

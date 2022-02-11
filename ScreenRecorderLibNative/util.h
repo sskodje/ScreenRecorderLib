@@ -269,6 +269,16 @@ inline std::string ReadFileSignature(std::wstring filePath) {
 	return signature;
 }
 
+inline bool IsFileAvailableForReading(std::wstring filePath) {
+	FILE *stream;
+	_wfopen_s(&stream, filePath.c_str(), L"r");
+	if (stream) {
+		fclose(stream);
+		return true;
+	}
+	return false;
+}
+
 inline std::string CurrentTimeToFormattedString()
 {
 	std::chrono::system_clock::time_point p = std::chrono::system_clock::now();
