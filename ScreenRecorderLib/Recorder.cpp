@@ -81,7 +81,7 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 		}
 		if (options->OutputOptions) {
 			OUTPUT_OPTIONS* outputOptions = new OUTPUT_OPTIONS();
-			if (options->OutputOptions->SourceRect && options->OutputOptions->SourceRect != ScreenRect::Empty) {
+			if (options->OutputOptions->SourceRect && !options->OutputOptions->SourceRect->Equals(ScreenRect::Empty)) {
 				outputOptions->SetSourceRectangle(options->OutputOptions->SourceRect->ToRECT());
 			}
 			if (options->OutputOptions->OutputFrameSize && !options->OutputOptions->OutputFrameSize->Equals(ScreenSize::Empty)) {

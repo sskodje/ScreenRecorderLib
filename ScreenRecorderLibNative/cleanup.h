@@ -29,32 +29,6 @@ private:
 	std::wstring m_tag;
 };
 
-class DeleteFileOnExit
-{
-public:
-	DeleteFileOnExit(ATL::CComPtr<IWICStream> &hFile, LPCWSTR szFile) noexcept : m_filename(szFile), m_handle(hFile) {}
-
-	DeleteFileOnExit(const DeleteFileOnExit &) = delete;
-	DeleteFileOnExit &operator=(const DeleteFileOnExit &) = delete;
-
-	DeleteFileOnExit(const DeleteFileOnExit &&) = delete;
-	DeleteFileOnExit &operator=(const DeleteFileOnExit &&) = delete;
-
-	~DeleteFileOnExit()
-	{
-		if (m_filename)
-		{
-			m_handle.Release();
-			DeleteFileW(m_filename);
-		}
-	}
-
-	void clear() noexcept { m_filename = nullptr; }
-
-private:
-	LPCWSTR m_filename;
-	ATL::CComPtr<IWICStream> &m_handle;
-};
 
 class CaptureStopOnExit {
 public:

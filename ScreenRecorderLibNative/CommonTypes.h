@@ -6,8 +6,6 @@
 #include <string>
 #include <vector>
 #include <strsafe.h>
-#include "PixelShader.h"
-#include "VertexShader.h"
 #include <codecapi.h>
 #include <mfapi.h>
 #include <optional>

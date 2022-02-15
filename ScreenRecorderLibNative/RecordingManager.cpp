@@ -234,7 +234,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		m_TextureManager = make_unique<TextureManager>();
 		m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
 		m_OutputManager = make_unique<OutputManager>();
-		m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, m_EncoderOptions, m_AudioOptions, m_SnapshotOptions);
+		m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetEncoderOptions(), GetAudioOptions(), GetSnapshotOptions(), GetOutputOptions());
 
 		result = StartRecorderLoop(m_RecordingSources, m_Overlays, stream);
 		if (RecordingStatusChangedCallback != nullptr && !m_IsDestructing) {
@@ -398,7 +398,12 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	RECT videoInputFrameRect{};
 	SIZE videoOutputFrameSize{};
 	RETURN_RESULT_ON_BAD_HR(hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, &videoOutputFrameSize), L"Failed to initialize frame rects");
-	RETURN_RESULT_ON_BAD_HR(hr = m_OutputManager->BeginRecording(m_OutputFullPath, videoOutputFrameSize, recorderMode, pStream), L"Failed to initialize video sink writer");
+	if (pStream) {
+		RETURN_RESULT_ON_BAD_HR(hr = m_OutputManager->BeginRecording(pStream, videoOutputFrameSize), L"Failed to initialize video sink writer");
+	}
+	else {
+		RETURN_RESULT_ON_BAD_HR(hr = m_OutputManager->BeginRecording(m_OutputFullPath, videoOutputFrameSize), L"Failed to initialize video sink writer");
+	}
 
 	std::unique_ptr<AudioManager> pAudioManager = make_unique<AudioManager>();
 	std::unique_ptr<MouseManager> pMouseManager = make_unique<MouseManager>();
@@ -525,7 +530,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			{
 				results.push_back(threadData.ThreadResult);
 			}
-			for each (CAPTURE_RESULT *result in results)
+			for each (CAPTURE_RESULT * result in results)
 			{
 				if (FAILED(result->RecordingResult)) {
 					if (result->IsRecoverableError) {
@@ -546,7 +551,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 							hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
 						}
 						if (SUCCEEDED(hr)) {
-							hr = m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, m_EncoderOptions, m_AudioOptions, m_SnapshotOptions);
+							hr = m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetEncoderOptions(), GetAudioOptions(), GetSnapshotOptions(), GetOutputOptions());
 						}
 						if (SUCCEEDED(hr)) {
 							hr = pMouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
