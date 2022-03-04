@@ -534,6 +534,11 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			{
 				if (FAILED(result->RecordingResult)) {
 					if (result->IsRecoverableError) {
+						//Release texture created on the stale device
+						if (pPreviousFrameCopy) {
+							pPreviousFrameCopy.Release();
+						}
+
 						//Reinitialize and restart capture
 						hr = pCapture->StopCapture();
 						if (SUCCEEDED(hr)) {
