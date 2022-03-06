@@ -210,22 +210,30 @@ HRESULT WindowsGraphicsCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordi
 			LOG_ERROR(L"Failed to QI for DXGI Device");
 			return hr;
 		}
-		auto direct3DDevice = Graphics::Capture::Util::CreateDirect3DDevice(DxgiDevice);
-		// Creating our frame pool with 'Create' instead of 'CreateFreeThreaded'
-		// means that the frame pool's FrameArrived event is called on the thread
-		// the frame pool was created on. This also means that the creating thread
-		// must have a DispatcherQueue. If you use this method, it's best not to do
-		// it on the UI thread. 
-		m_framePool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, m_CaptureItem.Size());
-		m_session = m_framePool.CreateCaptureSession(m_CaptureItem);
-		m_framePool.FrameArrived({ this, &WindowsGraphicsCapture::OnFrameArrived });
+		try
+		{
+			auto direct3DDevice = Graphics::Capture::Util::CreateDirect3DDevice(DxgiDevice);
+			// Creating our frame pool with 'Create' instead of 'CreateFreeThreaded'
+			// means that the frame pool's FrameArrived event is called on the thread
+			// the frame pool was created on. This also means that the creating thread
+			// must have a DispatcherQueue. If you use this method, it's best not to do
+			// it on the UI thread. 
+			m_framePool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, m_CaptureItem.Size());
+			m_session = m_framePool.CreateCaptureSession(m_CaptureItem);
+			m_framePool.FrameArrived({ this, &WindowsGraphicsCapture::OnFrameArrived });
 
-		WINRT_ASSERT(m_session != nullptr);
-		if (IsGraphicsCaptureCursorCapturePropertyAvailable()) {
-			m_session.IsCursorCaptureEnabled(m_IsCursorCaptureEnabled);
+			WINRT_ASSERT(m_session != nullptr);
+			if (IsGraphicsCaptureCursorCapturePropertyAvailable()) {
+				m_session.IsCursorCaptureEnabled(m_IsCursorCaptureEnabled);
+			}
+			m_session.StartCapture();
+			m_closed.store(false);
 		}
-		m_session.StartCapture();
-		m_closed.store(false);
+		catch (winrt::hresult_error const &ex)
+		{
+			hr = ex.code();
+			LOG_ERROR(L"Failed to create WindowsGraphicsCapture session: error is %ls", ex.message().c_str());
+		}
 	}
 	else {
 		LOG_ERROR("Failed to create capture item");
@@ -235,16 +243,32 @@ HRESULT WindowsGraphicsCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordi
 
 HRESULT WindowsGraphicsCapture::StopCapture()
 {
+	HRESULT hr = S_OK;
 	auto expected = false;
 	if (m_closed.compare_exchange_strong(expected, true))
 	{
-		m_session.Close();
-		m_framePool.Close();
-
+		try
+		{
+			m_session.Close();
+		}
+		catch (winrt::hresult_error const &ex)
+		{
+			hr = ex.code();
+			LOG_ERROR(L"Failed to close WindowsGraphicsCapture session: error is %ls", ex.message().c_str());
+		}
+		try
+		{
+			m_framePool.Close();
+		}
+		catch (winrt::hresult_error const &ex)
+		{
+			hr = ex.code();
+			LOG_ERROR(L"Failed to close WindowsGraphicsCapture frame pool: error is %ls", ex.message().c_str());
+		}
 		m_framePool = nullptr;
 		m_session = nullptr;
 	}
-	return S_OK;
+	return hr;
 }
 
 HRESULT WindowsGraphicsCapture::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize)
@@ -322,7 +346,15 @@ HRESULT WindowsGraphicsCapture::GetCaptureItem(_In_ RECORDING_SOURCE_BASE &recor
 {
 	HRESULT hr = S_OK;
 	if (recordingSource.Type == RecordingSourceType::Window) {
-		*item = CreateCaptureItemForWindow(recordingSource.SourceWindow);
+		try
+		{
+			*item = CreateCaptureItemForWindow(recordingSource.SourceWindow);
+		}
+		catch (winrt::hresult_error const &ex)
+		{
+			hr = ex.code();
+			LOG_ERROR(L"Failed to create capture item for window: error is %ls", ex.message().c_str());
+		}
 	}
 	else {
 		CComPtr<IDXGIOutput> output = nullptr;
@@ -336,7 +368,15 @@ HRESULT WindowsGraphicsCapture::GetCaptureItem(_In_ RECORDING_SOURCE_BASE &recor
 		}
 		DXGI_OUTPUT_DESC outputDesc;
 		output->GetDesc(&outputDesc);
-		*item = CreateCaptureItemForMonitor(outputDesc.Monitor);
+		try
+		{
+			*item = CreateCaptureItemForMonitor(outputDesc.Monitor);
+		}
+		catch (winrt::hresult_error const &ex)
+		{
+			hr = ex.code();
+			LOG_ERROR(L"Failed to create capture item for monitor: error is %ls", ex.message().c_str());
+		}
 	}
 	return hr;
 }
@@ -355,7 +395,17 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 		result = WaitForSingleObject(m_NewFrameEvent, timeoutMillis);
 	}
 	if (result == WAIT_OBJECT_0) {
-		winrt::Direct3D11CaptureFrame frame = m_framePool.TryGetNextFrame();
+		winrt::Direct3D11CaptureFrame frame = nullptr;
+		try
+		{
+			frame = m_framePool.TryGetNextFrame();
+		}
+		catch (winrt::hresult_error const &ex)
+		{
+			hr = ex.code();
+			LOG_ERROR(L"Failed to get Direct3D11CaptureFrame: error is %ls", ex.message().c_str());
+			return hr;
+		}
 		if (frame) {
 			MeasureExecutionTime measureGetFrame(L"WindowsGraphicsManager::GetNextFrame");
 			auto surfaceTexture = Graphics::Capture::Util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
@@ -390,16 +440,25 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 					return hr;
 				}
 				measureGetFrame.SetName(L"WindowsGraphicsManager::GetNextFrame recreated");
-				auto direct3DDevice = Graphics::Capture::Util::CreateDirect3DDevice(DxgiDevice);
-				winrt::SizeInt32 newFramePoolSize = frame.ContentSize();
+				try
+				{
+					auto direct3DDevice = Graphics::Capture::Util::CreateDirect3DDevice(DxgiDevice);
+					winrt::SizeInt32 newFramePoolSize = frame.ContentSize();
 
-				/// If recording a window, make the frame pool return a slightly larger texture that we crop later.
-				/// This prevents issues with clipping when resizing windows.
-				if (m_RecordingSource->Type == RecordingSourceType::Window) {
-					newFramePoolSize.Width += 100;
-					newFramePoolSize.Height += 100;
+					/// If recording a window, make the frame pool return a slightly larger texture that we crop later.
+					/// This prevents issues with clipping when resizing windows.
+					if (m_RecordingSource->Type == RecordingSourceType::Window) {
+						newFramePoolSize.Width += 100;
+						newFramePoolSize.Height += 100;
+					}
+					m_framePool.Recreate(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, newFramePoolSize);
 				}
-				m_framePool.Recreate(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, newFramePoolSize);
+				catch (winrt::hresult_error const &ex)
+				{
+					hr = ex.code();
+					LOG_ERROR(L"Failed to recreate WindowsGraphicsCapture frame pool: error is %ls", ex.message().c_str());
+					return hr;
+				}
 				pData->ContentSize.cx = frame.ContentSize().Width;
 				pData->ContentSize.cy = frame.ContentSize().Height;
 				//Some times the size of the first frame is wrong when recording windows, so we just skip it and get a new after resizing the frame pool.
