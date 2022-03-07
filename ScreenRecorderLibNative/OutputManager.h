@@ -53,6 +53,7 @@ private:
 
 	CComPtr<IMFSinkWriter> m_SinkWriter;
 	CComPtr<IMFSinkWriterCallback> m_CallBack;
+	CComPtr<IMFTransform> m_MediaTransform;
 	IStream *m_OutStream;
 	DWORD m_VideoStreamIndex;
 	DWORD m_AudioStreamIndex;

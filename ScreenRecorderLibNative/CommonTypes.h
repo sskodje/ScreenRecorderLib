@@ -433,7 +433,6 @@ public:
 struct ENCODER_OPTIONS abstract {
 protected:
 #pragma region Format constants
-	const GUID VIDEO_INPUT_FORMAT = MFVideoFormat_ARGB32;
 #pragma endregion
 	UINT32 m_VideoFps = 30;
 	UINT32 m_VideoBitrate = 4000 * 1000;//Bitrate in bits per second
@@ -470,7 +469,6 @@ public:
 	bool GetIsLowLatencyModeEnabled() { return m_IsLowLatencyModeEnabled; }
 	UINT32 GetVideoBitrateMode() { return m_VideoBitrateControlMode; }
 	UINT32 GetEncoderProfile() { return m_EncoderProfile; }
-	GUID GetVideoInputFormat() { return VIDEO_INPUT_FORMAT; }
 
 	virtual GUID GetVideoEncoderFormat() abstract;
 	virtual std::wstring GetVideoExtension() {
