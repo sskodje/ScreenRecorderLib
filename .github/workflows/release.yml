@@ -13,7 +13,7 @@ env:
 jobs:
   build:
     name: Build ${{ matrix.platform }}
-    runs-on: windows-latest
+    runs-on: windows-2019
     strategy:
       matrix:
         platform: [x64, x86]
@@ -32,7 +32,7 @@ jobs:
         exclusions: '*.pdg *.metagen *.xml'
   release:
       name: Upload Release
-      runs-on: windows-latest
+      runs-on: windows-2019
       needs : build
       steps:
         - uses: marvinpinto/action-automatic-releases@latest
