@@ -508,7 +508,6 @@ HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ const std::vector<RECORDING_
 	std::vector<SIZE> outputOffsets{};
 	GetCombinedRects(outputRects, pDeskBounds, &outputOffsets);
 
-	pDeskBounds = &MakeRectEven(*pDeskBounds);
 	for (int i = 0; i < validOutputs.size(); i++)
 	{
 		RECORDING_SOURCE *source = validOutputs.at(i).first;

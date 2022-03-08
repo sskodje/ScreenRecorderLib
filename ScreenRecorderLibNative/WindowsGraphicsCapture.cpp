@@ -173,15 +173,27 @@ HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeout
 		cursorOffsetX += static_cast<int>(round(contentOffset.cx / cursorScaleX));
 		cursorOffsetY += static_cast<int>(round(contentOffset.cy / cursorScaleY));
 
+		D3D11_TEXTURE2D_DESC desc;
+		pSharedSurf->GetDesc(&desc);
+
+		LONG textureOffsetX = finalFrameRect.left + offsetX + contentOffset.cx;
+		LONG textureOffsetY = finalFrameRect.top + offsetY + contentOffset.cy;
+
 		D3D11_BOX Box;
 		Box.front = 0;
 		Box.back = 1;
 		Box.left = 0;
 		Box.top = 0;
-		Box.right = MakeEven(RectWidth(contentRect));
-		Box.bottom = MakeEven(RectHeight(contentRect));
+		Box.right = RectWidth(contentRect);
+		Box.bottom = RectHeight(contentRect);
 
-		m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, finalFrameRect.left + offsetX + contentOffset.cx, finalFrameRect.top + offsetY + contentOffset.cy, 0, pProcessedTexture, 0, &Box);
+		if (textureOffsetX + Box.right > desc.Width) {
+			Box.right = desc.Width - textureOffsetX;
+		}
+		if (textureOffsetY + Box.bottom > desc.Height) {
+			Box.bottom = desc.Height - textureOffsetY;
+		}
+		m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, textureOffsetX, textureOffsetY, 0, pProcessedTexture, 0, &Box);
 		m_LastFrameRect = finalFrameRect;
 		m_CursorOffsetX = cursorOffsetX;
 		m_CursorOffsetY = cursorOffsetY;

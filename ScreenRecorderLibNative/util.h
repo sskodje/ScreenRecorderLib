@@ -150,20 +150,23 @@ inline double HundredNanosToMillisDouble(INT64 hundredNanos) {
 	return (double)hundredNanos / 10 / 1000;
 }
 /// <summary>
-/// This method forces the dimensions of a RECT to be even by subtracting one pixel if odd.
+/// Forces the dimensions of rect to be even by adding 1*modifier pixel if odd.
 /// </summary>
 /// <param name="rect"></param>
-inline RECT MakeRectEven(_In_ RECT &rect)
+inline RECT MakeRectEven(_In_ RECT &rect, _In_ int modifier = -1)
 {
 	if ((rect.right - rect.left) % 2 != 0)
-		rect.right -= 1;
+		rect.right += 1 * modifier;
 	if ((rect.bottom - rect.top) % 2 != 0)
-		rect.bottom -= 1;
+		rect.bottom += 1 * modifier;
 	return rect;
 }
-
-inline LONG MakeEven(LONG n) {
-	return n - n % 2;
+/// <summary>
+/// Forces the dimensions of n to be even by adding 1*modifier pixel if odd.
+/// </summary>
+/// <param name="rect"></param>
+inline LONG MakeEven(_In_ LONG n, _In_ int modifier = -1) {
+	return n + (1 * modifier) * n % 2;
 }
 
 inline LONG RectWidth(RECT rc)
@@ -208,48 +211,48 @@ inline ImageFileType getImageTypeByMagic(const char *data)
 
 	switch (data[0])
 	{
-	case '\xFF':
-		return (!strncmp((const char *)data, "\xFF\xD8\xFF", 3)) ?
-			ImageFileType::IMAGE_FILE_JPG : ImageFileType::IMAGE_FILE_INVALID;
+		case '\xFF':
+			return (!strncmp((const char *)data, "\xFF\xD8\xFF", 3)) ?
+				ImageFileType::IMAGE_FILE_JPG : ImageFileType::IMAGE_FILE_INVALID;
 
-	case '\x89':
-		return (!strncmp((const char *)data,
-			"\x89\x50\x4E\x47\x0D\x0A\x1A\x0A", 8)) ?
-			ImageFileType::IMAGE_FILE_PNG : ImageFileType::IMAGE_FILE_INVALID;
+		case '\x89':
+			return (!strncmp((const char *)data,
+				"\x89\x50\x4E\x47\x0D\x0A\x1A\x0A", 8)) ?
+				ImageFileType::IMAGE_FILE_PNG : ImageFileType::IMAGE_FILE_INVALID;
 
-	case 'G':
-		return (!strncmp((const char *)data, "GIF87a", 6) ||
-			!strncmp((const char *)data, "GIF89a", 6)) ?
-			ImageFileType::IMAGE_FILE_GIF : ImageFileType::IMAGE_FILE_INVALID;
+		case 'G':
+			return (!strncmp((const char *)data, "GIF87a", 6) ||
+				!strncmp((const char *)data, "GIF89a", 6)) ?
+				ImageFileType::IMAGE_FILE_GIF : ImageFileType::IMAGE_FILE_INVALID;
 
-	case 'I':
-		return (!strncmp((const char *)data, "\x49\x49\x2A\x00", 4)) ?
-			ImageFileType::IMAGE_FILE_TIFF : ImageFileType::IMAGE_FILE_INVALID;
+		case 'I':
+			return (!strncmp((const char *)data, "\x49\x49\x2A\x00", 4)) ?
+				ImageFileType::IMAGE_FILE_TIFF : ImageFileType::IMAGE_FILE_INVALID;
 
-	case 'M':
-		return (!strncmp((const char *)data, "\x4D\x4D\x00\x2A", 4)) ?
-			ImageFileType::IMAGE_FILE_TIFF : ImageFileType::IMAGE_FILE_INVALID;
+		case 'M':
+			return (!strncmp((const char *)data, "\x4D\x4D\x00\x2A", 4)) ?
+				ImageFileType::IMAGE_FILE_TIFF : ImageFileType::IMAGE_FILE_INVALID;
 
-	case 'B':
-		return ((data[1] == 'M')) ?
-			ImageFileType::IMAGE_FILE_BMP : ImageFileType::IMAGE_FILE_INVALID;
+		case 'B':
+			return ((data[1] == 'M')) ?
+				ImageFileType::IMAGE_FILE_BMP : ImageFileType::IMAGE_FILE_INVALID;
 
-	case 'R':
-		if (strncmp((const char *)data, "RIFF", 4))
+		case 'R':
+			if (strncmp((const char *)data, "RIFF", 4))
+				return ImageFileType::IMAGE_FILE_INVALID;
+			if (strncmp((const char *)(data + 8), "WEBP", 4))
+				return ImageFileType::IMAGE_FILE_INVALID;
+			return ImageFileType::IMAGE_FILE_WEBP;
+
+		case '\0':
+			if (!strncmp((const char *)data, "\x00\x00\x01\x00", 4))
+				return ImageFileType::IMAGE_FILE_ICO;
+			if (!strncmp((const char *)data, "\x00\x00\x02\x00", 4))
+				return ImageFileType::IMAGE_FILE_ICO;
 			return ImageFileType::IMAGE_FILE_INVALID;
-		if (strncmp((const char *)(data + 8), "WEBP", 4))
+
+		default:
 			return ImageFileType::IMAGE_FILE_INVALID;
-		return ImageFileType::IMAGE_FILE_WEBP;
-
-	case '\0':
-		if (!strncmp((const char *)data, "\x00\x00\x01\x00", 4))
-			return ImageFileType::IMAGE_FILE_ICO;
-		if (!strncmp((const char *)data, "\x00\x00\x02\x00", 4))
-			return ImageFileType::IMAGE_FILE_ICO;
-		return ImageFileType::IMAGE_FILE_INVALID;
-
-	default:
-		return ImageFileType::IMAGE_FILE_INVALID;
 	}
 }
 
@@ -258,7 +261,7 @@ inline std::string ReadFileSignature(std::wstring filePath) {
 	std::string signature = "";
 	_wfopen_s(&stream, filePath.c_str(), L"r");
 	if (stream) {
-		char buffer[16]{0}; // Buffer to store data
+		char buffer[16]{ 0 }; // Buffer to store data
 		int charNum = 16;
 		size_t count = fread(&buffer, sizeof(char), charNum, stream);
 		if (count == charNum) {

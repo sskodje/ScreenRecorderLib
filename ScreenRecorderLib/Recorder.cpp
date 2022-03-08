@@ -493,7 +493,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 	}
 	RECT deskBounds;
 	GetCombinedRects(outputRects, &deskBounds, nullptr);
-	deskBounds = MakeRectEven(deskBounds);
+
 	outputDimensions->CombinedOutputSize = gcnew ScreenSize(RectWidth(deskBounds), RectHeight(deskBounds));
 	for each (RECORDING_SOURCE * ptr in sourcePtrs)
 	{
@@ -830,7 +830,7 @@ void Recorder::EventFailed(std::wstring error, std::wstring path)
 		delete m_ManagedStream;
 		m_ManagedStream = nullptr;
 	}
-	OnRecordingFailed(this, gcnew RecordingFailedEventArgs(gcnew String(error.c_str()),gcnew String(path.c_str())));
+	OnRecordingFailed(this, gcnew RecordingFailedEventArgs(gcnew String(error.c_str()), gcnew String(path.c_str())));
 }
 void Recorder::EventStatusChanged(int status)
 {
