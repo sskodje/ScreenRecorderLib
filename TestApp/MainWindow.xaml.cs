@@ -510,7 +510,10 @@ namespace TestApp
 
         private void Rec_OnFrameRecorded(object sender, FrameRecordedEventArgs e)
         {
-            CurrentFrameNumber = e.FrameNumber;
+            Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
+            {
+                CurrentFrameNumber = e.FrameNumber;
+            }));
         }
 
         private List<RecordingSourceBase> CreateSelectedRecordingSources()
@@ -682,7 +685,7 @@ namespace TestApp
                         this.LoggingPanel.IsEnabled = false;
                         this.MouseClickModePanel.IsEnabled = false;
                         this.CheckBoxIsAudioEnabled.IsEnabled = false;
-                        _progressTimer = new DispatcherTimer();
+                        _progressTimer = new DispatcherTimer(DispatcherPriority.Normal);
                         _progressTimer.Tick += ProgressTimer_Tick;
                         _progressTimer.Interval = TimeSpan.FromMilliseconds(30);
                         _progressTimer.Start();

@@ -20,16 +20,17 @@
 #define LOG_LVL_WARN 3
 #define LOG_LVL_ERR 4
 
-#define LOG_TRACE(format, ...) if(isLoggingEnabled && LOG_LVL_TRACE >= logSeverityLevel) {_log(L"%s [TRACE] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
-#define LOG_DEBUG(format, ...) if(isLoggingEnabled && LOG_LVL_DEBUG >= logSeverityLevel) {_log(L"%s [DEBUG] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
-#define LOG_INFO(format, ...) if(isLoggingEnabled && LOG_LVL_INFO >= logSeverityLevel) {_log(L"%s [INFO]  [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
-#define LOG_WARN(format, ...) if(isLoggingEnabled && LOG_LVL_WARN >= logSeverityLevel) {_log(L"%s [WARN]  [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
-#define LOG_ERROR(format, ...) if(isLoggingEnabled && LOG_LVL_ERR >= logSeverityLevel) {_log(L"%s [ERROR] [%hs(%hs:%d)] >> " format L"\n", getTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
+#define LOG_TRACE(format, ...) if(isLoggingEnabled && LOG_LVL_TRACE >= logSeverityLevel) {_log(L"%s [TRACE] [%hs(%hs:%d)] >> " format L"\n", GetTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
+#define LOG_DEBUG(format, ...) if(isLoggingEnabled && LOG_LVL_DEBUG >= logSeverityLevel) {_log(L"%s [DEBUG] [%hs(%hs:%d)] >> " format L"\n", GetTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
+#define LOG_INFO(format, ...) if(isLoggingEnabled && LOG_LVL_INFO >= logSeverityLevel) {_log(L"%s [INFO]  [%hs(%hs:%d)] >> " format L"\n", GetTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
+#define LOG_WARN(format, ...) if(isLoggingEnabled && LOG_LVL_WARN >= logSeverityLevel) {_log(L"%s [WARN]  [%hs(%hs:%d)] >> " format L"\n", GetTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
+#define LOG_ERROR(format, ...) if(isLoggingEnabled && LOG_LVL_ERR >= logSeverityLevel) {_log(L"%s [ERROR] [%hs(%hs:%d)] >> " format L"\n", GetTimestamp().c_str(), file_name(__FILE__), __func__, __LINE__, __VA_ARGS__);}
 
 extern bool isLoggingEnabled;
 extern int logSeverityLevel;
 extern std::wstring logFilePath;
 void _log(PCWSTR format, ...);
+std::wstring GetTimestamp();
 
 constexpr const char *file_name(const char *path) {
 	const char *file = path;
@@ -39,20 +40,6 @@ constexpr const char *file_name(const char *path) {
 		}
 	}
 	return file;
-}
-
-static std::wstring getTimestamp() {
-	// get a precise timestamp as a string
-	const auto now = std::chrono::system_clock::now();
-	const auto nowAsTimeT = std::chrono::system_clock::to_time_t(now);
-	tm localTime;
-	localtime_s(&localTime, &nowAsTimeT);
-	const auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
-	std::wstringstream nowSs;
-	nowSs
-		<< std::put_time(&localTime, L"%Y-%m-%d %H:%M:%S")
-		<< '.' << std::setfill(L'0') << std::setw(3) << nowMs.count();
-	return nowSs.str();
 }
 
 struct MeasureExecutionTime {

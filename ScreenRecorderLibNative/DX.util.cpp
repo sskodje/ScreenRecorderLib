@@ -405,7 +405,7 @@ void GetCombinedRects(_In_ std::vector<RECT> inputs, _Out_ RECT *pOutRect, _Out_
 			pOffsets->push_back(SIZE{ xPosOffset,yPosOffset });
 		}
 	}
-	*pOutRect = RECT{ min(0,pOutRect->left),min(0,pOutRect->top),pOutRect->right,pOutRect->bottom };
+	*pOutRect = MakeRectEven(RECT{ min(0,pOutRect->left),min(0,pOutRect->top),pOutRect->right,pOutRect->bottom }, 1);
 }
 
 std::wstring GetMonitorName(HMONITOR monitor) {

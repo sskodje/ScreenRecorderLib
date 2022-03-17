@@ -30,3 +30,17 @@ void _log(PCWSTR format, ...)
 	g_Mtx.unlock();
 
 }
+
+std::wstring GetTimestamp() {
+	// get a precise timestamp as a string
+	const auto now = std::chrono::system_clock::now();
+	const auto nowAsTimeT = std::chrono::system_clock::to_time_t(now);
+	tm localTime;
+	localtime_s(&localTime, &nowAsTimeT);
+	const auto nowMs = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+	std::wstringstream nowSs;
+	nowSs
+		<< std::put_time(&localTime, L"%Y-%m-%d %H:%M:%S")
+		<< '.' << std::setfill(L'0') << std::setw(3) << nowMs.count();
+	return nowSs.str();
+}

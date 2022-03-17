@@ -22,7 +22,8 @@ OutputManager::OutputManager() :
 	m_OutputFolder(L""),
 	m_OutputFullPath(L""),
 	m_LastFrameHadAudio(false),
-	m_RenderedFrameCount(0)
+	m_RenderedFrameCount(0),
+	m_MediaTransform(nullptr)
 {
 	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 }
@@ -268,7 +269,6 @@ HRESULT OutputManager::ConfigureOutputMediaTypes(
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_AVG_BITRATE, GetEncoderOptions()->GetVideoBitrate()));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_MPEG2_PROFILE, GetEncoderOptions()->GetEncoderProfile()));
-	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT601));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, destWidth, destHeight));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, GetEncoderOptions()->GetVideoFps(), 1));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
@@ -306,8 +306,8 @@ HRESULT OutputManager::ConfigureInputMediaTypes(
 	CComPtr<IMFMediaType> pAudioMediaType = nullptr;
 	// Copy the output media type
 	CopyMediaType(pVideoMediaTypeOut, &pVideoMediaType);
-	// Set the subtype.
-	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_SUBTYPE, GetEncoderOptions()->GetVideoInputFormat()));
+	// Set the source subtype.
+	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_ARGB32));
 	// Uncompressed means all samples are independent.
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
@@ -352,6 +352,8 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 	CComPtr<IMFMediaType>         pVideoMediaTypeOut = nullptr;
 	CComPtr<IMFMediaType>         pAudioMediaTypeOut = nullptr;
 	CComPtr<IMFMediaType>         pVideoMediaTypeIn = nullptr;
+	CComPtr<IMFMediaType>		  pVideoMediaTypeIntermediate = nullptr;
+	CComPtr<IMFMediaType>		  pVideoMediaTypeTransform = nullptr;
 	CComPtr<IMFMediaType>         pAudioMediaTypeIn = nullptr;
 	CComPtr<IMFAttributes>        pAttributes = nullptr;
 
@@ -366,8 +368,8 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 		rotationFormat = MFVideoRotationFormat_270;
 	}
 
-	DWORD audioStreamIndex;
-	DWORD videoStreamIndex;
+	DWORD videoStreamIndex = 0;
+	DWORD audioStreamIndex = 1;
 	RETURN_ON_BAD_HR(MFCreateDXGIDeviceManager(&pResetToken, &pDeviceManager));
 	RETURN_ON_BAD_HR(pDeviceManager->ResetDevice(pDevice, pResetToken));
 
@@ -380,6 +382,14 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 
 	RETURN_ON_BAD_HR(ConfigureOutputMediaTypes(destWidth, destHeight, &pVideoMediaTypeOut, &pAudioMediaTypeOut));
 	RETURN_ON_BAD_HR(ConfigureInputMediaTypes(sourceWidth, sourceHeight, rotationFormat, pVideoMediaTypeOut, &pVideoMediaTypeIn, &pAudioMediaTypeIn));
+	
+	//The source samples have the format ARGB32, but the video encoders need the input to be a YUV format, so we convert ARGB32->NV12->H264/HEVC
+	CopyMediaType(pVideoMediaTypeIn, &pVideoMediaTypeIntermediate);
+	RETURN_ON_BAD_HR(pVideoMediaTypeIntermediate->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12));
+	CopyMediaType(pVideoMediaTypeIntermediate, &pVideoMediaTypeTransform);
+	pVideoMediaTypeTransform->DeleteItem(MF_MT_FRAME_RATE);
+
+	RETURN_ON_BAD_HR(CreateIMFTransform(videoStreamIndex, pVideoMediaTypeIn, pVideoMediaTypeTransform, &m_MediaTransform));
 
 	//Creates a streaming writer
 	CComPtr<IMFMediaSink> pMp4StreamSink = nullptr;
@@ -403,9 +413,14 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 
 	RETURN_ON_BAD_HR(MFCreateSinkWriterFromMediaSink(pMp4StreamSink, pAttributes, &pSinkWriter));
 	pMp4StreamSink.Release();
-	videoStreamIndex = 0;
-	audioStreamIndex = 1;
-	RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(videoStreamIndex, pVideoMediaTypeIn, nullptr));
+
+	LOG_TRACE("Input video format:")
+		LogMediaType(pVideoMediaTypeIn);
+	LOG_TRACE("Converted video format:")
+		LogMediaType(pVideoMediaTypeIntermediate);
+	LOG_TRACE("Output video format:")
+		LogMediaType(pVideoMediaTypeOut);
+	RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(videoStreamIndex, pVideoMediaTypeIntermediate, nullptr));
 	if (pAudioMediaTypeIn) {
 		RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, nullptr));
 	}
@@ -477,16 +492,51 @@ HRESULT OutputManager::WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 fr
 	{
 		hr = pSample->SetSampleDuration(frameDuration);
 	}
+	//Run media transform to convert sample to MFVideoFormat_NV12
+	MFT_OUTPUT_STREAM_INFO info{};
 	if (SUCCEEDED(hr))
 	{
-		// Send the sample to the Sink Writer.
-		hr = m_SinkWriter->WriteSample(streamIndex, pSample);
+		hr = m_MediaTransform->GetOutputStreamInfo(streamIndex, &info);
 	}
+	IMFMediaBuffer *transformBuffer;
+	if (SUCCEEDED(hr))
+	{
+		hr = MFCreateMemoryBuffer(info.cbSize, &transformBuffer);
+	}
+	IMFSample *transformSample;
+	if (SUCCEEDED(hr))
+	{
+		hr = MFCreateSample(&transformSample);
+	}
+	MFT_OUTPUT_DATA_BUFFER outputDataBuffer;
+	RtlZeroMemory(&outputDataBuffer, sizeof(outputDataBuffer));
+	if (SUCCEEDED(hr))
+	{
+		hr = transformSample->AddBuffer(transformBuffer);
+		outputDataBuffer.dwStreamID = streamIndex;
+		outputDataBuffer.pSample = transformSample;
+	}
+	if (SUCCEEDED(hr))
+	{
+		hr = m_MediaTransform->ProcessInput(streamIndex, pSample, 0);
+	}
+	if (SUCCEEDED(hr))
+	{
+		DWORD dwDSPStatus = 0;
+		hr = m_MediaTransform->ProcessOutput(0, 1, &outputDataBuffer, &dwDSPStatus);
+	}
+	if (SUCCEEDED(hr))
+	{
+		hr = m_SinkWriter->WriteSample(streamIndex, outputDataBuffer.pSample);
+	}
+	SafeRelease(&transformBuffer);
+	SafeRelease(&transformSample);
 	SafeRelease(&pSample);
 	SafeRelease(&p2DBuffer);
 	SafeRelease(&pMediaBuffer);
 	return hr;
 }
+
 HRESULT OutputManager::WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE *pSrc, _In_ DWORD cbData)
 {
 	IMFMediaBuffer *pBuffer = nullptr;

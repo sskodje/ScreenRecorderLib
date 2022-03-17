@@ -32,6 +32,7 @@ using namespace DirectX;
 using namespace winrt::Windows::Graphics::DirectX;
 using namespace winrt::Windows::Graphics::Capture;
 #if _DEBUG
+static std::mutex m_DxDebugMutex{};
 bool isLoggingEnabled = true;
 int logSeverityLevel = LOG_LVL_DEBUG;
 #else
@@ -314,7 +315,9 @@ void RecordingManager::CleanupDxResources()
 	SafeRelease(&m_DxResources.Device);
 #if _DEBUG
 	if (m_DxResources.Debug) {
-		m_DxResources.Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL);
+		m_DxDebugMutex.lock();
+		m_DxResources.Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL| D3D11_RLDO_IGNORE_INTERNAL);
+		m_DxDebugMutex.unlock();
 		SafeRelease(&m_DxResources.Debug);
 	}
 #endif
@@ -534,6 +537,11 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			{
 				if (FAILED(result->RecordingResult)) {
 					if (result->IsRecoverableError) {
+						//Release texture created on the stale device
+						if (pPreviousFrameCopy) {
+							pPreviousFrameCopy.Release();
+						}
+
 						//Reinitialize and restart capture
 						hr = pCapture->StopCapture();
 						if (SUCCEEDED(hr)) {

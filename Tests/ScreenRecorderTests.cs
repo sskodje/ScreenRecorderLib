@@ -733,8 +733,9 @@ namespace ScreenRecorderLib
                         Assert.IsTrue(isComplete);
                         Assert.AreNotEqual(outStream.Length, 0);
                         var mediaInfo = new MediaInfoWrapper(filePath);
-                        Assert.AreEqual(rec.CurrentFrameNumber, (int)Math.Floor(options.VideoEncoderOptions.Framerate * ((double)durationMillis / 1000)));
-                        Assert.IsTrue(Math.Abs(mediaInfo.Framerate - options.VideoEncoderOptions.Framerate) <= 3, "MediaInfo framerate {0} not equal to configured framerate {1}", mediaInfo.Framerate, options.VideoEncoderOptions.Framerate);
+                        int estimatedFrameCount = (int)Math.Floor(options.VideoEncoderOptions.Framerate * ((double)durationMillis / 1000));
+                        Assert.IsTrue(Math.Abs(rec.CurrentFrameNumber - estimatedFrameCount) <= 2, "Recorder framenumber {0} not equal to estimated frame number {1}", rec.CurrentFrameNumber, estimatedFrameCount);
+                        Assert.IsTrue(Math.Abs(mediaInfo.Framerate - options.VideoEncoderOptions.Framerate) <= 2, "MediaInfo framerate {0} not equal to configured framerate {1}", mediaInfo.Framerate, options.VideoEncoderOptions.Framerate);
                     }
                 }
             }

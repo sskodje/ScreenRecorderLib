@@ -508,7 +508,6 @@ HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ const std::vector<RECORDING_
 	std::vector<SIZE> outputOffsets{};
 	GetCombinedRects(outputRects, pDeskBounds, &outputOffsets);
 
-	pDeskBounds = &MakeRectEven(*pDeskBounds);
 	for (int i = 0; i < validOutputs.size(); i++)
 	{
 		RECORDING_SOURCE *source = validOutputs.at(i).first;
@@ -673,6 +672,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 		bool IsCapturingVideo = true;
 		bool IsSharedSurfaceDirty = false;
 		bool WaitToProcessCurrentFrame = false;
+		std::chrono::steady_clock::time_point WaitForFrameBegin = (std::chrono::steady_clock::time_point::min)();
 		while (true)
 		{
 			if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
@@ -711,8 +711,10 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			}
 			if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
 			{
-				LOG_TRACE(L"CaptureThreadProc shared surface is busy for %ls, retrying..", pRecordingSourceCapture->Name().c_str());
 				// Can't use shared surface right now, try again later
+				if (!WaitToProcessCurrentFrame) {
+					WaitForFrameBegin = chrono::steady_clock::now();
+				}
 				WaitToProcessCurrentFrame = true;
 				continue;
 			}
@@ -727,8 +729,11 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
 
 				// We can now process the current frame
-				WaitToProcessCurrentFrame = false;
-
+				if (WaitToProcessCurrentFrame) {
+					WaitToProcessCurrentFrame = false;
+					LONGLONG waitTimeMillis = duration_cast<milliseconds>(chrono::steady_clock::now() - WaitForFrameBegin).count();
+					LOG_TRACE(L"CaptureThreadProc waited for busy shared surface for %lld ms", waitTimeMillis);
+				}
 				if (pSource->IsCursorCaptureEnabled.value_or(false)) {
 					// Get mouse info
 					hr = pRecordingSourceCapture->GetMouse(pData->PtrInfo, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
