@@ -233,6 +233,12 @@
     <ClCompile Include="DynamicWait.cpp">
       <Filter>Source Files\Utils</Filter>
     </ClCompile>
+    <ClCompile Include="WindowsGraphicsCapture.util.cpp">
+      <Filter>Source Files\Video Capture\Screen Capture\Windows Graphics Capture</Filter>
+    </ClCompile>
+    <ClCompile Include="Util.cpp">
+      <Filter>Source Files\Utils</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="VertexShader.hlsl" />

@@ -260,9 +260,8 @@ HRESULT MouseManager::DrawMouseClick(_In_ PTR_INFO *pPtrInfo, _In_ ID3D11Texture
 {
 	ATL::CComPtr<IDXGISurface> pSharedSurface;
 	HRESULT hr = pBgTexture->QueryInterface(__uuidof(IDXGISurface), (void **)&pSharedSurface);
-
 	// Create the DXGI Surface Render Target.
-	UINT dpi = GetDpiForSystem();
+	UINT dpi = GetSystemDpi();
 	/* RenderTargetProperties contains the description for render target */
 	D2D1_RENDER_TARGET_PROPERTIES RenderTargetProperties =
 		D2D1::RenderTargetProperties(

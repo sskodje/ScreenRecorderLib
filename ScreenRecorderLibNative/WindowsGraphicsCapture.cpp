@@ -4,6 +4,8 @@
 #include "Cleanup.h"
 #include "MouseManager.h"
 
+#pragma comment(lib,"runtimeobject.lib")
+
 using namespace std;
 using namespace Graphics::Capture::Util;
 

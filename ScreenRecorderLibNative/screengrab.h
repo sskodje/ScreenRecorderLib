@@ -4,6 +4,8 @@
 #include <wincodec.h>
 #include <optional>
 
+#pragma comment(lib, "Windowscodecs.lib")
+
 HRESULT __cdecl SaveWICTextureToFile(
 	_In_ ID3D11DeviceContext *pContext,
 	_In_ ID3D11Resource *pSource,

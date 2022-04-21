@@ -3,15 +3,19 @@
 #include <mfidl.h>
 #include <VersionHelpers.h>
 #include <filesystem>
+#include <WinSDKVer.h>
 #include "Util.h"
+#include "MF.util.h"
 #include "LoopbackCapture.h"
 #include "RecordingManager.h"
+#include "TextureManager.h"
+#include "ScreenCaptureManager.h"
+#include "WindowsGraphicsCapture.util.h"
 #include "Cleanup.h"
 #include "Screengrab.h"
-#include "TextureManager.h"
-#include "OutputManager.h"
-#include "ScreenCaptureManager.h"
 #include "DynamicWait.h"
+#include "HighresTimer.h"
+#include "AudioPrefs.h"
 
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "D3D11.lib")
@@ -22,7 +26,6 @@
 #pragma comment(lib, "mfreadwrite.lib")
 #pragma comment(lib, "Mf.lib")
 #pragma comment(lib, "wmcodecdspuuid.lib")
-#pragma comment(lib, "windowsapp.lib")
 #pragma comment(lib, "dwmapi.lib")
 
 using namespace std;

@@ -75,6 +75,7 @@
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>
     </ClCompile>
+    <ClCompile Include="Util.cpp" />
     <ClCompile Include="WindowsGraphicsCapture.cpp" />
     <ClCompile Include="RecordingManager.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
@@ -92,6 +93,7 @@
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>
     </ClCompile>
     <ClCompile Include="VideoReader.cpp" />
+    <ClCompile Include="WindowsGraphicsCapture.util.cpp" />
     <ClCompile Include="WWMFResampler.cpp" />
   </ItemGroup>
   <ItemGroup>

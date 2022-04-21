@@ -19,7 +19,12 @@ HighresTimer::HighresTimer() :
 		m_TimerResolution = min(max(tc.wPeriodMin, targetResolutionMs), tc.wPeriodMax);
 		timeBeginPeriod(m_TimerResolution);
 	}
+	//CREATE_WAITABLE_TIMER_HIGH_RESOLUTION is an undocumented flag introduced in Windows 10 1803.
+	//CreateWaitableTimerEx returns NULL if not available.
 	m_TickEvent = CreateWaitableTimerEx(NULL, NULL, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+	if (m_TickEvent == NULL) {
+		m_TickEvent = CreateWaitableTimer(NULL, false, NULL);
+	}
 	m_StopEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 	HANDLE eventArray[2]{ m_StopEvent ,m_TickEvent };
 
@@ -106,6 +111,7 @@ HRESULT HighresTimer::WaitFor(INT64 interval100Nanos)
 		NULL, NULL, FALSE
 	);
 	if (!bOK) {
+		LOG_ERROR(L"HighresTimer::WaitFor failed setting timer");
 		return E_FAIL;
 	}
 	m_IsActive = true;

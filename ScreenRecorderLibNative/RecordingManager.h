@@ -1,16 +1,10 @@
 #pragma once
 #define _CRTDBG_MAP_ALLOC
-#include "WindowsGraphicsCapture.h"
-#include "WindowsGraphicsCapture.util.h"
-#include "DesktopDuplicationCapture.h"
-#include "AudioPrefs.h"
 #include "MouseManager.h"
 #include "AudioManager.h"
-#include "Log.h"
-#include "HighresTimer.h"
-#include "MF.util.h"
-#include "fifo_map.h"
 #include "OutputManager.h"
+#include "Log.h"
+#include "fifo_map.h"
 typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_map<std::wstring, int>);
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
 typedef void(__stdcall *CallbackErrorFunction)(std::wstring, std::wstring);
