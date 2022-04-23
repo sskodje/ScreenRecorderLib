@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
     <id>ScreenRecorderLib</id>
-    <version>5.1.1</version>
+    <version>5.1.2</version>
     <authors>Sverre Kristoffer Skodje</authors>
     <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
@@ -10,9 +10,8 @@
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to video or image files.</description>
     <summary />
     <releaseNotes>
-- Fixed error when locking computer while recording.
-- Improved error handling that should fix some rare crashes.
-- Fix for AMD HEVC encoders not working on some cards.
+- Fixed constant framerate to be actually constant.
+- Fixed DLL loading issues on Windows Server 2012 and Windows 8.1.
     </releaseNotes>
     <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
     <language>en-GB</language>
