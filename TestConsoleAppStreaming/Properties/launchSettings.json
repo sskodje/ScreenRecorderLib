@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "TestConsoleAppStreaming": {
+      "commandName": "Project",
+      "nativeDebugging": false
+    }
+  }
+}
