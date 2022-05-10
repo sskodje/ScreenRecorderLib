@@ -34,6 +34,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ScreenRecorderLibNative", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestConsoleAppStreaming", "TestConsoleAppStreaming\TestConsoleAppStreaming.csproj", "{60237D44-081A-4B63-B4DB-4CC9B77145D4}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TestConsoleAppCppStreaming", "TestConsoleAppCppStreaming\TestConsoleAppCppStreaming.vcxproj", "{CD71CA01-4ECE-41AF-BE81-AA1EC5A013A0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -146,6 +148,16 @@ Global
 		{60237D44-081A-4B63-B4DB-4CC9B77145D4}.Release|x64.Build.0 = Release|x64
 		{60237D44-081A-4B63-B4DB-4CC9B77145D4}.Release|x86.ActiveCfg = Release|x86
 		{60237D44-081A-4B63-B4DB-4CC9B77145D4}.Release|x86.Build.0 = Release|x86
+		{CD71CA01-4ECE-41AF-BE81-AA1EC5A013A0}.Debug|Any CPU.ActiveCfg = Debug|Win32
+		{CD71CA01-4ECE-41AF-BE81-AA1EC5A013A0}.Debug|x64.ActiveCfg = Debug|x64
+		{CD71CA01-4ECE-41AF-BE81-AA1EC5A013A0}.Debug|x64.Build.0 = Debug|x64
+		{CD71CA01-4ECE-41AF-BE81-AA1EC5A013A0}.Debug|x86.ActiveCfg = Debug|Win32
+		{CD71CA01-4ECE-41AF-BE81-AA1EC5A013A0}.Debug|x86.Build.0 = Debug|Win32
+		{CD71CA01-4ECE-41AF-BE81-AA1EC5A013A0}.Release|Any CPU.ActiveCfg = Release|Win32
+		{CD71CA01-4ECE-41AF-BE81-AA1EC5A013A0}.Release|x64.ActiveCfg = Release|x64
+		{CD71CA01-4ECE-41AF-BE81-AA1EC5A013A0}.Release|x64.Build.0 = Release|x64
+		{CD71CA01-4ECE-41AF-BE81-AA1EC5A013A0}.Release|x86.ActiveCfg = Release|Win32
+		{CD71CA01-4ECE-41AF-BE81-AA1EC5A013A0}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
