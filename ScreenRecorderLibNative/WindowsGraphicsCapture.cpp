@@ -36,8 +36,10 @@ WindowsGraphicsCapture::WindowsGraphicsCapture() :
 	m_IsInitialized(false),
 	m_IsCursorCaptureEnabled(false),
 	m_MouseManager(nullptr),
+	m_QPCFrequency{ 0 },
 	m_LastSampleReceivedTimeStamp{ 0 },
 	m_LastGrabTimeStamp{ 0 },
+	m_LastCaptureSessionRestart{ 0 },
 	m_RecordingSource(nullptr),
 	m_CursorOffsetX(0),
 	m_CursorOffsetY(0),
@@ -46,6 +48,7 @@ WindowsGraphicsCapture::WindowsGraphicsCapture() :
 {
 	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	QueryPerformanceFrequency(&m_QPCFrequency);
 }
 
 WindowsGraphicsCapture::WindowsGraphicsCapture(_In_ bool isCursorCaptureEnabled) :WindowsGraphicsCapture()
@@ -386,6 +389,106 @@ HRESULT WindowsGraphicsCapture::GetCaptureItem(_In_ RECORDING_SOURCE_BASE &recor
 	return hr;
 }
 
+HRESULT WindowsGraphicsCapture::RecreateFramePool(_Inout_ GRAPHICS_FRAME_DATA *pData, _In_ winrt::SizeInt32 newSize)
+{
+	//The source has changed size, so we must recreate the frame pool with the new size.
+	CComPtr<IDXGIDevice> DxgiDevice = nullptr;
+	HRESULT hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void **>(&DxgiDevice));
+	if (FAILED(hr))
+	{
+		LOG_ERROR(L"Failed to QI for DXGI Device");
+		return hr;
+	}
+
+	try
+	{
+		auto direct3DDevice = Graphics::Capture::Util::CreateDirect3DDevice(DxgiDevice);
+		winrt::SizeInt32 newFramePoolSize = newSize;
+
+		/// If recording a window, make the frame pool return a slightly larger texture that we crop later.
+		/// This prevents issues with clipping when resizing windows.
+		if (m_RecordingSource->Type == RecordingSourceType::Window) {
+			newFramePoolSize.Width += 100;
+			newFramePoolSize.Height += 100;
+		}
+		m_framePool.Recreate(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, newFramePoolSize);
+	}
+	catch (winrt::hresult_error const &ex)
+	{
+		hr = ex.code();
+		LOG_ERROR(L"Failed to recreate WindowsGraphicsCapture frame pool: error is %ls", ex.message().c_str());
+		return hr;
+	}
+	pData->ContentSize.cx = newSize.Width;
+	pData->ContentSize.cy = newSize.Height;
+	return hr;
+}
+
+HRESULT WindowsGraphicsCapture::ProcessRecordingTimeout(_Inout_ GRAPHICS_FRAME_DATA *pData)
+{
+	HRESULT hr = DXGI_ERROR_WAIT_TIMEOUT;
+	if (m_RecordingSource->Type == RecordingSourceType::Window) {
+		if (!IsWindow(m_RecordingSource->SourceWindow)) {
+			//The window is gone, gracefully abort.
+			hr = E_ABORT;
+		}
+		else if (IsIconic(m_RecordingSource->SourceWindow)) {
+			//IsIconic means the window is minimized, and not rendered, so a blank placeholder texture is used instead.
+			SIZE windowSize;
+			if (!pData->Frame) {
+				RETURN_ON_BAD_HR(GetNativeSize(*m_RecordingSource, &windowSize));
+				D3D11_TEXTURE2D_DESC desc;
+				RtlZeroMemory(&desc, sizeof(D3D11_TEXTURE2D_DESC));
+				desc.Width = windowSize.cx;
+				desc.Height = windowSize.cy;
+				desc.MipLevels = 1;
+				desc.ArraySize = 1;
+				desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+				desc.SampleDesc.Count = 1;
+				desc.Usage = D3D11_USAGE_DEFAULT;
+				RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pData->Frame));
+			}
+			else {
+				D3D11_TEXTURE2D_DESC desc;
+				pData->Frame->GetDesc(&desc);
+				windowSize = SIZE{ static_cast<long>(desc.Width),static_cast<long>(desc.Height) };
+			}
+			pData->ContentSize = windowSize;
+			m_TextureManager->BlankTexture(pData->Frame, RECT{ 0,0,windowSize.cx,windowSize.cy }, 0, 0);
+			QueryPerformanceCounter(&pData->Timestamp);
+			hr = S_OK;
+		}
+		else if (IsRecordingSessionStale()) {
+			//The session has stopped producing frames for a while, so it should be restarted.
+			StopCapture();
+			StartCapture(*m_RecordingSource);
+			LOG_INFO("Restarted Windows Graphics Capture");
+			QueryPerformanceCounter(&m_LastCaptureSessionRestart);
+			hr = DXGI_ERROR_WAIT_TIMEOUT;
+		}
+	}
+	return hr;
+}
+
+/// <summary>
+/// Restarts recording session if no new frames have been received for a while.
+/// This issue could be caused by some window operations bugging out WGC.
+/// </summary>
+/// <returns>True is frame pool have stopped receiving frames, else false</returns>
+bool WindowsGraphicsCapture::IsRecordingSessionStale()
+{
+	LARGE_INTEGER currentTime;
+	QueryPerformanceCounter(&currentTime);
+	double millisSinceLastFrameReceive = double(currentTime.QuadPart - m_LastSampleReceivedTimeStamp.QuadPart) / (m_QPCFrequency.QuadPart / 1000);
+	if (millisSinceLastFrameReceive > 250) {
+		double millisSinceLastCaptureRestart = double(currentTime.QuadPart - m_LastCaptureSessionRestart.QuadPart) / (m_QPCFrequency.QuadPart / 1000);
+		if (millisSinceLastCaptureRestart > 500) {
+			return true;
+		}
+	}
+	return false;
+}
+
 void WindowsGraphicsCapture::OnFrameArrived(winrt::Direct3D11CaptureFramePool const &sender, winrt::IInspectable const &)
 {
 	QueryPerformanceCounter(&m_LastSampleReceivedTimeStamp);
@@ -413,59 +516,32 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 		}
 		if (frame) {
 			MeasureExecutionTime measureGetFrame(L"WindowsGraphicsManager::GetNextFrame");
-			auto surfaceTexture = Graphics::Capture::Util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
-
 			if (frame.ContentSize().Width != pData->ContentSize.cx
 					|| frame.ContentSize().Height != pData->ContentSize.cy) {
-				//The source has changed size, so we must recreate the frame pool with the new size.
-				CComPtr<IDXGIDevice> DxgiDevice = nullptr;
-				hr = m_Device->QueryInterface(__uuidof(IDXGIDevice), reinterpret_cast<void **>(&DxgiDevice));
-				if (FAILED(hr))
-				{
-					LOG_ERROR(L"Failed to QI for DXGI Device");
-					return hr;
-				}
+
+				RETURN_ON_BAD_HR(hr = RecreateFramePool(pData, frame.ContentSize()));
 
 				/*
 				* If the recording is started on a minimized window, we will have guesstimated a size for it when starting the recording.
 				* In this instance we continue to use this size instead of the Direct3D11CaptureFrame::ContentSize(), as it may differ by a few pixels
 				* due to windows 10 window borders and trigger a resize, which leads to blurry recordings.
 				*/
-				winrt::SizeInt32 newSize = (!m_HaveDeliveredFirstFrame && pData->ContentSize.cx > 0) ? winrt::SizeInt32{ pData->ContentSize.cx,pData->ContentSize.cy } : frame.ContentSize();
-				SafeRelease(&pData->Frame);
-
+				auto newFrameSize = (!m_HaveDeliveredFirstFrame && pData->ContentSize.cx > 0) ? winrt::SizeInt32{ pData->ContentSize.cx,pData->ContentSize.cy } : frame.ContentSize();
+				auto surfaceTexture = Graphics::Capture::Util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
 				D3D11_TEXTURE2D_DESC newFrameDesc;
 				surfaceTexture->GetDesc(&newFrameDesc);
-				newFrameDesc.Width = newSize.Width;
-				newFrameDesc.Height = newSize.Height;
+				newFrameDesc.Width = newFrameSize.Width;
+				newFrameDesc.Height = newFrameSize.Height;
+				SafeRelease(&pData->Frame);
 				hr = m_Device->CreateTexture2D(&newFrameDesc, nullptr, &pData->Frame);
 				if (FAILED(hr))
 				{
 					LOG_ERROR(L"Failed to create texture");
 					return hr;
 				}
-				measureGetFrame.SetName(L"WindowsGraphicsManager::GetNextFrame recreated");
-				try
-				{
-					auto direct3DDevice = Graphics::Capture::Util::CreateDirect3DDevice(DxgiDevice);
-					winrt::SizeInt32 newFramePoolSize = frame.ContentSize();
 
-					/// If recording a window, make the frame pool return a slightly larger texture that we crop later.
-					/// This prevents issues with clipping when resizing windows.
-					if (m_RecordingSource->Type == RecordingSourceType::Window) {
-						newFramePoolSize.Width += 100;
-						newFramePoolSize.Height += 100;
-					}
-					m_framePool.Recreate(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, newFramePoolSize);
-				}
-				catch (winrt::hresult_error const &ex)
-				{
-					hr = ex.code();
-					LOG_ERROR(L"Failed to recreate WindowsGraphicsCapture frame pool: error is %ls", ex.message().c_str());
-					return hr;
-				}
-				pData->ContentSize.cx = frame.ContentSize().Width;
-				pData->ContentSize.cy = frame.ContentSize().Height;
+				measureGetFrame.SetName(L"WindowsGraphicsManager::GetNextFrame recreated");
+
 				//Some times the size of the first frame is wrong when recording windows, so we just skip it and get a new after resizing the frame pool.
 				if (m_RecordingSource->Type == RecordingSourceType::Window
 					&& !m_HaveDeliveredFirstFrame)
@@ -487,6 +563,7 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 			sourceRegion.bottom = min(frame.ContentSize().Height, (int)desc.Height);
 			sourceRegion.front = 0;
 			sourceRegion.back = 1;
+			auto surfaceTexture = Graphics::Capture::Util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
 			m_DeviceContext->CopySubresourceRegion(pData->Frame, 0, 0, 0, 0, surfaceTexture.get(), 0, &sourceRegion);
 			m_HaveDeliveredFirstFrame = true;
 			QueryPerformanceCounter(&pData->Timestamp);
@@ -498,34 +575,7 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 		}
 	}
 	else if (result == WAIT_TIMEOUT) {
-		if (m_RecordingSource->Type == RecordingSourceType::Window && IsIconic(m_RecordingSource->SourceWindow)) {
-			SIZE frameSize;
-			if (!pData->Frame) {
-				RETURN_ON_BAD_HR(GetNativeSize(*m_RecordingSource, &frameSize));
-				D3D11_TEXTURE2D_DESC desc;
-				RtlZeroMemory(&desc, sizeof(D3D11_TEXTURE2D_DESC));
-				desc.Width = frameSize.cx;
-				desc.Height = frameSize.cy;
-				desc.MipLevels = 1;
-				desc.ArraySize = 1;
-				desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-				desc.SampleDesc.Count = 1;
-				desc.Usage = D3D11_USAGE_DEFAULT;
-				RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pData->Frame));
-			}
-			else {
-				D3D11_TEXTURE2D_DESC desc;
-				pData->Frame->GetDesc(&desc);
-				frameSize = SIZE{ static_cast<long>(desc.Width),static_cast<long>(desc.Height) };
-			}
-			pData->ContentSize = frameSize;
-			m_TextureManager->BlankTexture(pData->Frame, RECT{ 0,0,frameSize.cx,frameSize.cy }, 0, 0);
-			QueryPerformanceCounter(&pData->Timestamp);
-			hr = S_OK;
-		}
-		else {
-			hr = DXGI_ERROR_WAIT_TIMEOUT;
-		}
+		hr = ProcessRecordingTimeout(pData);
 	}
 	else {
 		DWORD dwErr = GetLastError();

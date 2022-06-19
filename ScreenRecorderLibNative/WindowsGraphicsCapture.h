@@ -23,8 +23,10 @@ public:
 private:
 	void OnFrameArrived(winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &args);
 	HRESULT GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ GRAPHICS_FRAME_DATA *pData);
-private:
 	HRESULT GetCaptureItem(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem *item);
+	HRESULT RecreateFramePool(_Inout_ GRAPHICS_FRAME_DATA *pData, _In_ winrt::Windows::Graphics::SizeInt32 newSize);
+	HRESULT ProcessRecordingTimeout(_Inout_ GRAPHICS_FRAME_DATA *pData);
+	bool IsRecordingSessionStale();
 	winrt::Windows::Graphics::Capture::GraphicsCaptureItem m_CaptureItem;
 	winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool m_framePool;
 	winrt::Windows::Graphics::Capture::GraphicsCaptureSession m_session;
@@ -45,7 +47,9 @@ private:
 	std::atomic<bool> m_closed;
 	RECT m_LastFrameRect;
 	GRAPHICS_FRAME_DATA m_CurrentData;
+	LARGE_INTEGER m_QPCFrequency;
 	LARGE_INTEGER m_LastSampleReceivedTimeStamp;
+	LARGE_INTEGER m_LastCaptureSessionRestart;
 	LARGE_INTEGER m_LastGrabTimeStamp;
 
 };
