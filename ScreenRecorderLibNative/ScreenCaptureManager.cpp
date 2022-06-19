@@ -647,10 +647,9 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 
 		// Make duplication
 		hr = pRecordingSourceCapture->Initialize(pSourceData->DxRes.Context, pSourceData->DxRes.Device);
-
 		if (FAILED(hr))
 		{
-			LOG_ERROR(L"Failed to initialize recording source");
+			LOG_ERROR(L"Failed to initialize recording source %ls",pRecordingSourceCapture->Name().c_str());
 			goto Exit;
 		}
 		hr = pRecordingSourceCapture->StartCapture(*pSource);

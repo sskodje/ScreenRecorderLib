@@ -78,21 +78,13 @@ HRESULT DesktopDuplicationCapture::Initialize(_In_ ID3D11DeviceContext *pDeviceC
 	m_Device->AddRef();
 	m_DeviceContext->AddRef();
 
-	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
-
 	m_MouseManager = make_unique<MouseManager>();
 	HRESULT hr = m_MouseManager->Initialize(pDeviceContext, pDevice, std::make_shared<MOUSE_OPTIONS>());
-
+	RETURN_ON_BAD_HR(hr);
 	m_TextureManager = make_unique<TextureManager>();
-	hr = m_TextureManager->Initialize(pDeviceContext, pDevice);
-
-	if (m_Device && m_DeviceContext) {
+	RETURN_ON_BAD_HR(hr = m_TextureManager->Initialize(pDeviceContext, pDevice));
+	if (SUCCEEDED(hr)) {
 		m_IsInitialized = true;
-		return S_OK;
-	}
-	else {
-		LOG_ERROR(L"DesktopDuplicationCapture initialization failed");
-		return E_FAIL;
 	}
 	return hr;
 }
@@ -141,7 +133,7 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 			if (recordingSource->SourceRect.has_value()
 				&& !EqualRect(&recordingSource->SourceRect.value(), &destinationRect)
 					|| (RectWidth(destinationRect) != frameDesc.Width
-					|| RectHeight(destinationRect) != frameDesc.Height)) {
+						|| RectHeight(destinationRect) != frameDesc.Height)) {
 				CComPtr<ID3D11Texture2D> pProcessedTexture = m_CurrentData.Frame;
 				D3D11_TEXTURE2D_DESC frameDesc;
 				pProcessedTexture->GetDesc(&frameDesc);

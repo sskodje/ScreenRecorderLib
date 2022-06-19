@@ -72,17 +72,11 @@ HRESULT WindowsGraphicsCapture::Initialize(_In_ ID3D11DeviceContext *pDeviceCont
 
 	m_MouseManager = make_unique<MouseManager>();
 	HRESULT hr = m_MouseManager->Initialize(pDeviceContext, pDevice, std::make_shared<MOUSE_OPTIONS>());
-
+	RETURN_ON_BAD_HR(hr);
 	m_TextureManager = make_unique<TextureManager>();
-	hr = m_TextureManager->Initialize(pDeviceContext, pDevice);
-
-	if (m_Device && m_DeviceContext) {
+	RETURN_ON_BAD_HR(hr = m_TextureManager->Initialize(pDeviceContext, pDevice));
+	if (SUCCEEDED(hr)) {
 		m_IsInitialized = true;
-		return S_OK;
-	}
-	else {
-		LOG_ERROR(L"WindowsGraphicsCapture initialization failed");
-		return E_FAIL;
 	}
 	return hr;
 }
@@ -248,9 +242,6 @@ HRESULT WindowsGraphicsCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordi
 			hr = ex.code();
 			LOG_ERROR(L"Failed to create WindowsGraphicsCapture session: error is %ls", ex.message().c_str());
 		}
-	}
-	else {
-		LOG_ERROR("Failed to create capture item");
 	}
 	return hr;
 }
