@@ -130,7 +130,8 @@ struct DX_RESOURCES
 struct CAPTURED_FRAME
 {
 	ID3D11Texture2D *Frame;
-	PTR_INFO *PtrInfo;
+	//Contains the mouse cursor info for the frame, if any.
+	std::optional<PTR_INFO> PtrInfo;
 	//The number of updates written to the current frame since last fetch.
 	int FrameUpdateCount;
 	//The number of updates written to the frame overlays since last fetch.

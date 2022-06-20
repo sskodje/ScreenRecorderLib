@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "TestConsoleAppDotNetCore": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

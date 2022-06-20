@@ -193,7 +193,7 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout
 		}
 
 		pFrame->Frame = pDesktopFrame;
-		pFrame->PtrInfo = &m_PtrInfo;
+		pFrame->PtrInfo = m_PtrInfo;
 		pFrame->FrameUpdateCount = updatedFrameCount;
 		pFrame->OverlayUpdateCount = updatedOverlaysCount;
 	}
