@@ -34,7 +34,6 @@ WindowsGraphicsCapture::WindowsGraphicsCapture() :
 	m_TextureManager(nullptr),
 	m_HaveDeliveredFirstFrame(false),
 	m_IsInitialized(false),
-	m_IsCursorCaptureEnabled(false),
 	m_MouseManager(nullptr),
 	m_QPCFrequency{ 0 },
 	m_LastSampleReceivedTimeStamp{ 0 },
@@ -49,11 +48,7 @@ WindowsGraphicsCapture::WindowsGraphicsCapture() :
 	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 	QueryPerformanceFrequency(&m_QPCFrequency);
-}
-
-WindowsGraphicsCapture::WindowsGraphicsCapture(_In_ bool isCursorCaptureEnabled) :WindowsGraphicsCapture()
-{
-	m_IsCursorCaptureEnabled = isCursorCaptureEnabled;
+	m_IsCursorCapturePropertyAvailable = IsGraphicsCaptureCursorCapturePropertyAvailable();
 }
 
 WindowsGraphicsCapture::~WindowsGraphicsCapture()
@@ -234,8 +229,8 @@ HRESULT WindowsGraphicsCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordi
 			m_framePool.FrameArrived({ this, &WindowsGraphicsCapture::OnFrameArrived });
 
 			WINRT_ASSERT(m_session != nullptr);
-			if (IsGraphicsCaptureCursorCapturePropertyAvailable()) {
-				m_session.IsCursorCaptureEnabled(m_IsCursorCaptureEnabled);
+			if (m_IsCursorCapturePropertyAvailable) {
+				m_session.IsCursorCaptureEnabled(m_RecordingSource->IsCursorCaptureEnabled.value_or(true));
 			}
 			m_session.StartCapture();
 			m_closed.store(false);
@@ -493,6 +488,9 @@ void WindowsGraphicsCapture::OnFrameArrived(winrt::Direct3D11CaptureFramePool co
 {
 	QueryPerformanceCounter(&m_LastSampleReceivedTimeStamp);
 	SetEvent(m_NewFrameEvent);
+	if (m_session.IsCursorCaptureEnabled() != m_RecordingSource->IsCursorCaptureEnabled.value_or(true)) {
+		m_session.IsCursorCaptureEnabled(m_RecordingSource->IsCursorCaptureEnabled.value_or(true));
+	}
 }
 
 HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ GRAPHICS_FRAME_DATA *pData)

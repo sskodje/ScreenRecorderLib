@@ -9,7 +9,6 @@ class WindowsGraphicsCapture : public CaptureBase
 {
 public:
 	WindowsGraphicsCapture();
-	WindowsGraphicsCapture(_In_ bool isCursorCaptureEnabled);
 	virtual ~WindowsGraphicsCapture();
 	virtual HRESULT Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice) override;
 	virtual HRESULT AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame) override;
@@ -40,7 +39,7 @@ private:
 	int m_CursorOffsetY;
 	float m_CursorScaleX;
 	float m_CursorScaleY;
-	bool m_IsCursorCaptureEnabled;
+	bool m_IsCursorCapturePropertyAvailable;
 	bool m_IsInitialized;
 	HANDLE m_NewFrameEvent;
 	bool m_HaveDeliveredFirstFrame;

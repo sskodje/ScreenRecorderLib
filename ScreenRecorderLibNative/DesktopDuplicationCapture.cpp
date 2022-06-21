@@ -11,7 +11,6 @@ using namespace DirectX;
 DesktopDuplicationCapture::DesktopDuplicationCapture() :
 	CaptureBase(),
 	m_IsInitialized(false),
-	m_IsCursorCaptureEnabled(false),
 	m_DeskDupl(nullptr),
 	m_MetaDataBuffer(nullptr),
 	m_MetaDataSize(0),
@@ -37,11 +36,6 @@ DesktopDuplicationCapture::DesktopDuplicationCapture() :
 {
 	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 	RtlZeroMemory(&m_OutputDesc, sizeof(m_OutputDesc));
-}
-
-DesktopDuplicationCapture::DesktopDuplicationCapture(_In_ bool isCursorCaptureEnabled) :DesktopDuplicationCapture()
-{
-	m_IsCursorCaptureEnabled = isCursorCaptureEnabled;
 }
 
 DesktopDuplicationCapture::~DesktopDuplicationCapture()

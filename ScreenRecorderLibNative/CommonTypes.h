@@ -204,6 +204,10 @@ struct RECORDING_SOURCE_BASE abstract {
 	/// Determines if the source is capturing video. If false, it will be blacked out.
 	/// </summary>
 	std::optional<bool> IsVideoCaptureEnabled;
+	/// <summary>
+	/// Determines if the source is capturing mouse cursors. If false, it will be hidden.
+	/// </summary>
+	std::optional<bool> IsCursorCaptureEnabled;
 
 	RECORDING_SOURCE_BASE() :
 		Type(RecordingSourceType::Display),
@@ -213,7 +217,8 @@ struct RECORDING_SOURCE_BASE abstract {
 		ID(L""),
 		Stretch(TextureStretchMode::Uniform),
 		Anchor(ContentAnchor::TopLeft),
-		IsVideoCaptureEnabled(std::nullopt)
+		IsVideoCaptureEnabled(std::nullopt),
+		IsCursorCaptureEnabled(std::nullopt)
 	{
 
 	}
@@ -254,7 +259,6 @@ struct RECORDING_OVERLAY_DATA
 struct RECORDING_SOURCE : RECORDING_SOURCE_BASE
 {
 	std::optional<RecordingSourceApi> SourceApi;
-	std::optional<bool> IsCursorCaptureEnabled;
 	/// <summary>
 	/// An optional custom area of the source to record. Must be equal or smaller than the source area. A smaller area will crop the source.
 	/// </summary>
@@ -266,7 +270,6 @@ struct RECORDING_SOURCE : RECORDING_SOURCE_BASE
 
 	RECORDING_SOURCE() :
 		RECORDING_SOURCE_BASE(),
-		IsCursorCaptureEnabled(std::nullopt),
 		SourceRect{ std::nullopt },
 		Position{ std::nullopt },
 		SourceApi(std::nullopt)
