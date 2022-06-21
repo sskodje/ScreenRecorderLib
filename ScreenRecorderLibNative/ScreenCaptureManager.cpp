@@ -740,6 +740,11 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 						LOG_ERROR("Failed to get mouse data");
 					}
 				}
+				else if (pData->PtrInfo) {
+					pData->PtrInfo->Visible = false;
+				}
+
+
 				if (pSource->IsVideoCaptureEnabled.value_or(true)) {
 					if (IsSharedSurfaceDirty) {
 						//The screen has been blacked out, so we restore a full frame to the shared surface before starting to apply updates.
