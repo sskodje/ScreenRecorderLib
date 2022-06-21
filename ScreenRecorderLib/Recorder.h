@@ -169,8 +169,8 @@ namespace ScreenRecorderLib {
 		/// <param name="isCursorCaptureEnabled"></param>
 		/// <returns></returns>
 		DynamicOptionsBuilder^ SetCursorCaptureForRecordingSource(String^ recordingSourceID, bool isCursorCaptureEnabled) {
-			if (!_options->SourceRects) {
-				_options->SourceRects = gcnew Dictionary<String^, ScreenRect^>();
+			if (!_options->SourceCursorCaptures) {
+				_options->SourceCursorCaptures = gcnew Dictionary<String^, bool>();
 			}
 			_options->SourceCursorCaptures[recordingSourceID] = isCursorCaptureEnabled;
 			return this;
