@@ -252,6 +252,22 @@ namespace TestApp
                         }
                         break;
                     }
+                case nameof(DisplayRecordingSource.IsCursorCaptureEnabled):
+                    {
+                        if (sender is DisplayRecordingSource)
+                        {
+                            _rec?.GetDynamicOptionsBuilder()
+                                    .SetCursorCaptureForRecordingSource(((RecordingSourceBase)sender).ID, ((DisplayRecordingSource)sender).IsCursorCaptureEnabled)
+                                    .Apply();
+                        }
+                        else if (sender is WindowRecordingSource)
+                        {
+                            _rec?.GetDynamicOptionsBuilder()
+                                    .SetCursorCaptureForRecordingSource(((RecordingSourceBase)sender).ID, ((WindowRecordingSource)sender).IsCursorCaptureEnabled)
+                                    .Apply();
+                        }
+                        break;
+                    }
                 default:
                     break;
             }
@@ -1068,7 +1084,7 @@ namespace TestApp
         }
         private void WindowsViewSource_Filter(object sender, FilterEventArgs e)
         {
-            e.Accepted = e.Item is RecordableWindow window && window.IsValidWindow() && !window.IsMinmimized();
+            e.Accepted = e.Item is RecordableWindow window && window.IsValidWindow();
         }
         private void MainWin_Activated(object sender, EventArgs e)
         {
