@@ -128,6 +128,8 @@ namespace ScreenRecorderLib {
 		property String^ SourcePath;
 	};
 	public ref class DisplayOverlay :RecordingOverlayBase {
+	private:
+		bool _isCursorCaptureEnabled = true;
 	public:
 		DisplayOverlay() {
 
@@ -136,8 +138,22 @@ namespace ScreenRecorderLib {
 			DeviceName = deviceName;
 		}
 		property String^ DeviceName;
+		/// <summary>
+		///This option determines if the mouse cursor is recorded for this source. Defaults to true.
+		/// </summary>
+		property bool IsCursorCaptureEnabled {
+			bool get() {
+				return _isCursorCaptureEnabled;
+			}
+			void set(bool value) {
+				_isCursorCaptureEnabled = value;
+				OnPropertyChanged("IsCursorCaptureEnabled");
+			}
+		}
 	};
 	public ref class WindowOverlay :RecordingOverlayBase {
+	private:
+		bool _isCursorCaptureEnabled = true;
 	public:
 		WindowOverlay() {
 
@@ -146,5 +162,17 @@ namespace ScreenRecorderLib {
 			Handle = handle;
 		}
 		property IntPtr Handle;
+		/// <summary>
+		///This option determines if the mouse cursor is recorded for this source. Defaults to true.
+		/// </summary>
+		property bool IsCursorCaptureEnabled {
+			bool get() {
+				return _isCursorCaptureEnabled;
+			}
+			void set(bool value) {
+				_isCursorCaptureEnabled = value;
+				OnPropertyChanged("IsCursorCaptureEnabled");
+			}
+		}
 	};
 }

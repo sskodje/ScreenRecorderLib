@@ -1150,7 +1150,8 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <CheckBox IsChecked="{Binding IsEnabled}"
                                               VerticalAlignment="Center"
@@ -1163,6 +1164,11 @@
                                               Grid.Column="1" />
                                     <ContentPresenter Content="{StaticResource BaseContent}"
                                                       Grid.Column="2" />
+                                    <CheckBox IsChecked="{Binding Overlay.IsCursorCaptureEnabled}"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left"
+                                              Content="Cursor"
+                                              Grid.Column="3"/>
                                 </Grid>
                             </DataTemplate>
                             <DataTemplate x:Key="WindowOverlayTemplate">
@@ -1170,7 +1176,8 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <CheckBox IsChecked="{Binding IsEnabled}"
                                               VerticalAlignment="Center"
@@ -1183,6 +1190,11 @@
                                               Grid.Column="1" />
                                     <ContentPresenter Content="{StaticResource BaseContent}"
                                                       Grid.Column="2" />
+                                    <CheckBox IsChecked="{Binding Overlay.IsCursorCaptureEnabled}"
+                                              VerticalAlignment="Center"
+                                              Content="Cursor"
+                                              HorizontalAlignment="Left"
+                                              Grid.Column="3"/>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.Resources>
