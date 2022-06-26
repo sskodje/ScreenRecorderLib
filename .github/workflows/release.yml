@@ -23,18 +23,11 @@ jobs:
     - uses: microsoft/setup-msbuild@v1
     - run: nuget restore ${{ env.SOLUTION_NAME }}.sln
     - run: msbuild /m '/p:Configuration=Release;Platform="${{ matrix.platform }}"' ${{ env.SOLUTION_NAME }}.sln
-    - name: Archive Release ${{ matrix.platform }}
-      uses: thedoctor0/zip-release@master
-      with:
-        type: 'zip'
-        path: ${{ env.PROJECT_NAME }}\bin\${{ matrix.platform }}\Release\ScreenRecorderLib.dll
-        filename: ScreenRecorderLib.${{matrix.platform}}.zip
-        exclusions: '*.pdg *.metagen *.xml'
-        
+    
     - uses: actions/upload-artifact@v3
       with:
-        name: ScreenRecorderLib.${{matrix.platform}}.zip
-        path: ScreenRecorderLib.${{matrix.platform}}.zip
+        name: ScreenRecorderLib.${{matrix.platform}}
+        path: ${{ env.PROJECT_NAME }}\bin\${{ matrix.platform }}\Release\ScreenRecorderLib.dll
         
   release:
       name: Upload Release
@@ -43,11 +36,11 @@ jobs:
       steps:
         - uses: actions/download-artifact@v3
           with:
-            name: ScreenRecorderLib.x86.zip
+            name: ScreenRecorderLib.x86
             path: ScreenRecorderLib.x86.zip
         - uses: actions/download-artifact@v3
           with:
-            name: ScreenRecorderLib.x64.zip
+            name: ScreenRecorderLib.x64
             path: ScreenRecorderLib.x64.zip
         - name: Display structure of downloaded files
           run: ls -R
@@ -56,5 +49,5 @@ jobs:
             repo_token: "${{ secrets.GITHUB_TOKEN }}"
             prerelease: false
             files: |
-              LICENSE
-              *.zip
+              .\${{ env.PROJECT_NAME }}\ScreenRecorderLib.x86.zip
+              .\${{ env.PROJECT_NAME }}\ScreenRecorderLib.x64.zip
