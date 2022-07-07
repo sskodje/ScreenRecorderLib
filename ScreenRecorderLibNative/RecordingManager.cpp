@@ -104,14 +104,8 @@ RecordingManager::~RecordingManager()
 		m_TaskWrapperImpl->m_RecordTask.wait();
 		LOG_DEBUG("Wait for recording task completed.");
 	}
-	for each (RECORDING_SOURCE * source in m_RecordingSources)
-	{
-		delete source;
-	}
-	for each (RECORDING_OVERLAY * overlay in m_Overlays)
-	{
-		delete overlay;
-	}
+	ClearRecordingSources();
+	ClearOverlays();
 	CleanDx(&m_DxResources);
 	MFShutdown();
 	LOG_INFO(L"Media Foundation shut down");
