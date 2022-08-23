@@ -260,9 +260,8 @@ HRESULT MouseManager::DrawMouseClick(_In_ PTR_INFO *pPtrInfo, _In_ ID3D11Texture
 {
 	ATL::CComPtr<IDXGISurface> pSharedSurface;
 	HRESULT hr = pBgTexture->QueryInterface(__uuidof(IDXGISurface), (void **)&pSharedSurface);
-
 	// Create the DXGI Surface Render Target.
-	UINT dpi = GetDpiForSystem();
+	UINT dpi = GetSystemDpi();
 	/* RenderTargetProperties contains the description for render target */
 	D2D1_RENDER_TARGET_PROPERTIES RenderTargetProperties =
 		D2D1::RenderTargetProperties(
@@ -853,6 +852,8 @@ HRESULT MouseManager::ResizeShapeBuffer(_Inout_ PTR_INFO *pPtrInfo, _In_ int buf
 //
 HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuffer, _In_ DXGI_OUTDUPL_FRAME_INFO *pFrameInfo, _In_ RECT screenRect, _In_ IDXGIOutputDuplication *pDeskDupl, _In_ int offsetX, _In_ int offsetY)
 {
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 	pPtrInfo->IsPointerShapeUpdated = false;
 	// A non-zero mouse update timestamp indicates that there is a mouse position update and optionally a shape change
 	if (pFrameInfo->LastMouseUpdateTime.QuadPart == 0)
@@ -902,6 +903,7 @@ HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuf
 		delete[] pPtrInfo->PtrShapeBuffer;
 		pPtrInfo->PtrShapeBuffer = nullptr;
 		pPtrInfo->BufferSize = 0;
+		RtlZeroMemory(&pPtrInfo->ShapeInfo, sizeof(pPtrInfo->ShapeInfo));
 		_com_error err(hr);
 		LOG_ERROR(L"Failed to get pFrame pointer shape in DUPLICATIONMANAGER: %lls", err.ErrorMessage());
 		return hr;
@@ -912,6 +914,8 @@ HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuf
 
 HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuffer, _In_ int offsetX, _In_ int offsetY)
 {
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 	pPtrInfo->IsPointerShapeUpdated = false;
 	CURSORINFO cursorInfo = { 0 };
 	cursorInfo.cbSize = sizeof(CURSORINFO);

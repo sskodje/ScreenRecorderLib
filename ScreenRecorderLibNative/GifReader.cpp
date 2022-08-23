@@ -246,7 +246,7 @@ HRESULT GifReader::CreateDeviceResources()
 	if (m_RenderTarget == NULL)
 	{
 		// Create the DXGI Surface Render Target.
-		UINT dpi = GetDpiForSystem();
+		UINT dpi = GetSystemDpi();
 		/* RenderTargetProperties contains the description for render target */
 		D2D1_RENDER_TARGET_PROPERTIES RenderTargetProperties =
 			D2D1::RenderTargetProperties(
@@ -866,6 +866,7 @@ HRESULT GifReader::StartCaptureLoop()
 			SetEvent(m_NewFrameEvent);
 			hr = m_FramerateTimer->WaitFor(MillisToHundredNanos(m_uFrameDelay));
 			if (FAILED(hr)) {
+				LOG_ERROR(L"StartCaptureLoop wait for frame failed: hr = 0x%08x", hr);
 				return;
 			}
 		} while (!EndOfAnimation() && m_cFrames > 1);

@@ -3,15 +3,19 @@
 #include <mfidl.h>
 #include <VersionHelpers.h>
 #include <filesystem>
+#include <WinSDKVer.h>
 #include "Util.h"
+#include "MF.util.h"
 #include "LoopbackCapture.h"
 #include "RecordingManager.h"
+#include "TextureManager.h"
+#include "ScreenCaptureManager.h"
+#include "WindowsGraphicsCapture.util.h"
 #include "Cleanup.h"
 #include "Screengrab.h"
-#include "TextureManager.h"
-#include "OutputManager.h"
-#include "ScreenCaptureManager.h"
 #include "DynamicWait.h"
+#include "HighresTimer.h"
+#include "AudioPrefs.h"
 
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "D3D11.lib")
@@ -22,7 +26,6 @@
 #pragma comment(lib, "mfreadwrite.lib")
 #pragma comment(lib, "Mf.lib")
 #pragma comment(lib, "wmcodecdspuuid.lib")
-#pragma comment(lib, "windowsapp.lib")
 #pragma comment(lib, "dwmapi.lib")
 
 using namespace std;
@@ -380,7 +383,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 {
 	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 	CComPtr<ID3D11Texture2D> pCurrentFrameCopy = nullptr;
-	PTR_INFO *pPtrInfo{};
+	std::optional<PTR_INFO> pPtrInfo = std::nullopt;
 	unique_ptr<ScreenCaptureManager> pCapture = make_unique<ScreenCaptureManager>();
 	HRESULT hr = pCapture->Initialize(m_DxResources.Context, m_DxResources.Device, GetOutputOptions());
 	RETURN_RESULT_ON_BAD_HR(hr, L"Failed to initialize ScreenCaptureManager");
@@ -467,7 +470,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	auto PrepareAndRenderFrame([&](CComPtr<ID3D11Texture2D> pTextureToRender, INT64 duration100Nanos)->HRESULT {
 		HRESULT renderHr = E_FAIL;
 		if (pPtrInfo) {
-			renderHr = pMouseManager->ProcessMousePointer(pTextureToRender, pPtrInfo);
+			renderHr = pMouseManager->ProcessMousePointer(pTextureToRender, &pPtrInfo.value());
 			if (FAILED(renderHr)) {
 				_com_error err(renderHr);
 				LOG_ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
@@ -571,7 +574,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 							ResetEvent(ErrorEvent);
 							hr = pCapture->StartCapture(sources, overlays, ErrorEvent);
 						}
-
+						pPtrInfo.reset();
 						if (FAILED(hr)) {
 							CAPTURE_RESULT captureResult{};
 							ProcessCaptureHRESULT(hr, &captureResult, m_DxResources.Device);
@@ -610,7 +613,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		if (SUCCEEDED(hr)) {
 			pCurrentFrameCopy.Attach(capturedFrame.Frame);
 			if (capturedFrame.PtrInfo) {
-				pPtrInfo = capturedFrame.PtrInfo;
+				pPtrInfo = capturedFrame.PtrInfo.value();
 			}
 		}
 

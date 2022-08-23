@@ -789,6 +789,7 @@ namespace ScreenRecorderLib {
 		property Dictionary<String^, bool>^ OverlayVideoCaptures;
 		property Dictionary<String^, ScreenRect^>^ SourceRects;
 		property Dictionary<String^, bool>^ SourceCursorCaptures;
+		property Dictionary<String^, bool>^ OverlayCursorCaptures;
 		property Dictionary<String^, ScreenSize^>^ OverlaySizes;
 		property Dictionary<String^, ScreenSize^>^ OverlayOffsets;
 		property Dictionary<String^, Anchor>^ OverlayAnchors;

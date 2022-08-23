@@ -304,14 +304,18 @@ HRESULT OutputManager::ConfigureInputMediaTypes(
 	*pAudioMediaTypeIn = nullptr;
 	CComPtr<IMFMediaType> pVideoMediaType = nullptr;
 	CComPtr<IMFMediaType> pAudioMediaType = nullptr;
-	// Copy the output media type
-	CopyMediaType(pVideoMediaTypeOut, &pVideoMediaType);
-	// Set the source subtype.
+
+	RETURN_ON_BAD_HR(MFCreateMediaType(&pVideoMediaType));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Video));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_ARGB32));
 	// Uncompressed means all samples are independent.
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_VIDEO_ROTATION, rotationFormat));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
-	pVideoMediaType->SetUINT32(MF_MT_VIDEO_ROTATION, rotationFormat);
+	if (!GetEncoderOptions()->GetIsFixedFramerate()) {
+		RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, GetEncoderOptions()->GetVideoFps(), 1));
+	}
+	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
 
 	if (GetAudioOptions()->IsAudioEnabled()) {
 		// Set the input audio type.
@@ -382,7 +386,7 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 
 	RETURN_ON_BAD_HR(ConfigureOutputMediaTypes(destWidth, destHeight, &pVideoMediaTypeOut, &pAudioMediaTypeOut));
 	RETURN_ON_BAD_HR(ConfigureInputMediaTypes(sourceWidth, sourceHeight, rotationFormat, pVideoMediaTypeOut, &pVideoMediaTypeIn, &pAudioMediaTypeIn));
-	
+
 	//The source samples have the format ARGB32, but the video encoders need the input to be a YUV format, so we convert ARGB32->NV12->H264/HEVC
 	CopyMediaType(pVideoMediaTypeIn, &pVideoMediaTypeIntermediate);
 	RETURN_ON_BAD_HR(pVideoMediaTypeIntermediate->SetGUID(MF_MT_SUBTYPE, MFVideoFormat_NV12));

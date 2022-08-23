@@ -70,7 +70,4 @@
       <Filter>Resource Files</Filter>
     </ResourceCompile>
   </ItemGroup>
-  <ItemGroup>
-    <None Include="ScreenRecorderLib.snk" />
-  </ItemGroup>
 </Project>

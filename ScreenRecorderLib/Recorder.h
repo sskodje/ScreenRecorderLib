@@ -169,10 +169,23 @@ namespace ScreenRecorderLib {
 		/// <param name="isCursorCaptureEnabled"></param>
 		/// <returns></returns>
 		DynamicOptionsBuilder^ SetCursorCaptureForRecordingSource(String^ recordingSourceID, bool isCursorCaptureEnabled) {
-			if (!_options->SourceRects) {
-				_options->SourceRects = gcnew Dictionary<String^, ScreenRect^>();
+			if (!_options->SourceCursorCaptures) {
+				_options->SourceCursorCaptures = gcnew Dictionary<String^, bool>();
 			}
 			_options->SourceCursorCaptures[recordingSourceID] = isCursorCaptureEnabled;
+			return this;
+		}
+		/// <summary>
+		/// Enable or disable mouse cursor capture for the recording overlay with the given ID.
+		/// </summary>
+		/// <param name="recordingSourceID">ID for a recording source in progress</param>
+		/// <param name="isCursorCaptureEnabled"></param>
+		/// <returns></returns>
+		DynamicOptionsBuilder^ SetCursorCaptureForOverlay(String^ recordingSourceID, bool isCursorCaptureEnabled) {
+			if (!_options->OverlayCursorCaptures) {
+				_options->OverlayCursorCaptures = gcnew Dictionary<String^, bool>();
+			}
+			_options->OverlayCursorCaptures[recordingSourceID] = isCursorCaptureEnabled;
 			return this;
 		}
 		/// <summary>

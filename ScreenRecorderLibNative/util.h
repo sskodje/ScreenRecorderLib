@@ -1,6 +1,6 @@
 #pragma warning (disable : 26451)
 #pragma once
-#include <winnt.h>
+#include <Windows.h>
 #include <locale>
 #include <comdef.h>
 #include "log.h"
@@ -298,3 +298,5 @@ inline std::string CurrentTimeToFormattedString()
 	std::replace(time.begin(), time.end(), ':', '-');
 	return time;
 }
+
+UINT GetSystemDpi();

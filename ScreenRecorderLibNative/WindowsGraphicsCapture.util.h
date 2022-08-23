@@ -8,14 +8,7 @@
 #include <windows.graphics.capture.h>
 namespace Graphics::Capture::Util
 {
-	extern "C"
-	{
-		HRESULT __stdcall CreateDirect3D11DeviceFromDXGIDevice(IDXGIDevice *dxgiDevice,
-			::IInspectable **graphicsDevice);
-
-		HRESULT __stdcall CreateDirect3D11SurfaceFromDXGISurface(IDXGISurface *dgxiSurface,
-			::IInspectable **graphicsSurface);
-	}
+	HRESULT CreateDirect3D11DeviceFromDXGIDevice(IDXGIDevice *dxgiDevice,::IInspectable **graphicsDevice);
 
 	struct __declspec(uuid("A9B3D012-3DF2-4EE3-B8D1-8695F457D3C1"))
 		IDirect3DDxgiInterfaceAccess : ::IUnknown
@@ -28,13 +21,6 @@ namespace Graphics::Capture::Util
 		winrt::com_ptr<::IInspectable> d3d_device;
 		winrt::check_hresult(CreateDirect3D11DeviceFromDXGIDevice(dxgi_device, d3d_device.put()));
 		return d3d_device.as<winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice>();
-	}
-
-	inline auto CreateDirect3DSurface(IDXGISurface *dxgi_surface)
-	{
-		winrt::com_ptr<::IInspectable> d3d_surface;
-		winrt::check_hresult(CreateDirect3D11SurfaceFromDXGISurface(dxgi_surface, d3d_surface.put()));
-		return d3d_surface.as<winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface>();
 	}
 
 	template <typename T>
@@ -62,13 +48,25 @@ namespace Graphics::Capture::Util
 		return item;
 	}
 	inline bool IsGraphicsCaptureAvailable() {
-		return winrt::Windows::Foundation::Metadata::ApiInformation::IsApiContractPresent(L"Windows.Foundation.UniversalApiContract", 8)
-			&& winrt::Windows::Foundation::Metadata::ApiInformation::IsTypePresent(L"Windows.Graphics.Capture.GraphicsCaptureSession")
-			&& winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported();
+		try
+		{
+			return winrt::Windows::Foundation::Metadata::ApiInformation::IsApiContractPresent(L"Windows.Foundation.UniversalApiContract", 8)
+				&& winrt::Windows::Foundation::Metadata::ApiInformation::IsTypePresent(L"Windows.Graphics.Capture.GraphicsCaptureSession")
+				&& winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported();
+		}
+		catch (winrt::hresult_error err) {
+			return false;
+		}
 	}
 
 	inline bool IsGraphicsCaptureCursorCapturePropertyAvailable() {
-		return IsGraphicsCaptureAvailable()
-			&& winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"IsCursorCaptureEnabled");
+		try
+		{
+			return IsGraphicsCaptureAvailable()
+				&& winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"IsCursorCaptureEnabled");
+		}
+		catch (winrt::hresult_error err) {
+			return false;
+		}
 	}
 }
