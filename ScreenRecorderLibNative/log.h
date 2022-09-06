@@ -44,24 +44,28 @@ constexpr const char *file_name(const char *path) {
 
 struct MeasureExecutionTime {
 private:
+#if MEASURE_EXECUTION_TIME
 	std::wstring m_Name;
 	std::chrono::steady_clock::time_point m_Start;
+#endif
 public:
 	MeasureExecutionTime(std::wstring name) {
-		if (MEASURE_EXECUTION_TIME == true) {
-			m_Name = name;
-			m_Start = std::chrono::steady_clock::now();
-		}
+#if MEASURE_EXECUTION_TIME
+		m_Name = name;
+		m_Start = std::chrono::steady_clock::now();
+#endif
 	}
 	~MeasureExecutionTime() {
-		if (MEASURE_EXECUTION_TIME == true) {
-			std::chrono::duration<double, std::milli> ms_double = std::chrono::steady_clock::now() - m_Start;
-			if (!m_Name.empty()) {
-				LOG_TRACE("Execution time for %ls: %.2f ms", m_Name.c_str(), ms_double.count());
-			}
+#if MEASURE_EXECUTION_TIME
+		std::chrono::duration<double, std::milli> ms_double = std::chrono::steady_clock::now() - m_Start;
+		if (!m_Name.empty()) {
+			LOG_TRACE("Execution time for %ls: %.2f ms", m_Name.c_str(), ms_double.count());
 		}
+#endif
 	}
 	void SetName(std::wstring name) {
+#if MEASURE_EXECUTION_TIME
 		m_Name = name;
+#endif
 	}
 };
