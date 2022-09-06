@@ -16,6 +16,4 @@ HRESULT GetGUIDName(const GUID &guid, WCHAR **ppwsz);
 HRESULT LogAttributeValueByIndex(IMFAttributes *pAttr, DWORD index);
 HRESULT SpecialCaseAttributeValue(GUID guid, const PROPVARIANT &var);
 
-void DBGMSG(PCWSTR format, ...);
-
 HRESULT LogMediaType(IMFMediaType *pType);

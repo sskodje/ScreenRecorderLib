@@ -13,7 +13,7 @@ HRESULT LogMediaType(IMFMediaType *pType)
 
 	if (count == 0)
 	{
-		DBGMSG(L"Empty media type.\n");
+		LOG_TRACE(L"Empty media type.\n");
 	}
 
 	for (UINT32 i = 0; i < count; i++)
@@ -49,7 +49,7 @@ HRESULT LogAttributeValueByIndex(IMFAttributes *pAttr, DWORD index)
 		goto done;
 	}
 
-	DBGMSG(L"\t%s\t", pGuidName);
+	LOG_TRACE(L"%s", pGuidName);
 
 	hr = SpecialCaseAttributeValue(guid, var);
 	if (FAILED(hr))
@@ -60,46 +60,46 @@ HRESULT LogAttributeValueByIndex(IMFAttributes *pAttr, DWORD index)
 	{
 		switch (var.vt)
 		{
-		case VT_UI4:
-			DBGMSG(L"%d", var.ulVal);
-			break;
+			case VT_UI4:
+				LOG_TRACE(L"%d", var.ulVal);
+				break;
 
-		case VT_UI8:
-			DBGMSG(L"%I64d", var.uhVal);
-			break;
+			case VT_UI8:
+				LOG_TRACE(L"%I64d", var.uhVal);
+				break;
 
-		case VT_R8:
-			DBGMSG(L"%f", var.dblVal);
-			break;
+			case VT_R8:
+				LOG_TRACE(L"%f", var.dblVal);
+				break;
 
-		case VT_CLSID:
-			hr = GetGUIDName(*var.puuid, &pGuidValName);
-			if (SUCCEEDED(hr))
-			{
-				DBGMSG(pGuidValName);
-			}
-			break;
+			case VT_CLSID:
+				hr = GetGUIDName(*var.puuid, &pGuidValName);
+				if (SUCCEEDED(hr))
+				{
+					LOG_TRACE(L"%s", pGuidValName);
+				}
+				break;
 
-		case VT_LPWSTR:
-			DBGMSG(var.pwszVal);
-			break;
+			case VT_LPWSTR:
+				LOG_TRACE(L"%s", var.pwszVal);
+				break;
 
-		case VT_VECTOR | VT_UI1:
-			DBGMSG(L"<<byte array>>");
-			break;
+			case VT_VECTOR | VT_UI1:
+				LOG_TRACE(L"<<byte array>>");
+				break;
 
-		case VT_UNKNOWN:
-			DBGMSG(L"IUnknown");
-			break;
+			case VT_UNKNOWN:
+				LOG_TRACE(L"IUnknown");
+				break;
 
-		default:
-			DBGMSG(L"Unexpected attribute type (vt = %d)", var.vt);
-			break;
+			default:
+				LOG_TRACE(L"Unexpected attribute type (vt = %d)", var.vt);
+				break;
 		}
 	}
 
 done:
-	DBGMSG(L"\n");
+	LOG_TRACE(L"");
 	CoTaskMemFree(pGuidName);
 	CoTaskMemFree(pGuidValName);
 	PropVariantClear(&var);
@@ -158,7 +158,7 @@ void LogUINT32AsUINT64(const PROPVARIANT &var)
 {
 	UINT32 uHigh = 0, uLow = 0;
 	Unpack2UINT32AsUINT64(var.uhVal.QuadPart, &uHigh, &uLow);
-	DBGMSG(L"%d x %d", uHigh, uLow);
+	LOG_TRACE(L"%d x %d", uHigh, uLow);
 }
 
 float OffsetToFloat(const MFOffset &offset)
@@ -175,7 +175,7 @@ HRESULT LogVideoArea(const PROPVARIANT &var)
 
 	MFVideoArea *pArea = (MFVideoArea *)var.caub.pElems;
 
-	DBGMSG(L"(%f,%f) (%d,%d)", OffsetToFloat(pArea->OffsetX), OffsetToFloat(pArea->OffsetY),
+	LOG_TRACE(L"(%f,%f) (%d,%d)", OffsetToFloat(pArea->OffsetX), OffsetToFloat(pArea->OffsetY),
 		pArea->Area.cx, pArea->Area.cy);
 	return S_OK;
 }
@@ -203,23 +203,6 @@ HRESULT SpecialCaseAttributeValue(GUID guid, const PROPVARIANT &var)
 	}
 	return S_OK;
 }
-
-void DBGMSG(PCWSTR format, ...)
-{
-	if (LOG_LVL_TRACE >= logSeverityLevel) {
-		va_list args;
-		va_start(args, format);
-
-		WCHAR msg[MAX_PATH];
-
-		if (SUCCEEDED(StringCbVPrintf(msg, sizeof(msg), format, args)))
-		{
-			OutputDebugString(msg);
-		}
-	}
-}
-
-
 
 LPCWSTR GetGUIDNameConst(const GUID &guid)
 {
