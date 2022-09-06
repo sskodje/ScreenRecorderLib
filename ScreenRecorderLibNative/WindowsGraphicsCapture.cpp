@@ -466,7 +466,7 @@ HRESULT WindowsGraphicsCapture::ProcessRecordingTimeout(_Inout_ GRAPHICS_FRAME_D
 }
 
 /// <summary>
-/// Restarts recording session if no new frames have been received for a while.
+/// Check if no new frames have been received for a while.
 /// This issue could be caused by some window operations bugging out WGC.
 /// </summary>
 /// <returns>True is frame pool have stopped receiving frames, else false</returns>
