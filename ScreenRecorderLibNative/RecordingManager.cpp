@@ -313,7 +313,7 @@ void RecordingManager::CleanupDxResources()
 #if _DEBUG
 	if (m_DxResources.Debug) {
 		m_DxDebugMutex.lock();
-		m_DxResources.Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL| D3D11_RLDO_IGNORE_INTERNAL);
+		m_DxResources.Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL | D3D11_RLDO_IGNORE_INTERNAL);
 		m_DxDebugMutex.unlock();
 		SafeRelease(&m_DxResources.Debug);
 	}
@@ -502,7 +502,8 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		RETURN_ON_BAD_HR(renderHr = m_EncoderResult = m_OutputManager->RenderFrame(model));
 		frameNr++;
 		if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
-			RecordingFrameNumberChangedCallback(frameNr);
+			INT64 timestamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+			RecordingFrameNumberChangedCallback(frameNr, timestamp);
 		}
 		havePrematureFrame = false;
 		lastFrameStartPos100Nanos += duration100Nanos;

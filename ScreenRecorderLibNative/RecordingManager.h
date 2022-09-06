@@ -9,7 +9,7 @@ typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_m
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
 typedef void(__stdcall *CallbackErrorFunction)(std::wstring, std::wstring);
 typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
-typedef void(__stdcall *CallbackFrameNumberChangedFunction)(int);
+typedef void(__stdcall *CallbackFrameNumberChangedFunction)(int, INT64);
 
 #define STATUS_IDLE 0
 #define STATUS_RECORDING 1

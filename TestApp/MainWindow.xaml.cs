@@ -24,6 +24,7 @@ namespace TestApp
     {
         private Recorder _rec;
         private DispatcherTimer _progressTimer;
+        private readonly List<long> _recordedFrameTimes = new List<long>();
         private DateTimeOffset? _recordingStartTime = null;
         private DateTimeOffset? _recordingPauseTime = null;
         private Stream _outputStream;
@@ -183,6 +184,35 @@ namespace TestApp
             }
         }
 
+        private double _averageFrameRate;
+        public double AverageFrameRate
+        {
+            get { return _averageFrameRate; }
+            set
+            {
+                if (_averageFrameRate != value)
+                {
+                    _averageFrameRate = value;
+                    RaisePropertyChanged(nameof(AverageFrameRate));
+                }
+            }
+        }
+
+        private double _currentFrameRate;
+        public double CurrentFrameRate
+        {
+            get { return _currentFrameRate; }
+            set
+            {
+                if (_currentFrameRate != value)
+                {
+                    _currentFrameRate = value;
+                    RaisePropertyChanged(nameof(CurrentFrameRate));
+                }
+            }
+        }
+
+
         public H264Profile CurrentH264Profile { get; set; } = H264Profile.High;
         public H265Profile CurrentH265Profile { get; set; } = H265Profile.Main;
 
@@ -212,7 +242,7 @@ namespace TestApp
                     }
             }
         }
-        
+
         private void RecordingSource_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             switch (e.PropertyName)
@@ -539,6 +569,7 @@ namespace TestApp
             Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
             {
                 CurrentFrameNumber = e.FrameNumber;
+                _recordedFrameTimes.Add(e.Timestamp);
             }));
         }
 
@@ -696,9 +727,7 @@ namespace TestApp
                     case RecorderStatus.Recording:
                         _recordingStartTime = DateTimeOffset.Now;
                         PauseButton.Visibility = Visibility.Visible;
-                        this.FrameNumberTextBlock.Visibility = Visibility.Visible;
-                        if (_progressTimer != null)
-                            _progressTimer.IsEnabled = true;
+                        this.FrameNumberPanel.Visibility = Visibility.Visible;
                         if (_recordingPauseTime != null)
                         {
                             _recordingStartTime = _recordingStartTime.Value.AddTicks((DateTimeOffset.Now.Subtract(_recordingPauseTime.Value)).Ticks);
@@ -717,8 +746,7 @@ namespace TestApp
                         _progressTimer.Start();
                         break;
                     case RecorderStatus.Paused:
-                        if (_progressTimer != null)
-                            _progressTimer.IsEnabled = false;
+                        _progressTimer?.Stop();
                         _recordingPauseTime = DateTimeOffset.Now;
                         PauseButton.Content = "Resume";
                         this.StatusTextBlock.Text = "Paused";
@@ -736,6 +764,13 @@ namespace TestApp
         private void ProgressTimer_Tick(object sender, EventArgs e)
         {
             UpdateProgress();
+            if (_recordedFrameTimes.Count > 0)
+            {
+                AverageFrameRate = CurrentFrameNumber / DateTimeOffset.FromUnixTimeMilliseconds(_recordedFrameTimes.Last()).Subtract(_recordingStartTime.Value).TotalSeconds;
+                _recordedFrameTimes.RemoveRange(0, Math.Max(0, _recordedFrameTimes.Count - 10));
+                double intervalMillis = (double)(_recordedFrameTimes.Last() - _recordedFrameTimes.First());
+                CurrentFrameRate = (_recordedFrameTimes.Count-1) / (double)intervalMillis * 1000;
+            }
         }
         private void UpdateProgress()
         {

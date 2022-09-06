@@ -1207,13 +1207,22 @@
                                HorizontalAlignment="Center"
                                x:Name="TimeStampTextBlock"
                                Margin="10,0" />
-                    <TextBlock FontSize="18"
-                               Text="{Binding ElementName=MainWin,Path=CurrentFrameNumber, StringFormat={}Frame: {0}}"
-                               Margin="10,0"
-                               TextWrapping="NoWrap"
-                               HorizontalAlignment="Center"
-                               Visibility="Collapsed"
-                               x:Name="FrameNumberTextBlock" />
+                    <StackPanel Orientation="Vertical"
+                                HorizontalAlignment="Center"
+                                x:Name="FrameNumberPanel"
+                                Visibility="Collapsed">
+                        <TextBlock x:Name="FrameNumberTextBlock"
+                                   DataContext="{Binding ElementName=MainWin}"
+                                   FontSize="16">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="{}Frame: {0} | Avg FPS: {1:0.0} | FPS: {2:0.0}">
+                                    <Binding Path="CurrentFrameNumber" />
+                                    <Binding Path="AverageFrameRate" />
+                                    <Binding Path="CurrentFrameRate" />
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
+                    </StackPanel>
                     <TextBlock FontSize="32"
                                Text="Idle"
                                HorizontalAlignment="Center"
