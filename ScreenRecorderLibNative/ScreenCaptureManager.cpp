@@ -723,45 +723,44 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				LOG_ERROR(L"Unexpected error acquiring KeyMutex");
 				break;
 			}
-			{
-				MeasureExecutionTime measureLock(string_format(L"CaptureThreadProc sync lock for %ls", pRecordingSourceCapture->Name().c_str()));
-				ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
+			MeasureExecutionTime measureLock(string_format(L"CaptureThreadProc sync lock for %ls", pRecordingSourceCapture->Name().c_str()));
+			ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
 
-				// We can now process the current frame
-				if (WaitToProcessCurrentFrame) {
-					WaitToProcessCurrentFrame = false;
-					LONGLONG waitTimeMillis = duration_cast<milliseconds>(chrono::steady_clock::now() - WaitForFrameBegin).count();
-					LOG_TRACE(L"CaptureThreadProc waited for busy shared surface for %lld ms", waitTimeMillis);
-				}
-				if (pSource->IsCursorCaptureEnabled.value_or(true)) {
-					// Get mouse info
-					hr = pRecordingSourceCapture->GetMouse(pData->PtrInfo, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-					if (FAILED(hr)) {
-						LOG_ERROR("Failed to get mouse data");
-					}
-				}
-				else if (pData->PtrInfo) {
-					pData->PtrInfo->Visible = false;
-				}
-
-				if (pSource->IsVideoCaptureEnabled.value_or(true)) {
-					if (IsSharedSurfaceDirty) {
-						//The screen has been blacked out, so we restore a full frame to the shared surface before starting to apply updates.
-						RECT offsetFrameCoordinates = pSourceData->FrameCoordinates;
-						OffsetRect(&offsetFrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-						hr = textureManager.DrawTexture(SharedSurf, pFrame, offsetFrameCoordinates);
-						IsSharedSurfaceDirty = false;
-					}
-
-					hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates);
-				}
-				else {
-					hr = textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-					if (SUCCEEDED(hr)) {
-						IsCapturingVideo = false;
-					}
+			// We can now process the current frame
+			if (WaitToProcessCurrentFrame) {
+				WaitToProcessCurrentFrame = false;
+				LONGLONG waitTimeMillis = duration_cast<milliseconds>(chrono::steady_clock::now() - WaitForFrameBegin).count();
+				LOG_TRACE(L"CaptureThreadProc waited for busy shared surface for %lld ms", waitTimeMillis);
+			}
+			if (pSource->IsCursorCaptureEnabled.value_or(true)) {
+				// Get mouse info
+				hr = pRecordingSourceCapture->GetMouse(pData->PtrInfo, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+				if (FAILED(hr)) {
+					LOG_ERROR("Failed to get mouse data");
 				}
 			}
+			else if (pData->PtrInfo) {
+				pData->PtrInfo->Visible = false;
+			}
+
+			if (pSource->IsVideoCaptureEnabled.value_or(true)) {
+				if (IsSharedSurfaceDirty) {
+					//The screen has been blacked out, so we restore a full frame to the shared surface before starting to apply updates.
+					RECT offsetFrameCoordinates = pSourceData->FrameCoordinates;
+					OffsetRect(&offsetFrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+					hr = textureManager.DrawTexture(SharedSurf, pFrame, offsetFrameCoordinates);
+					IsSharedSurfaceDirty = false;
+				}
+
+				hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates);
+			}
+			else {
+				hr = textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+				if (SUCCEEDED(hr)) {
+					IsCapturingVideo = false;
+				}
+			}
+
 			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 				continue;
 			}
