@@ -314,6 +314,8 @@ struct THREAD_DATA_BASE
 	HANDLE CanvasTexSharedHandle{ nullptr };
 	// Used to signal an error in the ongoing capture
 	HANDLE ErrorEvent{};
+	// Used to signal capture has started
+	HANDLE StartedEvent{};
 	// Used by WinProc to signal to threads to exit
 	HANDLE TerminateThreadsEvent{};
 	LARGE_INTEGER LastUpdateTimeStamp{};
