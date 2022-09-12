@@ -27,7 +27,7 @@ public:
 	~OutputManager();
 	HRESULT Initialize(
 		_In_ ID3D11DeviceContext *pDeviceContext,
-		_In_ ID3D11Device *pDevice, 
+		_In_ ID3D11Device *pDevice,
 		_In_ std::shared_ptr<ENCODER_OPTIONS> &pEncoderOptions,
 		_In_ std::shared_ptr<AUDIO_OPTIONS> pAudioOptions,
 		_In_ std::shared_ptr<SNAPSHOT_OPTIONS> pSnapshotOptions,
@@ -54,6 +54,8 @@ private:
 	CComPtr<IMFSinkWriter> m_SinkWriter;
 	CComPtr<IMFSinkWriterCallback> m_CallBack;
 	CComPtr<IMFTransform> m_MediaTransform;
+	CComPtr<IMFDXGIDeviceManager> m_DeviceManager;
+	UINT m_ResetToken;
 	IStream *m_OutStream;
 	DWORD m_VideoStreamIndex;
 	DWORD m_AudioStreamIndex;
@@ -63,6 +65,7 @@ private:
 	bool m_LastFrameHadAudio;
 	UINT64 m_RenderedFrameCount;
 	std::chrono::steady_clock::time_point m_PreviousSnapshotTaken;
+	CRITICAL_SECTION m_CriticalSection;
 
 	std::shared_ptr<AUDIO_OPTIONS> GetAudioOptions() { return m_AudioOptions; }
 	std::shared_ptr<ENCODER_OPTIONS> GetEncoderOptions() { return m_EncoderOptions; }

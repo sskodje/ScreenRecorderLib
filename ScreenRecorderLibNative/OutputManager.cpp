@@ -6,6 +6,8 @@
 using namespace std;
 using namespace concurrency;
 
+#define USE_NV12_CONVERTER TRUE
+
 OutputManager::OutputManager() :
 	m_Device(nullptr),
 	m_DeviceContext(nullptr),
@@ -23,15 +25,19 @@ OutputManager::OutputManager() :
 	m_OutputFullPath(L""),
 	m_LastFrameHadAudio(false),
 	m_RenderedFrameCount(0),
-	m_MediaTransform(nullptr)
+	m_MediaTransform(nullptr),
+	m_DeviceManager(nullptr),
+	m_ResetToken(0)
 {
 	m_FinalizeEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	InitializeCriticalSection(&m_CriticalSection);
 }
 
 OutputManager::~OutputManager()
 {
 	CloseHandle(m_FinalizeEvent);
 	m_FinalizeEvent = nullptr;
+	DeleteCriticalSection(&m_CriticalSection);
 }
 
 HRESULT OutputManager::Initialize(
@@ -42,12 +48,25 @@ HRESULT OutputManager::Initialize(
 	_In_ std::shared_ptr<SNAPSHOT_OPTIONS> pSnapshotOptions,
 	_In_ std::shared_ptr<OUTPUT_OPTIONS> pOutputOptions)
 {
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
+
 	m_DeviceContext = pDeviceContext;
 	m_Device = pDevice;
 	m_EncoderOptions = pEncoderOptions;
 	m_AudioOptions = pAudioOptions;
 	m_SnapshotOptions = pSnapshotOptions;
 	m_OutputOptions = pOutputOptions;
+	if (!m_DeviceManager) {
+		RETURN_ON_BAD_HR(MFCreateDXGIDeviceManager(&m_ResetToken, &m_DeviceManager));
+	}
+	if (m_SinkWriter) {
+		m_SinkWriter->Flush(m_VideoStreamIndex);
+	}
+	if (m_MediaTransform) {
+		m_MediaTransform->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
+	}
+	RETURN_ON_BAD_HR(m_DeviceManager->ResetDevice(pDevice, m_ResetToken));
 	return S_OK;
 }
 
@@ -145,6 +164,9 @@ HRESULT OutputManager::FinalizeRecording()
 
 HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 	HRESULT hr(S_OK);
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
+	MeasureExecutionTime measure(L"RenderFrame");
 	auto recorderMode = GetOutputOptions()->GetRecorderMode();
 	if (recorderMode == RecorderModeInternal::Video) {
 		hr = WriteFrameToVideo(model.StartPos, model.Duration, m_VideoStreamIndex, model.Frame);
@@ -269,6 +291,7 @@ HRESULT OutputManager::ConfigureOutputMediaTypes(
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_AVG_BITRATE, GetEncoderOptions()->GetVideoBitrate()));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_MPEG2_PROFILE, GetEncoderOptions()->GetEncoderProfile()));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_VIDEO_CHROMA_SITING, MFVideoChromaSubsampling_ProgressiveChroma));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, destWidth, destHeight));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, GetEncoderOptions()->GetVideoFps(), 1));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
@@ -311,6 +334,7 @@ HRESULT OutputManager::ConfigureInputMediaTypes(
 	// Uncompressed means all samples are independent.
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_VIDEO_ROTATION, rotationFormat));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_VIDEO_CHROMA_SITING, MFVideoChromaSubsampling_ProgressiveChroma));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
 	if (!GetEncoderOptions()->GetIsFixedFramerate()) {
 		RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, GetEncoderOptions()->GetVideoFps(), 1));
@@ -350,8 +374,6 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 	*pVideoStreamIndex = 0;
 	*pAudioStreamIndex = 0;
 
-	UINT pResetToken;
-	CComPtr<IMFDXGIDeviceManager> pDeviceManager = nullptr;
 	CComPtr<IMFSinkWriter>        pSinkWriter = nullptr;
 	CComPtr<IMFMediaType>         pVideoMediaTypeOut = nullptr;
 	CComPtr<IMFMediaType>         pAudioMediaTypeOut = nullptr;
@@ -374,9 +396,6 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 
 	DWORD videoStreamIndex = 0;
 	DWORD audioStreamIndex = 1;
-	RETURN_ON_BAD_HR(MFCreateDXGIDeviceManager(&pResetToken, &pDeviceManager));
-	RETURN_ON_BAD_HR(pDeviceManager->ResetDevice(pDevice, pResetToken));
-
 
 	UINT sourceWidth = RectWidth(sourceRect);
 	UINT sourceHeight = RectHeight(sourceRect);
@@ -395,6 +414,16 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 
 	RETURN_ON_BAD_HR(CreateIMFTransform(videoStreamIndex, pVideoMediaTypeIn, pVideoMediaTypeTransform, &m_MediaTransform));
 
+	CComPtr<IMFAttributes> pTransformAttributes;
+	if (SUCCEEDED(m_MediaTransform->GetAttributes(&pTransformAttributes))) {
+		UINT32 d3d11Aware = 0;
+		pTransformAttributes->GetUINT32(MF_SA_D3D11_AWARE, &d3d11Aware);
+		if (d3d11Aware > 0) {
+			HRESULT hr = m_MediaTransform->ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, reinterpret_cast<ULONG_PTR>(m_DeviceManager.p));
+			LOG_ON_BAD_HR(hr);
+		}
+	}
+
 	//Creates a streaming writer
 	CComPtr<IMFMediaSink> pMp4StreamSink = nullptr;
 	if (GetEncoderOptions()->GetIsFragmentedMp4Enabled()) {
@@ -412,7 +441,7 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, GetEncoderOptions()->GetIsLowLatencyModeEnabled()));
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, GetEncoderOptions()->GetIsThrottlingDisabled()));
 	// Add device manager to attributes. This enables hardware encoding.
-	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_D3D_MANAGER, pDeviceManager));
+	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_D3D_MANAGER, m_DeviceManager));
 	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_ASYNC_CALLBACK, pCallback));
 
 	RETURN_ON_BAD_HR(MFCreateSinkWriterFromMediaSink(pMp4StreamSink, pAttributes, &pSinkWriter));
@@ -424,7 +453,8 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 		LogMediaType(pVideoMediaTypeIntermediate);
 	LOG_TRACE("Output video format:")
 		LogMediaType(pVideoMediaTypeOut);
-	RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(videoStreamIndex, pVideoMediaTypeIntermediate, nullptr));
+
+	RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(videoStreamIndex, USE_NV12_CONVERTER ? pVideoMediaTypeIntermediate : pVideoMediaTypeIn, nullptr));
 	if (pAudioMediaTypeIn) {
 		RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, nullptr));
 	}
@@ -496,50 +526,73 @@ HRESULT OutputManager::WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 fr
 	{
 		hr = pSample->SetSampleDuration(frameDuration);
 	}
+#if USE_NV12_CONVERTER 
 	//Run media transform to convert sample to MFVideoFormat_NV12
+
 	MFT_OUTPUT_STREAM_INFO info{};
-	if (SUCCEEDED(hr))
-	{
-		hr = m_MediaTransform->GetOutputStreamInfo(streamIndex, &info);
-	}
-	IMFMediaBuffer *transformBuffer;
-	if (SUCCEEDED(hr))
-	{
-		hr = MFCreateMemoryBuffer(info.cbSize, &transformBuffer);
-	}
-	IMFSample *transformSample;
-	if (SUCCEEDED(hr))
-	{
-		hr = MFCreateSample(&transformSample);
-	}
+
+	hr = m_MediaTransform->GetOutputStreamInfo(streamIndex, &info);
+	bool transformProvidesSamples = info.dwFlags & (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES | MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES);
+
+	IMFSample *transformSample = nullptr;
+
+	IMFMediaBuffer *transformBuffer = nullptr;
 	MFT_OUTPUT_DATA_BUFFER outputDataBuffer;
 	RtlZeroMemory(&outputDataBuffer, sizeof(outputDataBuffer));
-	if (SUCCEEDED(hr))
+	outputDataBuffer.dwStreamID = streamIndex;
 	{
-		hr = transformSample->AddBuffer(transformBuffer);
-		outputDataBuffer.dwStreamID = streamIndex;
-		outputDataBuffer.pSample = transformSample;
+		if (SUCCEEDED(hr) && !transformProvidesSamples)
+		{
+			hr = MFCreateMemoryBuffer(info.cbSize, &transformBuffer);
+
+			if (SUCCEEDED(hr))
+			{
+				hr = MFCreateSample(&transformSample);
+			}
+			if (SUCCEEDED(hr)) {
+				hr = transformSample->AddBuffer(transformBuffer);
+			}
+			outputDataBuffer.pSample = transformSample;
+			SafeRelease(&transformBuffer);
+		}
+		if (SUCCEEDED(hr))
+		{
+			hr = m_MediaTransform->ProcessInput(streamIndex, pSample, 0);
+		}
+		if (SUCCEEDED(hr))
+		{
+			DWORD dwDSPStatus = 0;
+			hr = m_MediaTransform->ProcessOutput(0, 1, &outputDataBuffer, &dwDSPStatus);
+		}
+		if (SUCCEEDED(hr)) {
+			transformSample = outputDataBuffer.pSample;
+		}
 	}
 	if (SUCCEEDED(hr))
 	{
-		hr = m_MediaTransform->ProcessInput(streamIndex, pSample, 0);
+		hr = transformSample->SetSampleTime(frameStartPos);
 	}
 	if (SUCCEEDED(hr))
 	{
-		DWORD dwDSPStatus = 0;
-		hr = m_MediaTransform->ProcessOutput(0, 1, &outputDataBuffer, &dwDSPStatus);
+		hr = transformSample->SetSampleDuration(frameDuration);
 	}
 	if (SUCCEEDED(hr))
 	{
-		hr = m_SinkWriter->WriteSample(streamIndex, outputDataBuffer.pSample);
+		hr = m_SinkWriter->WriteSample(streamIndex, transformSample);
 	}
-	SafeRelease(&transformBuffer);
 	SafeRelease(&transformSample);
+
+#else
+	if (SUCCEEDED(hr))
+	{
+		hr = m_SinkWriter->WriteSample(streamIndex, pSample);
+	}
+#endif
 	SafeRelease(&pSample);
 	SafeRelease(&p2DBuffer);
 	SafeRelease(&pMediaBuffer);
 	return hr;
-}
+	}
 
 HRESULT OutputManager::WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE *pSrc, _In_ DWORD cbData)
 {
