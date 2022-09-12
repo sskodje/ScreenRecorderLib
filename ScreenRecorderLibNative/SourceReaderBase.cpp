@@ -16,7 +16,7 @@ SourceReaderBase::SourceReaderBase() :
 	m_FrameSize{},
 	m_FramerateTimer(nullptr),
 	m_NewFrameEvent(nullptr),
-	m_CaptureStoppedEvent(nullptr),
+	m_StopCaptureEvent(nullptr),
 	m_OutputMediaType(nullptr),
 	m_InputMediaType(nullptr),
 	m_SourceReader(nullptr),
@@ -28,10 +28,7 @@ SourceReaderBase::SourceReaderBase() :
 {
 	InitializeCriticalSection(&m_CriticalSection);
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-	m_CaptureStoppedEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-	if (m_CaptureStoppedEvent) {
-		SetEvent(m_CaptureStoppedEvent);
-	}
+	m_StopCaptureEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
 }
 SourceReaderBase::~SourceReaderBase()
 {
@@ -42,7 +39,7 @@ SourceReaderBase::~SourceReaderBase()
 
 	delete m_FramerateTimer;
 	CloseHandle(m_NewFrameEvent);
-	CloseHandle(m_CaptureStoppedEvent);
+	CloseHandle(m_StopCaptureEvent);
 	LeaveCriticalSection(&m_CriticalSection);
 	DeleteCriticalSection(&m_CriticalSection);
 
@@ -53,6 +50,8 @@ SourceReaderBase::~SourceReaderBase()
 HRESULT SourceReaderBase::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSource)
 {
 	HRESULT hr;
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"StartCapture");
 	m_RecordingSource = &recordingSource;
 	long streamIndex;
 	RETURN_ON_BAD_HR(hr = InitializeSourceReader(recordingSource.SourcePath, &streamIndex, &m_SourceReader, &m_InputMediaType, &m_OutputMediaType, &m_MediaTransform));
@@ -61,7 +60,7 @@ HRESULT SourceReaderBase::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSour
 	RETURN_ON_BAD_HR(GetFrameSize(m_InputMediaType, &m_FrameSize));
 	if (SUCCEEDED(hr))
 	{
-		ResetEvent(m_CaptureStoppedEvent);
+		ResetEvent(m_StopCaptureEvent);
 		// Ask for the first sample.
 		hr = m_SourceReader->ReadSample(streamIndex, 0, NULL, NULL, NULL, NULL);
 	}
@@ -92,10 +91,8 @@ void SourceReaderBase::Close()
 		LOG_DEBUG("Stopping source reader sync timer");
 		m_FramerateTimer->StopTimer(true);
 	}
+	SetEvent(m_StopCaptureEvent);
 	LeaveCriticalSection(&m_CriticalSection);
-	if (WaitForSingleObject(m_CaptureStoppedEvent, INFINITE) != WAIT_OBJECT_0) {
-		LOG_ERROR("Failed to wait for CaptureStoppedEvent");
-	}
 	SafeRelease(&m_SourceReader);
 	SafeRelease(&m_InputMediaType);
 	SafeRelease(&m_MediaTransform);
@@ -395,7 +392,7 @@ HRESULT SourceReaderBase::CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMed
 HRESULT SourceReaderBase::OnReadSample(HRESULT status, DWORD streamIndex, DWORD streamFlags, LONGLONG timeStamp, IMFSample *sample)
 {
 	HRESULT hr = status;
-	if (SUCCEEDED(hr)) {
+	if (SUCCEEDED(hr) && WaitForSingleObject(m_StopCaptureEvent, 0) != WAIT_OBJECT_0) {
 		if (streamFlags & MF_SOURCE_READERF_ENDOFSTREAM) {
 			PROPVARIANT var;
 			HRESULT hr = InitPropVariantFromInt64(0, &var);
@@ -485,7 +482,6 @@ HRESULT SourceReaderBase::OnReadSample(HRESULT status, DWORD streamIndex, DWORD 
 			}
 		}
 	}
-	SetEvent(m_CaptureStoppedEvent);
 	return hr;
 }
 //Method from IMFSourceReaderCallback 
