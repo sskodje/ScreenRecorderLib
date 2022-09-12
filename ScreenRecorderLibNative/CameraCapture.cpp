@@ -97,24 +97,24 @@ HRESULT CameraCapture::InitializeMediaSource(
 )
 {
 	CComPtr<IMFSourceReader> pSourceReader = nullptr;
-	CComPtr<IMFMediaSource> source = nullptr;
-	CComPtr<IMFAttributes> attributes = nullptr;
+	CComPtr<IMFMediaSource> pSource = nullptr;
+	CComPtr<IMFAttributes> pAttributes = nullptr;
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection);
-	HRESULT hr = pDevice->ActivateObject(__uuidof(IMFMediaSource), (void **)&source);
+	HRESULT hr = pDevice->ActivateObject(__uuidof(IMFMediaSource), (void **)&pSource);
 
 	//Allocate attributes
 	if (SUCCEEDED(hr))
-		hr = MFCreateAttributes(&attributes, 2);
+		hr = MFCreateAttributes(&pAttributes, 2);
 	//get attributes
 	if (SUCCEEDED(hr))
-		hr = attributes->SetUINT32(MF_READWRITE_DISABLE_CONVERTERS, TRUE);
+		hr = pAttributes->SetUINT32(MF_READWRITE_DISABLE_CONVERTERS, TRUE);
 	// Set the callback pointer.
 	if (SUCCEEDED(hr))
-		hr = attributes->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK, this);
+		hr = pAttributes->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK, this);
 	//Create the source reader
 	if (SUCCEEDED(hr))
-		hr = MFCreateSourceReaderFromMediaSource(source, attributes, &pSourceReader);
+		hr = MFCreateSourceReaderFromMediaSource(pSource, pAttributes, &pSourceReader);
 
 	bool noMoreMedia = false;
 	bool foundValidTopology = false;
@@ -212,9 +212,9 @@ HRESULT CameraCapture::InitializeMediaSource(
 
 	if (FAILED(hr))
 	{
-		if (source)
+		if (pSource)
 		{
-			source->Shutdown();
+			pSource->Shutdown();
 		}
 		Close();
 	}
