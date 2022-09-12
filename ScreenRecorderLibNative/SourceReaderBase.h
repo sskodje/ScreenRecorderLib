@@ -52,6 +52,7 @@ protected:
 	virtual HRESULT CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMediaType, _Outptr_ IMFTransform **pColorConverter, _Outptr_ IMFMediaType **ppOutputMediaType);
 	virtual HRESULT SourceReaderBase::ResizeFrameBuffer(UINT bufferSize);
 	CRITICAL_SECTION m_CriticalSection;
+	inline IMFDXGIDeviceManager *GetDeviceManager() { return m_DeviceManager; }
 private:
 	long m_ReferenceCount;
 	HANDLE m_NewFrameEvent;
@@ -67,8 +68,9 @@ private:
 	IMFSourceReader *m_SourceReader;
 	IMFTransform *m_MediaTransform;
 	std::unique_ptr<TextureManager> m_TextureManager;
+	CComPtr<IMFDXGIDeviceManager> m_DeviceManager;
 	RECORDING_SOURCE_BASE *m_RecordingSource;
-
+	UINT m_ResetToken;
 	UINT m_BufferSize;
 	_Field_size_bytes_(m_BufferSize) BYTE *m_PtrFrameBuffer;
 	LONG m_Stride;

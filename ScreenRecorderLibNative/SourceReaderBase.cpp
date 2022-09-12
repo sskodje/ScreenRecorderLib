@@ -24,7 +24,9 @@ SourceReaderBase::SourceReaderBase() :
 	m_TextureManager(nullptr),
 	m_BufferSize(0),
 	m_PtrFrameBuffer(nullptr),
-	m_RecordingSource(nullptr)
+	m_RecordingSource(nullptr),
+	m_DeviceManager(nullptr),
+	m_ResetToken(0)
 {
 	InitializeCriticalSection(&m_CriticalSection);
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -190,6 +192,14 @@ HRESULT SourceReaderBase::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _
 
 	m_TextureManager = make_unique<TextureManager>();
 	m_TextureManager->Initialize(m_DeviceContext, m_Device);
+
+	if (m_MediaTransform) {
+		m_MediaTransform->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
+	}
+	if (!m_DeviceManager) {
+		RETURN_ON_BAD_HR(MFCreateDXGIDeviceManager(&m_ResetToken, &m_DeviceManager));
+	}
+	RETURN_ON_BAD_HR(m_DeviceManager->ResetDevice(pDevice, m_ResetToken));
 	return S_OK;
 }
 HRESULT SourceReaderBase::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect)
@@ -411,23 +421,28 @@ HRESULT SourceReaderBase::OnReadSample(HRESULT status, DWORD streamIndex, DWORD 
 					if (FAILED(hr)) {
 						LOG_ERROR(L"GetOutputStreamInfo failed: hr = 0x%08x", hr);
 					}
-					IMFMediaBuffer *transformBuffer;
-					//create a buffer for the output sample
-					hr = MFCreateMemoryBuffer(info.cbSize, &transformBuffer);
-					if (FAILED(hr))
-					{
-						LOG_ERROR(L"MFCreateMemoryBuffer failed: hr = 0x%08x", hr);
-					}
-					IMFSample *transformSample;
-					hr = MFCreateSample(&transformSample);
-					if (FAILED(hr)) {
-						LOG_ERROR(L"MFCreateSample failed: hr = 0x%08x", hr);
-					}
-					hr = transformSample->AddBuffer(transformBuffer);
-					MFT_OUTPUT_DATA_BUFFER outputDataBuffer{};
+					bool transformProvidesSamples = info.dwFlags & (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES | MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES);
+					MFT_OUTPUT_DATA_BUFFER outputDataBuffer;
+					RtlZeroMemory(&outputDataBuffer, sizeof(outputDataBuffer));
 					outputDataBuffer.dwStreamID = streamIndex;
-					outputDataBuffer.pSample = transformSample;
+					if (!transformProvidesSamples) {
+						IMFMediaBuffer *transformBuffer = nullptr;
+						//create a buffer for the output sample
+						hr = MFCreateMemoryBuffer(info.cbSize, &transformBuffer);
+						if (FAILED(hr))
+						{
+							LOG_ERROR(L"MFCreateMemoryBuffer failed: hr = 0x%08x", hr);
+						}
+						IMFSample *transformSample;
+						hr = MFCreateSample(&transformSample);
+						if (FAILED(hr)) {
+							LOG_ERROR(L"MFCreateSample failed: hr = 0x%08x", hr);
+						}
+						hr = transformSample->AddBuffer(transformBuffer);
 
+						outputDataBuffer.pSample = transformSample;
+						SafeRelease(&transformBuffer);
+					}
 					hr = m_MediaTransform->ProcessInput(streamIndex, sample, 0);
 					if (FAILED(hr)) {
 						LOG_ERROR(L"ProcessInput failed: hr = 0x%08x", hr);
@@ -438,7 +453,6 @@ HRESULT SourceReaderBase::OnReadSample(HRESULT status, DWORD streamIndex, DWORD 
 						LOG_ERROR(L"ProcessOutput failed: hr = 0x%08x", hr);
 					}
 					SafeRelease(&m_Sample);
-					SafeRelease(&transformBuffer);
 					//Store the converted media buffer
 					IMFMediaBuffer *mediaBuffer = NULL;
 					outputDataBuffer.pSample->GetBufferByIndex(0, &mediaBuffer);
