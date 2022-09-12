@@ -409,7 +409,6 @@ namespace TestApp
                     AnchorPoint = Anchor.TopLeft,
                     Offset = new ScreenSize(100, 100),
                     Size = new ScreenSize(0, 250)
-
                 },
                 IsEnabled = true
             });
@@ -957,6 +956,7 @@ namespace TestApp
                 VideoCaptureDevices.Add(device);
             }
             (this.Resources["MediaDeviceToDeviceIdConverter"] as MediaDeviceToDeviceIdConverter).MediaDevices = VideoCaptureDevices.ToList();
+            ((VideoCaptureOverlay)Overlays.FirstOrDefault(x => x.Overlay is VideoCaptureOverlay).Overlay).DeviceName = VideoCaptureDevices.First().DeviceName;
         }
 
         private void RefreshSourceComboBox()
