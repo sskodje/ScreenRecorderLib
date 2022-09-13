@@ -1,13 +1,13 @@
 ﻿<Window x:Class="TestApp.MainWindow"
         x:Name="MainWin"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:rec="clr-namespace:ScreenRecorderLib;assembly=ScreenRecorderLib"
+        xmlns:System="clr-namespace:System;assembly=mscorlib"
         xmlns:local="clr-namespace:TestApp"
         xmlns:sources="clr-namespace:TestApp.Sources"
-        xmlns:System="clr-namespace:System;assembly=mscorlib"
-        xmlns:rec="clr-namespace:ScreenRecorderLib;assembly=ScreenRecorderLib"
         mc:Ignorable="d"
         Title="ScreenRecorderLib Demo"
         Height="800"
@@ -1150,7 +1150,8 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <CheckBox IsChecked="{Binding IsEnabled}"
                                               VerticalAlignment="Center"
@@ -1163,6 +1164,11 @@
                                               Grid.Column="1" />
                                     <ContentPresenter Content="{StaticResource BaseContent}"
                                                       Grid.Column="2" />
+                                    <CheckBox IsChecked="{Binding Overlay.IsCursorCaptureEnabled}"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left"
+                                              Content="Cursor"
+                                              Grid.Column="3"/>
                                 </Grid>
                             </DataTemplate>
                             <DataTemplate x:Key="WindowOverlayTemplate">
@@ -1170,7 +1176,8 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="Auto" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <CheckBox IsChecked="{Binding IsEnabled}"
                                               VerticalAlignment="Center"
@@ -1183,6 +1190,11 @@
                                               Grid.Column="1" />
                                     <ContentPresenter Content="{StaticResource BaseContent}"
                                                       Grid.Column="2" />
+                                    <CheckBox IsChecked="{Binding Overlay.IsCursorCaptureEnabled}"
+                                              VerticalAlignment="Center"
+                                              Content="Cursor"
+                                              HorizontalAlignment="Left"
+                                              Grid.Column="3"/>
                                 </Grid>
                             </DataTemplate>
                         </ItemsControl.Resources>
@@ -1195,13 +1207,22 @@
                                HorizontalAlignment="Center"
                                x:Name="TimeStampTextBlock"
                                Margin="10,0" />
-                    <TextBlock FontSize="18"
-                               Text="{Binding ElementName=MainWin,Path=CurrentFrameNumber, StringFormat={}Frame: {0}}"
-                               Margin="10,0"
-                               TextWrapping="NoWrap"
-                               HorizontalAlignment="Center"
-                               Visibility="Collapsed"
-                               x:Name="FrameNumberTextBlock" />
+                    <StackPanel Orientation="Vertical"
+                                HorizontalAlignment="Center"
+                                x:Name="FrameNumberPanel"
+                                Visibility="Collapsed">
+                        <TextBlock x:Name="FrameNumberTextBlock"
+                                   DataContext="{Binding ElementName=MainWin}"
+                                   FontSize="16">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="{}Frame: {0} | Avg FPS: {1:0.0} | FPS: {2:0.0}">
+                                    <Binding Path="CurrentFrameNumber" />
+                                    <Binding Path="AverageFrameRate" />
+                                    <Binding Path="CurrentFrameRate" />
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
+                    </StackPanel>
                     <TextBlock FontSize="32"
                                Text="Idle"
                                HorizontalAlignment="Center"

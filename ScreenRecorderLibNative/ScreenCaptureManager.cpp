@@ -34,6 +34,7 @@ ScreenCaptureManager::ScreenCaptureManager() :
 {
 	// Event to tell spawned threads to quit
 	m_TerminateThreadsEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+	InitializeCriticalSection(&m_CriticalSection);
 }
 
 ScreenCaptureManager::~ScreenCaptureManager()
@@ -42,6 +43,7 @@ ScreenCaptureManager::~ScreenCaptureManager()
 		StopCapture();
 	}
 	Clean();
+	DeleteCriticalSection(&m_CriticalSection);
 }
 
 //
@@ -65,6 +67,8 @@ HRESULT ScreenCaptureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContex
 //
 HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hErrorEvent)
 {
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 	ResetEvent(m_TerminateThreadsEvent);
 
 	HRESULT hr = E_FAIL;
@@ -73,11 +77,22 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 	m_CaptureThreadCount = (UINT)(CreatedOutputs.size());
 	m_CaptureThreadHandles = new (std::nothrow) HANDLE[m_CaptureThreadCount]{};
 	m_CaptureThreadData = new (std::nothrow) CAPTURE_THREAD_DATA[m_CaptureThreadCount]{};
-	if (!m_CaptureThreadHandles || !m_CaptureThreadData)
+	HANDLE *captureStartEventHandles = new (std::nothrow) HANDLE[m_CaptureThreadCount]{};
+	DeleteArrayOnExit deleteCaptureStartHandleArray(captureStartEventHandles);
+	if (!m_CaptureThreadHandles || !m_CaptureThreadData || !captureStartEventHandles)
 	{
 		return E_OUTOFMEMORY;
 	}
-
+	for (UINT i = 0; i < m_CaptureThreadCount; i++)
+	{
+		// Event for when a thread has started
+		HANDLE startedEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+		if (nullptr == startedEvent) {
+			LOG_ERROR(L"CreateEvent failed: last error is %u", GetLastError());
+			return E_FAIL;
+		}
+		captureStartEventHandles[i] = startedEvent;
+	}
 	HANDLE sharedHandle = GetSharedHandle(m_SharedSurf);
 	// Create appropriate # of threads for duplication
 
@@ -86,6 +101,7 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 		RECORDING_SOURCE_DATA *data = CreatedOutputs.at(i);
 		m_CaptureThreadData[i].ThreadResult = new CAPTURE_RESULT();
 		m_CaptureThreadData[i].ErrorEvent = hErrorEvent;
+		m_CaptureThreadData[i].StartedEvent = captureStartEventHandles[i];
 		m_CaptureThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
 		m_CaptureThreadData[i].CanvasTexSharedHandle = sharedHandle;
 		m_CaptureThreadData[i].PtrInfo = &m_PtrInfo;
@@ -93,7 +109,6 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 		m_CaptureThreadData[i].RecordingSource = data;
 		RtlZeroMemory(&m_CaptureThreadData[i].RecordingSource->DxRes, sizeof(DX_RESOURCES));
 		RETURN_ON_BAD_HR(hr = InitializeDx(nullptr, &m_CaptureThreadData[i].RecordingSource->DxRes));
-
 		DWORD ThreadId;
 		m_CaptureThreadHandles[i] = CreateThread(nullptr, 0, CaptureThreadProc, &m_CaptureThreadData[i], 0, &ThreadId);
 		if (m_CaptureThreadHandles[i] == nullptr)
@@ -104,25 +119,34 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 	m_OverlayThreadCount = (UINT)(overlays.size());
 	m_OverlayThreadHandles = new (std::nothrow) HANDLE[m_OverlayThreadCount]{};
 	m_OverlayThreadData = new (std::nothrow) OVERLAY_THREAD_DATA[m_OverlayThreadCount]{};
-	if (!m_OverlayThreadHandles || !m_OverlayThreadData)
+	HANDLE *overlayCaptureStartEventHandles = new (std::nothrow) HANDLE[m_OverlayThreadCount]{};
+	DeleteArrayOnExit deleteOverlayCaptureStartHandleArray(overlayCaptureStartEventHandles);
+	if (!m_OverlayThreadHandles || !m_OverlayThreadData || !overlayCaptureStartEventHandles)
 	{
 		return E_OUTOFMEMORY;
+	}
+	for (UINT i = 0; i < m_OverlayThreadCount; i++)
+	{
+		// Event for when a thread has started
+		HANDLE startedEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+		if (nullptr == startedEvent) {
+			LOG_ERROR(L"CreateEvent failed: last error is %u", GetLastError());
+			return E_FAIL;
+		}
+		overlayCaptureStartEventHandles[i] = startedEvent;
 	}
 	for (UINT i = 0; i < m_OverlayThreadCount; i++)
 	{
 		auto overlay = overlays.at(i);
 		m_OverlayThreadData[i].ThreadResult = new CAPTURE_RESULT();
 		m_OverlayThreadData[i].ErrorEvent = hErrorEvent;
+		m_OverlayThreadData[i].StartedEvent = overlayCaptureStartEventHandles[i];
 		m_OverlayThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
 		m_OverlayThreadData[i].CanvasTexSharedHandle = sharedHandle;
 		m_OverlayThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
 		m_OverlayThreadData[i].RecordingOverlay = new RECORDING_OVERLAY_DATA(overlay);
 		RtlZeroMemory(&m_OverlayThreadData[i].RecordingOverlay->DxRes, sizeof(DX_RESOURCES));
-		hr = InitializeDx(nullptr, &m_OverlayThreadData[i].RecordingOverlay->DxRes);
-		if (FAILED(hr))
-		{
-			return hr;
-		}
+		RETURN_ON_BAD_HR(hr = InitializeDx(nullptr, &m_OverlayThreadData[i].RecordingOverlay->DxRes));
 
 		DWORD ThreadId;
 		m_OverlayThreadHandles[i] = CreateThread(nullptr, 0, OverlayCaptureThreadProc, &m_OverlayThreadData[i], 0, &ThreadId);
@@ -131,14 +155,39 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 			return E_FAIL;
 		}
 	}
+	if (m_OverlayThreadCount != 0)
+	{
+		WaitForMultipleObjectsEx(m_OverlayThreadCount, overlayCaptureStartEventHandles, TRUE, INFINITE, FALSE);
+		for (UINT i = 0; i < m_OverlayThreadCount; ++i)
+		{
+			if (overlayCaptureStartEventHandles[i])
+			{
+				CloseHandle(overlayCaptureStartEventHandles[i]);
+			}
+		}
+	}
+	if (m_CaptureThreadCount != 0) {
+		WaitForMultipleObjectsEx(m_CaptureThreadCount, captureStartEventHandles, TRUE, INFINITE, FALSE);
+		for (UINT i = 0; i < m_CaptureThreadCount; ++i)
+		{
+			if (captureStartEventHandles[i])
+			{
+				CloseHandle(captureStartEventHandles[i]);
+			}
+		}
+	}
+
 	m_IsCapturing = true;
 	return hr;
 }
 
 HRESULT ScreenCaptureManager::StopCapture()
 {
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
+	LOG_TRACE("Stopping capture threads");
 	if (!SetEvent(m_TerminateThreadsEvent)) {
-		LOG_ERROR("Could not terminate capture thread");
+		LOG_ERROR("Could not terminate capture threads");
 		return E_FAIL;
 	}
 	WaitForThreadTermination();
@@ -193,7 +242,7 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout
 		}
 
 		pFrame->Frame = pDesktopFrame;
-		pFrame->PtrInfo = &m_PtrInfo;
+		pFrame->PtrInfo = m_PtrInfo;
 		pFrame->FrameUpdateCount = updatedFrameCount;
 		pFrame->OverlayUpdateCount = updatedOverlaysCount;
 	}
@@ -205,6 +254,8 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout
 //
 void ScreenCaptureManager::Clean()
 {
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 	if (m_SharedSurf) {
 		m_SharedSurf->Release();
 		m_SharedSurf = nullptr;
@@ -289,12 +340,12 @@ void ScreenCaptureManager::Clean()
 //
 void ScreenCaptureManager::WaitForThreadTermination()
 {
-	if (m_OverlayThreadCount != 0)
-	{
-		WaitForMultipleObjectsEx(m_OverlayThreadCount, m_OverlayThreadHandles, TRUE, INFINITE, FALSE);
+	LOG_TRACE("Waiting for capture thread termination..");
+	if (m_OverlayThreadCount != 0) {
+		WaitForMultipleObjects(m_OverlayThreadCount, m_OverlayThreadHandles, TRUE, INFINITE);
 	}
 	if (m_CaptureThreadCount != 0) {
-		WaitForMultipleObjectsEx(m_CaptureThreadCount, m_CaptureThreadHandles, TRUE, INFINITE, FALSE);
+		WaitForMultipleObjects(m_CaptureThreadCount, m_CaptureThreadHandles, TRUE, INFINITE);
 	}
 }
 
@@ -590,10 +641,10 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			}
 			case RecordingSourceType::Display: {
 				if (pSource->SourceApi == RecordingSourceApi::DesktopDuplication) {
-					pRecordingSourceCapture = make_unique<DesktopDuplicationCapture>(pSource->IsCursorCaptureEnabled.value_or(false));
+					pRecordingSourceCapture = make_unique<DesktopDuplicationCapture>();
 				}
 				else if (pSource->SourceApi == RecordingSourceApi::WindowsGraphicsCapture) {
-					pRecordingSourceCapture = make_unique<WindowsGraphicsCapture>(pSource->IsCursorCaptureEnabled.value_or(false));
+					pRecordingSourceCapture = make_unique<WindowsGraphicsCapture>();
 				}
 				break;
 			}
@@ -619,7 +670,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			default:
 				break;
 		}
-
+		SetEvent(pData->StartedEvent);
 		hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 		if (FAILED(hr)) {
 			goto Exit;
@@ -647,10 +698,9 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 
 		// Make duplication
 		hr = pRecordingSourceCapture->Initialize(pSourceData->DxRes.Context, pSourceData->DxRes.Device);
-
 		if (FAILED(hr))
 		{
-			LOG_ERROR(L"Failed to initialize recording source");
+			LOG_ERROR(L"Failed to initialize recording source %ls", pRecordingSourceCapture->Name().c_str());
 			goto Exit;
 		}
 		hr = pRecordingSourceCapture->StartCapture(*pSource);
@@ -724,42 +774,44 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				LOG_ERROR(L"Unexpected error acquiring KeyMutex");
 				break;
 			}
-			{
-				MeasureExecutionTime measureLock(string_format(L"CaptureThreadProc sync lock for %ls", pRecordingSourceCapture->Name().c_str()));
-				ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
+			MeasureExecutionTime measureLock(string_format(L"CaptureThreadProc sync lock for %ls", pRecordingSourceCapture->Name().c_str()));
+			ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
 
-				// We can now process the current frame
-				if (WaitToProcessCurrentFrame) {
-					WaitToProcessCurrentFrame = false;
-					LONGLONG waitTimeMillis = duration_cast<milliseconds>(chrono::steady_clock::now() - WaitForFrameBegin).count();
-					LOG_TRACE(L"CaptureThreadProc waited for busy shared surface for %lld ms", waitTimeMillis);
-				}
-				if (pSource->IsCursorCaptureEnabled.value_or(false)) {
-					// Get mouse info
-					hr = pRecordingSourceCapture->GetMouse(pData->PtrInfo, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-					if (FAILED(hr)) {
-						LOG_ERROR("Failed to get mouse data");
-					}
-				}
-				if (pSource->IsVideoCaptureEnabled.value_or(true)) {
-					if (IsSharedSurfaceDirty) {
-						//The screen has been blacked out, so we restore a full frame to the shared surface before starting to apply updates.
-						RECT offsetFrameCoordinates = pSourceData->FrameCoordinates;
-						OffsetRect(&offsetFrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-						hr = textureManager.DrawTexture(SharedSurf, pFrame, offsetFrameCoordinates);
-						IsSharedSurfaceDirty = false;
-					}
-
-					hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates);
-				}
-				else {
-					hr = textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-					if (SUCCEEDED(hr)) {
-						IsCapturingVideo = false;
-					}
-				}
-
+			// We can now process the current frame
+			if (WaitToProcessCurrentFrame) {
+				WaitToProcessCurrentFrame = false;
+				LONGLONG waitTimeMillis = duration_cast<milliseconds>(chrono::steady_clock::now() - WaitForFrameBegin).count();
+				LOG_TRACE(L"CaptureThreadProc waited for busy shared surface for %lld ms", waitTimeMillis);
 			}
+			if (pSource->IsCursorCaptureEnabled.value_or(true)) {
+				// Get mouse info
+				hr = pRecordingSourceCapture->GetMouse(pData->PtrInfo, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+				if (FAILED(hr)) {
+					LOG_ERROR("Failed to get mouse data");
+				}
+			}
+			else if (pData->PtrInfo) {
+				pData->PtrInfo->Visible = false;
+			}
+
+			if (pSource->IsVideoCaptureEnabled.value_or(true)) {
+				if (IsSharedSurfaceDirty) {
+					//The screen has been blacked out, so we restore a full frame to the shared surface before starting to apply updates.
+					RECT offsetFrameCoordinates = pSourceData->FrameCoordinates;
+					OffsetRect(&offsetFrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+					hr = textureManager.DrawTexture(SharedSurf, pFrame, offsetFrameCoordinates);
+					IsSharedSurfaceDirty = false;
+				}
+
+				hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates);
+			}
+			else {
+				hr = textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+				if (SUCCEEDED(hr)) {
+					IsCapturingVideo = false;
+				}
+			}
+
 			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 				continue;
 			}
@@ -846,7 +898,7 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 		default:
 			break;
 	}
-
+	SetEvent(pData->StartedEvent);
 	hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 	if (FAILED(hr)) {
 		goto Exit;

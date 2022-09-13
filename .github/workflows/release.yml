@@ -23,22 +23,31 @@ jobs:
     - uses: microsoft/setup-msbuild@v1
     - run: nuget restore ${{ env.SOLUTION_NAME }}.sln
     - run: msbuild /m '/p:Configuration=Release;Platform="${{ matrix.platform }}"' ${{ env.SOLUTION_NAME }}.sln
-    - name: Archive Release ${{ matrix.platform }}
-      uses: thedoctor0/zip-release@master
+    
+    - uses: actions/upload-artifact@v3
       with:
-        type: 'zip'
+        name: ScreenRecorderLib.${{matrix.platform}}
         path: ${{ env.PROJECT_NAME }}\bin\${{ matrix.platform }}\Release\ScreenRecorderLib.dll
-        filename: ScreenRecorderLib.${{matrix.platform}}.zip
-        exclusions: '*.pdg *.metagen *.xml'
+        
   release:
       name: Upload Release
       runs-on: windows-2019
       needs : build
       steps:
+        - uses: actions/download-artifact@v3
+          with:
+            name: ScreenRecorderLib.x86
+            path: ScreenRecorderLib.x86.zip
+        - uses: actions/download-artifact@v3
+          with:
+            name: ScreenRecorderLib.x64
+            path: ScreenRecorderLib.x64.zip
+        - name: Display structure of downloaded files
+          run: ls -R
         - uses: marvinpinto/action-automatic-releases@latest
           with:
             repo_token: "${{ secrets.GITHUB_TOKEN }}"
             prerelease: false
             files: |
-              LICENSE.txt
-              *.zip
+              .\${{ env.PROJECT_NAME }}\ScreenRecorderLib.x86.zip
+              .\${{ env.PROJECT_NAME }}\ScreenRecorderLib.x64.zip

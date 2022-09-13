@@ -1025,7 +1025,7 @@ namespace ScreenRecorderLib
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
             {
-                using (var rec = Recorder.CreateRecorder(new RecorderOptions { VideoEncoderOptions = new VideoEncoderOptions { Encoder = encoder} }))
+                using (var rec = Recorder.CreateRecorder(new RecorderOptions { VideoEncoderOptions = new VideoEncoderOptions { Encoder = encoder } }))
                 {
                     string error = "";
                     bool isError = false;
@@ -1538,6 +1538,69 @@ namespace ScreenRecorderLib
                     };
                     rec.Record(filePath);
                     recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
+                    rec.Stop();
+                    finalizeResetEvent.WaitOne(5000);
+
+                    Assert.IsFalse(isError, error);
+                    Assert.IsTrue(isComplete);
+                    Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+            }
+        }
+        [TestMethod]
+        public void DynamicOptions()
+        {
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
+            {
+                RecorderOptions options = new RecorderOptions
+                {
+                    SourceOptions = new SourceOptions
+                    {
+                        RecordingSources = { { DisplayRecordingSource.MainMonitor } }
+                    }
+                };
+                using (var rec = Recorder.CreateRecorder(options))
+                {
+                    string error = "";
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        finalizeResetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        error = args.Error;
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
+                    };
+                    rec.OnStatusChanged += (s, args) =>
+                    {
+
+                    };
+                    rec.Record(filePath);
+                    Thread.Sleep(100);
+                    rec?.GetDynamicOptionsBuilder()
+                        .SetVideoCaptureEnabledForRecordingSource(DisplayRecordingSource.MainMonitor.ID, false)
+                        .SetCursorCaptureForRecordingSource(DisplayRecordingSource.MainMonitor.ID, false)
+                        .SetSourceRectForRecordingSource(DisplayRecordingSource.MainMonitor.ID, new ScreenRect(0, 0, 500, 500))
+                        .SetDynamicOutputOptions(new DynamicOutputOptions { IsVideoCaptureEnabled = false })
+                        .SetDynamicAudioOptions(new DynamicAudioOptions { IsOutputDeviceEnabled = false })
+                        .SetDynamicMouseOptions(new DynamicMouseOptions { IsMousePointerEnabled = false })
+                        .Apply();
+                    recordingResetEvent.WaitOne(500);
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
 

@@ -9,7 +9,7 @@ typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_m
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
 typedef void(__stdcall *CallbackErrorFunction)(std::wstring, std::wstring);
 typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
-typedef void(__stdcall *CallbackFrameNumberChangedFunction)(int);
+typedef void(__stdcall *CallbackFrameNumberChangedFunction)(int, INT64);
 
 #define STATUS_IDLE 0
 #define STATUS_RECORDING 1
@@ -40,9 +40,16 @@ public:
 
 	static bool SetExcludeFromCapture(HWND hwnd, bool isExcluded);
 
-	inline void SetRecordingSources(std::vector<RECORDING_SOURCE> sources) 
-	{
+	inline void ClearRecordingSources() {
+		for each (RECORDING_SOURCE * source in m_RecordingSources)
+		{
+			delete source;
+		}
 		m_RecordingSources.clear();
+	}
+	inline void SetRecordingSources(std::vector<RECORDING_SOURCE> sources)
+	{
+		ClearRecordingSources();
 		for each (RECORDING_SOURCE source in sources)
 		{
 			m_RecordingSources.push_back(new RECORDING_SOURCE(source));
@@ -51,9 +58,15 @@ public:
 	inline std::vector<RECORDING_SOURCE *> GetRecordingSources() {
 		return m_RecordingSources;
 	}
-
-	inline void SetOverlays(std::vector<RECORDING_OVERLAY> overlays) {
+	inline void ClearOverlays() {
+		for each (RECORDING_OVERLAY * overlay in m_Overlays)
+		{
+			delete overlay;
+		}
 		m_Overlays.clear();
+	}
+	inline void SetOverlays(std::vector<RECORDING_OVERLAY> overlays) {
+		ClearOverlays();
 		for each (RECORDING_OVERLAY overlay in overlays)
 		{
 			m_Overlays.push_back(new RECORDING_OVERLAY(overlay));
@@ -93,8 +106,8 @@ private:
 	std::wstring m_OutputFullPath = L"";
 	INT64 m_MaxFrameLength100Nanos = MillisToHundredNanos(500); //500 milliseconds in 100 nanoseconds measure.
 
-	std::vector<RECORDING_SOURCE*> m_RecordingSources;
-	std::vector<RECORDING_OVERLAY*> m_Overlays;
+	std::vector<RECORDING_SOURCE *> m_RecordingSources;
+	std::vector<RECORDING_OVERLAY *> m_Overlays;
 	bool m_IsPaused = false;
 	bool m_IsRecording = false;
 
@@ -106,7 +119,7 @@ private:
 
 	bool CheckDependencies(_Out_ std::wstring *error);
 	HRESULT ConfigureOutputDir(_In_ std::wstring path);
-	REC_RESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE*> &sources, _In_ const std::vector<RECORDING_OVERLAY*> &overlays, _In_opt_ IStream *pStream);
+	REC_RESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_opt_ IStream *pStream);
 
 	/// <summary>
 	/// Creates adjusted source and output rects from a recording frame rect. The source rect is normalized to start on [0,0], and the output is adjusted for any cropping.
@@ -133,7 +146,7 @@ private:
 	/// <param name="videoInputFrameRect">The source rectangle. The texture will be cropped to these coordinates if larger.</param>
 	/// <param name="videoOutputFrameSize">The output dimensions. The texture will be resized to these coordinates if differing.</param>
 	/// <returns>S_OK if any processing has been done, S_FALSE if no changes, else an error code</returns>
-	HRESULT ProcessTextureTransforms(_In_ ID3D11Texture2D *pTexture,_Out_ ID3D11Texture2D **ppProcessedTexture, RECT videoInputFrameRect, SIZE videoOutputFrameSize);
+	HRESULT ProcessTextureTransforms(_In_ ID3D11Texture2D *pTexture, _Out_ ID3D11Texture2D **ppProcessedTexture, RECT videoInputFrameRect, SIZE videoOutputFrameSize);
 
 	/// <summary>
 	/// Releases DirectX resources and reports any leaks

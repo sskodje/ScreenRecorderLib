@@ -21,7 +21,7 @@ delegate void InternalStatusCallbackDelegate(int status);
 delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fifo_map<std::wstring, int>);
 delegate void InternalErrorCallbackDelegate(std::wstring error, std::wstring path);
 delegate void InternalSnapshotCallbackDelegate(std::wstring path);
-delegate void InternalFrameNumberCallbackDelegate(int newFrameNumber);
+delegate void InternalFrameNumberCallbackDelegate(int newFrameNumber, INT64 timestamp);
 
 namespace ScreenRecorderLib {
 
@@ -65,7 +65,7 @@ namespace ScreenRecorderLib {
 		void EventFailed(std::wstring error, std::wstring path);
 		void EventStatusChanged(int status);
 		void EventSnapshotCreated(std::wstring str);
-		void FrameNumberChanged(int newFrameNumber);
+		void FrameNumberChanged(int newFrameNumber, INT64 timestamp);
 		void SetupCallbacks();
 		void ClearCallbacks();
 		static HRESULT CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Out_ RECORDING_SOURCE* pNativeSource);
@@ -169,10 +169,23 @@ namespace ScreenRecorderLib {
 		/// <param name="isCursorCaptureEnabled"></param>
 		/// <returns></returns>
 		DynamicOptionsBuilder^ SetCursorCaptureForRecordingSource(String^ recordingSourceID, bool isCursorCaptureEnabled) {
-			if (!_options->SourceRects) {
-				_options->SourceRects = gcnew Dictionary<String^, ScreenRect^>();
+			if (!_options->SourceCursorCaptures) {
+				_options->SourceCursorCaptures = gcnew Dictionary<String^, bool>();
 			}
 			_options->SourceCursorCaptures[recordingSourceID] = isCursorCaptureEnabled;
+			return this;
+		}
+		/// <summary>
+		/// Enable or disable mouse cursor capture for the recording overlay with the given ID.
+		/// </summary>
+		/// <param name="recordingSourceID">ID for a recording source in progress</param>
+		/// <param name="isCursorCaptureEnabled"></param>
+		/// <returns></returns>
+		DynamicOptionsBuilder^ SetCursorCaptureForOverlay(String^ recordingSourceID, bool isCursorCaptureEnabled) {
+			if (!_options->OverlayCursorCaptures) {
+				_options->OverlayCursorCaptures = gcnew Dictionary<String^, bool>();
+			}
+			_options->OverlayCursorCaptures[recordingSourceID] = isCursorCaptureEnabled;
 			return this;
 		}
 		/// <summary>

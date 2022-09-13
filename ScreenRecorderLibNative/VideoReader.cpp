@@ -38,13 +38,18 @@ HRESULT VideoReader::InitializeSourceReader(
 	//Allocate attributes
 	if (SUCCEEDED(hr))
 		hr = MFCreateAttributes(&pAttributes, 2);
-	//get attributes
-	if (SUCCEEDED(hr))
-		hr = pAttributes->SetUINT32(MF_READWRITE_DISABLE_CONVERTERS, FALSE);
+
 	// Set the callback pointer.
 	if (SUCCEEDED(hr))
 		hr = pAttributes->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK, this);
-	//Create the source reader
+	//Enable hardware transforms
+	if (SUCCEEDED(hr)) {
+		hr = pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, true);
+	}
+	// Add device manager to attributes. This enables hardware decoding.
+	if (SUCCEEDED(hr)) {
+		hr = pAttributes->SetUnknown(MF_SOURCE_READER_D3D_MANAGER, GetDeviceManager());
+	}
 	if (SUCCEEDED(hr))
 		hr = MFCreateSourceReaderFromURL(filePath.c_str(), pAttributes, &pSourceReader);
 	bool noMoreMedia = false;
@@ -124,6 +129,15 @@ HRESULT VideoReader::InitializeSourceReader(
 						(*ppSourceReader)->AddRef();
 					}
 					if (ppMediaTransform) {
+						CComPtr<IMFAttributes> pTransformAttributes;
+						if (pMediaTransform && SUCCEEDED(pMediaTransform->GetAttributes(&pTransformAttributes))) {
+							UINT32 d3d11Aware = 0;
+							pTransformAttributes->GetUINT32(MF_SA_D3D11_AWARE, &d3d11Aware);
+							if (d3d11Aware > 0) {
+								HRESULT hr = pMediaTransform->ProcessMessage(MFT_MESSAGE_SET_D3D_MANAGER, reinterpret_cast<ULONG_PTR>(GetDeviceManager()));
+								LOG_ON_BAD_HR(hr);
+							}
+						}
 						*ppMediaTransform = pMediaTransform;
 						(*ppMediaTransform)->AddRef();
 					}

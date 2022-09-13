@@ -44,7 +44,7 @@ std::wstring GetWindowText(HWND hwnd)
 	return title;
 }
 
-bool IsAltTabWindow(Window const& window)
+bool IsRecordableWindow(Window const& window)
 {
 	HWND hwnd = window.Hwnd();
 	HWND shellWindow = GetShellWindow();
@@ -77,17 +77,7 @@ bool IsAltTabWindow(Window const& window)
 	{
 		return false;
 	}
-	TITLEBARINFO info{};
-	info.cbSize = sizeof(TITLEBARINFO);
-	GetTitleBarInfo(hwnd, &info);
-	if ((info.rgstate[0] & STATE_SYSTEM_INVISIBLE) == STATE_SYSTEM_INVISIBLE)
-		return false;
 
-	if ((info.rgstate[0] & STATE_SYSTEM_UNAVAILABLE) == STATE_SYSTEM_UNAVAILABLE)
-		return false;
-
-	if ((info.rgstate[0] & STATE_SYSTEM_OFFSCREEN) == STATE_SYSTEM_OFFSCREEN)
-		return false;
 	DWORD cloaked = FALSE;
 	HRESULT hrTemp = DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, &cloaked, sizeof(cloaked));
 	if (SUCCEEDED(hrTemp) &&
@@ -106,14 +96,11 @@ BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam)
 
 	auto window = Window(hwnd, title, class_name);
 
-	if (!IsAltTabWindow(window))
+	if (IsRecordableWindow(window))
 	{
-		return TRUE;
+		std::vector<Window>& windows = *reinterpret_cast<std::vector<Window>*>(lParam);
+		windows.push_back(window);
 	}
-
-	std::vector<Window>& windows = *reinterpret_cast<std::vector<Window>*>(lParam);
-	windows.push_back(window);
-
 	return TRUE;
 }
 

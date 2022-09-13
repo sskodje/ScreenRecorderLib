@@ -24,6 +24,7 @@ namespace TestApp
     {
         private Recorder _rec;
         private DispatcherTimer _progressTimer;
+        private readonly List<long> _recordedFrameTimes = new List<long>();
         private DateTimeOffset? _recordingStartTime = null;
         private DateTimeOffset? _recordingPauseTime = null;
         private Stream _outputStream;
@@ -183,6 +184,35 @@ namespace TestApp
             }
         }
 
+        private double _averageFrameRate;
+        public double AverageFrameRate
+        {
+            get { return _averageFrameRate; }
+            set
+            {
+                if (_averageFrameRate != value)
+                {
+                    _averageFrameRate = value;
+                    RaisePropertyChanged(nameof(AverageFrameRate));
+                }
+            }
+        }
+
+        private double _currentFrameRate;
+        public double CurrentFrameRate
+        {
+            get { return _currentFrameRate; }
+            set
+            {
+                if (_currentFrameRate != value)
+                {
+                    _currentFrameRate = value;
+                    RaisePropertyChanged(nameof(CurrentFrameRate));
+                }
+            }
+        }
+
+
         public H264Profile CurrentH264Profile { get; set; } = H264Profile.High;
         public H265Profile CurrentH265Profile { get; set; } = H265Profile.Main;
 
@@ -190,31 +220,13 @@ namespace TestApp
         {
             InitializeComponent();
             InitializeDefaultRecorderOptions();
+            InitializeDefaultOverlays();
+            RefreshCaptureTargetItems();
             this.PropertyChanged += MainWindow_PropertyChanged;
             RecorderOptions.SnapshotOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.AudioOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.MouseOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.OutputOptions.PropertyChanged += RecorderOptions_PropertyChanged;
-            RecordingSources.CollectionChanged += (s, args) =>
-            {
-                if (args.NewItems != null)
-                {
-                    foreach (RecordingSourceBase source in args.NewItems)
-                    {
-                        source.PropertyChanged += RecordingSource_PropertyChanged;
-                    }
-                }
-                if (args.OldItems != null)
-                {
-                    foreach (RecordingSourceBase source in args.OldItems)
-                    {
-                        source.PropertyChanged -= RecordingSource_PropertyChanged;
-                    }
-                }
-            };
-
-            InitializeDefaultOverlays();
-            RefreshCaptureTargetItems();
         }
 
         private void MainWindow_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -252,11 +264,50 @@ namespace TestApp
                         }
                         break;
                     }
+                case nameof(DisplayRecordingSource.IsCursorCaptureEnabled):
+                    {
+                        if (sender is DisplayRecordingSource)
+                        {
+                            _rec?.GetDynamicOptionsBuilder()
+                                    .SetCursorCaptureForRecordingSource(((RecordingSourceBase)sender).ID, ((DisplayRecordingSource)sender).IsCursorCaptureEnabled)
+                                    .Apply();
+                        }
+                        else if (sender is WindowRecordingSource)
+                        {
+                            _rec?.GetDynamicOptionsBuilder()
+                                    .SetCursorCaptureForRecordingSource(((RecordingSourceBase)sender).ID, ((WindowRecordingSource)sender).IsCursorCaptureEnabled)
+                                    .Apply();
+                        }
+                        break;
+                    }
                 default:
                     break;
             }
         }
-
+        private void Overlay_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            switch (e.PropertyName)
+            {
+                case nameof(DisplayRecordingSource.IsCursorCaptureEnabled):
+                    {
+                        if (sender is DisplayOverlay)
+                        {
+                            _rec?.GetDynamicOptionsBuilder()
+                                    .SetCursorCaptureForOverlay(((DisplayOverlay)sender).ID, ((DisplayOverlay)sender).IsCursorCaptureEnabled)
+                                    .Apply();
+                        }
+                        else if (sender is DisplayOverlay)
+                        {
+                            _rec?.GetDynamicOptionsBuilder()
+                                    .SetCursorCaptureForOverlay(((DisplayOverlay)sender).ID, ((DisplayOverlay)sender).IsCursorCaptureEnabled)
+                                    .Apply();
+                        }
+                        break;
+                    }
+                default:
+                    break;
+            }
+        }
         private void RecorderOptions_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             switch (e.PropertyName)
@@ -358,7 +409,6 @@ namespace TestApp
                     AnchorPoint = Anchor.TopLeft,
                     Offset = new ScreenSize(100, 100),
                     Size = new ScreenSize(0, 250)
-
                 },
                 IsEnabled = true
             });
@@ -402,7 +452,8 @@ namespace TestApp
                 {
                     AnchorPoint = Anchor.TopLeft,
                     Offset = new ScreenSize(400, 100),
-                    Size = new ScreenSize(300, 0)
+                    Size = new ScreenSize(300, 0),
+                    DeviceName = DisplayRecordingSource.MainMonitor.DeviceName
                 },
                 IsEnabled = false
             });
@@ -416,6 +467,10 @@ namespace TestApp
                 },
                 IsEnabled = false
             });
+            foreach (var overlayModel in Overlays)
+            {
+                overlayModel.Overlay.PropertyChanged += Overlay_PropertyChanged;
+            }
         }
 
         protected void RaisePropertyChanged(string propertyName)
@@ -513,6 +568,7 @@ namespace TestApp
             Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
             {
                 CurrentFrameNumber = e.FrameNumber;
+                _recordedFrameTimes.Add(e.Timestamp);
             }));
         }
 
@@ -670,9 +726,7 @@ namespace TestApp
                     case RecorderStatus.Recording:
                         _recordingStartTime = DateTimeOffset.Now;
                         PauseButton.Visibility = Visibility.Visible;
-                        this.FrameNumberTextBlock.Visibility = Visibility.Visible;
-                        if (_progressTimer != null)
-                            _progressTimer.IsEnabled = true;
+                        this.FrameNumberPanel.Visibility = Visibility.Visible;
                         if (_recordingPauseTime != null)
                         {
                             _recordingStartTime = _recordingStartTime.Value.AddTicks((DateTimeOffset.Now.Subtract(_recordingPauseTime.Value)).Ticks);
@@ -691,8 +745,7 @@ namespace TestApp
                         _progressTimer.Start();
                         break;
                     case RecorderStatus.Paused:
-                        if (_progressTimer != null)
-                            _progressTimer.IsEnabled = false;
+                        _progressTimer?.Stop();
                         _recordingPauseTime = DateTimeOffset.Now;
                         PauseButton.Content = "Resume";
                         this.StatusTextBlock.Text = "Paused";
@@ -710,6 +763,13 @@ namespace TestApp
         private void ProgressTimer_Tick(object sender, EventArgs e)
         {
             UpdateProgress();
+            if (_recordedFrameTimes.Count > 0)
+            {
+                AverageFrameRate = CurrentFrameNumber / DateTimeOffset.FromUnixTimeMilliseconds(_recordedFrameTimes.Last()).Subtract(_recordingStartTime.Value).TotalSeconds;
+                _recordedFrameTimes.RemoveRange(0, Math.Max(0, _recordedFrameTimes.Count - 10));
+                double intervalMillis = (double)(_recordedFrameTimes.Last() - _recordedFrameTimes.First());
+                CurrentFrameRate = (_recordedFrameTimes.Count-1) / (double)intervalMillis * 1000;
+            }
         }
         private void UpdateProgress()
         {
@@ -896,6 +956,7 @@ namespace TestApp
                 VideoCaptureDevices.Add(device);
             }
             (this.Resources["MediaDeviceToDeviceIdConverter"] as MediaDeviceToDeviceIdConverter).MediaDevices = VideoCaptureDevices.ToList();
+            ((VideoCaptureOverlay)Overlays.FirstOrDefault(x => x.Overlay is VideoCaptureOverlay).Overlay).DeviceName = VideoCaptureDevices.First().DeviceName;
         }
 
         private void RefreshSourceComboBox()
@@ -940,6 +1001,7 @@ namespace TestApp
                     size = new ScreenSize();
                 }
                 source.UpdateScreenCoordinates(position, size);
+                source.PropertyChanged += RecordingSource_PropertyChanged;
             }
             RefreshWindowSizeAndAvailability();
 
@@ -1068,7 +1130,7 @@ namespace TestApp
         }
         private void WindowsViewSource_Filter(object sender, FilterEventArgs e)
         {
-            e.Accepted = e.Item is RecordableWindow window && window.IsValidWindow() && !window.IsMinmimized();
+            e.Accepted = e.Item is RecordableWindow window && window.IsValidWindow();
         }
         private void MainWin_Activated(object sender, EventArgs e)
         {

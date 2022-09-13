@@ -227,7 +227,6 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 			}
 		}
 	}
-
 	if (options->SourceCursorCaptures) {
 		for each (KeyValuePair<String^, bool> ^ kvp in options->SourceCursorCaptures)
 		{
@@ -236,6 +235,19 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 			{
 				if (nativeSource->ID == id) {
 					nativeSource->IsCursorCaptureEnabled = kvp->Value;
+					break;
+				}
+			}
+		}
+	}
+	if (options->OverlayCursorCaptures) {
+		for each (KeyValuePair<String^, bool> ^ kvp in options->OverlayCursorCaptures)
+		{
+			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
+			for each (RECORDING_OVERLAY * nativeOverlay in m_Rec->GetRecordingOverlays())
+			{
+				if (nativeOverlay->ID == id) {
+					nativeOverlay->IsCursorCaptureEnabled = kvp->Value;
 					break;
 				}
 			}
@@ -713,6 +725,7 @@ HRESULT Recorder::CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ manage
 		nativeOverlay.Type = RecordingSourceType::Display;
 		if (!String::IsNullOrEmpty(displayOverlay->DeviceName)) {
 			nativeOverlay.SourcePath = msclr::interop::marshal_as<std::wstring>(displayOverlay->DeviceName);
+			nativeOverlay.IsCursorCaptureEnabled = displayOverlay->IsCursorCaptureEnabled;
 			hr = S_OK;
 		}
 	}
@@ -723,6 +736,7 @@ HRESULT Recorder::CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ manage
 			HWND windowHandle = (HWND)(windowOverlay->Handle.ToPointer());
 			if (!IsIconic(windowHandle) && IsWindow(windowHandle)) {
 				nativeOverlay.SourceWindow = windowHandle;
+				nativeOverlay.IsCursorCaptureEnabled = windowOverlay->IsCursorCaptureEnabled;
 				hr = S_OK;
 			}
 		}
@@ -844,8 +858,8 @@ void ScreenRecorderLib::Recorder::EventSnapshotCreated(std::wstring str)
 	OnSnapshotSaved(this, gcnew SnapshotSavedEventArgs(gcnew String(str.c_str())));
 }
 
-void Recorder::FrameNumberChanged(int newFrameNumber)
+void Recorder::FrameNumberChanged(int newFrameNumber, INT64 timestamp)
 {
-	OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber));
+	OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber,timestamp));
 	CurrentFrameNumber = newFrameNumber;
 }

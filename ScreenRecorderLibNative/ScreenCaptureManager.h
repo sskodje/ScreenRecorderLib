@@ -43,9 +43,8 @@ protected:
 private:
 	bool m_IsCapturing;
 	HANDLE m_TerminateThreadsEvent;
-
+	CRITICAL_SECTION m_CriticalSection;
 	std::shared_ptr<OUTPUT_OPTIONS> m_OutputOptions;
-
 	std::unique_ptr<TextureManager> m_TextureManager;
 
 	UINT m_CaptureThreadCount;

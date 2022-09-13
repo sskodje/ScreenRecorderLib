@@ -104,14 +104,8 @@ RecordingManager::~RecordingManager()
 		m_TaskWrapperImpl->m_RecordTask.wait();
 		LOG_DEBUG("Wait for recording task completed.");
 	}
-	for each (RECORDING_SOURCE * source in m_RecordingSources)
-	{
-		delete source;
-	}
-	for each (RECORDING_OVERLAY * overlay in m_Overlays)
-	{
-		delete overlay;
-	}
+	ClearRecordingSources();
+	ClearOverlays();
 	CleanDx(&m_DxResources);
 	MFShutdown();
 	LOG_INFO(L"Media Foundation shut down");
@@ -319,7 +313,7 @@ void RecordingManager::CleanupDxResources()
 #if _DEBUG
 	if (m_DxResources.Debug) {
 		m_DxDebugMutex.lock();
-		m_DxResources.Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL| D3D11_RLDO_IGNORE_INTERNAL);
+		m_DxResources.Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL | D3D11_RLDO_IGNORE_INTERNAL);
 		m_DxDebugMutex.unlock();
 		SafeRelease(&m_DxResources.Debug);
 	}
@@ -383,7 +377,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 {
 	CComPtr<ID3D11Texture2D> pPreviousFrameCopy = nullptr;
 	CComPtr<ID3D11Texture2D> pCurrentFrameCopy = nullptr;
-	PTR_INFO *pPtrInfo{};
+	std::optional<PTR_INFO> pPtrInfo = std::nullopt;
 	unique_ptr<ScreenCaptureManager> pCapture = make_unique<ScreenCaptureManager>();
 	HRESULT hr = pCapture->Initialize(m_DxResources.Context, m_DxResources.Device, GetOutputOptions());
 	RETURN_RESULT_ON_BAD_HR(hr, L"Failed to initialize ScreenCaptureManager");
@@ -470,7 +464,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	auto PrepareAndRenderFrame([&](CComPtr<ID3D11Texture2D> pTextureToRender, INT64 duration100Nanos)->HRESULT {
 		HRESULT renderHr = E_FAIL;
 		if (pPtrInfo) {
-			renderHr = pMouseManager->ProcessMousePointer(pTextureToRender, pPtrInfo);
+			renderHr = pMouseManager->ProcessMousePointer(pTextureToRender, &pPtrInfo.value());
 			if (FAILED(renderHr)) {
 				_com_error err(renderHr);
 				LOG_ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
@@ -508,7 +502,8 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		RETURN_ON_BAD_HR(renderHr = m_EncoderResult = m_OutputManager->RenderFrame(model));
 		frameNr++;
 		if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
-			RecordingFrameNumberChangedCallback(frameNr);
+			INT64 timestamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+			RecordingFrameNumberChangedCallback(frameNr, timestamp);
 		}
 		havePrematureFrame = false;
 		lastFrameStartPos100Nanos += duration100Nanos;
@@ -574,7 +569,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 							ResetEvent(ErrorEvent);
 							hr = pCapture->StartCapture(sources, overlays, ErrorEvent);
 						}
-
+						pPtrInfo.reset();
 						if (FAILED(hr)) {
 							CAPTURE_RESULT captureResult{};
 							ProcessCaptureHRESULT(hr, &captureResult, m_DxResources.Device);
@@ -613,7 +608,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		if (SUCCEEDED(hr)) {
 			pCurrentFrameCopy.Attach(capturedFrame.Frame);
 			if (capturedFrame.PtrInfo) {
-				pPtrInfo = capturedFrame.PtrInfo;
+				pPtrInfo = capturedFrame.PtrInfo.value();
 			}
 		}
 
@@ -688,7 +683,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 
 		if (!pCurrentFrameCopy && !pPreviousFrameCopy) {
-			m_TextureManager->CreateTexture(videoOutputFrameSize.cx, videoOutputFrameSize.cy, &pCurrentFrameCopy, 0, D3D11_BIND_RENDER_TARGET);
+			m_TextureManager->CreateTexture(videoOutputFrameSize.cx, videoOutputFrameSize.cy, &pCurrentFrameCopy, 0, D3D11_BIND_RENDER_TARGET| D3D11_BIND_SHADER_RESOURCE);
 		}
 
 		lastFrame = steady_clock::now();
