@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
     <id>ScreenRecorderLib</id>
-    <version>5.1.3</version>
+    <version>5.1.4</version>
     <authors>Sverre Kristoffer Skodje</authors>
     <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
@@ -10,9 +10,10 @@
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to video or image files.</description>
     <summary />
     <releaseNotes>
-- Fixed issue where recording could stop if recording a window that went to/from fullscreen.
-- Mouse cursor settings is now working with both window recordings and overlays.
-- Fixed bug where monitor DPI scaling was not honored after triggering UAC screen in Windows.
+- Borderless windows are now recordable again.
+- Fixed issues that caused low framerates on high resolution recordings.
+- Fix for deadlocks that could happen when losing video output on e.g UAC prompts.
+- Check Github for full list of fixes.
     </releaseNotes>
     <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
     <language>en-GB</language>
