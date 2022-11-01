@@ -37,7 +37,7 @@ using namespace winrt::Windows::Graphics::Capture;
 #if _DEBUG
 static std::mutex m_DxDebugMutex{};
 bool isLoggingEnabled = true;
-int logSeverityLevel = LOG_LVL_DEBUG;
+int logSeverityLevel = LOG_LVL_TRACE;
 #else
 bool isLoggingEnabled = false;
 int logSeverityLevel = LOG_LVL_INFO;

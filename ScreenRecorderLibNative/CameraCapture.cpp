@@ -11,12 +11,14 @@ CameraCapture::~CameraCapture()
 
 HRESULT CameraCapture::InitializeSourceReader(
 	_In_ std::wstring source,
+	_In_ std::optional<long> sourceFormatIndex,
 	_Out_ long *pStreamIndex,
 	_Outptr_ IMFSourceReader **ppSourceReader,
 	_Outptr_ IMFMediaType **ppInputMediaType,
 	_Outptr_opt_ IMFMediaType **ppOutputMediaType,
 	_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform)
 {
+	MeasureExecutionTime measure(L"InitializeSourceReader");
 	if (ppSourceReader) {
 		*ppSourceReader = nullptr;
 	}
@@ -46,11 +48,14 @@ HRESULT CameraCapture::InitializeSourceReader(
 		MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE,
 		MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_GUID
 	));
-	//Enummerate the video capture devices
-	RETURN_ON_BAD_HR(hr = MFEnumDeviceSources(pAttributes, &ppDevices, &count));
-	if (count == 0) {
-		LOG_ERROR("No video capture devices found");
-		hr = E_FAIL;
+	{
+		MeasureExecutionTime measure(L"MFEnumDeviceSources");
+		//Enummerate the video capture devices
+		RETURN_ON_BAD_HR(hr = MFEnumDeviceSources(pAttributes, &ppDevices, &count));
+		if (count == 0) {
+			LOG_ERROR("No video capture devices found");
+			hr = E_FAIL;
+		}
 	}
 	// Try to find a suitable output type.
 	for (UINT32 i = 0; i < count; i++)
@@ -64,7 +69,11 @@ HRESULT CameraCapture::InitializeSourceReader(
 			continue;
 		}
 		m_DeviceSymbolicLink = std::wstring(symbolicLink);
-		CONTINUE_ON_BAD_HR(hr = InitializeMediaSource(pDevice, pStreamIndex, ppSourceReader, ppInputMediaType, ppOutputMediaType, ppMediaTransform));
+		LOG_TRACE(L"Try to activate media source");
+		CComPtr<IMFMediaSource> pSource = nullptr;
+		CONTINUE_ON_BAD_HR(hr = pDevice->ActivateObject(__uuidof(IMFMediaSource), (void **)&pSource));
+		LOG_TRACE(L"Try to initialize media source");
+		CONTINUE_ON_BAD_HR(hr = InitializeMediaSource(pSource, sourceFormatIndex, pStreamIndex, ppSourceReader, ppInputMediaType, ppOutputMediaType, ppMediaTransform));
 
 		WCHAR *nameString = NULL;
 		// Get the human-friendly name of the device
@@ -88,7 +97,8 @@ HRESULT CameraCapture::InitializeSourceReader(
 }
 
 HRESULT CameraCapture::InitializeMediaSource(
-	_In_ IMFActivate *pDevice,
+	_In_ CComPtr<IMFMediaSource> pSource,
+	_In_ std::optional<long> sourceFormatIndex,
 	_Out_ long *pStreamIndex,
 	_Outptr_ IMFSourceReader **ppSourceReader,
 	_Outptr_ IMFMediaType **ppInputMediaType,
@@ -96,16 +106,17 @@ HRESULT CameraCapture::InitializeMediaSource(
 	_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform
 )
 {
+	MeasureExecutionTime measure(L"InitializeMediaSource");
 	CComPtr<IMFSourceReader> pSourceReader = nullptr;
-	CComPtr<IMFMediaSource> pSource = nullptr;
 	CComPtr<IMFAttributes> pAttributes = nullptr;
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection);
-	HRESULT hr = pDevice->ActivateObject(__uuidof(IMFMediaSource), (void **)&pSource);
 
+	if (sourceFormatIndex.has_value()) {
+		SetDeviceFormat(pSource, sourceFormatIndex.value());
+	}
 	//Allocate attributes
-	if (SUCCEEDED(hr))
-		hr = MFCreateAttributes(&pAttributes, 2);
+	HRESULT hr = MFCreateAttributes(&pAttributes, 2);
 	//get attributes
 	if (SUCCEEDED(hr))
 		hr = pAttributes->SetUINT32(MF_READWRITE_DISABLE_CONVERTERS, TRUE);
@@ -121,7 +132,7 @@ HRESULT CameraCapture::InitializeMediaSource(
 	// Try to find a suitable output type.
 	if (SUCCEEDED(hr))
 	{
-		for (DWORD mediaTypeIndex = 0; ; mediaTypeIndex++)
+		for (DWORD mediaTypeIndex = sourceFormatIndex.value_or(0); ; mediaTypeIndex++)
 		{
 			for (DWORD streamIndex = 0; ; streamIndex++)
 			{
@@ -218,5 +229,46 @@ HRESULT CameraCapture::InitializeMediaSource(
 		}
 		Close();
 	}
+	return hr;
+}
+
+HRESULT CameraCapture::SetDeviceFormat(_In_ CComPtr<IMFMediaSource> pDevice, _In_ DWORD dwFormatIndex)
+{
+	IMFPresentationDescriptor *pPD = NULL;
+	IMFStreamDescriptor *pSD = NULL;
+	IMFMediaTypeHandler *pHandler = NULL;
+	IMFMediaType *pType = NULL;
+
+	HRESULT hr = pDevice->CreatePresentationDescriptor(&pPD);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	BOOL fSelected;
+	hr = pPD->GetStreamDescriptorByIndex(0, &fSelected, &pSD);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	hr = pSD->GetMediaTypeHandler(&pHandler);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+	hr = pHandler->GetMediaTypeByIndex(dwFormatIndex, &pType);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	hr = pHandler->SetCurrentMediaType(pType);
+
+done:
+	SafeRelease(&pPD);
+	SafeRelease(&pSD);
+	SafeRelease(&pHandler);
+	SafeRelease(&pType);
 	return hr;
 }

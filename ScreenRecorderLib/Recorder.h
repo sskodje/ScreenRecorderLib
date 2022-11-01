@@ -70,8 +70,10 @@ namespace ScreenRecorderLib {
 		void ClearCallbacks();
 		static HRESULT CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Out_ RECORDING_SOURCE* pNativeSource);
 		static HRESULT CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ managedOverlay, _Out_ RECORDING_OVERLAY* pNativeOverlay);
-		static std::vector<RECORDING_SOURCE> CreateRecordingSourceList(IEnumerable<RecordingSourceBase^>^ options);
-		static std::vector<RECORDING_OVERLAY> CreateOverlayList(IEnumerable<RecordingOverlayBase^>^ managedOverlays);
+		static List<VideoCaptureFormat^>^ CreateVideoCaptureFormatList(_In_ std::vector< IMFMediaType*> mediaTypes);
+		static std::vector<RECORDING_SOURCE> CreateRecordingSourceList(_In_ IEnumerable<RecordingSourceBase^>^ options);
+		static std::vector<RECORDING_OVERLAY> CreateOverlayList(_In_ IEnumerable<RecordingOverlayBase^>^ managedOverlays);
+		static Guid FromNativeGuid(_In_ const GUID& guid);
 
 		int _currentFrameNumber;
 		RecorderStatus _status;
@@ -91,20 +93,20 @@ namespace ScreenRecorderLib {
 			RecorderStatus get() {
 				return _status;
 			}
-		private:
-			void set(RecorderStatus value) {
-				_status = value;
-			}
+	private:
+		void set(RecorderStatus value) {
+			_status = value;
+		}
 		}
 
 		property int CurrentFrameNumber {
 			int get() {
 				return _currentFrameNumber;
 			}
-		private:
-			void set(int value) {
-				_currentFrameNumber = value;
-			}
+	private:
+		void set(int value) {
+			_currentFrameNumber = value;
+		}
 		}
 		void Record(System::String^ path);
 		void Record(System::Runtime::InteropServices::ComTypes::IStream^ stream);
@@ -127,6 +129,7 @@ namespace ScreenRecorderLib {
 		static List<RecordableCamera^>^ GetSystemVideoCaptureDevices();
 		static List<RecordableDisplay^>^ GetDisplays();
 		static OutputDimensions^ GetOutputDimensionsForRecordingSources(IEnumerable<RecordingSourceBase^>^ recordingSources);
+		static List<VideoCaptureFormat^>^ GetSupportedVideoCaptureFormatsForDevice(String^ DevicePath);
 		event EventHandler<RecordingCompleteEventArgs^>^ OnRecordingComplete;
 		event EventHandler<RecordingFailedEventArgs^>^ OnRecordingFailed;
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;

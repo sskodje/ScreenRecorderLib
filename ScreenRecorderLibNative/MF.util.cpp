@@ -1,5 +1,8 @@
 #include "MF.util.h"
 #include "Cleanup.h"
+#include <uuids.h>
+
+#pragma comment(lib, "strmiids.lib")
 HRESULT FindDecoderEx(const GUID &subtype, BOOL bAudio, IMFTransform **ppDecoder)
 {
 	HRESULT hr = S_OK;
@@ -154,9 +157,9 @@ HRESULT CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMedi
 	return hr;
 }
 
-HRESULT EnumVideoCaptureDevices(_Out_ std::map<std::wstring, std::wstring> *pDevices)
+HRESULT EnumVideoCaptureDevices(_Out_ std::vector<IMFActivate*> *pDevices)
 {
-	*pDevices = std::map<std::wstring, std::wstring>();
+	*pDevices = std::vector<IMFActivate *>();
 	HRESULT hr = S_OK;
 	CComPtr<IMFAttributes> pAttributes = nullptr;
 	UINT32 count = 0;
@@ -179,30 +182,10 @@ HRESULT EnumVideoCaptureDevices(_Out_ std::map<std::wstring, std::wstring> *pDev
 	// Try to find a suitable output type.
 	for (UINT32 i = 0; i < count; i++)
 	{
-		WCHAR *symbolicLink = NULL;
-		UINT32 cchSymbolicLink;
 		IMFActivate *pDevice = ppDevices[i];
-		hr = pDevice->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK, &symbolicLink, &cchSymbolicLink);
-		CoTaskMemFreeOnExit freeSymbolicLink(symbolicLink);
-		if (symbolicLink == NULL) {
-			continue;
-		}
 
-		WCHAR *nameString = NULL;
-		// Get the human-friendly name of the device
-		UINT32 cchName;
-		hr = pDevice->GetAllocatedString(
-			MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME,
-			&nameString, &cchName);
-
-		if (SUCCEEDED(hr) && nameString != NULL)
-		{
-			//allocate a byte buffer for the raw pixel data
-			std::wstring deviceName = std::wstring(nameString);
-			std::wstring deviceSymbolicLink = std::wstring(symbolicLink);
-			pDevices->insert(std::pair<std::wstring, std::wstring>(deviceSymbolicLink, deviceName));
-		}
-		CoTaskMemFree(nameString);
+			pDevice->AddRef();
+			pDevices->push_back(pDevice);
 	}
 	return hr;
 }
@@ -253,4 +236,129 @@ HRESULT CopyMediaType(_In_ IMFMediaType *pType, _Outptr_ IMFMediaType **ppType)
 	}
 
 	return hr;
+}
+
+HRESULT EnumerateCaptureFormats(_In_ IMFMediaSource *pSource, _Out_ std::vector<IMFMediaType*> *pMediaTypes)
+{
+	MeasureExecutionTime measure(L"EnumerateCaptureFormats");
+	IMFPresentationDescriptor *pPD = NULL;
+	IMFStreamDescriptor *pSD = NULL;
+	IMFMediaTypeHandler *pHandler = NULL;
+	IMFMediaType *pType = NULL;
+	*pMediaTypes = std::vector<IMFMediaType*>();
+
+
+	HRESULT hr = pSource->CreatePresentationDescriptor(&pPD);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	BOOL fSelected;
+	hr = pPD->GetStreamDescriptorByIndex(0, &fSelected, &pSD);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	hr = pSD->GetMediaTypeHandler(&pHandler);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+
+	DWORD cTypes = 0;
+	hr = pHandler->GetMediaTypeCount(&cTypes);
+	if (FAILED(hr))
+	{
+		goto done;
+	}
+	//LOG_TRACE("Camera capture formats:")
+	for (DWORD i = 0; i < cTypes; i++)
+	{
+		hr = pHandler->GetMediaTypeByIndex(i, &pType);
+		if (FAILED(hr))
+		{
+			goto done;
+		}
+
+		//LogMediaType(pType);
+		pMediaTypes->push_back(pType);
+		SafeRelease(&pType);
+	}
+
+done:
+	SafeRelease(&pPD);
+	SafeRelease(&pSD);
+	SafeRelease(&pHandler);
+	SafeRelease(&pType);
+	return hr;
+}
+
+HRESULT GetFrameSize(_In_ IMFAttributes *pMediaType, _Out_ SIZE *pFrameSize)
+{
+	UINT32 width;
+	UINT32 height;
+	//Get width and height
+	RETURN_ON_BAD_HR(MFGetAttributeSize(pMediaType, MF_MT_FRAME_SIZE, &width, &height));
+	*pFrameSize = SIZE{ (LONG)width,(LONG)height };
+	return S_OK;
+}
+
+HRESULT GetFrameRate(_In_ IMFMediaType *pMediaType, _Out_ double *pFramerate)
+{
+	UINT32 numerator;
+	UINT32 denominator;
+	RETURN_ON_BAD_HR(MFGetAttributeRatio(
+		pMediaType,
+		MF_MT_FRAME_RATE,
+		&numerator,
+		&denominator
+	));
+	double framerate = (double)numerator / denominator;
+	*pFramerate = framerate;
+	return S_OK;
+}
+
+//Calculates the default stride based on the format and size of the frames
+HRESULT GetDefaultStride(_In_ IMFMediaType *type, _Out_ LONG *stride)
+{
+	LONG tempStride = 0;
+
+	// Try to get the default stride from the media type.
+	HRESULT hr = type->GetUINT32(MF_MT_DEFAULT_STRIDE, (UINT32 *)&tempStride);
+	if (FAILED(hr))
+	{
+		//Setting this atribute to NULL we can obtain the default stride
+		GUID subtype = GUID_NULL;
+
+		UINT32 width = 0;
+		UINT32 height = 0;
+
+		// Obtain the subtype
+		hr = type->GetGUID(MF_MT_SUBTYPE, &subtype);
+		//obtain the width and height
+		if (SUCCEEDED(hr))
+			hr = MFGetAttributeSize(type, MF_MT_FRAME_SIZE, &width, &height);
+		//Calculate the stride based on the subtype and width
+		if (SUCCEEDED(hr))
+			hr = MFGetStrideForBitmapInfoHeader(subtype.Data1, width, &tempStride);
+		// set the attribute so it can be read
+		if (SUCCEEDED(hr))
+			(void)type->SetUINT32(MF_MT_DEFAULT_STRIDE, UINT32(tempStride));
+	}
+
+	if (SUCCEEDED(hr))
+		*stride = tempStride;
+	return hr;
+}
+
+bool IsVideoInfo2(_In_ IMFMediaType *pType)
+{
+	GUID mediaFormatType;
+	pType->GetGUID(MF_MT_AM_FORMAT_TYPE, &mediaFormatType);
+	if (mediaFormatType == FORMAT_VideoInfo2) {
+		return true;
+	}
+	return false;
 }

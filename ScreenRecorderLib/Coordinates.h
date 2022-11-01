@@ -29,7 +29,7 @@ namespace ScreenRecorderLib {
 		BottomLeft,
 		BottomRight
 	};
-	public ref class ScreenPoint : public INotifyPropertyChanged {
+	public ref class ScreenPoint : public INotifyPropertyChanged, IEquatable<ScreenPoint^> {
 	internal:
 		POINT ToPOINT() {
 			POINT pt;
@@ -51,18 +51,29 @@ namespace ScreenRecorderLib {
 			Left = left;
 			Top = top;
 		}
-
-		bool ScreenPoint::Equals(Object^ o) override {
-			ScreenPoint^ other = static_cast<ScreenPoint^>(o);
-			if (other == nullptr) {
+		virtual bool ScreenPoint::Equals(ScreenPoint^ o) {
+			if (o == nullptr) {
 				return false;
 			}
-			return Left == other->Left
-				&& Top == other->Top;
+			return Left == o->Left
+				&& Top == o->Top;
+		}
+		bool ScreenPoint::Equals(Object^ o) override {
+			ScreenPoint^ other = static_cast<ScreenPoint^>(o);
+			return this->Equals(other);
+		}
+		virtual int GetHashCode() override {
+			int hash = 23;
+			hash = hash * 31 + Left.GetHashCode();
+			hash = hash * 31 + Top.GetHashCode();
+			return hash;
+		}
+		virtual String^ ToString() override {
+			return String::Format("[{0},{1}]", Left, Top);
 		}
 	};
 
-	public ref class ScreenSize : public INotifyPropertyChanged {
+	public ref class ScreenSize : public INotifyPropertyChanged, IEquatable<ScreenSize^> {
 	internal:
 		SIZE ToSIZE() {
 			SIZE size;
@@ -84,14 +95,25 @@ namespace ScreenRecorderLib {
 			Width = width;
 			Height = height;
 		}
-
-		bool ScreenSize::Equals(Object^ o) override {
-			ScreenSize^ other = static_cast<ScreenSize^>(o);
-			if (other == nullptr) {
+		virtual bool ScreenSize::Equals(ScreenSize^ o) {
+			if (o == nullptr) {
 				return false;
 			}
-			return Width == other->Width
-				&& Height == other->Height;
+			return Width == o->Width
+				&& Height == o->Height;
+		}
+		bool ScreenSize::Equals(Object^ o) override {
+			ScreenSize^ other = static_cast<ScreenSize^>(o);
+			return this->Equals(other);
+		}
+		virtual int GetHashCode() override {
+			int hash = 23;
+			hash = hash * 31 + Width.GetHashCode();
+			hash = hash * 31 + Height.GetHashCode();
+			return hash;
+		}
+		virtual String^ ToString() override {
+			return String::Format("{0}x{1}", Width, Height);
 		}
 	};
 
@@ -188,16 +210,32 @@ namespace ScreenRecorderLib {
 				return gcnew ScreenRect(double::PositiveInfinity, double::PositiveInfinity, double::NegativeInfinity, double::NegativeInfinity);
 			}
 		}
-
+		virtual bool ScreenRect::Equals(ScreenRect^ o) {
+			if (o == nullptr) {
+				return false;
+			}
+			return Left == o->Left
+				&& Top == o->Top
+				&& Right == o->Right
+				&& Bottom == o->Bottom;
+		}
 		bool ScreenRect::Equals(Object^ o) override {
 			ScreenRect^ other = static_cast<ScreenRect^>(o);
 			if (other == nullptr) {
 				return false;
 			}
-			return Left == other->Left
-				&& Top == other->Top
-				&& Width == other->Width
-				&& Height == other->Height;
+			return this->Equals(other);
+		}
+		virtual int GetHashCode() override {
+			int hash = 23;
+			hash = hash * 31 + Left.GetHashCode();
+			hash = hash * 31 + Top.GetHashCode();
+			hash = hash * 31 + Right.GetHashCode();
+			hash = hash * 31 + Bottom.GetHashCode();
+			return hash;
+		}
+		virtual String^ ToString() override {
+			return String::Format("[{0},{1},{2},{3}]", Left, Top, Right, Bottom);
 		}
 		void OnPropertyChanged(String^ info)
 		{

@@ -20,7 +20,7 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{B3AE257D-B561-4FCB-AE82-EBCCBF3D20CB}</ProjectGuid>
-    <TargetFrameworkVersion>v4.5.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <Keyword>ManagedCProj</Keyword>
     <RootNamespace>ScreenRecorderLib</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.19041.0</WindowsTargetPlatformVersion>
@@ -184,6 +184,7 @@
     <ClInclude Include="resource.h" />
     <ClInclude Include="Recorder.h" />
     <ClInclude Include="ManagedStreamWrapper.h" />
+    <ClInclude Include="VideoCaptureFormat.h" />
     <ClInclude Include="VideoEncoders.h" />
     <ClInclude Include="Win32WindowEnumeration.h" />
   </ItemGroup>

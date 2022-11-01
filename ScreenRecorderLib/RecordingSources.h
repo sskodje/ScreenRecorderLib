@@ -1,8 +1,10 @@
 #pragma once
 #include "../ScreenRecorderLibNative/Native.h"
+#include "VideoCaptureFormat.h"
 
 using namespace System;
 using namespace System::ComponentModel;
+using namespace System::Collections::Generic;
 
 namespace ScreenRecorderLib {
 
@@ -228,6 +230,8 @@ namespace ScreenRecorderLib {
 		/// </summary>
 		property String^ DeviceName;
 
+		property VideoCaptureFormat^ CaptureFormat;
+
 		VideoCaptureRecordingSource() :RecordingSourceBase()
 		{
 
@@ -235,8 +239,13 @@ namespace ScreenRecorderLib {
 		VideoCaptureRecordingSource(String^ deviceName) :VideoCaptureRecordingSource() {
 			DeviceName = deviceName;
 		}
+		VideoCaptureRecordingSource(String^ deviceName, VideoCaptureFormat^ captureFormat) :VideoCaptureRecordingSource() {
+			DeviceName = deviceName;
+			CaptureFormat = captureFormat;
+		}
 		VideoCaptureRecordingSource(VideoCaptureRecordingSource^ source) :RecordingSourceBase(source) {
 			DeviceName = source->DeviceName;
+			CaptureFormat = source->CaptureFormat;
 		}
 	};
 

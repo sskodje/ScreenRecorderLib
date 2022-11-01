@@ -1,7 +1,6 @@
 #include "SourceReaderBase.h"
 #include <Mferror.h>
 #include "Cleanup.h"
-
 using namespace std;
 
 SourceReaderBase::SourceReaderBase() :
@@ -56,7 +55,8 @@ HRESULT SourceReaderBase::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSour
 	LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"StartCapture");
 	m_RecordingSource = &recordingSource;
 	long streamIndex;
-	RETURN_ON_BAD_HR(hr = InitializeSourceReader(recordingSource.SourcePath, &streamIndex, &m_SourceReader, &m_InputMediaType, &m_OutputMediaType, &m_MediaTransform));
+
+	RETURN_ON_BAD_HR(hr = InitializeSourceReader(recordingSource.SourcePath, recordingSource.CaptureFormatIndex, &streamIndex, &m_SourceReader, &m_InputMediaType, &m_OutputMediaType, &m_MediaTransform));
 	RETURN_ON_BAD_HR(GetDefaultStride(m_OutputMediaType, &m_Stride));
 	RETURN_ON_BAD_HR(GetFrameRate(m_InputMediaType, &m_FrameRate));
 	RETURN_ON_BAD_HR(GetFrameSize(m_InputMediaType, &m_FrameSize));
@@ -76,7 +76,7 @@ HRESULT SourceReaderBase::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSou
 		long streamIndex;
 		RETURN_ON_BAD_HR(MFStartup(MF_VERSION, MFSTARTUP_LITE));
 		CComPtr<IMFMediaType> pInputMediaType;
-		RETURN_ON_BAD_HR(InitializeSourceReader(recordingSource.SourcePath, &streamIndex, &m_SourceReader, &pInputMediaType, nullptr, nullptr));
+		RETURN_ON_BAD_HR(InitializeSourceReader(recordingSource.SourcePath, recordingSource.CaptureFormatIndex, &streamIndex, &m_SourceReader, &pInputMediaType, nullptr, nullptr));
 		RETURN_ON_BAD_HR(MFShutdown());
 		return GetFrameSize(pInputMediaType, nativeMediaSize);
 	}
@@ -243,31 +243,6 @@ HRESULT SourceReaderBase::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis
 	return hr;
 }
 
-HRESULT SourceReaderBase::GetFrameSize(_In_ IMFAttributes *pMediaType, _Out_ SIZE *pFrameSize)
-{
-	UINT32 width;
-	UINT32 height;
-	//Get width and height
-	RETURN_ON_BAD_HR(MFGetAttributeSize(pMediaType, MF_MT_FRAME_SIZE, &width, &height));
-	*pFrameSize = SIZE{ (LONG)width,(LONG)height };
-	return S_OK;
-}
-
-HRESULT SourceReaderBase::GetFrameRate(_In_ IMFMediaType *pMediaType, _Out_ double *pFramerate)
-{
-	UINT32 numerator;
-	UINT32 denominator;
-	RETURN_ON_BAD_HR(MFGetAttributeRatio(
-		pMediaType,
-		MF_MT_FRAME_RATE,
-		&numerator,
-		&denominator
-	));
-	double framerate = (double)numerator / denominator;
-	*pFramerate = framerate;
-	return S_OK;
-}
-
 //From IUnknown 
 STDMETHODIMP SourceReaderBase::QueryInterface(REFIID riid, void **ppvObject)
 {
@@ -287,39 +262,6 @@ ULONG SourceReaderBase::Release()
 ULONG SourceReaderBase::AddRef()
 {
 	return InterlockedIncrement(&m_ReferenceCount);
-}
-
-//Calculates the default stride based on the format and size of the frames
-HRESULT SourceReaderBase::GetDefaultStride(_In_ IMFMediaType *type, _Out_ LONG *stride)
-{
-	LONG tempStride = 0;
-
-	// Try to get the default stride from the media type.
-	HRESULT hr = type->GetUINT32(MF_MT_DEFAULT_STRIDE, (UINT32 *)&tempStride);
-	if (FAILED(hr))
-	{
-		//Setting this atribute to NULL we can obtain the default stride
-		GUID subtype = GUID_NULL;
-
-		UINT32 width = 0;
-		UINT32 height = 0;
-
-		// Obtain the subtype
-		hr = type->GetGUID(MF_MT_SUBTYPE, &subtype);
-		//obtain the width and height
-		if (SUCCEEDED(hr))
-			hr = MFGetAttributeSize(type, MF_MT_FRAME_SIZE, &width, &height);
-		//Calculate the stride based on the subtype and width
-		if (SUCCEEDED(hr))
-			hr = MFGetStrideForBitmapInfoHeader(subtype.Data1, width, &tempStride);
-		// set the attribute so it can be read
-		if (SUCCEEDED(hr))
-			(void)type->SetUINT32(MF_MT_DEFAULT_STRIDE, UINT32(tempStride));
-	}
-
-	if (SUCCEEDED(hr))
-		*stride = tempStride;
-	return hr;
 }
 
 HRESULT SourceReaderBase::CreateOutputMediaType(_In_ SIZE frameSize, _Outptr_ IMFMediaType **pType, _Out_ LONG *stride)

@@ -293,7 +293,7 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 		}
 	}
 	if (options->SourceVideoCaptures) {
-		for each (KeyValuePair<String^, bool>^ kvp in options->SourceVideoCaptures)
+		for each (KeyValuePair<String^, bool> ^ kvp in options->SourceVideoCaptures)
 		{
 			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
 			for each (RECORDING_SOURCE * nativeSource in m_Rec->GetRecordingSources())
@@ -360,18 +360,33 @@ List<AudioDevice^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
 
 List<RecordableCamera^>^ Recorder::GetSystemVideoCaptureDevices()
 {
-	std::map<std::wstring, std::wstring> map;
-	HRESULT hr = EnumVideoCaptureDevices(&map);
+	std::vector<IMFActivate*> captureDevices;
+	HRESULT hr = EnumVideoCaptureDevices(&captureDevices);
 	List<RecordableCamera^>^ devices = gcnew List<RecordableCamera^>();
 	if (SUCCEEDED(hr))
 	{
-		if (map.size() != 0)
-		{
-			for (auto const& element : map) {
-				String^ path = gcnew String(element.first.c_str());
-				String^ title = gcnew String(element.second.c_str());
+		for (auto const& pDevice : captureDevices) {
+			ReleaseOnExit releaseDevice(pDevice);
+			// Get the device path
+			WCHAR* symbolicLink = NULL;
+			UINT32 cchSymbolicLink;
+			hr = pDevice->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK, &symbolicLink, &cchSymbolicLink);
+			CoTaskMemFreeOnExit freeSymbolicLink(symbolicLink);
+			if (FAILED(hr) || symbolicLink == NULL) {
+				continue;
+			}
+			WCHAR* nameString = NULL;
+			// Get the human-friendly name of the device
+			UINT32 cchName;
+			hr = pDevice->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_FRIENDLY_NAME, &nameString, &cchName);
+			CoTaskMemFreeOnExit freeName(nameString);
+			if (SUCCEEDED(hr) && nameString != NULL)
+			{
+				String^ path = gcnew String(symbolicLink);
+				String^ title = gcnew String(nameString);
 				devices->Add(gcnew RecordableCamera(title, path));
 			}
+
 		}
 	}
 	return devices;
@@ -478,7 +493,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 				{
 					if (isinst<VideoCaptureRecordingSource^>(recordingSource)) {
 						VideoCaptureRecordingSource^ cameraRecordingSource = (VideoCaptureRecordingSource^)recordingSource;
-						if ((gcnew String(nativeSource->SourcePath.c_str()))->Equals(cameraRecordingSource->DeviceName)) {
+						if ((gcnew String(nativeSource->ID.c_str()))->Equals(cameraRecordingSource->ID)) {
 							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
 							break;
 						}
@@ -512,6 +527,28 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 		delete ptr;
 	}
 	return outputDimensions;
+}
+
+List<VideoCaptureFormat^>^ ScreenRecorderLib::Recorder::GetSupportedVideoCaptureFormatsForDevice(String^ DevicePath)
+{
+	MeasureExecutionTime measure(L"GetSupportedVideoCaptureFormatsForDevice");
+	std::vector<IMFActivate*> captureDevices;
+	HRESULT hr = EnumVideoCaptureDevices(&captureDevices);
+	if (SUCCEEDED(hr))
+	{
+		ReleaseVectorOnExit release(captureDevices);
+		for (auto const& pDevice : captureDevices) {
+
+			CComPtr<IMFMediaSource> pSource = nullptr;
+			CONTINUE_ON_BAD_HR(hr = pDevice->ActivateObject(__uuidof(IMFMediaSource), (void**)&pSource));
+
+			std::vector<IMFMediaType*> captureFormats;
+			EnumerateCaptureFormats(pSource, &captureFormats);
+
+			return CreateVideoCaptureFormatList(captureFormats);
+		}
+	}
+	return gcnew List<VideoCaptureFormat^>();
 }
 
 Recorder::~Recorder()
@@ -659,6 +696,9 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 			std::wstring deviceName = msclr::interop::marshal_as<std::wstring>(videoCaptureSource->DeviceName);
 			nativeSource.Type = RecordingSourceType::CameraCapture;
 			nativeSource.SourcePath = deviceName;
+			if (videoCaptureSource->CaptureFormat) {
+				nativeSource.CaptureFormatIndex = videoCaptureSource->CaptureFormat->Index;
+			}
 			hr = S_OK;
 		}
 	}
@@ -748,8 +788,73 @@ HRESULT Recorder::CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ manage
 	return hr;
 }
 
+List<VideoCaptureFormat^>^ ScreenRecorderLib::Recorder::CreateVideoCaptureFormatList(_In_ std::vector<IMFMediaType*> mediaTypes)
+{
+	MeasureExecutionTime measure(L"CreateVideoCaptureFormatList");
+	List<VideoCaptureFormat^>^ managedFormats = gcnew List<VideoCaptureFormat^>();
 
-std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(IEnumerable<RecordingSourceBase^>^ managedSources) {
+	bool supportsVideoInfo2 = false;
+	//Check if device supports FORMAT_VideoInfo2, see https://learn.microsoft.com/en-us/windows/win32/medfound/how-to-set-the-video-capture-format
+	for each (IMFMediaType * pMediaType in mediaTypes)
+	{
+		GUID majorType;
+		pMediaType->GetMajorType(&majorType);
+		if (majorType != MFMediaType_Video) {
+			continue;
+		}
+		if (IsVideoInfo2(pMediaType)) {
+			supportsVideoInfo2 = true;
+			break;
+		}
+	}
+
+	for (int i = 0; i < mediaTypes.size(); i++)
+	{
+		IMFMediaType* pMediaType = mediaTypes.at(i);
+		GUID majorType;
+		pMediaType->GetMajorType(&majorType);
+
+		if (majorType != MFMediaType_Video
+			|| (supportsVideoInfo2 && !IsVideoInfo2(pMediaType))) {
+			continue;
+		}
+
+		GUID videoFormat;
+		pMediaType->GetGUID(MF_MT_SUBTYPE, &videoFormat);
+		WCHAR* pVideoFormatString;
+		GetGUIDName(videoFormat, &pVideoFormatString);
+		double framerate = 0.0;
+		GetFrameRate(pMediaType, &framerate);
+		SIZE frameSize;
+		GetFrameSize(pMediaType, &frameSize);
+		UINT32 avgBitrate = 0;
+		pMediaType->GetUINT32(MF_MT_AVG_BITRATE, &avgBitrate);
+		UINT32 YUVMatrix = 0;
+		pMediaType->GetUINT32(MF_MT_YUV_MATRIX, &YUVMatrix);
+		UINT32 videoNominalRange = 0;
+		pMediaType->GetUINT32(MF_MT_VIDEO_NOMINAL_RANGE, &videoNominalRange);
+		UINT32 videoInterlaceMode = 0;
+		pMediaType->GetUINT32(MF_MT_INTERLACE_MODE, &videoInterlaceMode);
+
+		VideoCaptureFormat^ managedFormat = gcnew VideoCaptureFormat();
+		managedFormat->Index = i;
+		managedFormat->VideoFormat = FromNativeGuid(videoFormat);
+		managedFormat->VideoFormatName = gcnew String(pVideoFormatString);
+		managedFormat->Framerate = framerate;
+		managedFormat->FrameSize = gcnew ScreenSize(frameSize.cx, frameSize.cy);
+		managedFormat->AverageBitrate = avgBitrate;
+		managedFormat->InterlaceMode = (VideoInterlaceMode)videoInterlaceMode;
+		managedFormat->YUVMatrix = (VideoTransferMatrix)YUVMatrix;
+		managedFormat->NominalRange = (VideoNominalRange)videoNominalRange;
+		managedFormats->Add(managedFormat);
+
+		CoTaskMemFree(pVideoFormatString);
+	}
+	return managedFormats;
+}
+
+
+std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(_In_ IEnumerable<RecordingSourceBase^>^ managedSources) {
 	std::vector<RECORDING_SOURCE> sources{};
 	if (managedSources) {
 		for each (RecordingSourceBase ^ source in managedSources)
@@ -768,10 +873,10 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(IEnumerable<Re
 	return std::vector<RECORDING_SOURCE>();
 }
 
-std::vector<RECORDING_OVERLAY> Recorder::CreateOverlayList(IEnumerable<RecordingOverlayBase^>^ managedOverlays) {
+std::vector<RECORDING_OVERLAY> Recorder::CreateOverlayList(_In_ IEnumerable<RecordingOverlayBase^>^ managedOverlays) {
 	std::vector<RECORDING_OVERLAY> overlays{};
 	if (managedOverlays) {
-		for each (RecordingOverlayBase^ overlay in managedOverlays)
+		for each (RecordingOverlayBase ^ overlay in managedOverlays)
 		{
 			RECORDING_OVERLAY nativeOverlay{};
 			HRESULT hr = CreateNativeRecordingOverlay(overlay, &nativeOverlay);
@@ -783,6 +888,11 @@ std::vector<RECORDING_OVERLAY> Recorder::CreateOverlayList(IEnumerable<Recording
 		}
 	}
 	return overlays;
+}
+
+Guid ScreenRecorderLib::Recorder::FromNativeGuid(_In_ const GUID& guid)
+{
+	return *reinterpret_cast<Guid*>(const_cast<GUID*>(&guid));
 }
 
 void Recorder::CreateErrorCallback() {
@@ -860,6 +970,6 @@ void ScreenRecorderLib::Recorder::EventSnapshotCreated(std::wstring str)
 
 void Recorder::FrameNumberChanged(int newFrameNumber, INT64 timestamp)
 {
-	OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber,timestamp));
+	OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber, timestamp));
 	CurrentFrameNumber = newFrameNumber;
 }

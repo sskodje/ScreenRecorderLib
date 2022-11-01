@@ -12,6 +12,7 @@
 #include "LogMediaType.h"
 #include "CaptureBase.h"
 #include "TextureManager.h"
+#include "MF.util.h"
 
 class SourceReaderBase abstract : public CaptureBase, public IMFSourceReaderCallback  //this class inherits from IMFSourceReaderCallback
 {
@@ -40,14 +41,12 @@ public:
 protected:
 	virtual HRESULT InitializeSourceReader(
 		_In_ std::wstring source,
+		_In_ std::optional<long> sourceFormatIndex,
 		_Out_ long *pStreamIndex,
 		_Outptr_ IMFSourceReader **ppSourceReader,
 		_Outptr_ IMFMediaType **ppInputMediaType,
 		_Outptr_opt_ IMFMediaType **ppOutputMediaType,
 		_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform) abstract;
-	virtual HRESULT GetFrameRate(_In_ IMFMediaType *pMediaType, _Out_ double *pFramerate);
-	virtual HRESULT GetFrameSize(_In_ IMFAttributes *pMediaType, _Out_ SIZE *pFrameSize);
-	virtual HRESULT GetDefaultStride(_In_ IMFMediaType *pType, _Out_ LONG *plStride);
 	virtual HRESULT CreateOutputMediaType(_In_ SIZE frameSize, _Outptr_ IMFMediaType **pType, _Out_ LONG *stride);
 	virtual HRESULT CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMediaType, _Outptr_ IMFTransform **pColorConverter, _Outptr_ IMFMediaType **ppOutputMediaType);
 	virtual HRESULT SourceReaderBase::ResizeFrameBuffer(UINT bufferSize);

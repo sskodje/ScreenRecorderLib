@@ -193,6 +193,10 @@ struct RECORDING_SOURCE_BASE abstract {
 	/// </summary>
 	TextureStretchMode Stretch;
 	/// <summary>
+	/// The index for a MediaType describing a capture format. This is used to select e.g resolution from cameras.
+	/// </summary>
+	std::optional<int> CaptureFormatIndex;
+	/// <summary>
 	/// Optional custom output size of the source frame. May be both smaller or larger than the source.
 	/// </summary>
 	std::optional<SIZE> OutputSize;

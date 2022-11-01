@@ -5,6 +5,7 @@
 #include "Log.h"
 #include "ScreenCaptureManager.h"
 #include "SourceReaderBase.h"
+#include <vector>
 //#include <mutex>
 template <class T> void SafeRelease(T **ppT)
 {
@@ -14,6 +15,25 @@ template <class T> void SafeRelease(T **ppT)
 		*ppT = nullptr;
 	}
 }
+
+template<class T>
+class ReleaseVectorOnExit {
+public:
+
+	ReleaseVectorOnExit(std::vector<T> v)
+	{
+		_items = v;
+	}
+	~ReleaseVectorOnExit() {
+		for each (T item in _items)
+		{
+			SafeRelease(&item);
+		}
+	}
+private:
+	std::vector<T> _items{};
+};
+
 class LeaveCriticalSectionOnExit {
 public:
 	LeaveCriticalSectionOnExit(CRITICAL_SECTION *p, std::wstring tag = L"") : m_p(p), m_tag(tag) {}
