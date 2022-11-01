@@ -264,11 +264,13 @@
 
                                     <TextBlock FontFamily="Arial">
                                         <TextBlock.Text>
-                                            <MultiBinding StringFormat="{}[Camera]  {0} [{1},{2}] ({3} x {4})]">
+                                            <MultiBinding StringFormat="{}[Camera]  {0} [{1},{2}] {3}fps ({4} x {5})]">
                                                 <Binding Path="FriendlyName" />
                                                 <Binding  Path="Position.Left"
                                                           UpdateSourceTrigger="PropertyChanged" />
                                                 <Binding  Path="Position.Top"
+                                                          UpdateSourceTrigger="PropertyChanged" />
+                                                <Binding  Path="CaptureFormat.Framerate"
                                                           UpdateSourceTrigger="PropertyChanged" />
                                                 <Binding  Path="OutputSize.Width"
                                                           UpdateSourceTrigger="PropertyChanged" />
