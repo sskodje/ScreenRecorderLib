@@ -952,13 +952,13 @@ namespace TestApp
         private void RefreshVideoCaptureItems()
         {
             VideoCaptureDevices.Clear();
-            var devices = Recorder.GetSystemVideoCaptureDevices().ToList();
-            foreach (var device in devices)
+
+            foreach (var device in Recorder.GetSystemVideoCaptureDevices())
             {
                 VideoCaptureDevices.Add(device);
             }
             (this.Resources["MediaDeviceToDeviceIdConverter"] as MediaDeviceToDeviceIdConverter).MediaDevices = VideoCaptureDevices.ToList();
-            ((VideoCaptureOverlay)Overlays.FirstOrDefault(x => x.Overlay is VideoCaptureOverlay).Overlay).DeviceName = VideoCaptureDevices.First().DeviceName;
+            ((VideoCaptureOverlay)Overlays.FirstOrDefault(x => x.Overlay is VideoCaptureOverlay).Overlay).DeviceName = VideoCaptureDevices.FirstOrDefault()?.DeviceName;
         }
 
         private void RefreshSourceComboBox()
@@ -978,7 +978,7 @@ namespace TestApp
             {
                 var availableFormats = Recorder.GetSupportedVideoCaptureFormatsForDevice(cam.DeviceName);
                 var formatsToDisplay = availableFormats
-                    .GroupBy(x=>x.Framerate)
+                    .GroupBy(x => x.Framerate)
                     .FirstOrDefault()
                     .GroupBy(x => x.FrameSize)
                     .SelectMany(x => new List<VideoCaptureFormat> { x.First() })
