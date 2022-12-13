@@ -351,9 +351,9 @@ std::vector<BYTE> LoopbackCapture::PeakRecordedBytes()
 	return m_RecordedBytes;
 }
 
-std::vector<BYTE> LoopbackCapture::GetRecordedBytes()
+std::vector<BYTE> LoopbackCapture::GetRecordedBytes(int byteCount)
 {
-	auto byteCount = m_RecordedBytes.size();
+	byteCount = min(byteCount, m_RecordedBytes.size());
 	m_TaskWrapperImpl->m_Mutex.lock();
 
 	std::vector<BYTE> newvector(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);

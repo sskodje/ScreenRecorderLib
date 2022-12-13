@@ -493,12 +493,21 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			}
 		}
 
+		int frameCount = int(ceil(GetAudioOptions()->GetAudioSamplesPerSecond() * HundredNanosToMillis(duration100Nanos) / 1000));
+		int byteCount = frameCount * (GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels();
+		auto audioBytes = pAudioManager->GrabAudioFrame(byteCount);
+		if (audioBytes.size() > 0 && audioBytes.size() < byteCount) {
+			int audioFrameCount = audioBytes.size() / ((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
+			INT64 newDuration = SecondsToHundredNanos((double)audioFrameCount / (double)(GetAudioOptions()->GetAudioSamplesPerSecond()));
+			LOG_TRACE("Expected %d audio bytes, but received %d. Correcting duration of video frame to %.2f ms", byteCount, audioBytes.size(), HundredNanosToMillisDouble(newDuration));
+			duration100Nanos = newDuration;
+		}
 
 		FrameWriteModel model{};
 		model.Frame = pTextureToRender;
 		model.Duration = duration100Nanos;
 		model.StartPos = lastFrameStartPos100Nanos;
-		model.Audio = pAudioManager->GrabAudioFrame();
+		model.Audio = audioBytes;
 		RETURN_ON_BAD_HR(renderHr = m_EncoderResult = m_OutputManager->RenderFrame(model));
 		frameNr++;
 		if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {

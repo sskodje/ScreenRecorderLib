@@ -142,12 +142,16 @@ inline INT64 MillisToHundredNanos(INT64 millis) {
 	return millis * 10 * 1000;
 }
 
-inline INT64 HundredNanosToMillis(INT64 hundredNanos) {
-	return (INT64)round((double)hundredNanos / 10 / 1000);
+inline INT64 SecondsToHundredNanos(double seconds) {
+	return (INT64)round(seconds * 10 * 1000 * 1000);
 }
 
 inline double HundredNanosToMillisDouble(INT64 hundredNanos) {
 	return (double)hundredNanos / 10 / 1000;
+}
+
+inline INT64 HundredNanosToMillis(INT64 hundredNanos) {
+	return hundredNanos / 10 / 1000;
 }
 /// <summary>
 /// Forces the dimensions of rect to be even by adding 1*modifier pixel if odd.
