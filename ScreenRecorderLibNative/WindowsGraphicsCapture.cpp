@@ -407,6 +407,7 @@ HRESULT WindowsGraphicsCapture::RecreateFramePool(_Inout_ GRAPHICS_FRAME_DATA *p
 			newFramePoolSize.Height += 100;
 		}
 		m_framePool.Recreate(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, newFramePoolSize);
+		LOG_TRACE(L"Recreated WGC Frame Pool size [%d,%d]", newFramePoolSize.Width, newFramePoolSize.Height);
 	}
 	catch (winrt::hresult_error const &ex)
 	{
@@ -421,11 +422,10 @@ HRESULT WindowsGraphicsCapture::RecreateFramePool(_Inout_ GRAPHICS_FRAME_DATA *p
 
 HRESULT WindowsGraphicsCapture::ProcessRecordingTimeout(_Inout_ GRAPHICS_FRAME_DATA *pData)
 {
-	HRESULT hr = DXGI_ERROR_WAIT_TIMEOUT;
 	if (m_RecordingSource->Type == RecordingSourceType::Window) {
 		if (!IsWindow(m_RecordingSource->SourceWindow)) {
 			//The window is gone, gracefully abort.
-			hr = E_ABORT;
+			return E_ABORT;
 		}
 		else if (IsIconic(m_RecordingSource->SourceWindow)) {
 			//IsIconic means the window is minimized, and not rendered, so a blank placeholder texture is used instead.
@@ -441,7 +441,7 @@ HRESULT WindowsGraphicsCapture::ProcessRecordingTimeout(_Inout_ GRAPHICS_FRAME_D
 				desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
 				desc.SampleDesc.Count = 1;
 				desc.Usage = D3D11_USAGE_DEFAULT;
-				RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pData->Frame));
+				RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&desc, nullptr, &pData->Frame));
 			}
 			else {
 				D3D11_TEXTURE2D_DESC desc;
@@ -451,18 +451,17 @@ HRESULT WindowsGraphicsCapture::ProcessRecordingTimeout(_Inout_ GRAPHICS_FRAME_D
 			pData->ContentSize = windowSize;
 			m_TextureManager->BlankTexture(pData->Frame, RECT{ 0,0,windowSize.cx,windowSize.cy }, 0, 0);
 			QueryPerformanceCounter(&pData->Timestamp);
-			hr = S_OK;
-		}
-		else if (IsRecordingSessionStale()) {
-			//The session has stopped producing frames for a while, so it should be restarted.
-			StopCapture();
-			StartCapture(*m_RecordingSource);
-			LOG_INFO("Restarted Windows Graphics Capture");
-			QueryPerformanceCounter(&m_LastCaptureSessionRestart);
-			hr = DXGI_ERROR_WAIT_TIMEOUT;
+			return S_OK;
 		}
 	}
-	return hr;
+	if (IsRecordingSessionStale()) {
+		//The session has stopped producing frames for a while, so it should be restarted.
+		StopCapture();
+		StartCapture(*m_RecordingSource);
+		LOG_INFO("Restarted Windows Graphics Capture");
+		QueryPerformanceCounter(&m_LastCaptureSessionRestart);
+	}
+	return DXGI_ERROR_WAIT_TIMEOUT;
 }
 
 /// <summary>
