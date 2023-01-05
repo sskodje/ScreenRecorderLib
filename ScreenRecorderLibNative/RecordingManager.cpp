@@ -558,15 +558,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 							// As we have encountered an error due to a system transition we wait before trying again, using this dynamic wait
 							// the wait periods will get progressively long to avoid wasting too much system resource if this state lasts a long time
 							DynamicWait.Wait();
-
 							hr = InitializeDx(nullptr, &m_DxResources);
-						}
-						if (SUCCEEDED(hr)) {
-							SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
-							hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
-						}
-						if (SUCCEEDED(hr)) {
-							hr = m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetEncoderOptions(), GetAudioOptions(), GetSnapshotOptions(), GetOutputOptions());
 						}
 						if (SUCCEEDED(hr)) {
 							hr = pMouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
@@ -577,6 +569,17 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 						if (SUCCEEDED(hr)) {
 							ResetEvent(ErrorEvent);
 							hr = pCapture->StartCapture(sources, overlays, ErrorEvent);
+						}
+						if (SUCCEEDED(hr)) {
+							//The source dimensions may have changed
+							hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, nullptr);
+							LOG_TRACE(L"Reinitialized input frame rect: [%d,%d,%d,%d]", videoInputFrameRect.left, videoInputFrameRect.top, videoInputFrameRect.right, videoInputFrameRect.bottom);
+						}
+						if (SUCCEEDED(hr)) {
+							hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
+						}
+						if (SUCCEEDED(hr)) {
+							hr = m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetEncoderOptions(), GetAudioOptions(), GetSnapshotOptions(), GetOutputOptions());
 						}
 						pPtrInfo.reset();
 						if (FAILED(hr)) {
@@ -692,7 +695,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 
 		if (!pCurrentFrameCopy && !pPreviousFrameCopy) {
-			m_TextureManager->CreateTexture(videoOutputFrameSize.cx, videoOutputFrameSize.cy, &pCurrentFrameCopy, 0, D3D11_BIND_RENDER_TARGET| D3D11_BIND_SHADER_RESOURCE);
+			m_TextureManager->CreateTexture(videoOutputFrameSize.cx, videoOutputFrameSize.cy, &pCurrentFrameCopy, 0, D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE);
 		}
 
 		lastFrame = steady_clock::now();
