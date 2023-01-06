@@ -9,6 +9,7 @@
 #include "WindowsGraphicsCapture.h"
 #include "PixelShader.h"
 #include "VertexShader.h"
+#include <dxgi1_6.h>
 
 using namespace DirectX;
 //
@@ -443,18 +444,30 @@ std::wstring GetMonitorName(HMONITOR monitor) {
 std::vector<IDXGIAdapter *> EnumDisplayAdapters()
 {
 	std::vector<IDXGIAdapter *> vAdapters;
-	IDXGIFactory1 *pFactory;
-	HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void **)(&pFactory));
+	CComPtr<IDXGIFactory1> pFactory1;
+	HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void **)(&pFactory1));
 	if (SUCCEEDED(hr)) {
-		UINT i = 0;
-		IDXGIAdapter *pAdapter;
-		while (pFactory->EnumAdapters(i, &pAdapter) != DXGI_ERROR_NOT_FOUND)
-		{
-			vAdapters.push_back(pAdapter);
-			i++;
+		CComPtr<IDXGIFactory6> pFactory6 = nullptr;
+		hr = pFactory1->QueryInterface(IID_PPV_ARGS(&pFactory6));
+		if (SUCCEEDED(hr)) {
+			UINT i = 0;
+			IDXGIAdapter4 *pAdapter;
+			while (pFactory6->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_MINIMUM_POWER, __uuidof(IDXGIAdapter4), (void **)&pAdapter) != DXGI_ERROR_NOT_FOUND)
+			{
+				vAdapters.push_back(pAdapter);
+				i++;
+			}
+		}
+		else {
+			UINT i = 0;
+			IDXGIAdapter *pAdapter;
+			while (pFactory1->EnumAdapters(i, &pAdapter) != DXGI_ERROR_NOT_FOUND)
+			{
+				vAdapters.push_back(pAdapter);
+				i++;
+			}
 		}
 	}
-	SafeRelease(&pFactory);
 	return vAdapters;
 }
 
