@@ -19,8 +19,8 @@ jobs:
         platform: [x64, x86]
 
     steps:
-    - uses: actions/checkout@v2
-    - uses: microsoft/setup-msbuild@v1
+    - uses: actions/checkout@v3
+    - uses: microsoft/setup-msbuild@v1.1
     - run: nuget restore ${{ env.SOLUTION_NAME }}.sln
     - run: msbuild /m '/p:Configuration=Release;Platform="${{ matrix.platform }}"' ${{ env.SOLUTION_NAME }}.sln
     
