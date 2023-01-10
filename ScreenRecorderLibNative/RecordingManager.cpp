@@ -559,6 +559,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 							// the wait periods will get progressively long to avoid wasting too much system resource if this state lasts a long time
 							DynamicWait.Wait();
 							hr = InitializeDx(nullptr, &m_DxResources);
+							SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
 						}
 						if (SUCCEEDED(hr)) {
 							hr = pMouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
