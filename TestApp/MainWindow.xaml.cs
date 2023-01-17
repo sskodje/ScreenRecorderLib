@@ -235,9 +235,12 @@ namespace TestApp
             {
                 case nameof(SourceRect):
                     {
-                        _rec?.GetDynamicOptionsBuilder()
-                                .SetDynamicOutputOptions(new DynamicOutputOptions { SourceRect = SourceRect })
-                                .Apply();
+                        if (IsCustomOutputSourceRectEnabled)
+                        {
+                            _rec?.GetDynamicOptionsBuilder()
+                                    .SetDynamicOutputOptions(new DynamicOutputOptions { SourceRect = SourceRect })
+                                    .Apply();
+                        }
                         break;
                     }
             }
