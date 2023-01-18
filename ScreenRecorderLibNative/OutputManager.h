@@ -40,9 +40,19 @@ public:
 	void WriteTextureToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath, _In_opt_ std::function<void(HRESULT)> onCompletion = nullptr);
 	inline nlohmann::fifo_map<std::wstring, int> GetFrameDelays() { return m_FrameDelays; }
 	inline UINT64 GetRenderedFrameCount() { return m_RenderedFrameCount; }
+	HRESULT StartMediaClock();
+	HRESULT ResumeMediaClock();
+	HRESULT PauseMediaClock();
+	HRESULT StopMediaClock();
+	HRESULT GetMediaTimeStamp(_Out_ INT64 *pTime);
+	bool isMediaClockRunning();
+	bool isMediaClockPaused();
 private:
 	ID3D11DeviceContext *m_DeviceContext = nullptr;
 	ID3D11Device *m_Device = nullptr;
+
+	CComPtr<IMFPresentationTimeSource> m_TimeSrc;
+	CComPtr<IMFPresentationClock> m_PresentationClock;
 
 	std::shared_ptr<ENCODER_OPTIONS> m_EncoderOptions;
 	std::shared_ptr<AUDIO_OPTIONS> m_AudioOptions;

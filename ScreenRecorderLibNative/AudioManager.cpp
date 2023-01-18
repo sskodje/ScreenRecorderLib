@@ -72,7 +72,7 @@ HRESULT AudioManager::InitializeAudioCapture()
 	return hr;
 }
 
-std::vector<BYTE> AudioManager::GrabAudioFrame(_In_ int byteCount)
+std::vector<BYTE> AudioManager::GrabAudioFrame(_In_ int durationHundredNanos)
 {
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
@@ -98,8 +98,8 @@ std::vector<BYTE> AudioManager::GrabAudioFrame(_In_ int byteCount)
 			}
 		};
 
-		std::vector<BYTE> outputDeviceData = m_LoopbackCaptureOutputDevice->GetRecordedBytes(byteCount);
-		std::vector<BYTE> inputDeviceData = m_LoopbackCaptureInputDevice->GetRecordedBytes(byteCount);
+		std::vector<BYTE> outputDeviceData = m_LoopbackCaptureOutputDevice->GetRecordedBytes(durationHundredNanos);
+		std::vector<BYTE> inputDeviceData = m_LoopbackCaptureInputDevice->GetRecordedBytes(durationHundredNanos);
 		returnAudioOverflowToBuffer(outputDeviceData, inputDeviceData);
 		if (inputDeviceData.size() > 0 && outputDeviceData.size() && inputDeviceData.size() != outputDeviceData.size()) {
 			LOG_ERROR(L"Mixing audio byte arrays with differing sizes");
@@ -108,9 +108,9 @@ std::vector<BYTE> AudioManager::GrabAudioFrame(_In_ int byteCount)
 		return std::move(MixAudio(outputDeviceData, inputDeviceData, GetAudioOptions()->GetOutputVolume(), GetAudioOptions()->GetInputVolume()));
 	}
 	else if (m_LoopbackCaptureOutputDevice)
-		return std::move(MixAudio(m_LoopbackCaptureOutputDevice->GetRecordedBytes(byteCount), std::vector<BYTE>(), GetAudioOptions()->GetOutputVolume(), 1.0));
+		return std::move(MixAudio(m_LoopbackCaptureOutputDevice->GetRecordedBytes(durationHundredNanos), std::vector<BYTE>(), GetAudioOptions()->GetOutputVolume(), 1.0));
 	else if (m_LoopbackCaptureInputDevice)
-		return std::move(MixAudio(std::vector<BYTE>(), m_LoopbackCaptureInputDevice->GetRecordedBytes(byteCount), 1.0, GetAudioOptions()->GetInputVolume()));
+		return std::move(MixAudio(std::vector<BYTE>(), m_LoopbackCaptureInputDevice->GetRecordedBytes(durationHundredNanos), 1.0, GetAudioOptions()->GetInputVolume()));
 	else
 		return std::vector<BYTE>();
 }

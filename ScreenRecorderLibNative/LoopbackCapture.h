@@ -32,7 +32,7 @@ public:
 		UINT32 channels
 	);
 	std::vector<BYTE> PeakRecordedBytes();
-	std::vector<BYTE> GetRecordedBytes(int byteCount);
+	std::vector<BYTE> GetRecordedBytes(int duration100Nanos);
 	HRESULT StartCapture(UINT32 audioChannels, std::wstring device, EDataFlow flow) { return StartCapture(0, audioChannels, device, flow); }
 	HRESULT StartCapture(UINT32 sampleRate, UINT32 audioChannels, std::wstring device, EDataFlow flow);
 	HRESULT StopCapture();

@@ -11,6 +11,8 @@ using namespace concurrency;
 OutputManager::OutputManager() :
 	m_Device(nullptr),
 	m_DeviceContext(nullptr),
+	m_PresentationClock(nullptr),
+	m_TimeSrc(nullptr),
 	m_CallBack(nullptr),
 	m_FinalizeEvent(nullptr),
 	m_SinkWriter(nullptr),
@@ -66,6 +68,13 @@ HRESULT OutputManager::Initialize(
 	if (m_MediaTransform) {
 		m_MediaTransform->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
 	}
+	if (!m_TimeSrc) {
+		RETURN_ON_BAD_HR(MFCreateSystemTimeSource(&m_TimeSrc));
+	}
+	if (!m_PresentationClock) {
+		RETURN_ON_BAD_HR(MFCreatePresentationClock(&m_PresentationClock));
+		RETURN_ON_BAD_HR(m_PresentationClock->SetTimeSource(m_TimeSrc));
+	}
 	RETURN_ON_BAD_HR(m_DeviceManager->ResetDevice(pDevice, m_ResetToken));
 	return S_OK;
 }
@@ -91,6 +100,8 @@ HRESULT OutputManager::BeginRecording(_In_ std::wstring outputPath, _In_ SIZE vi
 		RETURN_ON_BAD_HR(MFCreateFile(MF_ACCESSMODE_READWRITE, MF_OPENMODE_FAIL_IF_EXIST, MF_FILEFLAGS_NONE, outputPath.c_str(), &mfByteStream));
 		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(mfByteStream, m_Device, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, m_CallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
+	StartMediaClock();
+	LOG_DEBUG("Sink Writer initialized");
 	return hr;
 }
 
@@ -113,6 +124,8 @@ HRESULT OutputManager::BeginRecording(_In_ IStream *pStream, _In_ SIZE videoOutp
 		RECT inputMediaFrameRect = RECT{ 0,0,videoOutputFrameSize.cx,videoOutputFrameSize.cy };
 		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(mfByteStream, m_Device, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, m_CallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
+	StartMediaClock();
+	LOG_DEBUG("Sink Writer initialized");
 	return hr;
 }
 
@@ -159,6 +172,7 @@ HRESULT OutputManager::FinalizeRecording()
 			}
 		}
 	}
+	StopMediaClock();
 	return finalizeResult;
 }
 
@@ -256,23 +270,58 @@ void OutputManager::WriteTextureToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesk
 	   }).then([this, filePath, pAcquiredDesktopImage, onCompletion](concurrency::task<HRESULT> t)
 		   {
 			   HRESULT hr;
-			   try {
-				   hr = t.get();
-				   // if .get() didn't throw and the HRESULT succeeded, there are no errors.
-			   }
-			   catch (const exception &e) {
-				   // handle error
-				   LOG_ERROR(L"Exception saving snapshot: %s", e.what());
-				   hr = E_FAIL;
-			   }
-			   pAcquiredDesktopImage->Release();
-			   if (onCompletion) {
-				   std::invoke(onCompletion, hr);
-			   }
-			   return hr;
+	   try {
+		   hr = t.get();
+		   // if .get() didn't throw and the HRESULT succeeded, there are no errors.
+	   }
+	   catch (const exception &e) {
+		   // handle error
+		   LOG_ERROR(L"Exception saving snapshot: %s", e.what());
+		   hr = E_FAIL;
+	   }
+	   pAcquiredDesktopImage->Release();
+	   if (onCompletion) {
+		   std::invoke(onCompletion, hr);
+	   }
+	   return hr;
 		   });
 }
 
+HRESULT OutputManager::StartMediaClock()
+{
+	return m_PresentationClock->Start(0);
+}
+HRESULT OutputManager::ResumeMediaClock()
+{
+	return m_PresentationClock->Start(PRESENTATION_CURRENT_POSITION);
+}
+HRESULT OutputManager::PauseMediaClock()
+{
+	return m_PresentationClock->Pause();
+}
+HRESULT OutputManager::StopMediaClock()
+{
+	return m_PresentationClock->Stop();
+}
+
+bool OutputManager::isMediaClockRunning()
+{
+	MFCLOCK_STATE state;
+	m_PresentationClock->GetState(0, &state);
+	return state == MFCLOCK_STATE_RUNNING;
+}
+
+bool OutputManager::isMediaClockPaused()
+{
+	MFCLOCK_STATE state;
+	m_PresentationClock->GetState(0, &state);
+	return state == MFCLOCK_STATE_PAUSED;
+}
+
+HRESULT OutputManager::GetMediaTimeStamp(_Out_ INT64 *pTime)
+{
+	return m_PresentationClock->GetTime(pTime);
+}
 
 HRESULT OutputManager::ConfigureOutputMediaTypes(
 	_In_ UINT destWidth,
@@ -338,7 +387,7 @@ HRESULT OutputManager::ConfigureInputMediaTypes(
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_VIDEO_CHROMA_SITING, MFVideoChromaSubsampling_ProgressiveChroma));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_0_255));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
-	if (!GetEncoderOptions()->GetIsFixedFramerate()) {
+	if (!GetEncoderOptions()->GetIsFixedFramerate() && !GetEncoderOptions()->GetIsFragmentedMp4Enabled()) {
 		RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, GetEncoderOptions()->GetVideoFps(), 1));
 	}
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
@@ -464,9 +513,9 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 	auto SetAttributeU32([](_Inout_ CComPtr<ICodecAPI> &codec, _In_ const GUID &guid, _In_ UINT32 value)
 	{
 		VARIANT val;
-		val.vt = VT_UI4;
-		val.uintVal = value;
-		return codec->SetValue(&guid, &val);
+	val.vt = VT_UI4;
+	val.uintVal = value;
+	return codec->SetValue(&guid, &val);
 	});
 
 	CComPtr<ICodecAPI> encoder = nullptr;
@@ -594,7 +643,7 @@ HRESULT OutputManager::WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 fr
 	SafeRelease(&p2DBuffer);
 	SafeRelease(&pMediaBuffer);
 	return hr;
-	}
+}
 
 HRESULT OutputManager::WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE *pSrc, _In_ DWORD cbData)
 {

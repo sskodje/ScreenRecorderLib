@@ -73,34 +73,34 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 		// can do this in-place since we're not changing the size of the format
 		// also, the engine will auto-convert from float to int for us
 		switch (pwfx->wFormatTag) {
-		case WAVE_FORMAT_IEEE_FLOAT:
-			pwfx->wFormatTag = WAVE_FORMAT_PCM;
-			pwfx->wBitsPerSample = 16;
-			pwfx->nBlockAlign = pwfx->nChannels * pwfx->wBitsPerSample / 8;
-			pwfx->nAvgBytesPerSec = pwfx->nBlockAlign * pwfx->nSamplesPerSec;
-			break;
-
-		case WAVE_FORMAT_EXTENSIBLE:
-		{
-			// naked scope for case-local variable
-			PWAVEFORMATEXTENSIBLE pEx = reinterpret_cast<PWAVEFORMATEXTENSIBLE>(pwfx);
-			if (IsEqualGUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, pEx->SubFormat)) {
-				pEx->SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
-				pEx->Samples.wValidBitsPerSample = 16;
+			case WAVE_FORMAT_IEEE_FLOAT:
+				pwfx->wFormatTag = WAVE_FORMAT_PCM;
 				pwfx->wBitsPerSample = 16;
 				pwfx->nBlockAlign = pwfx->nChannels * pwfx->wBitsPerSample / 8;
 				pwfx->nAvgBytesPerSec = pwfx->nBlockAlign * pwfx->nSamplesPerSec;
-			}
-			else {
-				LOG_ERROR(L"%s", L"Don't know how to coerce mix format to int-16");
-				return E_UNEXPECTED;
-			}
-		}
-		break;
+				break;
 
-		default:
-			LOG_ERROR(L"Don't know how to coerce WAVEFORMATEX with wFormatTag = 0x%08x to int-16", pwfx->wFormatTag);
-			return E_UNEXPECTED;
+			case WAVE_FORMAT_EXTENSIBLE:
+			{
+				// naked scope for case-local variable
+				PWAVEFORMATEXTENSIBLE pEx = reinterpret_cast<PWAVEFORMATEXTENSIBLE>(pwfx);
+				if (IsEqualGUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, pEx->SubFormat)) {
+					pEx->SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+					pEx->Samples.wValidBitsPerSample = 16;
+					pwfx->wBitsPerSample = 16;
+					pwfx->nBlockAlign = pwfx->nChannels * pwfx->wBitsPerSample / 8;
+					pwfx->nAvgBytesPerSec = pwfx->nBlockAlign * pwfx->nSamplesPerSec;
+				}
+				else {
+					LOG_ERROR(L"%s", L"Don't know how to coerce mix format to int-16");
+					return E_UNEXPECTED;
+				}
+			}
+			break;
+
+			default:
+				LOG_ERROR(L"Don't know how to coerce WAVEFORMATEX with wFormatTag = 0x%08x to int-16", pwfx->wFormatTag);
+				return E_UNEXPECTED;
 		}
 	}
 	UINT32 outputSampleRate;
@@ -166,15 +166,15 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 	// so we're going to do a timer-driven loop
 	switch (flow)
 	{
-	case eRender:
-		hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, audioClientBuffer, 0, pwfx, 0);
-		break;
-	case eCapture:
-		hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, audioClientBuffer, 0, pwfx, 0);
-		break;
-	default:
-		hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, audioClientBuffer, 0, pwfx, 0);
-		break;
+		case eRender:
+			hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, audioClientBuffer, 0, pwfx, 0);
+			break;
+		case eCapture:
+			hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, audioClientBuffer, 0, pwfx, 0);
+			break;
+		default:
+			hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, audioClientBuffer, 0, pwfx, 0);
+			break;
 	}
 	if (FAILED(hr)) {
 		LOG_ERROR(L"IAudioClient::Initialize failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
@@ -351,11 +351,11 @@ std::vector<BYTE> LoopbackCapture::PeakRecordedBytes()
 	return m_RecordedBytes;
 }
 
-std::vector<BYTE> LoopbackCapture::GetRecordedBytes(int byteCount)
+std::vector<BYTE> LoopbackCapture::GetRecordedBytes(int duration100Nanos)
 {
-	byteCount = min(byteCount, m_RecordedBytes.size());
+	int frameCount = int(ceil(m_InputFormat.sampleRate * HundredNanosToSeconds(duration100Nanos)));
+	int byteCount = min((frameCount * m_InputFormat.FrameBytes()), m_RecordedBytes.size());
 	m_TaskWrapperImpl->m_Mutex.lock();
-
 	std::vector<BYTE> newvector(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
 	// convert audio
 	if (requiresResampling() && byteCount > 0) {
@@ -405,13 +405,13 @@ HRESULT LoopbackCapture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, s
 		auto file = prefs.m_hFile;
 		m_TaskWrapperImpl->m_CaptureTask = concurrency::create_task([this, flow, sampleRate, audioChannels, device, file]() {
 			if (FAILED(StartLoopbackCapture(device,
-				file,
-				true,
-				m_CaptureStartedEvent,
-				m_CaptureStopEvent,
-				flow,
-				sampleRate,
-				audioChannels))) {
+			file,
+			true,
+			m_CaptureStartedEvent,
+			m_CaptureStopEvent,
+			flow,
+			sampleRate,
+			audioChannels))) {
 				SetEvent(m_CaptureStopEvent);
 			}
 			});
