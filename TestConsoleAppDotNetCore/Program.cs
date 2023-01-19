@@ -50,7 +50,9 @@ namespace TestConsoleAppDotNetCore
                     return;
                 }
             }
-            rec.Record(Path.ChangeExtension(Path.GetTempFileName(), ".mp4"));
+            string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
+            string filePath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + ".mp4");
+            rec.Record(filePath);
             CancellationTokenSource cts = new CancellationTokenSource();
             var token = cts.Token;
             Task.Run(async () =>

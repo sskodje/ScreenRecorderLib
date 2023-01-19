@@ -41,7 +41,9 @@ int main()
 			return 0;
 		}
 	}
-	rec->Record(Path::ChangeExtension(Path::GetTempFileName(), ".mp4"));
+	auto timestamp = DateTime::Now.ToString("yyyy-MM-dd HH-mm-ss");
+	auto filePath = Path::Combine(Path::GetTempPath(), "ScreenRecorder", timestamp, timestamp + ".mp4");
+	rec->Record(filePath);
 	auto cts = gcnew CancellationTokenSource();
 	auto token = cts->Token;
 

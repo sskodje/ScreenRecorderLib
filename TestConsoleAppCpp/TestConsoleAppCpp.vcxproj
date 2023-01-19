@@ -25,6 +25,7 @@
     <RootNamespace>TestConsoleAppCpp</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
     <TargetFrameworkVersion>4.8</TargetFrameworkVersion>
+    <ProjectName>TestConsoleAppManagedCpp</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -156,7 +157,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="TestConsoleAppCpp.cpp" />
+    <ClCompile Include="Demo.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\ScreenRecorderLib\ScreenRecorderLib.vcxproj">
