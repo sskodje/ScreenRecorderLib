@@ -130,6 +130,7 @@ namespace ScreenRecorderLib {
 	public ref class WindowRecordingSource : public RecordingSourceBase {
 	private:
 		bool _isCursorCaptureEnabled = true;
+		bool _isBorderRequired = true;
 	public:
 		/// <summary>
 		/// The handle to the window to record.
@@ -146,6 +147,7 @@ namespace ScreenRecorderLib {
 		WindowRecordingSource(WindowRecordingSource^ source) :RecordingSourceBase(source) {
 			Handle = source->Handle;
 			IsCursorCaptureEnabled = source->IsCursorCaptureEnabled;
+			IsBorderRequired = source->IsBorderRequired;
 		}
 		property RecorderApi RecorderApi {
 			ScreenRecorderLib::RecorderApi get() {
@@ -164,12 +166,26 @@ namespace ScreenRecorderLib {
 				OnPropertyChanged("IsCursorCaptureEnabled");
 			}
 		}
+		/// <summary>
+		///Gets or sets a value specifying whether a Windows Graphics Capture operation requires a colored border around the window or display to indicate that a capture is in progress.
+		///Requires Windows 11.
+		/// </summary>
+		property bool IsBorderRequired {
+			bool get() {
+				return _isBorderRequired;
+			}
+			void set(bool value) {
+				_isBorderRequired = value;
+				OnPropertyChanged("IsBorderRequired");
+			}
+		}
 	};
 
 	public ref class DisplayRecordingSource : public RecordingSourceBase {
 	private:
 		RecorderApi _recorderApi = ScreenRecorderLib::RecorderApi::DesktopDuplication;
 		bool _isCursorCaptureEnabled = true;
+		bool _isBorderRequired = true;
 	public:
 		static property DisplayRecordingSource^ MainMonitor {
 			DisplayRecordingSource^ get() {
@@ -197,6 +213,7 @@ namespace ScreenRecorderLib {
 		DisplayRecordingSource(DisplayRecordingSource^ source) :RecordingSourceBase(source) {
 			DeviceName = source->DeviceName;
 			IsCursorCaptureEnabled = source->IsCursorCaptureEnabled;
+			IsBorderRequired = source->IsBorderRequired;
 			RecorderApi = source->RecorderApi;
 		}
 
@@ -219,6 +236,19 @@ namespace ScreenRecorderLib {
 			void set(bool value) {
 				_isCursorCaptureEnabled = value;
 				OnPropertyChanged("IsCursorCaptureEnabled");
+			}
+		}
+		/// <summary>
+		///Gets or sets a value specifying whether a Windows Graphics Capture operation requires a colored border around the window or display to indicate that a capture is in progress.
+		///Requires Windows 11.
+		/// </summary>
+		property bool IsBorderRequired {
+			bool get() {
+				return _isBorderRequired;
+			}
+			void set(bool value) {
+				_isBorderRequired = value;
+				OnPropertyChanged("IsBorderRequired");
 			}
 		}
 	};

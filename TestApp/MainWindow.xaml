@@ -458,7 +458,12 @@
                                 <StackPanel Grid.Column="1"
                                             Orientation="Horizontal">
                                     <CheckBox VerticalAlignment="Center"
+                                              x:Name="CheckBoxIsBorderRequiredForSource"
+                                              Content="Border"
+                                              IsChecked="{Binding IsBorderRequired,Mode=TwoWay}" />
+                                    <CheckBox VerticalAlignment="Center"
                                               Padding="0"
+                                              Margin="5,0,0,0"
                                               x:Name="CheckBoxIsVideoCaptureEnabledForSource"
                                               IsChecked="{Binding IsVideoCaptureEnabled,Mode=TwoWay}" />
                                     <Label Content="Video"

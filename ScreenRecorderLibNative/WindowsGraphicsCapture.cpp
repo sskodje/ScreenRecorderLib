@@ -224,8 +224,14 @@ HRESULT WindowsGraphicsCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordi
 			// the frame pool was created on. This also means that the creating thread
 			// must have a DispatcherQueue. If you use this method, it's best not to do
 			// it on the UI thread. 
-			m_framePool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 1, m_CaptureItem.Size());
+			m_framePool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(direct3DDevice, winrt::DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, m_CaptureItem.Size());
+
 			m_session = m_framePool.CreateCaptureSession(m_CaptureItem);
+
+			if (IsGraphicsCaptureIsBorderRequiredPropertyAvailable()) {
+				m_session.IsBorderRequired(recordingSource.IsBorderRequired.value_or(true));
+			}
+
 			m_framePool.FrameArrived({ this, &WindowsGraphicsCapture::OnFrameArrived });
 
 			WINRT_ASSERT(m_session != nullptr);

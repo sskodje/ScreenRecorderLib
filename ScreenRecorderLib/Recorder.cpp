@@ -659,6 +659,7 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 				nativeSource.Type = RecordingSourceType::Display;
 				nativeSource.SourcePath = desc.DeviceName;
 				nativeSource.IsCursorCaptureEnabled = displaySource->IsCursorCaptureEnabled;
+				nativeSource.IsBorderRequired = displaySource->IsBorderRequired;
 
 				switch (displaySource->RecorderApi)
 				{
@@ -685,6 +686,7 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 				nativeSource.Type = RecordingSourceType::Window;
 				nativeSource.SourceWindow = windowHandle;
 				nativeSource.IsCursorCaptureEnabled = windowSource->IsCursorCaptureEnabled;
+				nativeSource.IsBorderRequired = windowSource->IsBorderRequired;
 				nativeSource.SourceApi = RecordingSourceApi::WindowsGraphicsCapture;
 				hr = S_OK;
 			}

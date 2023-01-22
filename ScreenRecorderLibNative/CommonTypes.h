@@ -212,6 +212,10 @@ struct RECORDING_SOURCE_BASE abstract {
 	/// Determines if the source is capturing mouse cursors. If false, it will be hidden.
 	/// </summary>
 	std::optional<bool> IsCursorCaptureEnabled;
+	/// <summary>
+	/// Toggles the display of a yellow border around recorded displays and windows when using Windows Graphics Capture on Windows 10 2104 or newer. If false, it will be hidden.
+	/// </summary>
+	std::optional<bool> IsBorderRequired;
 
 	RECORDING_SOURCE_BASE() :
 		Type(RecordingSourceType::Display),
@@ -222,7 +226,8 @@ struct RECORDING_SOURCE_BASE abstract {
 		Stretch(TextureStretchMode::Uniform),
 		Anchor(ContentAnchor::TopLeft),
 		IsVideoCaptureEnabled(std::nullopt),
-		IsCursorCaptureEnabled(std::nullopt)
+		IsCursorCaptureEnabled(std::nullopt),
+		IsBorderRequired(std::nullopt)
 	{
 
 	}

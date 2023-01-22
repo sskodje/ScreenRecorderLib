@@ -69,4 +69,14 @@ namespace Graphics::Capture::Util
 			return false;
 		}
 	}
+	inline bool IsGraphicsCaptureIsBorderRequiredPropertyAvailable() {
+		try
+		{
+			return IsGraphicsCaptureAvailable()
+				&& winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"IsBorderRequired");
+		}
+		catch (winrt::hresult_error err) {
+			return false;
+		}
+	}
 }
