@@ -48,7 +48,6 @@ WindowsGraphicsCapture::WindowsGraphicsCapture() :
 	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 	QueryPerformanceFrequency(&m_QPCFrequency);
-	m_IsCursorCapturePropertyAvailable = IsGraphicsCaptureCursorCapturePropertyAvailable();
 }
 
 WindowsGraphicsCapture::~WindowsGraphicsCapture()
@@ -235,7 +234,7 @@ HRESULT WindowsGraphicsCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordi
 			m_framePool.FrameArrived({ this, &WindowsGraphicsCapture::OnFrameArrived });
 
 			WINRT_ASSERT(m_session != nullptr);
-			if (m_IsCursorCapturePropertyAvailable) {
+			if (IsGraphicsCaptureCursorCapturePropertyAvailable()) {
 				m_session.IsCursorCaptureEnabled(m_RecordingSource->IsCursorCaptureEnabled.value_or(true));
 			}
 			m_session.StartCapture();

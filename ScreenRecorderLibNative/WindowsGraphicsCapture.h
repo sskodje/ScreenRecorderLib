@@ -39,7 +39,6 @@ private:
 	int m_CursorOffsetY;
 	float m_CursorScaleX;
 	float m_CursorScaleY;
-	bool m_IsCursorCapturePropertyAvailable;
 	bool m_IsInitialized;
 	HANDLE m_NewFrameEvent;
 	bool m_HaveDeliveredFirstFrame;
