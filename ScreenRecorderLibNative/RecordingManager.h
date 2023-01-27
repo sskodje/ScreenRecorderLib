@@ -93,6 +93,7 @@ public:
 	std::shared_ptr<OUTPUT_OPTIONS> GetOutputOptions() { return m_OutputOptions; }
 private:
 	bool m_IsDestructing;
+	UINT m_TimerResolution;
 	struct TaskWrapper;
 	std::unique_ptr<TaskWrapper> m_TaskWrapperImpl;
 

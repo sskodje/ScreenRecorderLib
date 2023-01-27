@@ -93,6 +93,13 @@ RecordingManager::RecordingManager() :
 	else {
 		LOG_ERROR("Media foundation failed to start: hr = 0x%08x", m_MfStartupResult);
 	}
+	TIMECAPS tc;
+	UINT targetResolutionMs = 1;
+	if (timeGetDevCaps(&tc, sizeof(TIMECAPS)) == TIMERR_NOERROR)
+	{
+		m_TimerResolution = min(max(tc.wPeriodMin, targetResolutionMs), tc.wPeriodMax);
+		timeBeginPeriod(m_TimerResolution);
+	}
 }
 
 RecordingManager::~RecordingManager()
@@ -103,6 +110,10 @@ RecordingManager::~RecordingManager()
 		m_TaskWrapperImpl->m_RecordTaskCts.cancel();
 		m_TaskWrapperImpl->m_RecordTask.wait();
 		LOG_DEBUG("Wait for recording task completed.");
+	}
+
+	if (m_TimerResolution > 0) {
+		timeEndPeriod(m_TimerResolution);
 	}
 	ClearRecordingSources();
 	ClearOverlays();
@@ -683,7 +694,6 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 					//We recommend that you use Flush when the CPU waits for an arbitrary amount of time(such as when you call the Sleep function).
 					//https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11devicecontext-flush
 					m_DxResources.Context->Flush();
-					std::this_thread::yield();
 					Sleep(1);
 				}
 				else {
