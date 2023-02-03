@@ -9,7 +9,7 @@ public:
 	~AudioManager();
 	HRESULT Initialize(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptions);
 	void ClearRecordedBytes();
-	std::vector<BYTE> GrabAudioFrame(_In_ int durationHundredNanos);
+	std::vector<BYTE> GrabAudioFrame(_In_ UINT64 durationHundredNanos);
 private:
 	CRITICAL_SECTION m_CriticalSection;
 	std::shared_ptr<AUDIO_OPTIONS> m_AudioOptions;

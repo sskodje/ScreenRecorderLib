@@ -39,7 +39,7 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 		return E_FAIL;
 	}
 	// activate an IAudioClient
-	IAudioClient *pAudioClient;
+	IAudioClient *pAudioClient = nullptr;
 	hr = pMMDevice->Activate(
 		__uuidof(IAudioClient),
 		CLSCTX_ALL, NULL,
@@ -182,7 +182,7 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 	}
 
 	// activate an IAudioCaptureClient
-	IAudioCaptureClient *pAudioCaptureClient;
+	IAudioCaptureClient *pAudioCaptureClient = nullptr;
 	hr = pAudioClient->GetService(
 		__uuidof(IAudioCaptureClient),
 		(void **)&pAudioCaptureClient
@@ -204,7 +204,7 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 	AvRevertMmThreadCharacteristicsOnExit unregisterMmcss(hTask);
 
 	// set the waitable timer
-	LARGE_INTEGER liFirstFire;
+	LARGE_INTEGER liFirstFire{};
 	liFirstFire.QuadPart = -hnsDefaultDevicePeriod / 2; // negative means relative time
 	LONG lTimeBetweenFires = (LONG)hnsDefaultDevicePeriod / 2 / (10 * 1000); // convert to milliseconds
 	BOOL bOK = SetWaitableTimer(
@@ -351,10 +351,10 @@ std::vector<BYTE> LoopbackCapture::PeakRecordedBytes()
 	return m_RecordedBytes;
 }
 
-std::vector<BYTE> LoopbackCapture::GetRecordedBytes(int duration100Nanos)
+std::vector<BYTE> LoopbackCapture::GetRecordedBytes(UINT64 duration100Nanos)
 {
 	int frameCount = int(ceil(m_InputFormat.sampleRate * HundredNanosToSeconds(duration100Nanos)));
-	int byteCount = min((frameCount * m_InputFormat.FrameBytes()), m_RecordedBytes.size());
+	size_t byteCount = min((frameCount * m_InputFormat.FrameBytes()), m_RecordedBytes.size());
 	m_TaskWrapperImpl->m_Mutex.lock();
 	std::vector<BYTE> newvector(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
 	// convert audio

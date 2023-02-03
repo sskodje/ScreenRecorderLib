@@ -72,7 +72,7 @@ HRESULT AudioManager::InitializeAudioCapture()
 	return hr;
 }
 
-std::vector<BYTE> AudioManager::GrabAudioFrame(_In_ int durationHundredNanos)
+std::vector<BYTE> AudioManager::GrabAudioFrame(_In_ UINT64 durationHundredNanos)
 {
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);

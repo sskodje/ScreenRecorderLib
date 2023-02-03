@@ -437,7 +437,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		videoFrameDurationMillis = (double)1000 / GetEncoderOptions()->GetVideoFps();
 	}
 	else if (recorderMode == RecorderModeInternal::Slideshow) {
-		videoFrameDurationMillis = GetSnapshotOptions()->GetSnapshotsInterval().count();
+		videoFrameDurationMillis = (double)GetSnapshotOptions()->GetSnapshotsInterval().count();
 	}
 	INT64 videoFrameDuration100Nanos = MillisToHundredNanos(videoFrameDurationMillis);
 
@@ -446,9 +446,9 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	bool havePrematureFrame = false;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
 	INT64 minimumTimeForDelay100Nanons = 5000;//0.5ms
-	INT64 maxFrameLengthMillis = HundredNanosToMillis(m_MaxFrameLength100Nanos);
+	DWORD maxFrameLengthMillis = (DWORD)HundredNanosToMillis(m_MaxFrameLength100Nanos);
 	DynamicWait DynamicWait;
-	int totalDiff = 0;
+	INT64 totalDiff = 0;
 
 	auto IsTimeToTakeSnapshot([&]()
 	{
@@ -506,10 +506,10 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 	}
 
-	int diff = 0;
+	INT64 diff = 0;
 	auto audioBytes = pAudioManager->GrabAudioFrame(duration100Nanos);
 	if (audioBytes.size() > 0) {
-		INT64 frameCount = audioBytes.size() / ((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
+		INT64 frameCount = audioBytes.size() / (INT64)((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
 		INT64 newDuration = (frameCount * 10 * 1000 * 1000) / GetAudioOptions()->GetAudioSamplesPerSecond();
 		diff = newDuration - duration100Nanos;
 	}
@@ -808,7 +808,7 @@ HRESULT RecordingManager::ProcessTextureTransforms(_In_ ID3D11Texture2D *pTextur
 		int leftMargin = (int)max(0, round(((double)videoOutputFrameSize.cx - (double)RectWidth(contentRect))) / 2);
 		int topMargin = (int)max(0, round(((double)videoOutputFrameSize.cy - (double)RectHeight(contentRect))) / 2);
 
-		D3D11_BOX Box;
+		D3D11_BOX Box{};
 		Box.front = 0;
 		Box.back = 1;
 		Box.left = 0;
