@@ -84,8 +84,10 @@ HRESULT VideoReader::InitializeSourceReader(
 					hr = CreateIMFTransform(streamIndex, pInputMediaType, &pMediaTransform, &pOutputMediaType);
 					if (FAILED(hr)) {
 						LOG_INFO("Failed to create a valid media output type for video reader, attempting to create an intermediate transform");
+						CComPtr<IMFActivate> pConverterActivate = NULL;
+						CONTINUE_ON_BAD_HR(hr = FindVideoDecoder(&inputSubType, nullptr, false, true, true, &pConverterActivate));
 						CComPtr<IMFTransform> pConverter = NULL;
-						CONTINUE_ON_BAD_HR(hr = FindVideoDecoder(&inputSubType, nullptr, false, true, true, &pConverter));
+						CONTINUE_ON_BAD_HR(pConverterActivate->ActivateObject(IID_PPV_ARGS(&pConverter)));
 						CONTINUE_ON_BAD_HR(pConverter->SetInputType(streamIndex, pInputMediaType, 0));
 						GUID guidMinor;
 						GUID guidMajor;
@@ -114,6 +116,7 @@ HRESULT VideoReader::InitializeSourceReader(
 								break;
 							}
 						}
+						pConverterActivate->ShutdownObject();
 					}
 				}
 				if (SUCCEEDED(hr)) {// Found an output type.

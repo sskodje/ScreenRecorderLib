@@ -3,7 +3,7 @@
 #include <uuids.h>
 
 #pragma comment(lib, "strmiids.lib")
-HRESULT FindDecoderEx(const GUID &subtype, BOOL bAudio, IMFTransform **ppDecoder)
+HRESULT FindDecoderEx(const GUID &subtype, BOOL bAudio, IMFActivate **ppDecoder)
 {
 	HRESULT hr = S_OK;
 	UINT32 count = 0;
@@ -33,10 +33,10 @@ HRESULT FindDecoderEx(const GUID &subtype, BOOL bAudio, IMFTransform **ppDecoder
 
 	if (SUCCEEDED(hr))
 	{
-		hr = ppActivate[0]->ActivateObject(IID_PPV_ARGS(ppDecoder));
+		*ppDecoder = ppActivate[0];
 	}
 
-	for (UINT32 i = 0; i < count; i++)
+	for (UINT32 i = SUCCEEDED(hr) ? 1 : 0; i < count; i++)
 	{
 		ppActivate[i]->Release();
 	}
@@ -51,7 +51,7 @@ HRESULT FindVideoDecoder(
 	BOOL bAllowAsync,
 	BOOL bAllowHardware,
 	BOOL bAllowTranscode,
-	IMFTransform **ppDecoder
+	IMFActivate **ppDecoder
 )
 {
 	HRESULT hr = S_OK;
@@ -102,10 +102,10 @@ HRESULT FindVideoDecoder(
 	// Create the first decoder in the list.
 	if (SUCCEEDED(hr))
 	{
-		hr = ppActivate[0]->ActivateObject(IID_PPV_ARGS(ppDecoder));
+		*ppDecoder = ppActivate[0];
 	}
 
-	for (UINT32 i = 0; i < count; i++)
+	for (UINT32 i = SUCCEEDED(hr) ? 1 : 0; i < count; i++)
 	{
 		ppActivate[i]->Release();
 	}
@@ -157,7 +157,7 @@ HRESULT CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMedi
 	return hr;
 }
 
-HRESULT EnumVideoCaptureDevices(_Out_ std::vector<IMFActivate*> *pDevices)
+HRESULT EnumVideoCaptureDevices(_Out_ std::vector<IMFActivate *> *pDevices)
 {
 	*pDevices = std::vector<IMFActivate *>();
 	HRESULT hr = S_OK;
@@ -184,8 +184,8 @@ HRESULT EnumVideoCaptureDevices(_Out_ std::vector<IMFActivate*> *pDevices)
 	{
 		IMFActivate *pDevice = ppDevices[i];
 
-			pDevice->AddRef();
-			pDevices->push_back(pDevice);
+		pDevice->AddRef();
+		pDevices->push_back(pDevice);
 	}
 	return hr;
 }
@@ -238,14 +238,14 @@ HRESULT CopyMediaType(_In_ IMFMediaType *pType, _Outptr_ IMFMediaType **ppType)
 	return hr;
 }
 
-HRESULT EnumerateCaptureFormats(_In_ IMFMediaSource *pSource, _Out_ std::vector<IMFMediaType*> *pMediaTypes)
+HRESULT EnumerateCaptureFormats(_In_ IMFMediaSource *pSource, _Out_ std::vector<IMFMediaType *> *pMediaTypes)
 {
 	MeasureExecutionTime measure(L"EnumerateCaptureFormats");
 	IMFPresentationDescriptor *pPD = NULL;
 	IMFStreamDescriptor *pSD = NULL;
 	IMFMediaTypeHandler *pHandler = NULL;
 	IMFMediaType *pType = NULL;
-	*pMediaTypes = std::vector<IMFMediaType*>();
+	*pMediaTypes = std::vector<IMFMediaType *>();
 
 
 	HRESULT hr = pSource->CreatePresentationDescriptor(&pPD);

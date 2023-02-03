@@ -544,8 +544,9 @@ List<VideoCaptureFormat^>^ ScreenRecorderLib::Recorder::GetSupportedVideoCapture
 
 			std::vector<IMFMediaType*> captureFormats;
 			EnumerateCaptureFormats(pSource, &captureFormats);
-
-			return CreateVideoCaptureFormatList(captureFormats);
+			auto list = CreateVideoCaptureFormatList(captureFormats);
+			pDevice->ShutdownObject();
+			return list;
 		}
 	}
 	return gcnew List<VideoCaptureFormat^>();
