@@ -146,7 +146,11 @@ HRESULT OutputManager::FinalizeRecording()
 		//Dispose of MPEG4MediaSink 
 		IMFMediaSink *pSink;
 		if (SUCCEEDED(m_SinkWriter->GetServiceForStream(MF_SINK_WRITER_MEDIASINK, GUID_NULL, IID_PPV_ARGS(&pSink)))) {
+			//Release the sink writer before calling Shutdown on the media sink. 
+			//https://learn.microsoft.com/en-us/windows/win32/api/mfreadwrite/nf-mfreadwrite-mfcreatesinkwriterfrommediasink
+			m_SinkWriter.Release();
 			finalizeResult = pSink->Shutdown();
+			SafeRelease(&pSink);
 			if (FAILED(finalizeResult)) {
 				LOG_ERROR("Failed to shut down IMFMediaSink");
 			}
