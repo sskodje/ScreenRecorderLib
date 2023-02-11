@@ -158,7 +158,14 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 
 	UINT32 nBlockAlign = pwfx->nBlockAlign;
 	UINT32 nFrames = 0;
-	long audioClientBuffer = 200 * 10000; //200ms in 100-nanosecond units.
+	long audioClientBufferMillis = 200;
+	long audioClientBuffer100Nanos = audioClientBufferMillis * 10000;
+
+	int bufferFrameCount = int(ceil(pwfx->nSamplesPerSec * audioClientBufferMillis / 1000));
+	int bufferByteCount = bufferFrameCount * nBlockAlign;
+	BYTE *bufferData = new BYTE[bufferByteCount]{0};
+	DeleteArrayOnExit deleteBufferData(bufferData);
+
 	// call IAudioClient::Initialize
 	// note that AUDCLNT_STREAMFLAGS_LOOPBACK and AUDCLNT_STREAMFLAGS_EVENTCALLBACK
 	// do not work together...
@@ -167,13 +174,13 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 	switch (flow)
 	{
 		case eRender:
-			hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, audioClientBuffer, 0, pwfx, 0);
+			hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, audioClientBuffer100Nanos, 0, pwfx, 0);
 			break;
 		case eCapture:
-			hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, audioClientBuffer, 0, pwfx, 0);
+			hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, audioClientBuffer100Nanos, 0, pwfx, 0);
 			break;
 		default:
-			hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, audioClientBuffer, 0, pwfx, 0);
+			hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, audioClientBuffer100Nanos, 0, pwfx, 0);
 			break;
 	}
 	if (FAILED(hr)) {
@@ -289,14 +296,22 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 				continue; // exits loop
 			}
 
-			LONG lBytesToWrite = nNumFramesToRead * nBlockAlign;
+			UINT32 size = nNumFramesToRead * nBlockAlign;
+			memcpy_s(bufferData, bufferByteCount, pData, size);
+
+			hr = pAudioCaptureClient->ReleaseBuffer(nNumFramesToRead);
+			if (FAILED(hr)) {
+				LOG_ERROR(L"IAudioCaptureClient::ReleaseBuffer failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, m_Tag.c_str(), hr);
+				bDone = true;
+				continue; // exits loop
+			}
+
 #pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
 
 			m_TaskWrapperImpl->m_Mutex.lock();
-			int size = lBytesToWrite;
 			if (m_RecordedBytes.size() == 0)
 				m_RecordedBytes.reserve(size);
-			m_RecordedBytes.insert(m_RecordedBytes.end(), &pData[0], &pData[size]);
+			m_RecordedBytes.insert(m_RecordedBytes.end(), &bufferData[0], &bufferData[size]);
 			//This should reduce glitching if there is discontinuity in the audio stream.
 			if (isDiscontinuity) {
 				UINT64 frameDiff = nDevicePosition - nLastDevicePosition;
@@ -306,15 +321,7 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 				}
 			}
 			m_TaskWrapperImpl->m_Mutex.unlock();
-
 			nFrames += nNumFramesToRead;
-
-			hr = pAudioCaptureClient->ReleaseBuffer(nNumFramesToRead);
-			if (FAILED(hr)) {
-				LOG_ERROR(L"IAudioCaptureClient::ReleaseBuffer failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, m_Tag.c_str(), hr);
-				bDone = true;
-				continue; // exits loop
-			}
 			bFirstPacket = false;
 			nLastDevicePosition = nDevicePosition;
 		}
@@ -357,6 +364,9 @@ std::vector<BYTE> LoopbackCapture::GetRecordedBytes(UINT64 duration100Nanos)
 	size_t byteCount = min((frameCount * m_InputFormat.FrameBytes()), m_RecordedBytes.size());
 	m_TaskWrapperImpl->m_Mutex.lock();
 	std::vector<BYTE> newvector(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
+	m_RecordedBytes.erase(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
+	LOG_TRACE(L"Got %d bytes from LoopbackCapture %ls. %d bytes remaining", newvector.size(), m_Tag.c_str(), m_RecordedBytes.size());
+	m_TaskWrapperImpl->m_Mutex.unlock();
 	// convert audio
 	if (requiresResampling() && byteCount > 0) {
 		WWMFSampleData sampleData;
@@ -375,9 +385,7 @@ std::vector<BYTE> LoopbackCapture::GetRecordedBytes(UINT64 duration100Nanos)
 		newvector.insert(newvector.begin(), m_OverflowBytes.begin(), m_OverflowBytes.end());
 		m_OverflowBytes.clear();
 	}
-	m_RecordedBytes.erase(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
-	LOG_TRACE(L"Got %d bytes from LoopbackCapture %ls. %d bytes remaining", newvector.size(), m_Tag.c_str(), m_RecordedBytes.size());
-	m_TaskWrapperImpl->m_Mutex.unlock();
+
 	return newvector;
 }
 
