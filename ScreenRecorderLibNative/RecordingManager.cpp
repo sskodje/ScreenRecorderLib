@@ -87,12 +87,6 @@ RecordingManager::RecordingManager() :
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	m_MfStartupResult = MFStartup(MF_VERSION, MFSTARTUP_LITE);
-	if (SUCCEEDED(m_MfStartupResult)) {
-		LOG_INFO(L"Media Foundation started");
-	}
-	else {
-		LOG_ERROR("Media foundation failed to start: hr = 0x%08x", m_MfStartupResult);
-	}
 	TIMECAPS tc;
 	UINT targetResolutionMs = 1;
 	if (timeGetDevCaps(&tc, sizeof(TIMECAPS)) == TIMERR_NOERROR)
@@ -834,8 +828,9 @@ bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
 	HKEY hk;
 	DWORD errorCode;
 
-	if (errorCode = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Setup\\WindowsFeatures\\WindowsMediaVersion", 0, KEY_READ, &hk) != ERROR_SUCCESS) {
-		errorText = L"Missing dependency: Windows Media Features.";
+	if (FAILED(m_MfStartupResult)) {
+		LOG_ERROR("Media Foundation failed to start: hr = 0x%08x", m_MfStartupResult);
+		errorText = L"Failed to start Media Foundation.";
 		result = false;
 	}
 	else {
