@@ -231,7 +231,6 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		LOG_INFO(L"Starting recording task");
 	m_IsRecording = true;
 	REC_RESULT result{};
-	RETURN_RESULT_ON_BAD_HR(m_MfStartupResult, L"Media Foundation failed to initialize");
 	HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 	RETURN_RESULT_ON_BAD_HR(hr, L"CoInitializeEx failed");
 	RETURN_RESULT_ON_BAD_HR(hr = InitializeDx(nullptr, &m_DxResources), L"Failed to initialize DirectX");
