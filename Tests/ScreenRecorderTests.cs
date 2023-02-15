@@ -711,6 +711,7 @@ namespace ScreenRecorderLib
                         bool isComplete = false;
                         ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
                         ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                        ManualResetEvent recordingStartedEvent = new ManualResetEvent(false);
                         rec.OnRecordingComplete += (s, args) =>
                         {
                             isComplete = true;
@@ -723,8 +724,21 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
+                        rec.OnStatusChanged += (s, args) =>
+                        {
+                            switch (args.Status)
+                            {
+                                case RecorderStatus.Recording:
+                                    {
+                                        recordingStartedEvent.Set();
+                                        break;
+                                    }
+                                default: break;
+                            }
+                        };
                         int durationMillis = 5000;
                         rec.Record(outStream);
+                        recordingStartedEvent.WaitOne(3000);
                         recordingResetEvent.WaitOne(durationMillis);
                         rec.Stop();
                         finalizeResetEvent.WaitOne(5000);
@@ -979,6 +993,7 @@ namespace ScreenRecorderLib
                     bool isComplete = false;
                     ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
                     ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingStartedEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
@@ -991,8 +1006,20 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-
+                    rec.OnStatusChanged += (s, args) =>
+                    {
+                        switch (args.Status)
+                        {
+                            case RecorderStatus.Recording:
+                                {
+                                    recordingStartedEvent.Set();
+                                    break;
+                                }
+                            default: break;
+                        }
+                    };
                     rec.Record(directoryPath);
+                    recordingStartedEvent.WaitOne(1000);
                     recordingResetEvent.WaitOne(recordingLengthMillis);
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
@@ -1149,6 +1176,7 @@ namespace ScreenRecorderLib
                     bool isComplete = false;
                     ManualResetEvent finalizingResetEvent = new ManualResetEvent(false);
                     ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingStartedEvent = new ManualResetEvent(false);
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
@@ -1161,9 +1189,22 @@ namespace ScreenRecorderLib
                         finalizingResetEvent.Set();
                         recordingResetEvent.Set();
                     };
+                    rec.OnStatusChanged += (s, args) =>
+                    {
+                        switch (args.Status)
+                        {
+                            case RecorderStatus.Recording:
+                                {
+                                    recordingStartedEvent.Set();
+                                    break;
+                                }
+                            default: break;
+                        }
+                    };
                     int recordingTimeMillis = 30 * 1000;
                     Stopwatch sw = Stopwatch.StartNew();
                     rec.Record(filePath);
+                    recordingStartedEvent.WaitOne(1000);
                     recordingResetEvent.WaitOne(recordingTimeMillis);
                     rec.Stop();
                     finalizingResetEvent.WaitOne(5000);
