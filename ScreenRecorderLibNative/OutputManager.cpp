@@ -98,7 +98,7 @@ HRESULT OutputManager::BeginRecording(_In_ std::wstring outputPath, _In_ SIZE vi
 		RECT inputMediaFrameRect = RECT{ 0,0,videoOutputFrameSize.cx,videoOutputFrameSize.cy };
 		CComPtr<IMFByteStream> mfByteStream = nullptr;
 		RETURN_ON_BAD_HR(MFCreateFile(MF_ACCESSMODE_READWRITE, MF_OPENMODE_FAIL_IF_EXIST, MF_FILEFLAGS_NONE, outputPath.c_str(), &mfByteStream));
-		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(mfByteStream, m_Device, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, m_CallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(mfByteStream, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, m_CallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
 	StartMediaClock();
 	LOG_DEBUG("Sink Writer initialized");
@@ -122,7 +122,7 @@ HRESULT OutputManager::BeginRecording(_In_ IStream *pStream, _In_ SIZE videoOutp
 			m_CallBack = new (std::nothrow)CMFSinkWriterCallback(m_FinalizeEvent, nullptr);
 		}
 		RECT inputMediaFrameRect = RECT{ 0,0,videoOutputFrameSize.cx,videoOutputFrameSize.cy };
-		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(mfByteStream, m_Device, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, m_CallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
+		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(mfByteStream, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, m_CallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
 	StartMediaClock();
 	LOG_DEBUG("Sink Writer initialized");
@@ -416,7 +416,6 @@ HRESULT OutputManager::ConfigureInputMediaTypes(
 
 HRESULT OutputManager::InitializeVideoSinkWriter(
 	_In_ IMFByteStream *pOutStream,
-	_In_ ID3D11Device *pDevice,
 	_In_ RECT sourceRect,
 	_In_ SIZE outputFrameSize,
 	_In_ DXGI_MODE_ROTATION rotation,
