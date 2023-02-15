@@ -1025,10 +1025,12 @@ void ProcessCaptureHRESULT(_In_ HRESULT hr, _Inout_ CAPTURE_RESULT *pResult, _In
 				{
 					case DXGI_ERROR_DEVICE_REMOVED:
 					case DXGI_ERROR_DEVICE_RESET:
+					case DXGI_ERROR_DRIVER_INTERNAL_ERROR:
 					case static_cast<HRESULT>(E_OUTOFMEMORY):
 					{
-						LOG_INFO(L"Graphics device temporarily unavailable: hr = 0x%08x, error = %s", hr, err.ErrorMessage());
+						LOG_INFO(L"Graphics device unavailable: hr = 0x%08x, error = %s", hr, err.ErrorMessage());
 						pResult->IsRecoverableError = true;
+						pResult->IsDeviceError = true;
 						break;
 					}
 					default: {
