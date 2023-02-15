@@ -550,25 +550,37 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			{
 				if (FAILED(result->RecordingResult)) {
 					if (result->IsRecoverableError) {
-						//Release texture created on the stale device
-						if (pPreviousFrameCopy) {
-							pPreviousFrameCopy.Release();
-						}
-
-						//Reinitialize and restart capture
+						//Stop existing capture
 						hr = pCapture->StopCapture();
-						if (SUCCEEDED(hr)) {
+
+						// As we have encountered an error due to a system transition we wait before trying again, using this dynamic wait
+						// the wait periods will get progressively long to avoid wasting too much system resource if this state lasts a long time
+						DynamicWait.Wait();
+
+						//Recreate D3D resources if needed
+						if (SUCCEEDED(hr) && result->IsDeviceError) {
+							//Release texture created on the stale device
+							if (pPreviousFrameCopy) {
+								pPreviousFrameCopy.Release();
+							}
 							CleanDx(&m_DxResources);
-							pCapture.reset(new ScreenCaptureManager());
-							stopCaptureOnExit.Reset(pCapture.get());
-							// As we have encountered an error due to a system transition we wait before trying again, using this dynamic wait
-							// the wait periods will get progressively long to avoid wasting too much system resource if this state lasts a long time
-							DynamicWait.Wait();
 							hr = InitializeDx(nullptr, &m_DxResources);
 							SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
+							if (SUCCEEDED(hr)) {
+								hr = pMouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
+							}
+
+							if (SUCCEEDED(hr)) {
+								hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
+							}
+							if (SUCCEEDED(hr)) {
+								hr = m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetEncoderOptions(), GetAudioOptions(), GetSnapshotOptions(), GetOutputOptions());
+							}
 						}
+						//Recreate capture manager and restart capture
 						if (SUCCEEDED(hr)) {
-							hr = pMouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
+							pCapture.reset(new ScreenCaptureManager());
+							stopCaptureOnExit.Reset(pCapture.get());
 						}
 						if (SUCCEEDED(hr)) {
 							hr = pCapture->Initialize(m_DxResources.Context, m_DxResources.Device, GetOutputOptions());
@@ -582,12 +594,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 							hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, nullptr);
 							LOG_TRACE(L"Reinitialized input frame rect: [%d,%d,%d,%d]", videoInputFrameRect.left, videoInputFrameRect.top, videoInputFrameRect.right, videoInputFrameRect.bottom);
 						}
-						if (SUCCEEDED(hr)) {
-							hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
-						}
-						if (SUCCEEDED(hr)) {
-							hr = m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetEncoderOptions(), GetAudioOptions(), GetSnapshotOptions(), GetOutputOptions());
-						}
+
 						pPtrInfo.reset();
 						if (FAILED(hr)) {
 							CAPTURE_RESULT captureResult{};

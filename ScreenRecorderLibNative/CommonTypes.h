@@ -34,14 +34,19 @@ struct REC_RESULT {
 struct CAPTURE_RESULT :REC_RESULT {
 	// Used to indicate a transition event occurred e.g. PnpStop, PnpStart, mode change, TDR, desktop switch, and the application needs to recreate the capture interface
 	bool IsRecoverableError;
+	// Used to indicate that the D3D11 device no longer is valid, and the application should destroy and recreate it.
+	bool IsDeviceError;
+
 	CAPTURE_RESULT() :
 		IsRecoverableError(false),
+		IsDeviceError(false),
 		REC_RESULT()
 	{
 
 	}
 	CAPTURE_RESULT(HRESULT recordingResult, std::wstring error = L"") :
 		IsRecoverableError(false),
+		IsDeviceError(false),
 		REC_RESULT(recordingResult, error)
 	{
 
