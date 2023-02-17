@@ -11,12 +11,12 @@
     <summary />
     <releaseNotes>
 - Added configuration for camera recording.
+- Added configuration for disabling yellow border on WGC recording on Windows 11.
 - Fixed a memory leak when reusing a Recorder instance for several recordings.
 - Fixed audio syncronization issue when recording to fragmented mp4.
-- Fix for recording on laptops with hybrid GPU.
+- Recording on laptops with hybrid GPU should now work without forcing application to run on iGPU.
 - Fixed crash when plugging in a monitor while recording and using Desktop Duplication on Intel Quicksync.
-- Added configuration for disabling yellow border on WGC recording on Windows 11.
-- See Github for full list of changes
+- See Github for full list of changes.
     </releaseNotes>
     <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
     <language>en-GB</language>
