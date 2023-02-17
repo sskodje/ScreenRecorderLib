@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
     <id>ScreenRecorderLib</id>
-    <version>5.1.4</version>
+    <version>5.2.0</version>
     <authors>Sverre Kristoffer Skodje</authors>
     <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
@@ -10,10 +10,13 @@
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to video or image files.</description>
     <summary />
     <releaseNotes>
-- Borderless windows are now recordable again.
-- Fixed issues that caused low framerates on high resolution recordings.
-- Fix for deadlocks that could happen when losing video output on e.g UAC prompts.
-- Check Github for full list of fixes.
+- Added configuration for camera recording.
+- Fixed a memory leak when reusing a Recorder instance for several recordings.
+- Fixed audio syncronization issue when recording to fragmented mp4.
+- Fix for recording on laptops with hybrid GPU.
+- Fixed crash when plugging in a monitor while recording and using Desktop Duplication on Intel Quicksync.
+- Added configuration for disabling yellow border on WGC recording on Windows 11.
+- See Github for full list of changes
     </releaseNotes>
     <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
     <language>en-GB</language>
