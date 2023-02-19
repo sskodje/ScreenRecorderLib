@@ -307,8 +307,7 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 			}
 
 #pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
-
-			m_TaskWrapperImpl->m_Mutex.lock();
+			const std::lock_guard<std::mutex> lock(m_TaskWrapperImpl->m_Mutex);
 			if (m_RecordedBytes.size() == 0)
 				m_RecordedBytes.reserve(size);
 			m_RecordedBytes.insert(m_RecordedBytes.end(), &bufferData[0], &bufferData[size]);
@@ -320,7 +319,6 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 					LOG_DEBUG(L"Discontinuity detected, padded audio bytes with %d bytes of silence on %ls", frameDiff, m_Tag.c_str());
 				}
 			}
-			m_TaskWrapperImpl->m_Mutex.unlock();
 			nFrames += nNumFramesToRead;
 			bFirstPacket = false;
 			nLastDevicePosition = nDevicePosition;
@@ -333,9 +331,9 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 		}
 
 		dwWaitResult = WaitForMultipleObjects(
-			ARRAYSIZE(waitArray), waitArray,
-			FALSE, INFINITE
-		);
+ARRAYSIZE(waitArray), waitArray,
+FALSE, INFINITE
+);
 
 		if (WAIT_OBJECT_0 == dwWaitResult) {
 			LOG_DEBUG(L"Received stop event after %u passes and %u frames on %ls", nPasses, nFrames, m_Tag.c_str());
@@ -361,12 +359,16 @@ std::vector<BYTE> LoopbackCapture::PeakRecordedBytes()
 std::vector<BYTE> LoopbackCapture::GetRecordedBytes(UINT64 duration100Nanos)
 {
 	int frameCount = int(ceil(m_InputFormat.sampleRate * HundredNanosToSeconds(duration100Nanos)));
-	size_t byteCount = min((frameCount * m_InputFormat.FrameBytes()), m_RecordedBytes.size());
-	m_TaskWrapperImpl->m_Mutex.lock();
-	std::vector<BYTE> newvector(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
-	m_RecordedBytes.erase(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
-	LOG_TRACE(L"Got %d bytes from LoopbackCapture %ls. %d bytes remaining", newvector.size(), m_Tag.c_str(), m_RecordedBytes.size());
-	m_TaskWrapperImpl->m_Mutex.unlock();
+
+	std::vector<BYTE> newvector;
+	size_t byteCount;
+	{
+		const std::lock_guard<std::mutex> lock(m_TaskWrapperImpl->m_Mutex);
+		byteCount = min((frameCount * m_InputFormat.FrameBytes()), m_RecordedBytes.size());
+		newvector = std::vector<BYTE>(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
+		m_RecordedBytes.erase(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
+		LOG_TRACE(L"Got %d bytes from LoopbackCapture %ls. %d bytes remaining", newvector.size(), m_Tag.c_str(), m_RecordedBytes.size());
+	}
 	// convert audio
 	if (requiresResampling() && byteCount > 0) {
 		WWMFSampleData sampleData;
@@ -454,7 +456,6 @@ bool LoopbackCapture::IsCapturing() {
 
 void LoopbackCapture::ClearRecordedBytes()
 {
-	m_TaskWrapperImpl->m_Mutex.lock();
+	const std::lock_guard<std::mutex> lock(m_TaskWrapperImpl->m_Mutex);
 	m_RecordedBytes.clear();
-	m_TaskWrapperImpl->m_Mutex.unlock();
 }

@@ -317,9 +317,8 @@ void RecordingManager::CleanupDxResources()
 	SafeRelease(&m_DxResources.Device);
 #if _DEBUG
 	if (m_DxResources.Debug) {
-		m_DxDebugMutex.lock();
+		const std::lock_guard<std::mutex> lock(m_DxDebugMutex);
 		m_DxResources.Debug->ReportLiveDeviceObjects(D3D11_RLDO_DETAIL | D3D11_RLDO_IGNORE_INTERNAL);
-		m_DxDebugMutex.unlock();
 		SafeRelease(&m_DxResources.Debug);
 	}
 #endif

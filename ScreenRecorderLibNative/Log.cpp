@@ -5,7 +5,7 @@ static std::mutex g_Mtx{};
 
 void _log(PCWSTR format, ...)
 {
-	g_Mtx.lock();
+	const std::lock_guard<std::mutex> lock(g_Mtx);
 	wchar_t buffer[LOG_BUFFER_SIZE];
 	va_list args;
 	va_start(args, format);
@@ -27,8 +27,6 @@ void _log(PCWSTR format, ...)
 		OutputDebugStringW(buffer);
 	}
 	va_end(args);
-	g_Mtx.unlock();
-
 }
 
 std::wstring GetTimestamp() {
