@@ -128,26 +128,26 @@ void MouseManager::InitializeMouseClickDetection()
 					ResetEvent(m_StopPollingTaskEvent);
 					pollingTask = create_task([this]() {
 						LOG_INFO("Starting mouse click polling task");
-						while (true) {
-							if (GetKeyState(VK_LBUTTON) < 0)
-							{
-								//If left mouse button is held, reset the duration of click duration
-								g_LastMouseClickButton = VK_LBUTTON;
-								g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-							}
-							else if (GetKeyState(VK_RBUTTON) < 0)
-							{
-								//If right mouse button is held, reset the duration of click duration
-								g_LastMouseClickButton = VK_RBUTTON;
-								g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-							}
-
-							if (WaitForSingleObjectEx(m_StopPollingTaskEvent, 0, FALSE) == WAIT_OBJECT_0) {
-								break;
-							}
-							wait(1);
+					while (true) {
+						if (GetKeyState(VK_LBUTTON) < 0)
+						{
+							//If left mouse button is held, reset the duration of click duration
+							g_LastMouseClickButton = VK_LBUTTON;
+							g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
 						}
-						LOG_INFO("Exiting mouse click polling task");
+						else if (GetKeyState(VK_RBUTTON) < 0)
+						{
+							//If right mouse button is held, reset the duration of click duration
+							g_LastMouseClickButton = VK_RBUTTON;
+							g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
+						}
+
+						if (WaitForSingleObjectEx(m_StopPollingTaskEvent, 0, FALSE) == WAIT_OBJECT_0) {
+							break;
+						}
+						wait(1);
+					}
+					LOG_INFO("Exiting mouse click polling task");
 
 						});
 					m_IsCapturingMouseClicks = true;
@@ -920,11 +920,15 @@ HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuf
 	CURSORINFO cursorInfo = { 0 };
 	cursorInfo.cbSize = sizeof(CURSORINFO);
 	if (!GetCursorInfo(&cursorInfo)) {
+		DWORD dwErr = GetLastError();
+		LOG_ERROR(L"GetCursorInfo failed: last error = %u", dwErr);
 		return E_FAIL;
 	}
 
 	ICONINFO iconInfo = { 0 };
 	if (!cursorInfo.hCursor || !GetIconInfo(cursorInfo.hCursor, &iconInfo)) {
+		DWORD dwErr = GetLastError();
+		LOG_ERROR(L"GetIconInfo failed: last error = %u", dwErr);
 		return E_FAIL;
 	}
 	bool isVisible = cursorInfo.flags == CURSOR_SHOWING;
@@ -950,8 +954,13 @@ HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuf
 			BITMAPINFO bmInfo = { 0 };
 			bmInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 			bmInfo.bmiHeader.biBitCount = 0;    // don't get the color table  
-			if (!GetDIBits(dc, iconInfo.hbmColor, 0, 0, NULL, &bmInfo, DIB_RGB_COLORS))
-			{
+			int result = GetDIBits(dc, iconInfo.hbmColor, 0, 0, NULL, &bmInfo, DIB_RGB_COLORS);
+			if (result == 0) {
+				LOG_ERROR(L"GetIconInfo failed");
+				return E_FAIL;
+			}
+			else if (result == ERROR_INVALID_PARAMETER) {
+				LOG_ERROR(L"GetIconInfo failed due to invalid parameters");
 				return E_FAIL;
 			}
 
@@ -972,8 +981,13 @@ HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuf
 			pBmInfo->bmiHeader.biBitCount = colorBits;
 			pBmInfo->bmiHeader.biCompression = BI_RGB;
 			pBmInfo->bmiHeader.biHeight = -bmInfo.bmiHeader.biHeight;
-			if (!GetDIBits(dc, iconInfo.hbmColor, 0, bmInfo.bmiHeader.biHeight, pPtrInfo->PtrShapeBuffer, pBmInfo, DIB_RGB_COLORS))
-			{
+			result = GetDIBits(dc, iconInfo.hbmColor, 0, bmInfo.bmiHeader.biHeight, pPtrInfo->PtrShapeBuffer, pBmInfo, DIB_RGB_COLORS);
+			if (result == 0) {
+				LOG_ERROR(L"GetIconInfo failed");
+				return E_FAIL;
+			}
+			else if (result == ERROR_INVALID_PARAMETER) {
+				LOG_ERROR(L"GetIconInfo failed due to invalid parameters");
 				return E_FAIL;
 			}
 			pPtrInfo->IsPointerShapeUpdated = true;
@@ -994,8 +1008,13 @@ HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuf
 			BITMAPINFO maskInfo = { 0 };
 			maskInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 			maskInfo.bmiHeader.biBitCount = 0;  // don't get the color table     
-			if (!GetDIBits(dc, iconInfo.hbmMask, 0, 0, NULL, &maskInfo, DIB_RGB_COLORS))
-			{
+			int result = GetDIBits(dc, iconInfo.hbmMask, 0, 0, NULL, &maskInfo, DIB_RGB_COLORS);
+			if (result == 0) {
+				LOG_ERROR(L"GetIconInfo failed");
+				return E_FAIL;
+			}
+			else if (result == ERROR_INVALID_PARAMETER) {
+				LOG_ERROR(L"GetIconInfo failed due to invalid parameters");
 				return E_FAIL;
 			}
 
@@ -1007,8 +1026,13 @@ HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuf
 			pMaskInfo->bmiHeader.biBitCount = colorBits;
 			pMaskInfo->bmiHeader.biCompression = BI_RGB;
 			pMaskInfo->bmiHeader.biHeight = -maskInfo.bmiHeader.biHeight;
-			if (!GetDIBits(dc, iconInfo.hbmMask, 0, maskInfo.bmiHeader.biHeight, pPtrInfo->PtrShapeBuffer, pMaskInfo, DIB_RGB_COLORS))
-			{
+			result = GetDIBits(dc, iconInfo.hbmMask, 0, maskInfo.bmiHeader.biHeight, pPtrInfo->PtrShapeBuffer, pMaskInfo, DIB_RGB_COLORS);
+			if (result == 0) {
+				LOG_ERROR(L"GetIconInfo failed");
+				return E_FAIL;
+			}
+			else if (result == ERROR_INVALID_PARAMETER) {
+				LOG_ERROR(L"GetIconInfo failed due to invalid parameters");
 				return E_FAIL;
 			}
 			pPtrInfo->IsPointerShapeUpdated = true;
