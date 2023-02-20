@@ -163,7 +163,7 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 
 	int bufferFrameCount = int(ceil(pwfx->nSamplesPerSec * audioClientBufferMillis / 1000));
 	int bufferByteCount = bufferFrameCount * nBlockAlign;
-	BYTE *bufferData = new BYTE[bufferByteCount]{0};
+	BYTE *bufferData = new BYTE[bufferByteCount]{ 0 };
 	DeleteArrayOnExit deleteBufferData(bufferData);
 
 	// call IAudioClient::Initialize
@@ -332,20 +332,22 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 
 		dwWaitResult = WaitForMultipleObjects(
 ARRAYSIZE(waitArray), waitArray,
-FALSE, INFINITE
+FALSE, 5000
 );
 
 		if (WAIT_OBJECT_0 == dwWaitResult) {
 			LOG_DEBUG(L"Received stop event after %u passes and %u frames on %ls", nPasses, nFrames, m_Tag.c_str());
 			bDone = true;
-			continue; // exits loop
 		}
-
-		if (WAIT_OBJECT_0 + 1 != dwWaitResult) {
+		else if (WAIT_TIMEOUT == dwWaitResult) {
+			LOG_ERROR(L"WaitForMultipleObjects timeout on pass %u after %u frames on %ls", dwWaitResult, nPasses, nFrames, m_Tag.c_str());
+			hr = E_UNEXPECTED;
+			bDone = true;
+		}
+		else if (WAIT_OBJECT_0 + 1 != dwWaitResult) {
 			LOG_ERROR(L"Unexpected WaitForMultipleObjects return value %u on pass %u after %u frames on %ls", dwWaitResult, nPasses, nFrames, m_Tag.c_str());
 			hr = E_UNEXPECTED;
 			bDone = true;
-			continue; // exits loop
 		}
 	} // capture loop
 	m_IsCapturing = false;
@@ -426,7 +428,18 @@ HRESULT LoopbackCapture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, s
 			}
 			});
 		HANDLE events[2] = { m_CaptureStartedEvent ,m_CaptureStopEvent };
-		hr = WaitForMultipleObjects(ARRAYSIZE(events), events, false, INFINITE);
+		DWORD dwWaitResult = WaitForMultipleObjects(ARRAYSIZE(events), events, false, 5000);
+		if (dwWaitResult == WAIT_OBJECT_0) {
+			hr = S_OK;
+		}
+		else if (dwWaitResult == WAIT_OBJECT_0 + 1) {
+			LOG_ERROR(L"Received stop event when starting capture");
+			hr = E_FAIL;
+		}
+		else if (dwWaitResult == WAIT_TIMEOUT) {
+			LOG_ERROR(L"Timed out when starting capture");
+			hr = E_FAIL;
+		}
 	}
 	return hr;
 }

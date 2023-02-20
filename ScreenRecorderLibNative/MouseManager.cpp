@@ -171,7 +171,10 @@ void MouseManager::StopMouseClickDetection()
 {
 	if (m_MouseHookThread) {
 		PostThreadMessageA(m_MouseHookThreadId, ET_QUITLOOP, 0, 0);
-		WaitForSingleObjectEx(m_MouseHookThread, INFINITE, false);
+		DWORD dwWaitResult = WaitForSingleObjectEx(m_MouseHookThread, 5000, false);
+		if (dwWaitResult != WAIT_OBJECT_0) {
+			LOG_ERROR("Timeout waiting for mouse hook thread to exit.");
+		}
 		m_MouseHookThread = nullptr;
 		m_MouseHookThreadId = 0;
 	}
