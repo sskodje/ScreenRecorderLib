@@ -447,7 +447,17 @@ HRESULT LoopbackCapture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, s
 HRESULT LoopbackCapture::StopCapture()
 {
 	SetEvent(m_CaptureStopEvent);
-	m_TaskWrapperImpl->m_CaptureTask.wait();
+	try
+	{
+		m_TaskWrapperImpl->m_CaptureTask.wait();
+	}
+	catch (const exception &e) {
+		LOG_ERROR(L"Exception in StopCapture: %s", s2ws(e.what()).c_str());
+		return E_FAIL;
+	}
+	catch (...) {
+		LOG_ERROR(L"Exception in StopCapture");
+	}
 	return S_OK;
 }
 
