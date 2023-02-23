@@ -236,7 +236,6 @@ HRESULT LoopbackCapture::StartLoopbackCapture(
 	AudioClientStopOnExit stopAudioClient(pAudioClient);
 
 	SetEvent(hStartedEvent);
-	m_IsCapturing = true;
 	// loopback capture loop
 	HANDLE waitArray[2] = { hStopEvent, hWakeUp };
 	DWORD dwWaitResult;
@@ -350,7 +349,6 @@ FALSE, 5000
 			bDone = true;
 		}
 	} // capture loop
-	m_IsCapturing = false;
 	return hr;
 }
 std::vector<BYTE> LoopbackCapture::PeakRecordedBytes()
@@ -416,21 +414,34 @@ HRESULT LoopbackCapture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, s
 		IMMDevice *device = prefs.m_pMMDevice;
 		auto file = prefs.m_hFile;
 		m_TaskWrapperImpl->m_CaptureTask = concurrency::create_task([this, flow, sampleRate, audioChannels, device, file]() {
-			if (FAILED(StartLoopbackCapture(device,
-			file,
-			true,
-			m_CaptureStartedEvent,
-			m_CaptureStopEvent,
-			flow,
-			sampleRate,
-			audioChannels))) {
-				SetEvent(m_CaptureStopEvent);
-			}
-			});
+			HRESULT hr = E_FAIL;
+		try {
+			StartLoopbackCapture(device,
+				file,
+				true,
+				m_CaptureStartedEvent,
+				m_CaptureStopEvent,
+				flow,
+				sampleRate,
+				audioChannels);
+		}
+		catch (const exception &e) {
+			LOG_ERROR(L"Exception in LoopbackCapture: %s", s2ws(e.what()).c_str());
+		}
+		catch (...) {
+			LOG_ERROR(L"Exception in LoopbackCapture");
+		}
+		if (FAILED(hr))
+		{
+			SetEvent(m_CaptureStopEvent);
+		}
+		m_IsCapturing = false;
+		});
 		HANDLE events[2] = { m_CaptureStartedEvent ,m_CaptureStopEvent };
 		DWORD dwWaitResult = WaitForMultipleObjects(ARRAYSIZE(events), events, false, 5000);
 		if (dwWaitResult == WAIT_OBJECT_0) {
 			hr = S_OK;
+			m_IsCapturing = true;
 		}
 		else if (dwWaitResult == WAIT_OBJECT_0 + 1) {
 			LOG_ERROR(L"Received stop event when starting capture");
