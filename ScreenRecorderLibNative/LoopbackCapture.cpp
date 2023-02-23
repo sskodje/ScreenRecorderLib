@@ -13,8 +13,6 @@ LoopbackCapture::LoopbackCapture(_In_opt_ std::wstring tag) :
 LoopbackCapture::~LoopbackCapture()
 {
 	StopCapture();
-	CloseHandle(m_CaptureStopEvent);
-	CloseHandle(m_CaptureStartedEvent);
 	m_Resampler.Finalize();
 }
 
@@ -415,27 +413,29 @@ HRESULT LoopbackCapture::StartCapture(UINT32 sampleRate, UINT32 audioChannels, s
 		auto file = prefs.m_hFile;
 		m_TaskWrapperImpl->m_CaptureTask = concurrency::create_task([this, flow, sampleRate, audioChannels, device, file]() {
 			HRESULT hr = E_FAIL;
-		try {
-			StartLoopbackCapture(device,
-				file,
-				true,
-				m_CaptureStartedEvent,
-				m_CaptureStopEvent,
-				flow,
-				sampleRate,
-				audioChannels);
-		}
-		catch (const exception &e) {
-			LOG_ERROR(L"Exception in LoopbackCapture: %s", s2ws(e.what()).c_str());
-		}
-		catch (...) {
-			LOG_ERROR(L"Exception in LoopbackCapture");
-		}
-		if (FAILED(hr))
-		{
-			SetEvent(m_CaptureStopEvent);
-		}
-		m_IsCapturing = false;
+			try {
+				StartLoopbackCapture(device,
+					file,
+					true,
+					m_CaptureStartedEvent,
+					m_CaptureStopEvent,
+					flow,
+					sampleRate,
+					audioChannels);
+			}
+			catch (const exception &e) {
+				LOG_ERROR(L"Exception in LoopbackCapture: %s", s2ws(e.what()).c_str());
+			}
+			catch (...) {
+				LOG_ERROR(L"Exception in LoopbackCapture");
+			}
+			if (FAILED(hr))
+			{
+				SetEvent(m_CaptureStopEvent);
+			}
+			m_IsCapturing = false;
+			CloseHandle(m_CaptureStopEvent);
+			CloseHandle(m_CaptureStartedEvent);
 		});
 		HANDLE events[2] = { m_CaptureStartedEvent ,m_CaptureStopEvent };
 		DWORD dwWaitResult = WaitForMultipleObjects(ARRAYSIZE(events), events, false, 5000);
