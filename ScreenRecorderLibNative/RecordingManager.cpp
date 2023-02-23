@@ -259,7 +259,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		}
 		catch (const exception &e) {
 			// handle error
-			LOG_ERROR(L"Exception in RecordTask: %s", e.what());
+			LOG_ERROR(L"Exception in RecordTask: %s", s2ws(e.what()).c_str());
 		}
 		catch (...) {
 			LOG_ERROR(L"Exception in RecordTask");

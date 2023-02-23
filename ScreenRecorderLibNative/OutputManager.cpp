@@ -280,7 +280,7 @@ void OutputManager::WriteTextureToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesk
 	   }
 	   catch (const exception &e) {
 		   // handle error
-		   LOG_ERROR(L"Exception saving snapshot: %s", e.what());
+		   LOG_ERROR(L"Exception saving snapshot: %s", s2ws(e.what()).c_str());
 		   hr = E_FAIL;
 	   }
 	   pAcquiredDesktopImage->Release();
