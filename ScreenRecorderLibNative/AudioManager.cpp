@@ -3,7 +3,8 @@
 
 using namespace std;
 AudioManager::AudioManager() :
-	m_AudioOptions(nullptr)
+	m_AudioOptions(nullptr),
+	m_IsCaptureEnabled(false)
 {
 	InitializeCriticalSection(&m_CriticalSection);
 }
@@ -16,7 +17,7 @@ AudioManager::~AudioManager()
 HRESULT AudioManager::Initialize(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptions)
 {
 	m_AudioOptions = audioOptions;
-	return InitializeAudioCapture();
+	return ConfigureAudioCapture();
 }
 
 void AudioManager::ClearRecordedBytes()
@@ -27,10 +28,21 @@ void AudioManager::ClearRecordedBytes()
 		m_LoopbackCaptureInputDevice->ClearRecordedBytes();
 }
 
-HRESULT AudioManager::InitializeAudioCapture()
+HRESULT AudioManager::StartCapture() {
+	m_IsCaptureEnabled = true;
+	return ConfigureAudioCapture();
+}
+
+HRESULT AudioManager::StopCapture()
+{
+	m_IsCaptureEnabled = false;
+	return ConfigureAudioCapture();
+}
+
+HRESULT AudioManager::ConfigureAudioCapture()
 {
 	HRESULT hr = S_FALSE;
-	if (GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsOutputDeviceEnabled())
+	if (GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsOutputDeviceEnabled() && m_IsCaptureEnabled)
 	{
 		if (!m_LoopbackCaptureOutputDevice) {
 			m_LoopbackCaptureOutputDevice = make_unique<LoopbackCapture>(L"AudioOutputDevice");
@@ -50,7 +62,7 @@ HRESULT AudioManager::InitializeAudioCapture()
 		}
 	}
 
-	if (GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsInputDeviceEnabled())
+	if (GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsInputDeviceEnabled() && m_IsCaptureEnabled)
 	{
 		if (!m_LoopbackCaptureInputDevice) {
 			m_LoopbackCaptureInputDevice = make_unique<LoopbackCapture>(L"AudioInputDevice");
@@ -77,7 +89,7 @@ std::vector<BYTE> AudioManager::GrabAudioFrame(_In_ UINT64 durationHundredNanos)
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 	if (m_AudioOptions) {
-		InitializeAudioCapture();
+		ConfigureAudioCapture();
 	}
 	if (m_LoopbackCaptureOutputDevice && m_LoopbackCaptureInputDevice) {
 
