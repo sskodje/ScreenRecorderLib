@@ -274,20 +274,20 @@ void OutputManager::WriteTextureToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesk
 	   }).then([this, filePath, pAcquiredDesktopImage, onCompletion](concurrency::task<HRESULT> t)
 		   {
 			   HRESULT hr;
-	   try {
-		   hr = t.get();
-		   // if .get() didn't throw and the HRESULT succeeded, there are no errors.
-	   }
-	   catch (const exception &e) {
-		   // handle error
-		   LOG_ERROR(L"Exception saving snapshot: %s", s2ws(e.what()).c_str());
-		   hr = E_FAIL;
-	   }
-	   pAcquiredDesktopImage->Release();
-	   if (onCompletion) {
-		   std::invoke(onCompletion, hr);
-	   }
-	   return hr;
+			   try {
+				   hr = t.get();
+				   // if .get() didn't throw and the HRESULT succeeded, there are no errors.
+			   }
+			   catch (const exception &e) {
+				   // handle error
+				   LOG_ERROR(L"Exception saving snapshot: %s", s2ws(e.what()).c_str());
+				   hr = E_FAIL;
+			   }
+			   pAcquiredDesktopImage->Release();
+			   if (onCompletion) {
+				   std::invoke(onCompletion, hr);
+			   }
+			   return hr;
 		   });
 }
 
@@ -519,9 +519,9 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 	auto SetAttributeU32([](_Inout_ CComPtr<ICodecAPI> &codec, _In_ const GUID &guid, _In_ UINT32 value)
 	{
 		VARIANT val;
-	val.vt = VT_UI4;
-	val.uintVal = value;
-	return codec->SetValue(&guid, &val);
+		val.vt = VT_UI4;
+		val.uintVal = value;
+		return codec->SetValue(&guid, &val);
 	});
 
 	CComPtr<ICodecAPI> encoder = nullptr;
@@ -584,61 +584,62 @@ HRESULT OutputManager::WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 fr
 		hr = pSample->SetSampleDuration(frameDuration);
 	}
 #if USE_NV12_CONVERTER 
-	//Run media transform to convert sample to MFVideoFormat_NV12
-
-	MFT_OUTPUT_STREAM_INFO info{};
-
-	hr = m_MediaTransform->GetOutputStreamInfo(streamIndex, &info);
-	bool transformProvidesSamples = info.dwFlags & (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES | MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES);
-
-	IMFSample *transformSample = nullptr;
-
-	IMFMediaBuffer *transformBuffer = nullptr;
-	MFT_OUTPUT_DATA_BUFFER outputDataBuffer;
-	RtlZeroMemory(&outputDataBuffer, sizeof(outputDataBuffer));
-	outputDataBuffer.dwStreamID = streamIndex;
+	if (SUCCEEDED(hr))
 	{
-		if (SUCCEEDED(hr) && !transformProvidesSamples)
-		{
-			hr = MFCreateMemoryBuffer(info.cbSize, &transformBuffer);
+		//Run media transform to convert sample to MFVideoFormat_NV12
 
+		MFT_OUTPUT_STREAM_INFO info{};
+
+		hr = m_MediaTransform->GetOutputStreamInfo(streamIndex, &info);
+		bool transformProvidesSamples = info.dwFlags & (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES | MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES);
+
+		IMFSample *transformSample = nullptr;
+		IMFMediaBuffer *transformBuffer = nullptr;
+		MFT_OUTPUT_DATA_BUFFER outputDataBuffer;
+		RtlZeroMemory(&outputDataBuffer, sizeof(outputDataBuffer));
+		outputDataBuffer.dwStreamID = streamIndex;
+		{
+			if (SUCCEEDED(hr) && !transformProvidesSamples)
+			{
+				hr = MFCreateMemoryBuffer(info.cbSize, &transformBuffer);
+
+				if (SUCCEEDED(hr))
+				{
+					hr = MFCreateSample(&transformSample);
+				}
+				if (SUCCEEDED(hr)) {
+					hr = transformSample->AddBuffer(transformBuffer);
+				}
+				outputDataBuffer.pSample = transformSample;
+				SafeRelease(&transformBuffer);
+			}
 			if (SUCCEEDED(hr))
 			{
-				hr = MFCreateSample(&transformSample);
+				hr = m_MediaTransform->ProcessInput(streamIndex, pSample, 0);
+			}
+			if (SUCCEEDED(hr))
+			{
+				DWORD dwDSPStatus = 0;
+				hr = m_MediaTransform->ProcessOutput(0, 1, &outputDataBuffer, &dwDSPStatus);
 			}
 			if (SUCCEEDED(hr)) {
-				hr = transformSample->AddBuffer(transformBuffer);
+				transformSample = outputDataBuffer.pSample;
 			}
-			outputDataBuffer.pSample = transformSample;
-			SafeRelease(&transformBuffer);
 		}
 		if (SUCCEEDED(hr))
 		{
-			hr = m_MediaTransform->ProcessInput(streamIndex, pSample, 0);
+			hr = transformSample->SetSampleTime(frameStartPos);
 		}
 		if (SUCCEEDED(hr))
 		{
-			DWORD dwDSPStatus = 0;
-			hr = m_MediaTransform->ProcessOutput(0, 1, &outputDataBuffer, &dwDSPStatus);
+			hr = transformSample->SetSampleDuration(frameDuration);
 		}
-		if (SUCCEEDED(hr)) {
-			transformSample = outputDataBuffer.pSample;
+		if (SUCCEEDED(hr))
+		{
+			hr = m_SinkWriter->WriteSample(streamIndex, transformSample);
 		}
+		SafeRelease(&transformSample);
 	}
-	if (SUCCEEDED(hr))
-	{
-		hr = transformSample->SetSampleTime(frameStartPos);
-	}
-	if (SUCCEEDED(hr))
-	{
-		hr = transformSample->SetSampleDuration(frameDuration);
-	}
-	if (SUCCEEDED(hr))
-	{
-		hr = m_SinkWriter->WriteSample(streamIndex, transformSample);
-	}
-	SafeRelease(&transformSample);
-
 #else
 	if (SUCCEEDED(hr))
 	{
@@ -649,7 +650,7 @@ HRESULT OutputManager::WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 fr
 	SafeRelease(&p2DBuffer);
 	SafeRelease(&pMediaBuffer);
 	return hr;
-}
+	}
 
 HRESULT OutputManager::WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE *pSrc, _In_ DWORD cbData)
 {
