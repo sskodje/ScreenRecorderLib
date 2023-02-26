@@ -344,8 +344,9 @@ HRESULT OutputManager::ConfigureOutputMediaTypes(
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_AVG_BITRATE, GetEncoderOptions()->GetVideoBitrate()));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_MPEG2_PROFILE, GetEncoderOptions()->GetEncoderProfile()));
-	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_VIDEO_CHROMA_SITING, MFVideoChromaSubsampling_ProgressiveChroma));
-	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_0_255));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_VIDEO_PRIMARIES, MFVideoPrimaries_BT709));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_TRANSFER_FUNCTION, MFVideoTransFunc_709));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, destWidth, destHeight));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, GetEncoderOptions()->GetVideoFps(), 1));
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
@@ -388,8 +389,10 @@ HRESULT OutputManager::ConfigureInputMediaTypes(
 	// Uncompressed means all samples are independent.
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_ALL_SAMPLES_INDEPENDENT, TRUE));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_VIDEO_ROTATION, rotationFormat));
-	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_VIDEO_CHROMA_SITING, MFVideoChromaSubsampling_ProgressiveChroma));
-	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_VIDEO_NOMINAL_RANGE, MFNominalRange_0_255));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_VIDEO_PRIMARIES, MFVideoPrimaries_BT709));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709));
+	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_TRANSFER_FUNCTION, MFVideoTransFunc_709));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
 	if (!GetEncoderOptions()->GetIsFixedFramerate() && !GetEncoderOptions()->GetIsFragmentedMp4Enabled()) {
 		RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, GetEncoderOptions()->GetVideoFps(), 1));
