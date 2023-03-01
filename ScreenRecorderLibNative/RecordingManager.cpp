@@ -194,12 +194,8 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path) {
 
 HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IStream *stream) {
 	if (m_IsRecording) {
-		if (m_OutputManager->isMediaClockPaused()) {
-			m_OutputManager->ResumeMediaClock();
-			if (RecordingStatusChangedCallback != nullptr) {
-				RecordingStatusChangedCallback(STATUS_RECORDING);
-				LOG_DEBUG("Changed Recording Status to Recording");
-			}
+		if (m_IsPaused) {
+			ResumeRecording();
 		}
 		else {
 			std::wstring error = L"Recording is already in progress, aborting";
@@ -226,52 +222,52 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 			RecordingFailedCallback(error, L"");
 		return S_FALSE;
 	}
+	m_IsRecording = true;
 	m_TaskWrapperImpl->m_RecordTaskCts = cancellation_token_source();
 	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, stream]() {
 		LOG_INFO(L"Starting recording task");
-	m_IsRecording = true;
-	REC_RESULT result{};
-	HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
-	RETURN_RESULT_ON_BAD_HR(hr, L"CoInitializeEx failed");
-	RETURN_RESULT_ON_BAD_HR(hr = InitializeDx(nullptr, &m_DxResources), L"Failed to initialize DirectX");
+		REC_RESULT result{};
+		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
+		RETURN_RESULT_ON_BAD_HR(hr, L"CoInitializeEx failed");
+		RETURN_RESULT_ON_BAD_HR(hr = InitializeDx(nullptr, &m_DxResources), L"Failed to initialize DirectX");
 
-	m_TextureManager = make_unique<TextureManager>();
-	m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
-	m_OutputManager = make_unique<OutputManager>();
-	m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetEncoderOptions(), GetAudioOptions(), GetSnapshotOptions(), GetOutputOptions());
+		m_TextureManager = make_unique<TextureManager>();
+		RETURN_RESULT_ON_BAD_HR(hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device), L"Failed to initialize TextureManager");
+		m_OutputManager = make_unique<OutputManager>();
+		RETURN_RESULT_ON_BAD_HR(hr = m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetEncoderOptions(), GetAudioOptions(), GetSnapshotOptions(), GetOutputOptions()), L"Failed to initialize OutputManager");
+		
+		result = StartRecorderLoop(m_RecordingSources, m_Overlays, stream);
+		if (RecordingStatusChangedCallback != nullptr && !m_IsDestructing) {
+			RecordingStatusChangedCallback(STATUS_FINALIZING);
+		}
+		result.FinalizeResult = m_OutputManager->FinalizeRecording();
+		CoUninitialize();
 
-	result = StartRecorderLoop(m_RecordingSources, m_Overlays, stream);
-	if (RecordingStatusChangedCallback != nullptr && !m_IsDestructing) {
-		RecordingStatusChangedCallback(STATUS_FINALIZING);
-	}
-	result.FinalizeResult = m_OutputManager->FinalizeRecording();
-	CoUninitialize();
-
-	LOG_INFO("Exiting recording task");
-	return result;
+		LOG_INFO("Exiting recording task");
+		return result;
 		}).then([this](concurrency::task<REC_RESULT> t)
 				{
 					m_IsRecording = false;
-		REC_RESULT result{ };
-		try {
-			result = t.get();
-			// if .get() didn't throw and the HRESULT succeeded, there are no errors.
-		}
-		catch (const exception &e) {
-			// handle error
-			LOG_ERROR(L"Exception in RecordTask: %s", s2ws(e.what()).c_str());
-		}
-		catch (...) {
-			LOG_ERROR(L"Exception in RecordTask");
-		}
-		CleanupDxResources();
-		if (!m_IsDestructing) {
-			nlohmann::fifo_map<std::wstring, int> delays{};
-			if (m_OutputManager) {
-				delays = m_OutputManager->GetFrameDelays();
-			}
-			SetRecordingCompleteStatus(result, delays);
-		}
+					REC_RESULT result{ };
+					try {
+						result = t.get();
+						// if .get() didn't throw and the HRESULT succeeded, there are no errors.
+					}
+					catch (const exception &e) {
+						// handle error
+						LOG_ERROR(L"Exception in RecordTask: %s", s2ws(e.what()).c_str());
+					}
+					catch (...) {
+						LOG_ERROR(L"Exception in RecordTask");
+					}
+					CleanupDxResources();
+					if (!m_IsDestructing) {
+						nlohmann::fifo_map<std::wstring, int> delays{};
+						if (m_OutputManager) {
+							delays = m_OutputManager->GetFrameDelays();
+						}
+						SetRecordingCompleteStatus(result, delays);
+					}
 				});
 		return S_OK;
 }
@@ -283,22 +279,26 @@ void RecordingManager::EndRecording() {
 	}
 }
 void RecordingManager::PauseRecording() {
-	if (m_IsRecording && m_OutputManager->isMediaClockRunning()) {
-		if (SUCCEEDED(m_OutputManager->PauseMediaClock())) {
-			if (RecordingStatusChangedCallback != nullptr) {
-				RecordingStatusChangedCallback(STATUS_PAUSED);
-				LOG_DEBUG("Changed Recording Status to Paused");
-			}
+	if (m_IsRecording && !m_IsPaused) {
+		m_IsPaused = true;
+		if (m_OutputManager) {
+			m_OutputManager->PauseMediaClock();
+		}
+		if (RecordingStatusChangedCallback != nullptr) {
+			RecordingStatusChangedCallback(STATUS_PAUSED);
+			LOG_DEBUG("Changed Recording Status to Paused");
 		}
 	}
 }
 void RecordingManager::ResumeRecording() {
-	if (m_IsRecording && m_OutputManager->isMediaClockPaused()) {
-		if (SUCCEEDED(m_OutputManager->ResumeMediaClock())) {
-			if (RecordingStatusChangedCallback != nullptr) {
-				RecordingStatusChangedCallback(STATUS_RECORDING);
-				LOG_DEBUG("Changed Recording Status to Recording");
-			}
+	if (m_IsRecording && m_IsPaused) {
+		if (m_OutputManager) {
+			m_OutputManager->ResumeMediaClock();
+		}
+		m_IsPaused = false;
+		if (RecordingStatusChangedCallback != nullptr) {
+			RecordingStatusChangedCallback(STATUS_RECORDING);
+			LOG_DEBUG("Changed Recording Status to Recording");
 		}
 	}
 }
@@ -447,7 +447,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	{
 		// The first condition is needed since (now - min) yields negative value because of overflow...
 		return previousSnapshotTaken == (std::chrono::steady_clock::time_point::min)() ||
-		(std::chrono::steady_clock::now() - previousSnapshotTaken) > GetSnapshotOptions()->GetSnapshotsInterval();
+			(std::chrono::steady_clock::now() - previousSnapshotTaken) > GetSnapshotOptions()->GetSnapshotsInterval();
 	});
 
 	auto ShouldSkipDelay([&](CAPTURED_FRAME capturedFrame)
@@ -456,72 +456,72 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			return true;
 		}
 
-	if (recorderMode == RecorderModeInternal::Video)
-	{
-		if (!GetEncoderOptions()->GetIsFixedFramerate()
-			&& (GetMouseOptions()->IsMousePointerEnabled() && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
-			|| (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot())) // Or if we need to write a snapshot 
+		if (recorderMode == RecorderModeInternal::Video)
 		{
-			return true;
+			if (!GetEncoderOptions()->GetIsFixedFramerate()
+				&& (GetMouseOptions()->IsMousePointerEnabled() && capturedFrame.PtrInfo && capturedFrame.PtrInfo->IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
+				|| (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot())) // Or if we need to write a snapshot 
+			{
+				return true;
+			}
 		}
-	}
-	return false;
+		return false;
 	});
 	auto PrepareAndRenderFrame([&](CComPtr<ID3D11Texture2D> pTextureToRender, INT64 duration100Nanos)->HRESULT {
 		HRESULT renderHr = E_FAIL;
-	if (pPtrInfo) {
-		renderHr = pMouseManager->ProcessMousePointer(pTextureToRender, &pPtrInfo.value());
-		if (FAILED(renderHr)) {
-			_com_error err(renderHr);
-			LOG_ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
-			//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
-		}
-	}
-	if (IsValidRect(GetOutputOptions()->GetSourceRectangle())) {
-		RETURN_ON_BAD_HR(hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, nullptr));
-	}
-	CComPtr<ID3D11Texture2D> processedTexture;
-	RETURN_ON_BAD_HR(renderHr = ProcessTextureTransforms(pTextureToRender, &processedTexture, videoInputFrameRect, videoOutputFrameSize));
-	if (renderHr == S_OK) {
-		pTextureToRender.Release();
-		pTextureToRender.Attach(processedTexture);
-		(*pTextureToRender).AddRef();
-	}
-	if (recorderMode == RecorderModeInternal::Video) {
-		if (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()) {
-			if (SUCCEEDED(renderHr = SaveTextureAsVideoSnapshot(pTextureToRender, videoInputFrameRect))) {
-				previousSnapshotTaken = steady_clock::now();
-			}
-			else {
+		if (pPtrInfo) {
+			renderHr = pMouseManager->ProcessMousePointer(pTextureToRender, &pPtrInfo.value());
+			if (FAILED(renderHr)) {
 				_com_error err(renderHr);
-				LOG_ERROR("Error saving video snapshot: %ls", err.ErrorMessage());
+				LOG_ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
+				//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
 			}
 		}
-	}
+		if (IsValidRect(GetOutputOptions()->GetSourceRectangle())) {
+			RETURN_ON_BAD_HR(hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, nullptr));
+		}
+		CComPtr<ID3D11Texture2D> processedTexture;
+		RETURN_ON_BAD_HR(renderHr = ProcessTextureTransforms(pTextureToRender, &processedTexture, videoInputFrameRect, videoOutputFrameSize));
+		if (renderHr == S_OK) {
+			pTextureToRender.Release();
+			pTextureToRender.Attach(processedTexture);
+			(*pTextureToRender).AddRef();
+		}
+		if (recorderMode == RecorderModeInternal::Video) {
+			if (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()) {
+				if (SUCCEEDED(renderHr = SaveTextureAsVideoSnapshot(pTextureToRender, videoInputFrameRect))) {
+					previousSnapshotTaken = steady_clock::now();
+				}
+				else {
+					_com_error err(renderHr);
+					LOG_ERROR("Error saving video snapshot: %ls", err.ErrorMessage());
+				}
+			}
+		}
 
-	INT64 diff = 0;
-	auto audioBytes = pAudioManager->GrabAudioFrame(duration100Nanos);
-	if (audioBytes.size() > 0) {
-		INT64 frameCount = audioBytes.size() / (INT64)((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
-		INT64 newDuration = (frameCount * 10 * 1000 * 1000) / GetAudioOptions()->GetAudioSamplesPerSecond();
-		diff = newDuration - duration100Nanos;
-	}
+		INT64 diff = 0;
+		auto audioBytes = pAudioManager->GrabAudioFrame(duration100Nanos);
+		if (audioBytes.size() > 0) {
+			INT64 frameCount = audioBytes.size() / (INT64)((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
+			INT64 newDuration = (frameCount * 10 * 1000 * 1000) / GetAudioOptions()->GetAudioSamplesPerSecond();
+			diff = newDuration - duration100Nanos;
+		}
 
-	FrameWriteModel model{};
-	model.Frame = pTextureToRender;
-	model.Duration = duration100Nanos + diff;
-	model.StartPos = lastFrameStartPos100Nanos + totalDiff;
-	model.Audio = audioBytes;
-	RETURN_ON_BAD_HR(renderHr = m_EncoderResult = m_OutputManager->RenderFrame(model));
-	frameNr++;
-	totalDiff += diff;
-	if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
-		INT64 timestamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-		RecordingFrameNumberChangedCallback(frameNr, timestamp);
-	}
-	havePrematureFrame = false;
-	lastFrameStartPos100Nanos += duration100Nanos;
-	return renderHr;
+		FrameWriteModel model{};
+		model.Frame = pTextureToRender;
+		model.Duration = duration100Nanos + diff;
+		model.StartPos = lastFrameStartPos100Nanos + totalDiff;
+		model.Audio = audioBytes;
+		RETURN_ON_BAD_HR(renderHr = m_EncoderResult = m_OutputManager->RenderFrame(model));
+		frameNr++;
+		totalDiff += diff;
+		if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
+			INT64 timestamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+			RecordingFrameNumberChangedCallback(frameNr, timestamp);
+		}
+		havePrematureFrame = false;
+		lastFrameStartPos100Nanos += duration100Nanos;
+		return renderHr;
 	});
 
 	while (true)
@@ -616,7 +616,10 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 				}
 			}
 		}
-		if (m_OutputManager->isMediaClockPaused()) {
+		if (m_IsPaused) {
+			if (m_OutputManager->isMediaClockRunning()) {
+				m_OutputManager->PauseMediaClock();
+			}
 			wait(10);
 			previousSnapshotTaken = steady_clock::now();
 			if (pAudioManager)

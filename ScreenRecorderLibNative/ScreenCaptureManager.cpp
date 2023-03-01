@@ -788,6 +788,11 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			if (WaitToProcessCurrentFrame) {
 				WaitToProcessCurrentFrame = false;
 				LONGLONG waitTimeMillis = duration_cast<milliseconds>(chrono::steady_clock::now() - WaitForFrameBegin).count();
+				//If the capture has been waiting for a long time to draw a frame, we assume the frame is stale, and drop it.
+				if (waitTimeMillis > 200) {
+					IsSharedSurfaceDirty = true;
+					continue;
+				}
 				LOG_TRACE(L"CaptureThreadProc waited for busy shared surface for %lld ms", waitTimeMillis);
 			}
 			if (pSource->IsCursorCaptureEnabled.value_or(true)) {
@@ -802,7 +807,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			}
 
 			if (pSource->IsVideoCaptureEnabled.value_or(true)) {
-				if (IsSharedSurfaceDirty) {
+				if (IsSharedSurfaceDirty && pFrame) {
 					//The screen has been blacked out, so we restore a full frame to the shared surface before starting to apply updates.
 					RECT offsetFrameCoordinates = pSourceData->FrameCoordinates;
 					OffsetRect(&offsetFrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);

@@ -109,6 +109,7 @@ private:
 
 	std::vector<RECORDING_SOURCE *> m_RecordingSources;
 	std::vector<RECORDING_OVERLAY *> m_Overlays;
+	bool m_IsPaused = false;
 	bool m_IsRecording = false;
 
 	std::shared_ptr<ENCODER_OPTIONS> m_EncoderOptions;
