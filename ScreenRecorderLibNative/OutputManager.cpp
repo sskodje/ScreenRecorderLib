@@ -93,7 +93,7 @@ HRESULT OutputManager::BeginRecording(_In_ std::wstring outputPath, _In_ SIZE vi
 
 	if (GetOutputOptions()->GetRecorderMode() == RecorderModeInternal::Video) {
 		if (m_FinalizeEvent) {
-			m_CallBack = new (std::nothrow)CMFSinkWriterCallback(m_FinalizeEvent, nullptr);
+			m_CallBack.Attach(new (std::nothrow)CMFSinkWriterCallback(m_FinalizeEvent, nullptr));
 		}
 		RECT inputMediaFrameRect = RECT{ 0,0,videoOutputFrameSize.cx,videoOutputFrameSize.cy };
 		CComPtr<IMFByteStream> mfByteStream = nullptr;
@@ -119,7 +119,7 @@ HRESULT OutputManager::BeginRecording(_In_ IStream *pStream, _In_ SIZE videoOutp
 		RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &mfByteStream));
 
 		if (m_FinalizeEvent) {
-			m_CallBack = new (std::nothrow)CMFSinkWriterCallback(m_FinalizeEvent, nullptr);
+			m_CallBack.Attach(new (std::nothrow)CMFSinkWriterCallback(m_FinalizeEvent, nullptr));
 		}
 		RECT inputMediaFrameRect = RECT{ 0,0,videoOutputFrameSize.cx,videoOutputFrameSize.cy };
 		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(mfByteStream, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, m_CallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));

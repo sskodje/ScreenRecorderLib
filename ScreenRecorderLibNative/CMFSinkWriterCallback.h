@@ -7,7 +7,7 @@ class CMFSinkWriterCallback : public IMFSinkWriterCallback {
 
 public:
 	CMFSinkWriterCallback(_In_ HANDLE hFinalizeEvent, _In_opt_ HANDLE hMarkerEvent) :
-		m_nRefCount(0),
+		m_nRefCount(1),
 		m_hFinalizeEvent(hFinalizeEvent),
 		m_hMarkerEvent(hMarkerEvent) {}
 	virtual ~CMFSinkWriterCallback()
