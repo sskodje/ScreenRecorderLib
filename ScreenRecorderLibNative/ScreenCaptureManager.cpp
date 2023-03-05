@@ -788,9 +788,10 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			if (WaitToProcessCurrentFrame) {
 				WaitToProcessCurrentFrame = false;
 				LONGLONG waitTimeMillis = duration_cast<milliseconds>(chrono::steady_clock::now() - WaitForFrameBegin).count();
-				//If the capture has been waiting for a long time to draw a frame, we assume the frame is stale, and drop it.
-				if (waitTimeMillis > 200) {
+				//If the capture has been waiting for an excessive time to draw a frame, we assume the frame is stale, and drop it.
+				if (pData->TotalUpdatedFrameCount > 0 && waitTimeMillis > 1000) {
 					IsSharedSurfaceDirty = true;
+					LOG_DEBUG("Dropped %ls frame because wait time exceeded limit", pRecordingSourceCapture->Name().c_str());
 					continue;
 				}
 				LOG_TRACE(L"CaptureThreadProc waited for busy shared surface for %lld ms", waitTimeMillis);
