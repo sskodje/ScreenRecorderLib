@@ -6,7 +6,6 @@
 #include <WinSDKVer.h>
 #include "Util.h"
 #include "MF.util.h"
-#include "LoopbackCapture.h"
 #include "RecordingManager.h"
 #include "TextureManager.h"
 #include "ScreenCaptureManager.h"
@@ -15,7 +14,6 @@
 #include "Screengrab.h"
 #include "DynamicWait.h"
 #include "HighresTimer.h"
-#include "AudioPrefs.h"
 
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "D3D11.lib")
@@ -404,18 +402,19 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	RETURN_RESULT_ON_BAD_HR(hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, &videoOutputFrameSize), L"Failed to initialize frame rects");
 	SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
 
-
 	std::unique_ptr<AudioManager> pAudioManager = make_unique<AudioManager>();
 	std::unique_ptr<MouseManager> pMouseManager = make_unique<MouseManager>();
 	RETURN_RESULT_ON_BAD_HR(hr = pMouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions()), L"Failed to initialize mouse manager");
 
 	if (recorderMode == RecorderModeInternal::Video) {
 		hr = pAudioManager->Initialize(GetAudioOptions());
-		if (FAILED(hr)) {
+		if (SUCCEEDED(hr)) {
+			pAudioManager->StartCapture();
+		}
+		else {
 			LOG_ERROR(L"Audio capture failed to start: hr = 0x%08x", hr);
 		}
 	}
-	pAudioManager->StartCapture();
 	if (pStream) {
 		RETURN_RESULT_ON_BAD_HR(hr = m_OutputManager->BeginRecording(pStream, videoOutputFrameSize), L"Failed to initialize video sink writer");
 	}

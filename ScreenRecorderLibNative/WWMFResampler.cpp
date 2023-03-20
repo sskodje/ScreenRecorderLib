@@ -100,9 +100,6 @@ WWMFResampler::Initialize(const WWMFPcmFormat &inputFormat, const WWMFPcmFormat 
 	m_inputFrameTotal = 0;
 	m_outputFrameTotal = 0;
 
-	RETURN_ON_BAD_HR(MFStartup(MF_VERSION, MFSTARTUP_NOSOCKET));
-	m_isMFStartuped = true;
-
 	RETURN_ON_BAD_HR(CreateResamplerMFT(m_inputFormat, m_outputFormat, halfFilterLength, &m_pTransform));
 
 	RETURN_ON_BAD_HR(m_pTransform->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, NULL));
@@ -305,14 +302,9 @@ void
 WWMFResampler::Finalize(void)
 {
 	SafeRelease(&m_pTransform);
-	if (m_isMFStartuped) {
-		MFShutdown();
-		m_isMFStartuped = false;
-	}
 }
 
 WWMFResampler::~WWMFResampler(void)
 {
-	assert(NULL == m_pTransform);
-	assert(false == m_isMFStartuped);
+	Finalize();
 }

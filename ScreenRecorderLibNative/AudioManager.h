@@ -1,8 +1,8 @@
 #pragma once
 #include <vector>
-#include "LoopbackCapture.h"
+#include "WASAPICapture.h"
 #include "CommonTypes.h"
-class AudioManager
+class AudioManager 
 {
 public:
 	AudioManager();
@@ -15,12 +15,25 @@ public:
 private:
 	CRITICAL_SECTION m_CriticalSection;
 	std::shared_ptr<AUDIO_OPTIONS> m_AudioOptions;
-	std::unique_ptr<LoopbackCapture> m_LoopbackCaptureOutputDevice;
-	std::unique_ptr<LoopbackCapture> m_LoopbackCaptureInputDevice;
+	//Output loopback capture, e.g. system audio.
+	std::unique_ptr<WASAPICapture> m_AudioOutputCapture;
+	//Audio input, i.e. microphone
+	std::unique_ptr<WASAPICapture> m_AudioInputCapture;
 
 	bool m_IsCaptureEnabled;
-	AUDIO_OPTIONS *GetAudioOptions() { return m_AudioOptions.get(); }
-	HRESULT ConfigureAudioCapture();
-	std::vector<BYTE> MixAudio(_In_ std::vector<BYTE> const &first, _In_ std::vector<BYTE> const &second, _In_ float firstVolume, _In_ float secondVolume);
-};
 
+	AUDIO_OPTIONS *GetAudioOptions() { return m_AudioOptions.get(); }
+
+	HRESULT StartDeviceCapture(WASAPICapture *pCapture, std::wstring deviceId, EDataFlow flow);
+	HRESULT StopDeviceCapture(WASAPICapture *pCapture);
+	HRESULT ConfigureAudioCapture();
+
+	std::thread m_OptionsListenerThread;
+	HANDLE m_OptionsListenerStopEvent = nullptr;
+	void OnOptionsChanged();
+	HRESULT StopOptionsChangeListenerThread();
+
+	std::vector<BYTE> MixAudio(_In_ std::vector<BYTE> const &first, _In_ std::vector<BYTE> const &second, _In_ float firstVolume, _In_ float secondVolume);
+	HRESULT GetDeviceFriendlyName(_In_ LPCWSTR pwstrId, _Out_ std::wstring *deviceName);
+	HRESULT PrintDeviceName(LPCWSTR pwstrId);
+};

@@ -21,6 +21,7 @@
   <ItemGroup>
     <ClInclude Include="AudioManager.h" />
     <ClInclude Include="CMFSinkWriterCallback.h" />
+    <ClInclude Include="CoreAudio.util.h" />
     <ClInclude Include="DynamicWait.h" />
     <ClInclude Include="ImageReader.h" />
     <ClInclude Include="OutputManager.h" />
@@ -38,14 +39,14 @@
     <ClInclude Include="DX.util.h" />
     <ClInclude Include="CaptureBase.h" />
     <ClInclude Include="Screengrab.h" />
-    <ClInclude Include="AudioPrefs.h" />
+    <ClInclude Include="WASAPINotify.h" />
     <ClInclude Include="WindowsGraphicsCapture.h" />
     <ClInclude Include="WindowsGraphicsCapture.util.h" />
     <ClInclude Include="Cleanup.h" />
     <ClInclude Include="fifo_map.h" />
     <ClInclude Include="RecordingManager.h" />
     <ClInclude Include="Log.h" />
-    <ClInclude Include="LoopbackCapture.h" />
+    <ClInclude Include="WASAPICapture.h" />
     <ClInclude Include="MouseManager.h" />
     <ClInclude Include="Native.h" />
     <ClInclude Include="Util.h" />
@@ -55,6 +56,7 @@
   <ItemGroup>
     <ClCompile Include="AudioManager.cpp" />
     <ClCompile Include="CaptureBase.cpp" />
+    <ClCompile Include="CoreAudio.util.cpp" />
     <ClCompile Include="DynamicWait.cpp" />
     <ClCompile Include="ImageReader.cpp" />
     <ClCompile Include="Log.cpp" />
@@ -70,19 +72,15 @@
     <ClCompile Include="DesktopDuplicationCapture.cpp" />
     <ClCompile Include="DX.util.cpp" />
     <ClCompile Include="Screengrab.cpp" />
-    <ClCompile Include="AudioPrefs.cpp">
-      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
-      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
-      <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>
-    </ClCompile>
     <ClCompile Include="Util.cpp" />
+    <ClCompile Include="WASAPINotify.cpp" />
     <ClCompile Include="WindowsGraphicsCapture.cpp" />
     <ClCompile Include="RecordingManager.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>
     </ClCompile>
-    <ClCompile Include="LoopbackCapture.cpp">
+    <ClCompile Include="WASAPICapture.cpp">
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</CompileAsManaged>
       <CompileAsManaged Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</CompileAsManaged>

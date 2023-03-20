@@ -1,98 +1,10 @@
-// prefs.cpp
-//https://github.com/mvaneerde/blog/tree/master/loopback-capture
-#include <stdio.h>
-#include <windows.h>
-#include <avrt.h>
-#include <mmdeviceapi.h>
-#include <audioclient.h>
+#include "CoreAudio.util.h"
+#include "cleanup.h"
 #include <functiondiscoverykeys_devpkey.h>
-#include "Log.h"
-#include "AudioPrefs.h"
-#include "Cleanup.h"
 
-
-
-
-HRESULT get_default_device(IMMDevice **ppMMDevice, EDataFlow flow);
-HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMMDevice);
-HRESULT open_file(LPCWSTR szFileName, HMMIO *phFile);
-
-
-AudioPrefs::AudioPrefs(int argc, LPCWSTR argv[], HRESULT &hr, EDataFlow flow)
-	: m_pMMDevice(NULL)
-	, m_hFile(NULL)
-	, m_bInt16(false)
-	, m_pwfx(NULL)
-{
-	// loop through arguments and parse them
-	for (int i = 1; i < argc; i++) {
-
-		// --device
-		if (0 == _wcsicmp(argv[i], L"--device")) {
-			if (NULL != m_pMMDevice) {
-				LOG_ERROR(L"%s", L"Only one --device switch is allowed");
-				hr = E_INVALIDARG;
-				return;
-			}
-
-			if (i++ == argc) {
-				LOG_ERROR(L"%s", L"--device switch requires an argument");
-				hr = E_INVALIDARG;
-				return;
-			}
-
-			hr = get_specific_device(argv[i], flow, &m_pMMDevice);
-			if (FAILED(hr)) {
-				return;
-			}
-
-			continue;
-		}
-
-		// --int-16
-		if (0 == _wcsicmp(argv[i], L"--int-16")) {
-			if (m_bInt16) {
-				LOG_ERROR(L"%s", L"Only one --int-16 switch is allowed");
-				hr = E_INVALIDARG;
-				return;
-			}
-
-			m_bInt16 = true;
-			continue;
-		}
-
-		LOG_ERROR(L"Invalid argument %ls", argv[i]);
-		hr = E_INVALIDARG;
-		return;
-	}
-
-	// open default device if not specified
-	if (NULL == m_pMMDevice) {
-		hr = get_default_device(&m_pMMDevice, flow);
-		if (FAILED(hr)) {
-			LOG_WARN(L"No audio capture devices available");
-			return;
-		}
-	}
-}
-
-AudioPrefs::~AudioPrefs() {
-	if (NULL != m_pMMDevice) {
-		m_pMMDevice->Release();
-	}
-
-	if (NULL != m_hFile) {
-		mmioClose(m_hFile, 0);
-	}
-
-	if (NULL != m_pwfx) {
-		CoTaskMemFree(m_pwfx);
-	}
-}
-
-HRESULT get_default_device(IMMDevice **ppMMDevice, EDataFlow flow) {
+HRESULT GetDefaultAudioDevice(_In_ EDataFlow flow, _Outptr_ IMMDevice **ppMMDevice) {
 	HRESULT hr = S_OK;
-	IMMDeviceEnumerator *pMMDeviceEnumerator;
+	CComPtr<IMMDeviceEnumerator> pMMDeviceEnumerator;
 
 	// activate a device enumerator
 	hr = CoCreateInstance(
@@ -104,37 +16,37 @@ HRESULT get_default_device(IMMDevice **ppMMDevice, EDataFlow flow) {
 		LOG_ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);
 		return hr;
 	}
-	ReleaseOnExit releaseMMDeviceEnumerator(pMMDeviceEnumerator);
-
 	// get the default endpoint for chosen flow (should be either eCapture or eRender)
 	hr = pMMDeviceEnumerator->GetDefaultAudioEndpoint(flow, eConsole, ppMMDevice);
-	if (FAILED(hr)) {
+	if (hr == E_NOTFOUND) {
+		//No default audio device found on system
+		return S_FALSE;
+	}
+	else if (FAILED(hr)) {
 		LOG_ERROR(L"IMMDeviceEnumerator::GetDefaultAudioEndpoint failed: hr = 0x%08x", hr);
 		return hr;
 	}
-
 	return S_OK;
 }
 
-HRESULT AudioPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wstring> *devices) {
+HRESULT ListAudioDevices(_In_ EDataFlow flow, _Out_ std::map<std::wstring, std::wstring> *devices) {
 	HRESULT hr = S_OK;
-
+	*devices = std::map<std::wstring, std::wstring>();
 	// get an enumerator
-	IMMDeviceEnumerator *pMMDeviceEnumerator;
+	CComPtr<IMMDeviceEnumerator> pMMDeviceEnumerator;
 
 	hr = CoCreateInstance(
 		__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
 		__uuidof(IMMDeviceEnumerator),
 		(void **)&pMMDeviceEnumerator
 	);
+
 	if (FAILED(hr)) {
 		LOG_ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);
 		return hr;
 	}
-	ReleaseOnExit releaseMMDeviceEnumerator(pMMDeviceEnumerator);
 
-	IMMDeviceCollection *pMMDeviceCollection;
-
+	CComPtr<IMMDeviceCollection> pMMDeviceCollection;
 	// get all the active endpoints for chosen flow
 	hr = pMMDeviceEnumerator->EnumAudioEndpoints(flow, DEVICE_STATE_ACTIVE, &pMMDeviceCollection);
 
@@ -142,7 +54,6 @@ HRESULT AudioPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wst
 		LOG_ERROR(L"IMMDeviceEnumerator::EnumAudioEndpoints failed: hr = 0x%08x", hr);
 		return hr;
 	}
-	ReleaseOnExit releaseMMDeviceCollection(pMMDeviceCollection);
 
 	UINT count;
 	hr = pMMDeviceCollection->GetCount(&count);
@@ -153,7 +64,7 @@ HRESULT AudioPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wst
 	LOG_INFO(L"Active render endpoints found: %u", count);
 
 	for (UINT i = 0; i < count; i++) {
-		IMMDevice *pMMDevice;
+		CComPtr<IMMDevice> pMMDevice;
 
 		// get the "n"th device
 		hr = pMMDeviceCollection->Item(i, &pMMDevice);
@@ -161,16 +72,14 @@ HRESULT AudioPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wst
 			LOG_ERROR(L"IMMDeviceCollection::Item failed: hr = 0x%08x", hr);
 			return hr;
 		}
-		ReleaseOnExit releaseMMDevice(pMMDevice);
 
 		// open the property store on that device
-		IPropertyStore *pPropertyStore;
+		CComPtr<IPropertyStore> pPropertyStore;
 		hr = pMMDevice->OpenPropertyStore(STGM_READ, &pPropertyStore);
 		if (FAILED(hr)) {
 			LOG_ERROR(L"IMMDevice::OpenPropertyStore failed: hr = 0x%08x", hr);
 			return hr;
 		}
-		ReleaseOnExit releasePropertyStore(pPropertyStore);
 
 		// get the long name property
 		PROPVARIANT pv; PropVariantInit(&pv);
@@ -200,14 +109,11 @@ HRESULT AudioPrefs::list_devices(EDataFlow flow, std::map<std::wstring, std::wst
 	return S_OK;
 }
 
-HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMMDevice) {
+HRESULT GetActiveAudioDevice(_In_ LPCWSTR szDeviceId, _In_ EDataFlow flow, _Outptr_ IMMDevice **ppMMDevice) {
 	HRESULT hr = S_OK;
-
 	*ppMMDevice = NULL;
-
 	// get an enumerator
-	IMMDeviceEnumerator *pMMDeviceEnumerator;
-
+	CComPtr<IMMDeviceEnumerator> pMMDeviceEnumerator;
 	hr = CoCreateInstance(
 		__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
 		__uuidof(IMMDeviceEnumerator),
@@ -217,10 +123,7 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 		LOG_ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);
 		return hr;
 	}
-	ReleaseOnExit releaseMMDeviceEnumerator(pMMDeviceEnumerator);
-
-	IMMDeviceCollection *pMMDeviceCollection;
-
+	CComPtr<IMMDeviceCollection> pMMDeviceCollection;
 	// get all the active endpoints
 	hr = pMMDeviceEnumerator->EnumAudioEndpoints(
 		flow, DEVICE_STATE_ACTIVE, &pMMDeviceCollection
@@ -229,7 +132,6 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 		LOG_ERROR(L"IMMDeviceEnumerator::EnumAudioEndpoints failed: hr = 0x%08x", hr);
 		return hr;
 	}
-	ReleaseOnExit releaseMMDeviceCollection(pMMDeviceCollection);
 
 	UINT count;
 	hr = pMMDeviceCollection->GetCount(&count);
@@ -239,7 +141,7 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 	}
 
 	for (UINT i = 0; i < count; i++) {
-		IMMDevice *pMMDevice;
+		CComPtr<IMMDevice> pMMDevice;
 
 		// get the "n"th device
 		hr = pMMDeviceCollection->Item(i, &pMMDevice);
@@ -247,7 +149,6 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 			LOG_ERROR(L"IMMDeviceCollection::Item failed: hr = 0x%08x", hr);
 			return hr;
 		}
-		ReleaseOnExit releaseMMDevice(pMMDevice);
 
 		// get device id
 		LPWSTR deviceID;
@@ -262,7 +163,7 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 			// did we already find it?
 			if (NULL == *ppMMDevice) {
 				*ppMMDevice = pMMDevice;
-				pMMDevice->AddRef();
+				(*ppMMDevice)->AddRef();
 			}
 			else {
 				LOG_ERROR(L"Found (at least) two devices named %ls", szDeviceId);
@@ -273,27 +174,78 @@ HRESULT get_specific_device(LPCWSTR szDeviceId, EDataFlow flow, IMMDevice **ppMM
 
 	if (NULL == *ppMMDevice) {
 		LOG_ERROR(L"Could not find a device named %ls", szDeviceId);
-		return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+		return E_NOTFOUND;
 	}
 
 	return S_OK;
 }
 
-HRESULT open_file(LPCWSTR szFileName, HMMIO *phFile) {
-	MMIOINFO mi = { 0 };
+HRESULT GetAudioDevice(_In_ LPCWSTR pwstrId, _Out_ IMMDevice **ppMMDevice) {
+	HRESULT hr = S_OK;
+	CComPtr<IMMDevice> pDevice = NULL;
 
-	*phFile = mmioOpen(
-		// some flags cause mmioOpen write to this buffer
-		// but not any that we're using
-		const_cast<LPWSTR>(szFileName),
-		&mi,
-		MMIO_WRITE | MMIO_CREATE
+	// get an enumerator
+	CComPtr<IMMDeviceEnumerator> pMMDeviceEnumerator;
+	hr = CoCreateInstance(
+		__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
+		__uuidof(IMMDeviceEnumerator),
+		(void **)&pMMDeviceEnumerator
 	);
-
-	if (NULL == *phFile) {
-		LOG_ERROR(L"mmioOpen(\"%ls\", ...) failed. wErrorRet == %u", szFileName, mi.wErrorRet);
-		return E_FAIL;
+	if (FAILED(hr)) {
+		LOG_ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);
+		return hr;
 	}
+	RETURN_ON_BAD_HR(hr = pMMDeviceEnumerator->GetDevice(pwstrId, &pDevice));
 
-	return S_OK;
+	*ppMMDevice = pDevice;
+	(*ppMMDevice)->AddRef();
+}
+
+HRESULT GetAudioDeviceFlow(_In_ IMMDevice *pMMDevice, _Out_ EDataFlow *pFlow)
+{
+	HRESULT hr = S_OK;
+	CComPtr<IMMEndpoint> pEndpoint;
+	RETURN_ON_BAD_HR(hr = pMMDevice->QueryInterface(__uuidof(IMMEndpoint), (void **)&pEndpoint));
+	RETURN_ON_BAD_HR(hr = pEndpoint->GetDataFlow(pFlow));
+	return hr;
+}
+
+HRESULT GetAudioDeviceFriendlyName(_In_ IMMDevice *pDevice, _Out_ std::wstring *deviceName) {
+	*deviceName = L"";
+	HRESULT hr = S_OK;
+	IPropertyStore *pProps = NULL;
+
+	ReleaseOnExit releaseProps(pProps);
+
+	PROPVARIANT varString;
+	PropVariantInit(&varString);
+	PropVariantClearOnExit clearVarString(&varString);
+
+	RETURN_ON_BAD_HR(hr = pDevice->OpenPropertyStore(STGM_READ, &pProps));
+	// Get the endpoint device's friendly-name property.
+	RETURN_ON_BAD_HR(hr = pProps->GetValue(PKEY_Device_FriendlyName, &varString));
+
+	*deviceName = std::wstring(varString.pwszVal);
+	return hr;
+}
+
+HRESULT GetAudioDeviceFriendlyName(_In_ LPCWSTR pwstrId, _Out_ std::wstring *deviceName) {
+	*deviceName = L"";
+	HRESULT hr = S_OK;
+	IMMDevice *pDevice = NULL;
+	ReleaseOnExit releaseDevice(pDevice);
+
+	// get an enumerator
+	CComPtr<IMMDeviceEnumerator> pMMDeviceEnumerator;
+	hr = CoCreateInstance(
+		__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
+		__uuidof(IMMDeviceEnumerator),
+		(void **)&pMMDeviceEnumerator
+	);
+	if (FAILED(hr)) {
+		LOG_ERROR(L"CoCreateInstance(IMMDeviceEnumerator) failed: hr = 0x%08x", hr);
+		return hr;
+	}
+	RETURN_ON_BAD_HR(hr = pMMDeviceEnumerator->GetDevice(pwstrId, &pDevice));
+	return GetAudioDeviceFriendlyName(pDevice, deviceName);
 }

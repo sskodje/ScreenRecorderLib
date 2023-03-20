@@ -404,16 +404,27 @@ protected:
 	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
 	float m_OutputVolumeModifier = 1;
 	float m_InputVolumeModifier = 1;
+
+	void Notify(HANDLE h) {
+		SetEvent(h);
+	}
 public:
-	void SetInputVolume(float volume) { m_InputVolumeModifier = volume; }
-	void SetOutputVolume(float volume) { m_OutputVolumeModifier = volume; }
-	void SetAudioBitrate(UINT32 bitrate) { m_AudioBitrate = bitrate; }
-	void SetAudioChannels(UINT32 channels) { m_AudioChannels = channels; }
-	void SetOutputDevice(std::wstring string) { m_AudioOutputDevice = string; }
-	void SetInputDevice(std::wstring string) { m_AudioInputDevice = string; }
-	void SetAudioEnabled(bool value) { m_IsAudioEnabled = value; }
-	void SetOutputDeviceEnabled(bool value) { m_IsOutputDeviceEnabled = value; }
-	void SetInputDeviceEnabled(bool value) { m_IsInputDeviceEnabled = value; }
+	HANDLE OnPropertyChangedEvent;
+	AUDIO_OPTIONS() {
+		OnPropertyChangedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+	}
+	~AUDIO_OPTIONS() {
+		CloseHandle(OnPropertyChangedEvent);
+	}
+	void SetInputVolume(float volume) { m_InputVolumeModifier = volume; Notify(OnPropertyChangedEvent); }
+	void SetOutputVolume(float volume) { m_OutputVolumeModifier = volume; Notify(OnPropertyChangedEvent); }
+	void SetAudioBitrate(UINT32 bitrate) { m_AudioBitrate = bitrate; Notify(OnPropertyChangedEvent); }
+	void SetAudioChannels(UINT32 channels) { m_AudioChannels = channels; Notify(OnPropertyChangedEvent); }
+	void SetOutputDevice(std::wstring string) { m_AudioOutputDevice = string; Notify(OnPropertyChangedEvent); }
+	void SetInputDevice(std::wstring string) { m_AudioInputDevice = string; Notify(OnPropertyChangedEvent); }
+	void SetAudioEnabled(bool value) { m_IsAudioEnabled = value; Notify(OnPropertyChangedEvent); }
+	void SetOutputDeviceEnabled(bool value) { m_IsOutputDeviceEnabled = value; Notify(OnPropertyChangedEvent); }
+	void SetInputDeviceEnabled(bool value) { m_IsInputDeviceEnabled = value; Notify(OnPropertyChangedEvent); }
 
 	std::wstring GetAudioOutputDevice() { return m_AudioOutputDevice; }
 	std::wstring GetAudioInputDevice() { return m_AudioInputDevice; }

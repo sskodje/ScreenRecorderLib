@@ -118,7 +118,6 @@ class WWMFResampler {
 public:
 	WWMFResampler(void) :
 		m_pTransform(NULL),
-		m_isMFStartuped(false),
 		m_inputFrameTotal(0),
 		m_outputFrameTotal(0)
 	{
@@ -151,7 +150,6 @@ private:
 	IMFTransform *m_pTransform;
 	WWMFPcmFormat m_inputFormat;
 	WWMFPcmFormat m_outputFormat;
-	bool          m_isMFStartuped;
 	INT64      m_inputFrameTotal;
 	INT64      m_outputFrameTotal;
 

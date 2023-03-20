@@ -1,7 +1,7 @@
 #pragma once
 #include <Windows.h>
+#include <vector>
 
-#define WAIT_BAND_COUNT 3
 #define WAIT_BAND_STOP 0
 
 struct WAIT_BAND
@@ -16,12 +16,16 @@ public:
     DynamicWait();
     ~DynamicWait();
 
+    inline void SetWaitBands(std::vector<WAIT_BAND> bands) {
+        m_WaitBands = bands;
+    }
     void Wait();
+    void Cancel();
 
 private:
 
-    static const WAIT_BAND   m_WaitBands[WAIT_BAND_COUNT];
-
+    std::vector<WAIT_BAND>   m_WaitBands;
+    HANDLE m_CancelEvent;
     // Period in seconds that a new wait call is considered part of the same wait sequence
     static const UINT       m_WaitSequenceTimeInSeconds = 2;
 

@@ -69,13 +69,10 @@
     <ClInclude Include="Native.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="AudioPrefs.h">
-      <Filter>Header Files\Audio Capture</Filter>
-    </ClInclude>
     <ClInclude Include="WWMFResampler.h">
       <Filter>Header Files\Audio Capture</Filter>
     </ClInclude>
-    <ClInclude Include="LoopbackCapture.h">
+    <ClInclude Include="WASAPICapture.h">
       <Filter>Header Files\Audio Capture</Filter>
     </ClInclude>
     <ClInclude Include="DesktopDuplicationCapture.h">
@@ -159,18 +156,21 @@
     <ClInclude Include="DynamicWait.h">
       <Filter>Header Files\Utils</Filter>
     </ClInclude>
+    <ClInclude Include="CoreAudio.util.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="WASAPINotify.h">
+      <Filter>Header Files\Audio Capture</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RecordingManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="AudioPrefs.cpp">
-      <Filter>Source Files\Audio Capture</Filter>
-    </ClCompile>
     <ClCompile Include="WWMFResampler.cpp">
       <Filter>Source Files\Audio Capture</Filter>
     </ClCompile>
-    <ClCompile Include="LoopbackCapture.cpp">
+    <ClCompile Include="WASAPICapture.cpp">
       <Filter>Source Files\Audio Capture</Filter>
     </ClCompile>
     <ClCompile Include="DesktopDuplicationCapture.cpp">
@@ -238,6 +238,12 @@
     </ClCompile>
     <ClCompile Include="Util.cpp">
       <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="CoreAudio.util.cpp">
+      <Filter>Source Files\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="WASAPINotify.cpp">
+      <Filter>Source Files\Audio Capture</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

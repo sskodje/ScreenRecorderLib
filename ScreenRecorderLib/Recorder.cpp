@@ -344,7 +344,7 @@ List<AudioDevice^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
 
 	auto devices = gcnew List<AudioDevice^>();
 
-	HRESULT hr = AudioPrefs::list_devices(dFlow, &map);
+	HRESULT hr = ListAudioDevices(dFlow, &map);
 
 	if (SUCCEEDED(hr))
 	{
