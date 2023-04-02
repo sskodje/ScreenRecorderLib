@@ -105,7 +105,7 @@ private:
 	HRESULT m_MfStartupResult = E_FAIL;
 	std::wstring m_OutputFolder = L"";
 	std::wstring m_OutputFullPath = L"";
-	INT64 m_MaxFrameLength100Nanos = MillisToHundredNanos(500); //500 milliseconds in 100 nanoseconds measure.
+	double m_MaxFrameLengthMillis = 500;
 
 	std::vector<RECORDING_SOURCE *> m_RecordingSources;
 	std::vector<RECORDING_OVERLAY *> m_Overlays;

@@ -30,7 +30,10 @@ ScreenCaptureManager::ScreenCaptureManager() :
 	m_OverlayThreadData(nullptr),
 	m_TextureManager(nullptr),
 	m_IsCapturing(false),
-	m_OutputOptions(nullptr)
+	m_OutputOptions(nullptr),
+	m_EncoderOptions(nullptr),
+	m_MouseOptions(nullptr),
+	m_FrameCopy(nullptr)
 {
 	// Event to tell spawned threads to quit
 	m_TerminateThreadsEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
@@ -49,13 +52,20 @@ ScreenCaptureManager::~ScreenCaptureManager()
 //
 // Initialize shaders for drawing to screen
 //
-HRESULT ScreenCaptureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3D11Device *pDevice, _In_ std::shared_ptr<OUTPUT_OPTIONS> pOutputOptions)
+HRESULT ScreenCaptureManager::Initialize(
+	_In_ ID3D11DeviceContext *pDeviceContext,
+	_In_ ID3D11Device *pDevice,
+	_In_ std::shared_ptr<OUTPUT_OPTIONS> pOutputOptions,
+	_In_ std::shared_ptr<ENCODER_OPTIONS> pEncoderOptions,
+	_In_ std::shared_ptr<MOUSE_OPTIONS> pMouseOptions)
 {
 	HRESULT hr = S_OK;
 	m_Device = pDevice;
 	m_DeviceContext = pDeviceContext;
 
 	m_OutputOptions = pOutputOptions;
+	m_EncoderOptions = pEncoderOptions;
+	m_MouseOptions = pMouseOptions;
 
 	m_TextureManager = make_unique<TextureManager>();
 	RETURN_ON_BAD_HR(hr = m_TextureManager->Initialize(m_DeviceContext, m_Device));
@@ -195,56 +205,112 @@ HRESULT ScreenCaptureManager::StopCapture()
 	return hr;
 }
 
-HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  DWORD timeoutMillis, _Inout_ CAPTURED_FRAME *pFrame)
+HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  double timeUntilNextFrame, _In_ double maxFrameLength, _Out_ CAPTURED_FRAME *pFrame)
 {
 	HRESULT hr;
-	// Try to acquire keyed mutex in order to access shared surface
-	{
-		MeasureExecutionTime measure(L"AcquireNextFrame wait for sync");
-		hr = m_KeyMutex->AcquireSync(1, timeoutMillis);
+	auto  start = std::chrono::steady_clock::now();
+	bool haveNewFrame = false;
+	auto GetMillisUntilNextFrame([&]()
+		{
+			auto millisWaited = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+			if (m_EncoderOptions->GetIsFixedFramerate() || haveNewFrame) {
+				return timeUntilNextFrame - millisWaited;
+			}
+			else {
+				return maxFrameLength - millisWaited;
+			}
+		});
+	auto GetNextSyncTimeout([&]()
+		{
+			return static_cast<DWORD>(max(haveNewFrame ? 0 : 1, floor(GetMillisUntilNextFrame()) - 0.5));
+		});
+	auto ShouldDelay([&]()
+		{
+			auto millisWaited = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+			if (!IsInitialFrameWriteComplete() && millisWaited < maxFrameLength) {
+				return true;
+			}
+			if (m_LastAcquiredFrameTimeStamp.QuadPart == 0 && IsInitialFrameWriteComplete()) {
+				return false;
+			}
+			if (m_OutputOptions->GetRecorderMode() == RecorderModeInternal::Video) {
+				if (!m_EncoderOptions->GetIsFixedFramerate()
+					&& ((m_MouseOptions->IsMousePointerEnabled() && m_PtrInfo.IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
+						|| false)) // Or if we need to write a snapshot 
+				{
+					return false;
+				}
+			}
+			auto millisUntilNextFrame = GetMillisUntilNextFrame();
+			if (millisUntilNextFrame < 0.1) {
+				return false;
+			}
+			else if (millisUntilNextFrame >= 0.1) {
+				return true;
+			}
+			return false;
+		});
 
-	}
-	if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
-	{
-		return DXGI_ERROR_WAIT_TIMEOUT;
-	}
-	else if (FAILED(hr))
-	{
-		return hr;
-	}
+	DWORD syncTimeout = GetNextSyncTimeout();
 
-	ID3D11Texture2D *pDesktopFrame = nullptr;
+	while (true)
+	{
+		// Try to acquire keyed mutex in order to access shared surface
+		hr = m_KeyMutex->AcquireSync(1, syncTimeout);
+
+		if (hr == static_cast<HRESULT>(WAIT_TIMEOUT)) {
+			if (!ShouldDelay()) {
+				hr = m_KeyMutex->AcquireSync(0, 0);
+				if (SUCCEEDED(hr)) {
+					hr = m_KeyMutex->ReleaseSync(1);
+					syncTimeout = 0;
+				}
+			}
+			else {
+				syncTimeout = GetNextSyncTimeout();
+			}
+		}
+		else if (hr == static_cast<HRESULT>(WAIT_ABANDONED)) {
+			return E_FAIL;
+		}
+		else if (SUCCEEDED(hr)) {
+			haveNewFrame = true;
+			if (ShouldDelay()) {
+				m_KeyMutex->ReleaseSync(0);
+				syncTimeout = GetNextSyncTimeout();
+			}
+			else {
+				break;
+			}
+		}
+		else if (FAILED(hr)) {
+			return hr;
+		}
+	}
 	{
 		ReleaseKeyedMutexOnExit releaseMutex(m_KeyMutex, 0);
-
-		if (!IsInitialFrameWriteComplete()) {
-			return DXGI_ERROR_WAIT_TIMEOUT;
-		}
-		if (!IsUpdatedFramesAvailable()) {
-			return DXGI_ERROR_WAIT_TIMEOUT;
-		}
 		MeasureExecutionTime measure(L"AcquireNextFrame lock");
-		int updatedFrameCount = GetUpdatedFrameCount(true);
+		int updatedFrameCount = GetUpdatedSourceCount();
+		int updatedOverlaysCount = GetUpdatedOverlayCount();
 
-		D3D11_TEXTURE2D_DESC desc;
-		m_SharedSurf->GetDesc(&desc);
-		desc.MiscFlags = 0;
-		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-		RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &pDesktopFrame));
-		if (m_OutputOptions->IsVideoCaptureEnabled()) {
-			m_DeviceContext->CopyResource(pDesktopFrame, m_SharedSurf);
+		if (!m_FrameCopy) {
+			D3D11_TEXTURE2D_DESC desc;
+			m_SharedSurf->GetDesc(&desc);
+			desc.MiscFlags = 0;
+			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+			RETURN_ON_BAD_HR(hr = m_Device->CreateTexture2D(&desc, nullptr, &m_FrameCopy));
 		}
-		int updatedOverlaysCount = 0;
-		ProcessOverlays(pDesktopFrame, &updatedOverlaysCount);
-
+		if (m_OutputOptions->IsVideoCaptureEnabled()) {
+			m_DeviceContext->CopyResource(m_FrameCopy, m_SharedSurf);
+		}
 		if (updatedFrameCount > 0 || updatedOverlaysCount > 0) {
 			QueryPerformanceCounter(&m_LastAcquiredFrameTimeStamp);
 		}
-
-		pFrame->Frame = pDesktopFrame;
+		m_PtrInfo.IsPointerShapeUpdated = false;
+		RtlZeroMemory(pFrame, sizeof(pFrame));
+		pFrame->Frame = m_FrameCopy;
 		pFrame->PtrInfo = m_PtrInfo;
 		pFrame->FrameUpdateCount = updatedFrameCount;
-		pFrame->OverlayUpdateCount = updatedOverlaysCount;
 	}
 	return hr;
 }
@@ -422,17 +488,27 @@ bool ScreenCaptureManager::IsInitialOverlayWriteComplete()
 	return true;
 }
 
-UINT ScreenCaptureManager::GetUpdatedFrameCount(_In_ bool resetUpdatedFrameCounts)
+UINT ScreenCaptureManager::GetUpdatedSourceCount()
 {
 	int updatedFrameCount = 0;
 
 	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
 	{
 		if (m_CaptureThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
-			updatedFrameCount += m_CaptureThreadData[i].UpdatedFrameCountSinceLastWrite;
-			if (resetUpdatedFrameCounts) {
-				m_CaptureThreadData[i].UpdatedFrameCountSinceLastWrite = 0;
-			}
+			updatedFrameCount++;
+		}
+	}
+	return updatedFrameCount;
+}
+
+UINT ScreenCaptureManager::GetUpdatedOverlayCount()
+{
+	int updatedFrameCount = 0;
+
+	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
+	{
+		if (m_OverlayThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
+			updatedFrameCount++;
 		}
 	}
 	return updatedFrameCount;
@@ -781,7 +857,9 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 				LOG_ERROR(L"Unexpected error acquiring KeyMutex");
 				break;
 			}
+#if MEASURE_EXECUTION_TIME
 			MeasureExecutionTime measureLock(string_format(L"CaptureThreadProc sync lock for %ls", pRecordingSourceCapture->Name().c_str()));
+#endif
 			ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
 
 			// We can now process the current frame
@@ -815,7 +893,6 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 					hr = textureManager.DrawTexture(SharedSurf, pFrame, offsetFrameCoordinates);
 					IsSharedSurfaceDirty = false;
 				}
-
 				hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates);
 			}
 			else {
@@ -834,11 +911,10 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 			else if (hr == S_FALSE) {
 				continue;
 			}
-			pData->UpdatedFrameCountSinceLastWrite++;
 			pData->TotalUpdatedFrameCount++;
 			QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
+			}
 		}
-	}
 Exit:
 	if (pData->ThreadResult) {
 		//E_ABORT is returned when the capture loop should be stopped, but the recording continue. On other errors, we check how to handle them.
@@ -861,7 +937,7 @@ Exit:
 	CoUninitialize();
 	LOG_DEBUG("Exiting CaptureThreadProc");
 	return 0;
-}
+	}
 
 
 DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
@@ -996,10 +1072,12 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 		// Try to acquire keyed mutex in order to access shared surface. The timeout value is 0, and we just continue if we don't get a lock.
 		// This is just used to notify the rendering loop about updated overlays, so no reason to wait around if it's already updating.
 		if (KeyMutex->AcquireSync(0, 0) == S_OK) {
+#if MEASURE_EXECUTION_TIME
 			MeasureExecutionTime measureLock(string_format(L"OverlayCapture sync lock for %ls", overlayCapture->Name().c_str()));
+#endif
 			KeyMutex->ReleaseSync(1);
-		}
 	}
+}
 Exit:
 	if (pData->ThreadResult) {
 		//E_ABORT is returned when the capture loop should be stopped, but the recording continue. On other errors, we check how to handle them.

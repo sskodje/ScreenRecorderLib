@@ -3,7 +3,6 @@
 #include <audioclient.h>
 #include "WWMFResampler.h"
 #include "Log.h"
-#include "ScreenCaptureManager.h"
 #include "SourceReaderBase.h"
 #include <vector>
 //#include <mutex>
@@ -47,21 +46,6 @@ public:
 private:
 	CRITICAL_SECTION *m_p;
 	std::wstring m_tag;
-};
-
-
-class CaptureStopOnExit {
-public:
-	CaptureStopOnExit(ScreenCaptureManager *p) : m_p(p) {}
-	~CaptureStopOnExit() {
-		m_p->StopCapture();
-	}
-	void Reset(ScreenCaptureManager *p) {
-		m_p = p;
-	}
-
-private:
-	ScreenCaptureManager *m_p;
 };
 
 

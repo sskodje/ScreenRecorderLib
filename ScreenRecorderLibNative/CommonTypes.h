@@ -139,8 +139,6 @@ struct CAPTURED_FRAME
 	std::optional<PTR_INFO> PtrInfo;
 	//The number of updates written to the current frame since last fetch.
 	int FrameUpdateCount;
-	//The number of updates written to the frame overlays since last fetch.
-	int OverlayUpdateCount;
 };
 
 enum class RecorderModeInternal {
@@ -342,7 +340,6 @@ struct THREAD_DATA_BASE
 struct CAPTURE_THREAD_DATA :THREAD_DATA_BASE
 {
 	RECORDING_SOURCE_DATA *RecordingSource{ nullptr };
-	INT UpdatedFrameCountSinceLastWrite{};
 	INT64 TotalUpdatedFrameCount{};
 	PTR_INFO *PtrInfo{ nullptr };
 };
