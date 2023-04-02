@@ -36,6 +36,8 @@ void AudioManager::OnOptionsChanged() {
 					break;
 				}
 				case WAIT_OBJECT_0 + 1: {
+					EnterCriticalSection(&m_CriticalSection);
+					LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 					ConfigureAudioCapture();
 					break;
 				}
