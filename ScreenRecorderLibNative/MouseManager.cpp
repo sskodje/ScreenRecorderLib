@@ -58,7 +58,8 @@ MouseManager::MouseManager() :
 	m_LastMouseDrawTimeStamp(std::chrono::steady_clock::now()),
 	m_IsCapturingMouseClicks(false),
 	m_MouseHookThread(nullptr),
-	m_MouseHookThreadId(0)
+	m_MouseHookThreadId(0),
+	m_TextureManager(nullptr)
 {
 	InitializeCriticalSection(&m_CriticalSection);
 }
@@ -103,6 +104,8 @@ HRESULT MouseManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ 
 	hr = pDevice->CreateBlendState(&BlendStateDesc, &m_BlendState);
 	RETURN_ON_BAD_HR(hr);
 
+	m_TextureManager = make_unique<TextureManager>();
+	RETURN_ON_BAD_HR(hr = m_TextureManager->Initialize(pDeviceContext, pDevice));
 	// Initialize shaders
 	hr = InitShaders(pDevice, &m_PixelShader, &m_VertexShader, &m_InputLayout);
 	hr = InitMouseClickTexture(pDeviceContext, pDevice);
@@ -469,8 +472,6 @@ HRESULT MouseManager::DrawMousePointer(_In_ PTR_INFO *pPtrInfo, _Inout_ ID3D11Te
 	Vertices[4].Pos.x = Vertices[1].Pos.x;
 	Vertices[4].Pos.y = Vertices[1].Pos.y;
 
-	TextureManager m_TextureManager;
-	m_TextureManager.Initialize(m_DeviceContext, m_Device);
 	// Create mouseshape as texture
 	HRESULT hr = m_Device->CreateTexture2D(&Desc, &InitData, &MouseTex);
 	if (FAILED(hr))
@@ -482,7 +483,7 @@ HRESULT MouseManager::DrawMousePointer(_In_ PTR_INFO *pPtrInfo, _Inout_ ID3D11Te
 
 	if (pPtrInfo->Scale.cx != 1.0 || pPtrInfo->Scale.cy != 1.0) {
 		ID3D11Texture2D *pResizedTexture;
-		RETURN_ON_BAD_HR(hr = m_TextureManager.ResizeTexture(MouseTex, SIZE{ PtrWidth,PtrHeight }, TextureStretchMode::Uniform, &pResizedTexture));
+		RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(MouseTex, SIZE{ PtrWidth,PtrHeight }, TextureStretchMode::Uniform, &pResizedTexture));
 		SafeRelease(&MouseTex);
 		MouseTex = pResizedTexture;
 	}

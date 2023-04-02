@@ -4,6 +4,7 @@
 #include <atlbase.h>
 #include <memory>
 #include "CommonTypes.h"
+#include "TextureManager.h"
 
 LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
 
@@ -38,6 +39,7 @@ private:
 	ATL::CComPtr<ID3D11InputLayout> m_InputLayout;
 	ATL::CComPtr<ID2D1Factory> m_D2DFactory;
 
+	std::unique_ptr<TextureManager> m_TextureManager;
 	std::shared_ptr<MOUSE_OPTIONS> m_MouseOptions;
 	ID3D11DeviceContext *m_DeviceContext;
 	ID3D11Device *m_Device;
