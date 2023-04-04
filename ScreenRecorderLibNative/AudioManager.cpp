@@ -42,7 +42,7 @@ HRESULT AudioManager::StopCapture()
 HRESULT AudioManager::ConfigureAudioCapture()
 {
 	HRESULT hr = S_FALSE;
-	if (GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsOutputDeviceEnabled() && m_IsCaptureEnabled)
+	if (GetAudioOptions() && GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsOutputDeviceEnabled() && m_IsCaptureEnabled)
 	{
 		if (!m_LoopbackCaptureOutputDevice) {
 			m_LoopbackCaptureOutputDevice = make_unique<LoopbackCapture>(L"AudioOutputDevice");
@@ -62,7 +62,7 @@ HRESULT AudioManager::ConfigureAudioCapture()
 		}
 	}
 
-	if (GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsInputDeviceEnabled() && m_IsCaptureEnabled)
+	if (GetAudioOptions() && GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsInputDeviceEnabled() && m_IsCaptureEnabled)
 	{
 		if (!m_LoopbackCaptureInputDevice) {
 			m_LoopbackCaptureInputDevice = make_unique<LoopbackCapture>(L"AudioInputDevice");
