@@ -551,6 +551,9 @@ public:
 		else if (m_ImageEncoderFormat == GUID_ContainerFormatTiff) {
 			return L".tiff";
 		}
+		else if (m_ImageEncoderFormat == GUID_ContainerFormatGif) {
+			return L".gif";
+		}
 		else {
 			return L".jpg";
 		}

@@ -31,7 +31,8 @@ namespace ScreenRecorderLib {
 		PNG,
 		JPEG,
 		TIFF,
-		BMP
+		BMP,
+		GIF
 	};
 
 	public enum class AudioChannels {
