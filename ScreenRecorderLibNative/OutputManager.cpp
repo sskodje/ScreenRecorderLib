@@ -180,6 +180,14 @@ HRESULT OutputManager::FinalizeRecording()
 	return finalizeResult;
 }
 
+wstring uint64_to_string(uint64_t value, int prefixDigits = 0) {
+	wstring result = to_wstring(value);
+	while (result.length() < prefixDigits) {
+		result = L'0' + result;
+	}
+	return result;
+}
+
 HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 	HRESULT hr(S_OK);
 	EnterCriticalSection(&m_CriticalSection);
@@ -228,7 +236,7 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 		LOG_TRACE(L"Wrote %s with duration %.2f ms", frameInfoStr, HundredNanosToMillisDouble(model.Duration));
 	}
 	else if (recorderMode == RecorderModeInternal::Slideshow) {
-		wstring	path = m_OutputFolder + L"\\" + to_wstring(m_RenderedFrameCount) + GetSnapshotOptions()->GetImageExtension();
+		wstring	path = m_OutputFolder + L"\\" + uint64_to_string(m_RenderedFrameCount, 6) + GetSnapshotOptions()->GetImageExtension();
 		hr = WriteFrameToImage(model.Frame, path);
 		INT64 startposMs = HundredNanosToMillis(model.StartPos);
 		INT64 durationMs = HundredNanosToMillis(model.Duration);
