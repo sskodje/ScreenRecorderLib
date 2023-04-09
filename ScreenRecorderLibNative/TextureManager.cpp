@@ -598,7 +598,7 @@ HRESULT TextureManager::CropTexture(_In_ ID3D11Texture2D *pTexture, _In_ RECT cr
 	sourceRegion.top = cropRect.top;
 	sourceRegion.bottom = cropRect.bottom;
 	sourceRegion.front = 0;
-	sourceRegion.back = 1; 
+	sourceRegion.back = 1;
 	CComPtr<ID3D11DeviceContext> context;
 	pDevice->GetImmediateContext(&context);
 	context->CopySubresourceRegion(pCroppedFrame, 0, 0, 0, 0, pTexture, 0, &sourceRegion);

@@ -34,6 +34,7 @@ public:
 	virtual bool IsCapturing() { return m_IsCapturing; }
 	virtual UINT GetUpdatedSourceCount();
 	virtual UINT GetUpdatedOverlayCount();
+	std::vector<CAPTURE_RESULT *> GetCaptureResults();
 	std::vector<CAPTURE_THREAD_DATA> GetCaptureThreadData();
 	std::vector<OVERLAY_THREAD_DATA> GetOverlayThreadData();
 	virtual HRESULT ProcessOverlays(_Inout_ ID3D11Texture2D *pBackgroundFrame, _Out_ int *updateCount);

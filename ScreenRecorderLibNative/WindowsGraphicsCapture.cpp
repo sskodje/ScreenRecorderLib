@@ -360,11 +360,9 @@ HRESULT WindowsGraphicsCapture::GetCaptureItem(_In_ RECORDING_SOURCE_BASE &recor
 		CComPtr<IDXGIOutput> output = nullptr;
 		hr = GetOutputForDeviceName(recordingSource.SourcePath, &output);
 		if (FAILED(hr)) {
-			hr = GetMainOutput(&output);
-			if (FAILED(hr)) {
-				LOG_ERROR("Failed to find any monitors to record");
-				return hr;
-			}
+			_com_error err(hr);
+			LOG_ERROR(L"Failed to get output %ls in WindowsGraphicsCapture: %ls", recordingSource.SourcePath.c_str(), err.ErrorMessage());
+			return hr;
 		}
 		DXGI_OUTPUT_DESC outputDesc;
 		output->GetDesc(&outputDesc);
@@ -446,15 +444,15 @@ HRESULT WindowsGraphicsCapture::ProcessRecordingTimeout(_Inout_ GRAPHICS_FRAME_D
 				windowSize = SIZE{ static_cast<long>(desc.Width),static_cast<long>(desc.Height) };
 			}
 			pData->ContentSize = windowSize;
-			m_TextureManager->BlankTexture(pData->Frame, RECT{ 0,0,windowSize.cx,windowSize.cy }, 0, 0);
+			m_TextureManager->BlankTexture(pData->Frame, RECT{ 0,0,windowSize.cx,windowSize.cy });
 			QueryPerformanceCounter(&pData->Timestamp);
 			return S_OK;
 		}
 	}
 	if (IsRecordingSessionStale()) {
 		//The session has stopped producing frames for a while, so it should be restarted.
-		StopCapture();
-		StartCapture(*m_RecordingSource);
+		RETURN_ON_BAD_HR(StopCapture());
+		RETURN_ON_BAD_HR(StartCapture(*m_RecordingSource));
 		LOG_INFO("Restarted Windows Graphics Capture");
 		QueryPerformanceCounter(&m_LastCaptureSessionRestart);
 	}

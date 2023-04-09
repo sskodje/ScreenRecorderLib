@@ -308,7 +308,7 @@ HRESULT DesktopDuplicationCapture::InitializeDesktopDuplication(std::wstring dev
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		LOG_ERROR(L"Failed to get specified output in DUPLICATIONMANAGER: %ls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to get output %ls in DesktopDuplicationCapture: %ls", deviceName.c_str(), err.ErrorMessage());
 		return hr;
 	}
 	DxgiOutput->GetDesc(&m_OutputDesc);
@@ -319,7 +319,7 @@ HRESULT DesktopDuplicationCapture::InitializeDesktopDuplication(std::wstring dev
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		LOG_ERROR(L"Failed to QI for DxgiOutput1 in DUPLICATIONMANAGER: %ls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to QI for DxgiOutput1 in DesktopDuplicationCapture: %ls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -348,7 +348,7 @@ HRESULT DesktopDuplicationCapture::InitializeDesktopDuplication(std::wstring dev
 	if (FAILED(hr))
 	{
 		_com_error err(hr);
-		LOG_ERROR(L"Failed to get duplicate output in DUPLICATIONMANAGER: %ls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to get duplicate output in DesktopDuplicationCapture: %ls", err.ErrorMessage());
 		return hr;
 	}
 
@@ -389,7 +389,7 @@ HRESULT DesktopDuplicationCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout
 	DesktopResource = nullptr;
 	if (FAILED(hr))
 	{
-		LOG_ERROR(L"Failed to QI for ID3D11Texture2D from acquired IDXGIResource in DUPLICATIONMANAGER");
+		LOG_ERROR(L"Failed to QI for ID3D11Texture2D from acquired IDXGIResource in DesktopDuplicationCapture");
 		return hr;
 	}
 
@@ -410,7 +410,7 @@ HRESULT DesktopDuplicationCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout
 				m_MetaDataSize = 0;
 				pData->MoveCount = 0;
 				pData->DirtyCount = 0;
-				LOG_ERROR(L"Failed to allocate memory for metadata in DUPLICATIONMANAGER");
+				LOG_ERROR(L"Failed to allocate memory for metadata in DesktopDuplicationCapture");
 				return E_OUTOFMEMORY;
 			}
 			m_MetaDataSize = FrameInfo.TotalMetadataBufferSize;
@@ -424,7 +424,7 @@ HRESULT DesktopDuplicationCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout
 		{
 			pData->MoveCount = 0;
 			pData->DirtyCount = 0;
-			LOG_ERROR(L"Failed to get frame move rects in DUPLICATIONMANAGER");
+			LOG_ERROR(L"Failed to get frame move rects in DesktopDuplicationCapture");
 			return hr;
 		}
 		pData->MoveCount = BufSize / sizeof(DXGI_OUTDUPL_MOVE_RECT);
@@ -438,7 +438,7 @@ HRESULT DesktopDuplicationCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout
 		{
 			pData->MoveCount = 0;
 			pData->DirtyCount = 0;
-			LOG_ERROR(L"Failed to get frame dirty rects in DUPLICATIONMANAGER");
+			LOG_ERROR(L"Failed to get frame dirty rects in DesktopDuplicationCapture");
 			return hr;
 		}
 		pData->DirtyCount = BufSize / sizeof(RECT);

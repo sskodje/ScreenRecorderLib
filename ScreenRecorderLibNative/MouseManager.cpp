@@ -841,7 +841,7 @@ HRESULT MouseManager::ResizeShapeBuffer(_Inout_ PTR_INFO *pPtrInfo, _In_ int buf
 		if (!pPtrInfo->PtrShapeBuffer)
 		{
 			pPtrInfo->BufferSize = 0;
-			LOG_ERROR(L"Failed to allocate memory for pointer shape in DUPLICATIONMANAGER");
+			LOG_ERROR(L"Failed to allocate memory for pointer shape in MouseManager");
 			return E_OUTOFMEMORY;
 		}
 
@@ -909,7 +909,7 @@ HRESULT MouseManager::GetMouse(_Inout_ PTR_INFO *pPtrInfo, _In_ bool getShapeBuf
 		pPtrInfo->BufferSize = 0;
 		RtlZeroMemory(&pPtrInfo->ShapeInfo, sizeof(pPtrInfo->ShapeInfo));
 		_com_error err(hr);
-		LOG_ERROR(L"Failed to get pFrame pointer shape in DUPLICATIONMANAGER: %lls", err.ErrorMessage());
+		LOG_ERROR(L"Failed to get pFrame pointer shape in MouseManager: %lls", err.ErrorMessage());
 		return hr;
 	}
 	pPtrInfo->IsPointerShapeUpdated = true;

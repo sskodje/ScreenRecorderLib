@@ -402,8 +402,8 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	RECT videoInputFrameRect{};
 	SIZE videoOutputFrameSize{};
 	RETURN_RESULT_ON_BAD_HR(hr = InitializeRects(
-		pCapture->GetOutputSize(), 
-		&videoInputFrameRect, 
+		pCapture->GetOutputSize(),
+		&videoInputFrameRect,
 		&videoOutputFrameSize), L"Failed to initialize frame rects");
 
 	SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
@@ -411,8 +411,8 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	std::unique_ptr<AudioManager> pAudioManager = make_unique<AudioManager>();
 	std::unique_ptr<MouseManager> pMouseManager = make_unique<MouseManager>();
 	RETURN_RESULT_ON_BAD_HR(hr = pMouseManager->Initialize(
-		m_DxResources.Context, 
-		m_DxResources.Device, 
+		m_DxResources.Context,
+		m_DxResources.Device,
 		GetMouseOptions()), L"Failed to initialize mouse manager");
 
 	if (recorderMode == RecorderModeInternal::Video) {
@@ -445,7 +445,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	int frameNr = 0;
 	INT64 lastFrameStartPos100Nanos = 0;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
-	DynamicWait DynamicWait{};
+	DynamicWait retryWait{};
 	INT64 totalDiff = 0;
 
 	auto GetTimeUntilNextFrameMillis([&]() {
@@ -521,6 +521,60 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		return renderHr;
 	});
 
+	auto RestartCapture([&](CAPTURE_RESULT *result) {
+		//Stop existing capture
+		hr = pCapture->StopCapture();
+
+		// As we have encountered an error due to a system transition we wait before trying again, using this dynamic wait
+		// the wait periods will get progressively long to avoid wasting too much system resource if this state lasts a long time
+		retryWait.Wait();
+
+		//Recreate D3D resources if needed
+		if (SUCCEEDED(hr) && result->IsDeviceError) {
+			CleanDx(&m_DxResources);
+			hr = InitializeDx(nullptr, &m_DxResources);
+			SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
+			if (SUCCEEDED(hr)) {
+				hr = pMouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
+			}
+			if (SUCCEEDED(hr)) {
+				hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
+			}
+			if (SUCCEEDED(hr)) {
+				hr = m_OutputManager->Initialize(
+					m_DxResources.Context,
+					m_DxResources.Device,
+					GetEncoderOptions(),
+					GetAudioOptions(),
+					GetSnapshotOptions(),
+					GetOutputOptions());
+			}
+		}
+		//Recreate capture manager and restart capture
+		if (SUCCEEDED(hr)) {
+			pCapture.reset(new ScreenCaptureManager());
+		}
+		if (SUCCEEDED(hr)) {
+			hr = pCapture->Initialize(
+				m_DxResources.Context,
+				m_DxResources.Device,
+				GetOutputOptions(),
+				GetEncoderOptions(),
+				GetMouseOptions());
+		}
+		if (SUCCEEDED(hr)) {
+			ResetEvent(ErrorEvent);
+			hr = pCapture->StartCapture(sources, overlays, ErrorEvent);
+		}
+		if (SUCCEEDED(hr)) {
+			//The source dimensions may have changed
+			hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, nullptr);
+			LOG_TRACE(L"Reinitialized input frame rect: [%d,%d,%d,%d]", videoInputFrameRect.left, videoInputFrameRect.top, videoInputFrameRect.right, videoInputFrameRect.bottom);
+		}
+		pPtrInfo.reset();
+		return hr;
+	});
+
 	while (true)
 	{
 		if (token.is_canceled()) {
@@ -530,89 +584,38 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 
 		if (WaitForSingleObjectEx(ErrorEvent, 0, FALSE) == WAIT_OBJECT_0) {
-			std::vector<CAPTURE_RESULT *> results;
-			for each (CAPTURE_THREAD_DATA threadData in pCapture->GetCaptureThreadData())
-			{
-				results.push_back(threadData.ThreadResult);
+			std::vector<CAPTURE_THREAD_DATA> captureData = pCapture->GetCaptureThreadData();
+			if (captureData.size() > 0
+				&& std::all_of(captureData.begin(), captureData.end(), [&](const CAPTURE_THREAD_DATA obj)
+					{
+						return FAILED(obj.ThreadResult->RecordingResult) && !obj.ThreadResult->IsRecoverableError;
+					})) {
+				return pCapture->GetCaptureResults().at(0)->RecordingResult;
 			}
-			for each (OVERLAY_THREAD_DATA threadData in pCapture->GetOverlayThreadData())
-			{
-				results.push_back(threadData.ThreadResult);
+
+			std::vector<CAPTURE_RESULT *> results = pCapture->GetCaptureResults();
+			auto firstRecoverableError = find_if(results.begin(), results.end(), [&](const CAPTURE_RESULT *obj)
+				{
+					return FAILED(obj->RecordingResult) && obj->IsRecoverableError;
+				});
+
+			if (firstRecoverableError != results.end()) {
+				hr = RestartCapture(*(firstRecoverableError));
 			}
-			for each (CAPTURE_RESULT * result in results)
-			{
-				if (FAILED(result->RecordingResult)) {
-					if (result->IsRecoverableError) {
-						//Stop existing capture
-						hr = pCapture->StopCapture();
-
-						// As we have encountered an error due to a system transition we wait before trying again, using this dynamic wait
-						// the wait periods will get progressively long to avoid wasting too much system resource if this state lasts a long time
-						DynamicWait.Wait();
-
-						//Recreate D3D resources if needed
-						if (SUCCEEDED(hr) && result->IsDeviceError) {
-							CleanDx(&m_DxResources);
-							hr = InitializeDx(nullptr, &m_DxResources);
-							SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
-							if (SUCCEEDED(hr)) {
-								hr = pMouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
-							}
-							if (SUCCEEDED(hr)) {
-								hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
-							}
-							if (SUCCEEDED(hr)) {
-								hr = m_OutputManager->Initialize(
-									m_DxResources.Context, 
-									m_DxResources.Device, 
-									GetEncoderOptions(), 
-									GetAudioOptions(), 
-									GetSnapshotOptions(), 
-									GetOutputOptions());
-							}
-						}
-						//Recreate capture manager and restart capture
-						if (SUCCEEDED(hr)) {
-							pCapture.reset(new ScreenCaptureManager());
-						}
-						if (SUCCEEDED(hr)) {
-							hr = pCapture->Initialize(
-								m_DxResources.Context,
-								m_DxResources.Device,
-								GetOutputOptions(),
-								GetEncoderOptions(),
-								GetMouseOptions());
-						}
-						if (SUCCEEDED(hr)) {
-							ResetEvent(ErrorEvent);
-							hr = pCapture->StartCapture(sources, overlays, ErrorEvent);
-						}
-						if (SUCCEEDED(hr)) {
-							//The source dimensions may have changed
-							hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, nullptr);
-							LOG_TRACE(L"Reinitialized input frame rect: [%d,%d,%d,%d]", videoInputFrameRect.left, videoInputFrameRect.top, videoInputFrameRect.right, videoInputFrameRect.bottom);
-						}
-
-						pPtrInfo.reset();
-						if (FAILED(hr)) {
-							CAPTURE_RESULT captureResult{};
-							ProcessCaptureHRESULT(hr, &captureResult, m_DxResources.Device);
-							if (captureResult.IsRecoverableError) {
-								SetEvent(ErrorEvent);
-								LOG_INFO("Recoverable error while reinitializing capture, retrying..");
-								continue;
-							}
-							else {
-								LOG_ERROR("Fatal error while reinitializing capture, exiting..");
-								return captureResult;
-							}
-						}
-						continue;
-					}
-					else {
-						return *result;
-					}
+			else if (FAILED(hr)) {
+				CAPTURE_RESULT captureResult{};
+				ProcessCaptureHRESULT(hr, &captureResult, m_DxResources.Device);
+				if (captureResult.IsRecoverableError) {
+					hr = RestartCapture(&captureResult);
 				}
+				else {
+					LOG_ERROR("Fatal error while reinitializing capture, exiting..");
+					return captureResult;
+				}
+			}
+			if (FAILED(hr)) {
+				SetEvent(ErrorEvent);
+				continue;
 			}
 		}
 		if (m_IsPaused) {
@@ -637,7 +640,6 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		else if (hr != DXGI_ERROR_WAIT_TIMEOUT) {
 			RETURN_RESULT_ON_BAD_HR(hr, L"");
 		}
-
 		INT64 timestamp;
 		RETURN_ON_BAD_HR(m_OutputManager->GetMediaTimeStamp(&timestamp));
 		INT64 durationSinceLastFrame100Nanos = timestamp - lastFrameStartPos100Nanos;

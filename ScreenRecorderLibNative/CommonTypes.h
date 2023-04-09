@@ -36,10 +36,12 @@ struct CAPTURE_RESULT :REC_RESULT {
 	bool IsRecoverableError;
 	// Used to indicate that the D3D11 device no longer is valid, and the application should destroy and recreate it.
 	bool IsDeviceError;
-
+	// Number of times to retry a recoverable error.
+	int NumberOfRetries;
 	CAPTURE_RESULT() :
 		IsRecoverableError(false),
 		IsDeviceError(false),
+		NumberOfRetries(INFINITE),
 		REC_RESULT()
 	{
 
@@ -47,6 +49,7 @@ struct CAPTURE_RESULT :REC_RESULT {
 	CAPTURE_RESULT(HRESULT recordingResult, std::wstring error = L"") :
 		IsRecoverableError(false),
 		IsDeviceError(false),
+		NumberOfRetries(INFINITE),
 		REC_RESULT(recordingResult, error)
 	{
 

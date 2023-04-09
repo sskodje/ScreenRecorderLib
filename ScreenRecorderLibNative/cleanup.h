@@ -15,6 +15,17 @@ template <class T> void SafeRelease(T **ppT)
 	}
 }
 
+template<typename Func>
+class ExecuteFuncOnExit {
+	Func func;
+public:
+	ExecuteFuncOnExit(Func f) : func(f) {}
+
+	~ExecuteFuncOnExit() {
+		func();
+	}
+};
+
 template<class T>
 class ReleaseVectorOnExit {
 public:
