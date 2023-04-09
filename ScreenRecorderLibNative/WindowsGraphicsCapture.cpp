@@ -83,17 +83,9 @@ HRESULT WindowsGraphicsCapture::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outp
 	HRESULT hr = GetNextFrame(timeoutMillis, &m_CurrentData);
 
 	if (SUCCEEDED(hr) && ppFrame) {
-		D3D11_TEXTURE2D_DESC desc;
-		m_CurrentData.Frame->GetDesc(&desc);
-		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-		desc.MiscFlags = 0;
-		ID3D11Texture2D *pFrame = nullptr;
-		hr = m_Device->CreateTexture2D(&desc, nullptr, &pFrame);
-		if (SUCCEEDED(hr)) {
-			m_DeviceContext->CopyResource(pFrame, m_CurrentData.Frame);
-			QueryPerformanceCounter(&m_LastGrabTimeStamp);
-		}
-		*ppFrame = pFrame;
+		QueryPerformanceCounter(&m_LastGrabTimeStamp);
+		*ppFrame = m_CurrentData.Frame;
+		(*ppFrame)->AddRef();
 	}
 
 	return hr;
@@ -532,6 +524,7 @@ HRESULT WindowsGraphicsCapture::GetNextFrame(_In_ DWORD timeoutMillis, _Inout_ G
 				auto surfaceTexture = Graphics::Capture::Util::GetDXGIInterfaceFromObject<ID3D11Texture2D>(frame.Surface());
 				D3D11_TEXTURE2D_DESC newFrameDesc;
 				surfaceTexture->GetDesc(&newFrameDesc);
+				newFrameDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 				newFrameDesc.Width = newFrameSize.Width;
 				newFrameDesc.Height = newFrameSize.Height;
 				SafeRelease(&pData->Frame);
