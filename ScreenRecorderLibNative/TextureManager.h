@@ -2,6 +2,10 @@
 #include <DirectXMath.h>
 #include "CommonTypes.h"
 #include "DX.util.h"
+#include <unordered_map>
+
+using namespace std;
+
 class TextureManager
 {
 public:
@@ -31,6 +35,7 @@ public:
 	HRESULT BlankTexture(_Inout_ ID3D11Texture2D *pTexture, _In_ RECT rect, _In_ INT OffsetX, _In_  INT OffsetY);
 private:
 	HRESULT InitializeDesc(_In_ UINT width, _In_ UINT height, _Out_ D3D11_TEXTURE2D_DESC *pTargetDesc);
+	HRESULT GetOrCreateTexture(_In_ D3D11_TEXTURE2D_DESC desc, _Outptr_ ID3D11Texture2D **ppTexture);
 	void ConfigureRotationVertices(_Inout_ VERTEX(&vertices)[6], _In_ RECT textureRect, _In_opt_ DXGI_MODE_ROTATION rotation = DXGI_MODE_ROTATION_UNSPECIFIED);
 	void CleanRefs();
 
@@ -41,5 +46,43 @@ private:
 	ID3D11VertexShader *m_VertexShader;
 	ID3D11PixelShader *m_PixelShader;
 	ID3D11InputLayout *m_InputLayout;
-};
 
+
+	struct TextureDescHasher {
+		std::size_t operator()(const D3D11_TEXTURE2D_DESC &desc) const noexcept {
+			std::string temp =
+				to_string(desc.Format)
+				.append(to_string(desc.ArraySize))
+				.append(to_string(desc.BindFlags))
+				.append(to_string(desc.CPUAccessFlags))
+				.append(to_string(desc.Format))
+				.append(to_string(desc.Height))
+				.append(to_string(desc.MipLevels))
+				.append(to_string(desc.MiscFlags))
+				.append(to_string(desc.SampleDesc.Count))
+				.append(to_string(desc.SampleDesc.Quality))
+				.append(to_string(desc.Width))
+				.append(to_string(desc.Usage));
+			return hash<string>{}(temp);
+		};
+	};
+
+	struct TextureDescComparator {
+		bool operator()(const D3D11_TEXTURE2D_DESC &A,
+						const D3D11_TEXTURE2D_DESC &B) const noexcept {
+			return A.Format == B.Format
+				&& A.ArraySize == B.ArraySize
+				&& A.BindFlags == B.BindFlags
+				&& A.CPUAccessFlags == B.CPUAccessFlags
+				&& A.Format == B.Format
+				&& A.Height == B.Height
+				&& A.MipLevels == B.MipLevels
+				&& A.MiscFlags == B.MiscFlags
+				&& A.SampleDesc.Count == B.SampleDesc.Count
+				&& A.SampleDesc.Quality == B.SampleDesc.Quality
+				&& A.Usage == B.Usage
+				&& A.Width == B.Width;
+		};
+	};
+	std::unordered_map<D3D11_TEXTURE2D_DESC, ID3D11Texture2D *, TextureDescHasher, TextureDescComparator> m_TextureCache;
+};

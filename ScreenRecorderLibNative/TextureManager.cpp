@@ -2,6 +2,7 @@
 #include "screengrab.h"
 #include "util.h"
 #include <atlbase.h>
+#include "cleanup.h"
 
 using namespace DirectX;
 
@@ -119,16 +120,12 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_  S
 		LOG_ERROR(L"Failed to create shader resource from original frame texture: %ls", err.ErrorMessage());
 		return hr;
 	}
-
-	// Create target texture
-	CComPtr<ID3D11Texture2D> pResizedFrame = nullptr;
 	D3D11_TEXTURE2D_DESC targetDesc;
 	InitializeDesc(targetWidth, targetHeight, &targetDesc);
-	hr = m_Device->CreateTexture2D(&targetDesc, nullptr, &pResizedFrame);
-	RETURN_ON_BAD_HR(hr);
+	ID3D11Texture2D *pResizedFrame = nullptr;
+	RETURN_ON_BAD_HR(GetOrCreateTexture(targetDesc, &pResizedFrame));
 	*ppResizedTexture = pResizedFrame;
 	(*ppResizedTexture)->AddRef();
-
 	// Save current view port so we can restore later
 	D3D11_VIEWPORT VP;
 	UINT numViewports = 1;
@@ -150,8 +147,7 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_  S
 
 	// Make new render target view
 	ID3D11RenderTargetView *RTV;
-	hr = m_Device->CreateRenderTargetView(pResizedFrame, nullptr, &RTV);
-	RETURN_ON_BAD_HR(hr);
+	RETURN_ON_BAD_HR(hr = m_Device->CreateRenderTargetView(pResizedFrame, nullptr, &RTV));
 
 	// Set resources
 	UINT Stride = sizeof(VERTEX);
@@ -242,11 +238,10 @@ HRESULT TextureManager::RotateTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_ DX
 	}
 
 	// Create target texture
-	CComPtr<ID3D11Texture2D> pRotatedFrame = nullptr;
+	ID3D11Texture2D *pRotatedFrame = nullptr;
 	D3D11_TEXTURE2D_DESC targetDesc;
 	InitializeDesc(rotatedWidth, rotatedHeight, &targetDesc);
-	hr = m_Device->CreateTexture2D(&targetDesc, nullptr, &pRotatedFrame);
-	RETURN_ON_BAD_HR(hr);
+	RETURN_ON_BAD_HR(GetOrCreateTexture(targetDesc, &pRotatedFrame));
 	*ppRotatedTexture = pRotatedFrame;
 	(*ppRotatedTexture)->AddRef();
 
@@ -556,14 +551,28 @@ HRESULT TextureManager::InitializeDesc(_In_ UINT width, _In_ UINT height, _Out_ 
 	return S_OK;
 }
 
-
-HRESULT TextureManager::CropTexture(_In_ ID3D11Texture2D *pTexture, _In_ RECT cropRect, _Outptr_ ID3D11Texture2D **pCroppedFrame)
+HRESULT TextureManager::GetOrCreateTexture(_In_ D3D11_TEXTURE2D_DESC desc, _Outptr_ ID3D11Texture2D **ppTexture)
 {
-	*pCroppedFrame = nullptr;
+	ID3D11Texture2D *tex = nullptr;
+	if (m_TextureCache.find(desc) != m_TextureCache.end()) {
+		tex = m_TextureCache.at(desc);
+	}
+	else {
+		RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&desc, nullptr, &tex));
+		m_TextureCache[desc] = tex;
+	}
+	*ppTexture = tex;
+	return S_OK;
+}
+
+
+HRESULT TextureManager::CropTexture(_In_ ID3D11Texture2D *pTexture, _In_ RECT cropRect, _Outptr_ ID3D11Texture2D **ppCroppedFrame)
+{
+	*ppCroppedFrame = nullptr;
 	D3D11_TEXTURE2D_DESC frameDesc;
 	pTexture->GetDesc(&frameDesc);
 	if ((LONG)frameDesc.Width <= RectWidth(cropRect) && (LONG)frameDesc.Height <= RectHeight(cropRect)) {
-		*pCroppedFrame = pTexture;
+		*ppCroppedFrame = pTexture;
 		return S_FALSE;
 	}
 	if (RectWidth(cropRect) > (LONG)frameDesc.Width) {
@@ -577,8 +586,11 @@ HRESULT TextureManager::CropTexture(_In_ ID3D11Texture2D *pTexture, _In_ RECT cr
 	frameDesc.MiscFlags = 0;
 	CComPtr<ID3D11Device> pDevice;
 	pTexture->GetDevice(&pDevice);
-	CComPtr<ID3D11Texture2D> pCroppedFrameCopy = nullptr;
-	RETURN_ON_BAD_HR(pDevice->CreateTexture2D(&frameDesc, nullptr, &pCroppedFrameCopy));
+	ID3D11Texture2D *pCroppedFrame = nullptr;
+	RETURN_ON_BAD_HR(GetOrCreateTexture(frameDesc, &pCroppedFrame));
+	if (pCroppedFrame == pTexture) {
+		RETURN_ON_BAD_HR(pDevice->CreateTexture2D(&frameDesc, nullptr, &pCroppedFrame));
+	}
 	D3D11_BOX sourceRegion;
 	RtlZeroMemory(&sourceRegion, sizeof(sourceRegion));
 	sourceRegion.left = cropRect.left;
@@ -586,12 +598,12 @@ HRESULT TextureManager::CropTexture(_In_ ID3D11Texture2D *pTexture, _In_ RECT cr
 	sourceRegion.top = cropRect.top;
 	sourceRegion.bottom = cropRect.bottom;
 	sourceRegion.front = 0;
-	sourceRegion.back = 1;
+	sourceRegion.back = 1; 
 	CComPtr<ID3D11DeviceContext> context;
 	pDevice->GetImmediateContext(&context);
-	context->CopySubresourceRegion(pCroppedFrameCopy, 0, 0, 0, 0, pTexture, 0, &sourceRegion);
-	*pCroppedFrame = pCroppedFrameCopy;
-	(*pCroppedFrame)->AddRef();
+	context->CopySubresourceRegion(pCroppedFrame, 0, 0, 0, 0, pTexture, 0, &sourceRegion);
+	*ppCroppedFrame = pCroppedFrame;
+	(*ppCroppedFrame)->AddRef();
 	return S_OK;
 }
 
@@ -604,14 +616,14 @@ HRESULT TextureManager::CopyTextureWithCPU(_In_ ID3D11Device *pDevice, _In_ ID3D
 	pSourceDevice->GetImmediateContext(&pDuplicationDeviceContext);
 
 	//Create a new staging texture on the source device that supports CPU access.
-	CComPtr<ID3D11Texture2D> pStagingTexture;
+	ID3D11Texture2D *pStagingTexture;
 	D3D11_TEXTURE2D_DESC stagingDesc;
 	pSourceTexture->GetDesc(&stagingDesc);
 	stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 	stagingDesc.Usage = D3D11_USAGE_STAGING;
 	stagingDesc.MiscFlags = 0;
 	stagingDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
-	RETURN_ON_BAD_HR(hr = pSourceDevice->CreateTexture2D(&stagingDesc, nullptr, &pStagingTexture));
+	RETURN_ON_BAD_HR(GetOrCreateTexture(stagingDesc, &pStagingTexture));
 	//Copy the source surface to the new staging texture.
 	pDuplicationDeviceContext->CopyResource(pStagingTexture, pSourceTexture);
 	D3D11_MAPPED_SUBRESOURCE mapped{};
@@ -745,5 +757,9 @@ void TextureManager::CleanRefs()
 	{
 		m_BlendState->Release();
 		m_BlendState = nullptr;
+	}
+	for (auto &pair : m_TextureCache)
+	{
+		SafeRelease(&pair.second);
 	}
 }
