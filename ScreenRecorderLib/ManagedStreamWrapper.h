@@ -62,7 +62,7 @@ namespace ScreenRecorderLib {
 		delegate void SetLengthDelegate(long long value);
 		delegate int IntDelegate();
 		delegate bool BoolDelegate();
-		delegate array<byte, 1>^ BufferDelegate();
+		delegate cli::array<byte, 1>^ BufferDelegate();
 
 		LongDelegate^ m_GetLengthDelegate;
 		BoolDelegate^ m_CanWriteDelegate;
@@ -89,13 +89,13 @@ namespace ScreenRecorderLib {
 			return m_Stream->Seek(offset, origin);
 		};
 		int Read(System::IntPtr dest, int offset, int count) {
-			auto tempBytes = gcnew array<byte, 1>(count);
+			auto tempBytes = gcnew cli::array<byte, 1>(count);
 			int bytesRead = m_Stream->Read(tempBytes, offset, count);
 			System::Runtime::InteropServices::Marshal::Copy(tempBytes, 0, dest, count);
 			return bytesRead;
 		};
 		void Write(System::IntPtr source, int offset, int count) {
-			auto tempBytes = gcnew array<byte, 1>(count);
+			auto tempBytes = gcnew cli::array<byte, 1>(count);
 			System::Runtime::InteropServices::Marshal::Copy(source, tempBytes, 0, count);
 			return m_Stream->Write(tempBytes, offset, count);
 		};
