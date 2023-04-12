@@ -180,7 +180,7 @@ HRESULT GetActiveAudioDevice(_In_ LPCWSTR szDeviceId, _In_ EDataFlow flow, _Outp
 	return S_OK;
 }
 
-HRESULT GetAudioDevice(_In_ LPCWSTR pwstrId, _Out_ IMMDevice **ppMMDevice) {
+HRESULT GetAudioDevice(_In_ LPCWSTR pwstrId, _Outptr_ IMMDevice **ppMMDevice) {
 	HRESULT hr = S_OK;
 	CComPtr<IMMDevice> pDevice = NULL;
 
@@ -199,6 +199,7 @@ HRESULT GetAudioDevice(_In_ LPCWSTR pwstrId, _Out_ IMMDevice **ppMMDevice) {
 
 	*ppMMDevice = pDevice;
 	(*ppMMDevice)->AddRef();
+	return hr;
 }
 
 HRESULT GetAudioDeviceFlow(_In_ IMMDevice *pMMDevice, _Out_ EDataFlow *pFlow)
