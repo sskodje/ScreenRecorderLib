@@ -800,9 +800,11 @@ Start:
 			goto Exit;
 		}
 		ExecuteFuncOnExit blankFrameOnExit([&]() {
-			if (KeyMutex->AcquireSync(0, 500) == S_OK) {
-				textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-				KeyMutex->ReleaseSync(1);
+			if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) != WAIT_OBJECT_0) {
+				if (KeyMutex->AcquireSync(0, 500) == S_OK) {
+					textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+					KeyMutex->ReleaseSync(1);
+				}
 			}
 		});
 		*pData->ThreadResult = {};
