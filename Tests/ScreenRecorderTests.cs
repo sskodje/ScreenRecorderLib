@@ -986,6 +986,7 @@ namespace ScreenRecorderLib
                 options.SnapshotOptions = new SnapshotOptions { SnapshotsIntervalMillis = 200 };
                 Directory.CreateDirectory(directoryPath);
                 Assert.IsTrue(Directory.Exists(directoryPath));
+                Stopwatch sw = new Stopwatch();
                 using (var rec = Recorder.CreateRecorder(options))
                 {
                     string error = "";
@@ -998,6 +999,7 @@ namespace ScreenRecorderLib
                     {
                         isComplete = true;
                         finalizeResetEvent.Set();
+                        sw.Stop();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
@@ -1005,6 +1007,7 @@ namespace ScreenRecorderLib
                         error = args.Error;
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
+                        sw.Stop();
                     };
                     rec.OnStatusChanged += (s, args) =>
                     {
@@ -1020,15 +1023,16 @@ namespace ScreenRecorderLib
                     };
                     rec.Record(directoryPath);
                     recordingStartedEvent.WaitOne(1000);
+                    sw.Start();
                     recordingResetEvent.WaitOne(recordingLengthMillis);
                     rec.Stop();
                     finalizeResetEvent.WaitOne(5000);
-
+                    long actualRecordingLength = sw.ElapsedMilliseconds;
                     Assert.IsFalse(isError, error);
                     Assert.IsTrue(isComplete);
                     var files = Directory.GetFiles(directoryPath);
                     //First image is written immediately, then there should be one per interval.
-                    int expectedSlideshowCount = 1 + (int)Math.Floor((double)recordingLengthMillis / options.SnapshotOptions.SnapshotsIntervalMillis);
+                    int expectedSlideshowCount = 1 + (int)Math.Floor((double)actualRecordingLength / options.SnapshotOptions.SnapshotsIntervalMillis);
                     Assert.IsTrue(files.Length == expectedSlideshowCount, $"Slideshow count of {files.Length} differs from expected {expectedSlideshowCount}");
                     foreach (string filePath in files)
                     {
