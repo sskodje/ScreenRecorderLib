@@ -179,7 +179,6 @@ namespace TestApp
                 if (_currentFrameNumber != value)
                 {
                     _currentFrameNumber = value;
-                    RaisePropertyChanged(nameof(CurrentFrameNumber));
                 }
             }
         }
@@ -748,7 +747,7 @@ namespace TestApp
                         this.CheckBoxIsAudioEnabled.IsEnabled = false;
                         _progressTimer = new DispatcherTimer(DispatcherPriority.Normal);
                         _progressTimer.Tick += ProgressTimer_Tick;
-                        _progressTimer.Interval = TimeSpan.FromMilliseconds(30);
+                        _progressTimer.Interval = TimeSpan.FromMilliseconds(100);
                         _progressTimer.Start();
                         break;
                     case RecorderStatus.Paused:
@@ -776,6 +775,7 @@ namespace TestApp
                 _recordedFrameTimes.RemoveRange(0, Math.Max(0, _recordedFrameTimes.Count - 10));
                 double intervalMillis = (double)(_recordedFrameTimes.Last() - _recordedFrameTimes.First());
                 CurrentFrameRate = (_recordedFrameTimes.Count - 1) / (double)intervalMillis * 1000;
+                RaisePropertyChanged(nameof(CurrentFrameNumber));
             }
         }
         private void UpdateProgress()
