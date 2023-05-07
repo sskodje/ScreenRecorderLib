@@ -17,9 +17,9 @@ public:
 								REFIID riid, VOID **ppvInterface);
 private:
 	// IMMNotificationClient methods
-	virtual HRESULT IMMNotificationClient::OnDeviceStateChanged(LPCWSTR, DWORD);
-	virtual HRESULT IMMNotificationClient::OnDeviceAdded(LPCWSTR);
-	virtual HRESULT IMMNotificationClient::OnDeviceRemoved(LPCWSTR);
-	virtual HRESULT IMMNotificationClient::OnDefaultDeviceChanged(EDataFlow, ERole, LPCWSTR);
-	virtual HRESULT IMMNotificationClient::OnPropertyValueChanged(LPCWSTR, const PROPERTYKEY);
+	virtual HRESULT STDMETHODCALLTYPE IMMNotificationClient::OnDeviceStateChanged(LPCWSTR, DWORD);
+	virtual HRESULT STDMETHODCALLTYPE IMMNotificationClient::OnDeviceAdded(LPCWSTR);
+	virtual HRESULT STDMETHODCALLTYPE IMMNotificationClient::OnDeviceRemoved(LPCWSTR);
+	virtual HRESULT STDMETHODCALLTYPE IMMNotificationClient::OnDefaultDeviceChanged(EDataFlow, ERole, LPCWSTR);
+	virtual HRESULT STDMETHODCALLTYPE IMMNotificationClient::OnPropertyValueChanged(LPCWSTR, const PROPERTYKEY);
 };
