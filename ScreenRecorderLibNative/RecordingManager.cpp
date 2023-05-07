@@ -740,8 +740,6 @@ bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
 {
 	wstring errorText;
 	bool result = true;
-	HKEY hk;
-	DWORD errorCode;
 
 	if (FAILED(m_MfStartupResult)) {
 		LOG_ERROR("Media Foundation failed to start: hr = 0x%08x", m_MfStartupResult);
