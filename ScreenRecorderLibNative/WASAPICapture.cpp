@@ -43,7 +43,7 @@ WASAPICapture::WASAPICapture(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptions, 
 							  {500, 10},
 							  {3000, WAIT_BAND_STOP}
 							});
-		StartListeners();
+	StartListeners();
 }
 
 WASAPICapture::~WASAPICapture()
@@ -401,7 +401,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 					bDone = true;
 					continue; // exits loop
 				}
-
+#pragma warning(disable: 26110)
 				const std::lock_guard<std::mutex> lock(m_TaskWrapperImpl->m_Mutex);
 #pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
 				if (m_RecordedBytes.size() == 0)
@@ -448,6 +448,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 			}
 		} // capture loop
 	}
+#pragma warning(disable: 26117)
 	return hr;
 }
 std::vector<BYTE> WASAPICapture::PeakRecordedBytes()
