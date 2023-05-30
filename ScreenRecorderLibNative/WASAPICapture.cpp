@@ -191,7 +191,7 @@ HRESULT WASAPICapture::InitializeResampler(
 	*audioOutputFormat = outputFormat;
 
 	bool requiresResampling = inputFormat.sampleRate != outputFormat.sampleRate
-		|| outputFormat.nChannels != outputFormat.nChannels;
+		|| inputFormat.nChannels != outputFormat.nChannels;
 	// initialize resampler if input sample rate or channels are different from output.
 	if (requiresResampling) {
 		LOG_DEBUG("Resampler created for %ls", m_Tag.c_str());
