@@ -73,8 +73,11 @@ HRESULT CameraCapture::InitializeSourceReader(
 		CComPtr<IMFMediaSource> pSource = nullptr;
 		CONTINUE_ON_BAD_HR(hr = pDevice->ActivateObject(__uuidof(IMFMediaSource), (void **)&pSource));
 		LOG_TRACE(L"Try to initialize media source");
-		CONTINUE_ON_BAD_HR(hr = InitializeMediaSource(pSource, sourceFormatIndex, pStreamIndex, ppSourceReader, ppInputMediaType, ppOutputMediaType, ppMediaTransform));
-
+		hr = InitializeMediaSource(pSource, sourceFormatIndex, pStreamIndex, ppSourceReader, ppInputMediaType, ppOutputMediaType, ppMediaTransform);
+		if (FAILED(hr)) {
+			pDevice->ShutdownObject();
+			continue;
+		}
 		WCHAR *nameString = NULL;
 		// Get the human-friendly name of the device
 		UINT32 cchName;
@@ -87,8 +90,8 @@ HRESULT CameraCapture::InitializeSourceReader(
 			//allocate a byte buffer for the raw pixel data
 			m_DeviceName = std::wstring(nameString);
 		}
-		pDevice->ShutdownObject();
 		CoTaskMemFree(nameString);
+		break;
 	}
 	if (FAILED(hr))
 	{
