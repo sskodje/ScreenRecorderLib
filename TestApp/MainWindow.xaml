@@ -449,6 +449,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <Label Content="{Binding}"
                                        MinWidth="100"
@@ -461,6 +462,11 @@
                                               x:Name="CheckBoxIsBorderRequiredForSource"
                                               Content="Border"
                                               IsChecked="{Binding IsBorderRequired,Mode=TwoWay}" />
+                                    <CheckBox VerticalAlignment="Center"
+                                              x:Name="CheckBoxIsCursorCaptureEnabledForSource"
+                                              Content="Cursor"
+                                              Margin="5,0,0,0"
+                                              IsChecked="{Binding IsCursorCaptureEnabled,Mode=TwoWay}" />
                                     <CheckBox VerticalAlignment="Center"
                                               Padding="0"
                                               Margin="5,0,0,0"
