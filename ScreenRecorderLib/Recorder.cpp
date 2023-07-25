@@ -809,6 +809,11 @@ HRESULT Recorder::CreateOrUpdateNativeRecordingSource(_In_ RecordingSourceBase^ 
 	else {
 		return E_NOTIMPL;
 	}
+	if (managedSource->IsVideoFramePreviewEnabled) {
+		nativeSource.RecordingNewFrameDataCallback = managedSource->RegisterNewFrameDataCallback();
+	}
+
+	*pNativeSource = nativeSource;
 	return hr;
 }
 

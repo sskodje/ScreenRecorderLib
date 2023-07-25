@@ -13,6 +13,7 @@
 #include <chrono>
 #include "util.h"
 
+typedef void(__stdcall *CallbackNewFrameDataFunction)(int, byte *, int, int, int);
 struct REC_RESULT {
 	HRESULT RecordingResult;
 	HRESULT FinalizeResult;
@@ -224,6 +225,8 @@ struct RECORDING_SOURCE_BASE abstract {
 	/// </summary>
 	std::optional<bool> IsBorderRequired;
 
+	CallbackNewFrameDataFunction RecordingNewFrameDataCallback;
+
 	RECORDING_SOURCE_BASE() :
 		Type(RecordingSourceType::Display),
 		SourceWindow(nullptr),
@@ -235,7 +238,8 @@ struct RECORDING_SOURCE_BASE abstract {
 		Anchor(ContentAnchor::TopLeft),
 		IsVideoCaptureEnabled(std::nullopt),
 		IsCursorCaptureEnabled(std::nullopt),
-		IsBorderRequired(std::nullopt)
+		IsBorderRequired(std::nullopt),
+		RecordingNewFrameDataCallback(nullptr)
 	{
 
 	}

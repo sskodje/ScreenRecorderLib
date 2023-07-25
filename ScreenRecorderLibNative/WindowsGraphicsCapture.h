@@ -35,6 +35,8 @@ private:
 	std::unique_ptr<TextureManager> m_TextureManager;
 	std::unique_ptr<MouseManager> m_MouseManager;
 	RECORDING_SOURCE_BASE *m_RecordingSource;
+	ID3D11Texture2D *m_CpuCopyBuffer;
+	D3D11_TEXTURE2D_DESC m_CpuCopyBufferDesc;
 	int m_CursorOffsetX;
 	int m_CursorOffsetY;
 	float m_CursorScaleX;

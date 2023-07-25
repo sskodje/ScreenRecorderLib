@@ -54,7 +54,6 @@ namespace ScreenRecorderLib {
 			SnapshotPath = path;
 		}
 	};
-
 	public ref class FrameRecordedEventArgs :System::EventArgs {
 	public:
 		property int FrameNumber;
@@ -62,6 +61,22 @@ namespace ScreenRecorderLib {
 		FrameRecordedEventArgs(int frameNumber, INT64 timestamp) {
 			FrameNumber = frameNumber;
 			Timestamp = timestamp;
+		}
+	};
+
+	public ref class FrameDataRecordedEventArgs :System::EventArgs {
+	public:
+		property int Stride;
+		property int Width;
+		property int Height;
+		property IntPtr Data;
+		property int Length;
+		FrameDataRecordedEventArgs(int stride, byte* data, int length,int width, int height) {
+			Stride = stride;
+			Data = IntPtr(data);
+			Length = length;
+			Width = width;
+			Height = height;
 		}
 	};
 }

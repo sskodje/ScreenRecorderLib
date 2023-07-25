@@ -6,12 +6,17 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Ink;
 using System.Windows.Interop;
+using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Media.Media3D;
 using System.Windows.Threading;
 using TestApp.Sources;
 
@@ -207,6 +212,19 @@ namespace TestApp
                 {
                     _currentFrameRate = value;
                     RaisePropertyChanged(nameof(CurrentFrameRate));
+                }
+            }
+        }
+        private WriteableBitmap _recordingPreviewBitmap;
+        public WriteableBitmap RecordingPreviewBitmap
+        {
+            get { return _recordingPreviewBitmap; }
+            set
+            {
+                if (_recordingPreviewBitmap != value)
+                {
+                    _recordingPreviewBitmap = value;
+                    RaisePropertyChanged(nameof(RecordingPreviewBitmap));
                 }
             }
         }
@@ -559,12 +577,30 @@ namespace TestApp
             {
                 if (x is CheckableRecordableWindow win)
                 {
-                    return new WindowRecordingSource(win)
+                    var source = new WindowRecordingSource(win)
                     {
                         OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
                         SourceRect = win.IsCustomOutputSourceRectEnabled ? win.SourceRect : null,
                         Position = win.IsCustomPositionEnabled ? win.Position : null,
+                        IsVideoFramePreviewEnabled = true
                     };
+                    source.OnFrameRecorded += (s, args) =>
+                    {
+                        byte[] bytes = new byte[args.Length];
+                        Marshal.Copy(args.Data, bytes, 0, args.Length);
+                        //  Debug.WriteLine($"Received preview frame with {args.Length} size, {args.Width} width and {args.Height} height");
+                        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, (Action)(() =>
+                        {
+                            if (RecordingPreviewBitmap == null || RecordingPreviewBitmap.Width != args.Width || RecordingPreviewBitmap.Height != args.Height)
+                            {
+                                RecordingPreviewBitmap = new WriteableBitmap(args.Width, args.Height, 96, 96, PixelFormats.Bgra32, null);
+                            }
+                            //byte[] bytes = new byte[args.Length];
+                            //Marshal.Copy(args.Data, bytes, 0, args.Length);
+                            RecordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, args.Width, args.Height), bytes, Math.Abs(args.Stride), 0);
+                        }));
+                    };
+                    return source;
                 }
                 else if (x is CheckableRecordableDisplay disp)
                 {
@@ -577,14 +613,30 @@ namespace TestApp
                 }
                 else if (x is CheckableRecordableCamera cam)
                 {
-                    return new VideoCaptureRecordingSource(cam)
+                    var source = new VideoCaptureRecordingSource(cam)
                     {
                         OutputSize = cam.IsCustomOutputSizeEnabled ? cam.OutputSize : null,
                         SourceRect = cam.IsCustomOutputSourceRectEnabled ? cam.SourceRect : null,
                         Position = cam.IsCustomPositionEnabled ? cam.Position : null,
-                        CaptureFormat = cam.CaptureFormat
+                        CaptureFormat = cam.CaptureFormat,
+                        IsVideoFramePreviewEnabled = true
 
                     };
+                    source.OnFrameRecorded += (s, args) =>
+                    {
+                        //  Debug.WriteLine($"Received preview frame with {args.Length} size, {args.Width} width and {args.Height} height");
+                        Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
+                        {
+                            if (RecordingPreviewBitmap == null || RecordingPreviewBitmap.Width != args.Width || RecordingPreviewBitmap.Height != args.Height)
+                            {
+                                RecordingPreviewBitmap = new WriteableBitmap(args.Width, args.Height, 96, 96, PixelFormats.Bgra32, null);
+                            }
+                            byte[] bytes = new byte[args.Length];
+                            Marshal.Copy(args.Data, bytes, 0, args.Length);
+                            RecordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, args.Width, args.Height), bytes, Math.Abs(args.Stride), 0);
+                        }));
+                    };
+                    return source;
                 }
                 else if (x is CheckableRecordableImage img)
                 {
@@ -601,7 +653,7 @@ namespace TestApp
                     {
                         OutputSize = vid.IsCustomOutputSizeEnabled ? vid.OutputSize : null,
                         SourceRect = vid.IsCustomOutputSourceRectEnabled ? vid.SourceRect : null,
-                        Position = vid.IsCustomPositionEnabled ? vid.Position : null
+                        Position = vid.IsCustomPositionEnabled ? vid.Position : null,
                     };
                 }
                 else

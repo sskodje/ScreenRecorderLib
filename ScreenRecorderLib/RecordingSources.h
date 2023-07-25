@@ -1,20 +1,20 @@
 #pragma once
 #include "../ScreenRecorderLibNative/Native.h"
 #include "VideoCaptureFormat.h"
-
+#include "Callback.h"
 using namespace System;
 using namespace System::ComponentModel;
 using namespace System::Collections::Generic;
+using namespace System::Runtime::InteropServices;
 
 namespace ScreenRecorderLib {
-
+	delegate void InternalNewFrameDataCallbackDelegate(int stride, byte* data, int length, int width, int height);
 	public enum class RecorderApi {
 		///<summary>Desktop Duplication is supported on all Windows 8 and 10 versions. This API supports recording of screens.</summary>
 		DesktopDuplication = 0,
 		///<summary>WindowsGraphicsCapture requires Windows 10 version 1803 or higher. This API supports recording windows in addition to screens.</summary>
 		WindowsGraphicsCapture = 1,
 	};
-
 	public ref class RecordingSourceBase abstract : public INotifyPropertyChanged {
 	private:
 		String^ _id;
@@ -24,6 +24,13 @@ namespace ScreenRecorderLib {
 		StretchMode _stretch;
 		ScreenRect^ _sourceRect;
 		bool _isVideoCaptureEnabled;
+		bool _isVideoFramePreviewEnabled;
+		GCHandle _frameRecordedGcHandler;
+		CallbackNewFrameDataFunction _cb;
+		void RecordingSourceBase::FrameRecorded(int frameNumber, byte* data, int length, int width, int height) {
+			OnFrameRecorded(this, gcnew FrameDataRecordedEventArgs(frameNumber, data, length, width, height));
+		}
+
 	internal:
 		RecordingSourceBase() {
 			ID = Guid::NewGuid().ToString();
@@ -40,7 +47,23 @@ namespace ScreenRecorderLib {
 			SourceRect = base->SourceRect;
 			IsVideoCaptureEnabled = base->IsVideoCaptureEnabled;
 		}
+		~RecordingSourceBase() {
+			if (_frameRecordedGcHandler.IsAllocated)
+				_frameRecordedGcHandler.Free();
+		}
+
+		CallbackNewFrameDataFunction RegisterNewFrameDataCallback() {
+			if (!_frameRecordedGcHandler.IsAllocated)
+			{
+				InternalNewFrameDataCallbackDelegate^ fp = gcnew InternalNewFrameDataCallbackDelegate(this, &RecordingSourceBase::FrameRecorded);
+				_frameRecordedGcHandler = GCHandle::Alloc(fp);
+				IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
+				_cb = static_cast<CallbackNewFrameDataFunction>(ip.ToPointer());
+			}
+			return _cb;
+		}
 	public:
+		event EventHandler<FrameDataRecordedEventArgs^>^ OnFrameRecorded;
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
 		/// <summary>
 		/// A unique generated ID for this recording source.
@@ -121,6 +144,19 @@ namespace ScreenRecorderLib {
 				OnPropertyChanged("IsVideoCaptureEnabled");
 			}
 		}
+		/// <summary>
+		/// Enables video frames to be generated through the OnFrameRecorded event. Can have a severe performance impact.
+		/// </summary>
+		property bool IsVideoFramePreviewEnabled {
+			bool get() {
+				return _isVideoFramePreviewEnabled;
+			}
+			void set(bool value) {
+				_isVideoFramePreviewEnabled = value;
+				OnPropertyChanged("IsVideoFramePreviewEnabled");
+			}
+		}
+
 		void OnPropertyChanged(String^ info)
 		{
 			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));

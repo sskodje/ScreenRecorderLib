@@ -128,6 +128,9 @@ HRESULT SourceReaderBase::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt
 			DWORD len;
 			BYTE *data;
 			hr = m_Sample->Lock(&data, NULL, &len);
+			ExecuteFuncOnExit releaseSampleLock([&]() {
+				m_Sample->Unlock();
+			});
 			if (FAILED(hr))
 			{
 				delete[] m_PtrFrameBuffer;
@@ -153,6 +156,9 @@ HRESULT SourceReaderBase::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt
 					*ppFrame = pTexture;
 					(*ppFrame)->AddRef();
 					QueryPerformanceCounter(&m_LastGrabTimeStamp);
+				}
+				if (m_RecordingSource->RecordingNewFrameDataCallback) {
+					m_RecordingSource->RecordingNewFrameDataCallback(abs(m_Stride), m_PtrFrameBuffer, len, m_FrameSize.cx, m_FrameSize.cy);
 				}
 			}
 		}

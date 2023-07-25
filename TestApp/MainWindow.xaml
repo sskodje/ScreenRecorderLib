@@ -1223,54 +1223,68 @@
                         </ItemsControl.Resources>
                     </ListView>
                 </StackPanel>
-                <StackPanel Orientation="Vertical"
-                            x:Name="ControlsPanel">
-                    <TextBlock FontSize="42"
-                               Text="00:00:00"
-                               HorizontalAlignment="Center"
-                               x:Name="TimeStampTextBlock"
-                               Margin="10,0" />
-                    <StackPanel Orientation="Vertical"
-                                HorizontalAlignment="Center"
-                                x:Name="FrameNumberPanel"
-                                Visibility="Collapsed">
-                        <TextBlock x:Name="FrameNumberTextBlock"
-                                   DataContext="{Binding ElementName=MainWin}"
-                                   FontSize="16">
-                            <TextBlock.Text>
-                                <MultiBinding StringFormat="{}Frame: {0} | Avg FPS: {1:0.0} | FPS: {2:0.0}">
-                                    <Binding Path="CurrentFrameNumber" />
-                                    <Binding Path="AverageFrameRate" />
-                                    <Binding Path="CurrentFrameRate" />
-                                </MultiBinding>
-                            </TextBlock.Text>
-                        </TextBlock>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="0.33*" />
+                        <ColumnDefinition Width="0.33*" />
+                        <ColumnDefinition Width="0.33*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0">
+                        <Image Source="{Binding ElementName=MainWin, Path=RecordingPreviewBitmap}"
+                               Height="150px"
+                               Margin="10px"/>
                     </StackPanel>
-                    <TextBlock FontSize="32"
-                               Text="Idle"
-                               HorizontalAlignment="Center"
-                               x:Name="StatusTextBlock" />
-                    <TextBlock FontSize="12"
-                               Text=""
-                               Margin="10,0"
-                               TextWrapping="Wrap"
-                               MaxWidth="{Binding ElementName=ControlsPanel,Path=ActualWidth}"
-                               HorizontalAlignment="Center"
-                               x:Name="ErrorTextBlock" />
-                    <Button Height="50"
-                            Width="150"
-                            x:Name="RecordButton"
-                            Content="Record"
-                            FontSize="28"
-                            Click="RecordButton_Click" />
-                    <Button x:Name="PauseButton"
-                            Height="50"
-                            Width="150"
-                            Content="Pause"
-                            FontSize="28"
-                            Visibility="Collapsed"
-                            Click="PauseButton_Click" />
-                </StackPanel>
+                    <StackPanel Orientation="Vertical"
+                                x:Name="ControlsPanel"
+                                Grid.Column="1">
+                        <TextBlock FontSize="42"
+                                   Text="00:00:00"
+                                   HorizontalAlignment="Center"
+                                   x:Name="TimeStampTextBlock"
+                                   Margin="10,0" />
+                        <StackPanel Orientation="Vertical"
+                                    HorizontalAlignment="Center"
+                                    x:Name="FrameNumberPanel"
+                                    Visibility="Collapsed">
+                            <TextBlock x:Name="FrameNumberTextBlock"
+                                       DataContext="{Binding ElementName=MainWin}"
+                                       FontSize="16">
+                                <TextBlock.Text>
+                                    <MultiBinding StringFormat="{}Frame: {0} | Avg FPS: {1:0.0} | FPS: {2:0.0}">
+                                        <Binding Path="CurrentFrameNumber" />
+                                        <Binding Path="AverageFrameRate" />
+                                        <Binding Path="CurrentFrameRate" />
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                            </TextBlock>
+                        </StackPanel>
+                        <TextBlock FontSize="32"
+                                   Text="Idle"
+                                   HorizontalAlignment="Center"
+                                   x:Name="StatusTextBlock" />
+                        <TextBlock FontSize="12"
+                                   Text=""
+                                   Margin="10,0"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="{Binding ElementName=ControlsPanel,Path=ActualWidth}"
+                                   HorizontalAlignment="Center"
+                                   x:Name="ErrorTextBlock" />
+                        <Button Height="50"
+                                Width="150"
+                                x:Name="RecordButton"
+                                Content="Record"
+                                FontSize="28"
+                                Click="RecordButton_Click" />
+                        <Button x:Name="PauseButton"
+                                Height="50"
+                                Width="150"
+                                Content="Pause"
+                                FontSize="28"
+                                Visibility="Collapsed"
+                                Click="PauseButton_Click" />
+                    </StackPanel>
+                </Grid>
             </StackPanel>
         </ScrollViewer>
         <TextBlock Margin="10"

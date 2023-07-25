@@ -22,7 +22,6 @@ delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fi
 delegate void InternalErrorCallbackDelegate(std::wstring error, std::wstring path);
 delegate void InternalSnapshotCallbackDelegate(std::wstring path);
 delegate void InternalFrameNumberCallbackDelegate(int newFrameNumber, INT64 timestamp);
-
 namespace ScreenRecorderLib {
 
 	ref class DynamicOptionsBuilder;
@@ -77,6 +76,7 @@ namespace ScreenRecorderLib {
 		static Guid FromNativeGuid(_In_ const GUID& guid);
 
 		int _currentFrameNumber;
+		RecorderOptions^ _options;
 		RecorderStatus _status;
 		RecordingManager* m_Rec;
 		ManagedIStream* m_ManagedStream;

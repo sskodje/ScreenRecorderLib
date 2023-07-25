@@ -6,125 +6,101 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
 
-namespace TestConsoleAppDotNetCore
-{
-    class Program
-    {
-        private static bool _isRecording;
-        private static Stopwatch _stopWatch;
-        static void Main(string[] args)
-        {
-            //This is how you can select audio devices. If you want the system default device,
-            //just leave the AudioInputDevice or AudioOutputDevice properties unset or pass null or empty string.
-            var audioInputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices);
-            var audioOutputDevices = Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices);
-            string selectedAudioInputDevice = audioInputDevices.Count > 0 ? audioInputDevices.First().DeviceName : null;
-            string selectedAudioOutputDevice = audioOutputDevices.Count > 0 ? audioOutputDevices.First().DeviceName : null;
 
-            var opts = new RecorderOptions
+class Program
+{
+    static void Main(string[] args)
+    {
+        var source = DisplayRecordingSource.MainMonitor;
+        source.RecorderApi = RecorderApi.WindowsGraphicsCapture;
+        var opts = new RecorderOptions
+        {
+            SourceOptions = new SourceOptions
             {
-                AudioOptions = new AudioOptions
+                RecordingSources = { { source } }
+            },
+            AudioOptions = new AudioOptions { IsInputDeviceEnabled = true, IsOutputDeviceEnabled = true, IsAudioEnabled=true }
+        };
+        Recorder rec = Recorder.CreateRecorder(opts);
+        Recorder rec2 = Recorder.CreateRecorder(opts);
+        rec.OnRecordingComplete += (source, e) =>
+        {
+            Console.WriteLine($"Recording complete: {e.FilePath}");
+        };
+        rec2.OnRecordingComplete += (source, e) =>
+        {
+            Console.WriteLine($"Recording complete: {e.FilePath}");
+        };
+
+        Console.WriteLine("Press ENTER to start recording or ESC to exit");
+        while (true)
+        {
+            ConsoleKeyInfo info = Console.ReadKey(true);
+            if (info.Key == ConsoleKey.Enter)
+            {
+                break;
+            }
+            else if (info.Key == ConsoleKey.Escape)
+            {
+                return;
+            }
+        }
+        ManualResetEvent completionEvent = new ManualResetEvent(false);
+        string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
+        Console.WriteLine("Starting recording");
+        int count = 50;
+        Task.Run(async () =>
+            {
+                for (int i = 0; i < count; i++)
                 {
-                    AudioInputDevice = selectedAudioInputDevice,
-                    AudioOutputDevice = selectedAudioOutputDevice,
-                    IsAudioEnabled = true,
-                    IsInputDeviceEnabled = true,
-                    IsOutputDeviceEnabled = true,
+                    var currentRecorder = i % 2 == 0 ? rec : rec2;
+                    var nextRecorder = i % 2 == 0 ? rec2 : rec;
+
+                    if (currentRecorder.Status == RecorderStatus.Paused)
+                    {
+                        currentRecorder.Resume();
+                    }
+                    else
+                    {
+                        currentRecorder.Record(Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, i + ".mp4"));
+                    }
+
+                    await WaitForIdle(nextRecorder);
+                    if (i < count)
+                    {
+                        nextRecorder.Record(Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, i + 1 + ".mp4"));
+                        nextRecorder.Pause();
+                    }
+                    await Task.Delay(5000);
+                    currentRecorder.Stop();
+                }
+                completionEvent.Set();
+            });
+
+        completionEvent.WaitOne();
+        Console.WriteLine("Press any key to exit");
+        Console.ReadKey();
+    }
+
+    private static async Task WaitForIdle(Recorder rec)
+    {
+        if (rec.Status == RecorderStatus.Idle)
+        {
+            return;
+        }
+        else
+        {
+            SemaphoreSlim semaphore = new SemaphoreSlim(0, 1);
+            EventHandler<RecordingStatusEventArgs> handler = delegate (object s, RecordingStatusEventArgs args)
+            {
+                if (args.Status == RecorderStatus.Idle)
+                {
+                    semaphore.Release();
                 }
             };
-
-            Recorder rec = Recorder.CreateRecorder(opts);
-            rec.OnRecordingFailed += Rec_OnRecordingFailed;
-            rec.OnRecordingComplete += Rec_OnRecordingComplete;
-            rec.OnStatusChanged += Rec_OnStatusChanged;
-            Console.WriteLine("Press ENTER to start recording or ESC to exit");
-            while (true)
-            {
-                ConsoleKeyInfo info = Console.ReadKey(true);
-                if (info.Key == ConsoleKey.Enter)
-                {
-                    break;
-                }
-                else if (info.Key == ConsoleKey.Escape)
-                {
-                    return;
-                }
-            }
-            string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
-            string filePath = Path.Combine(Path.GetTempPath(), "ScreenRecorder", timestamp, timestamp + ".mp4");
-            rec.Record(filePath);
-            CancellationTokenSource cts = new CancellationTokenSource();
-            var token = cts.Token;
-            Task.Run(async () =>
-            {
-                while (true)
-                {
-                    if (token.IsCancellationRequested)
-                        return;
-                    if (_isRecording)
-                    {
-                        Console.Write(String.Format("\rElapsed: {0}s:{1}ms", _stopWatch.Elapsed.Seconds, _stopWatch.Elapsed.Milliseconds));
-                    }
-                    await Task.Delay(10);
-                }
-            }, token);
-            while (true)
-            {
-                ConsoleKeyInfo info = Console.ReadKey(true);
-                if (info.Key == ConsoleKey.Escape)
-                {
-                    break;
-                }
-            }
-            cts.Cancel();
-            rec.Stop();
-            Console.WriteLine();
-
-            Console.ReadKey();
-        }
-
-        private static void Rec_OnStatusChanged(object sender, RecordingStatusEventArgs e)
-        {
-            switch (e.Status)
-            {
-                case RecorderStatus.Idle:
-                    //Console.WriteLine("Recorder is idle");
-                    break;
-                case RecorderStatus.Recording:
-                    _stopWatch = new Stopwatch();
-                    _stopWatch.Start();
-                    _isRecording = true;
-                    Console.WriteLine("Recording started");
-                    Console.WriteLine("Press ESC to stop recording");
-                    break;
-                case RecorderStatus.Paused:
-                    Console.WriteLine("Recording paused");
-                    break;
-                case RecorderStatus.Finishing:
-                    Console.WriteLine("Finishing encoding");
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        private static void Rec_OnRecordingComplete(object sender, RecordingCompleteEventArgs e)
-        {
-            Console.WriteLine("Recording completed");
-            _isRecording = false;
-            _stopWatch?.Stop();
-            Console.WriteLine(String.Format("File: {0}", e.FilePath));
-            Console.WriteLine();
-            Console.WriteLine("Press any key to exit");
-        }
-
-        private static void Rec_OnRecordingFailed(object sender, RecordingFailedEventArgs e)
-        {
-            Console.WriteLine("Recording failed with: " + e.Error);
-            _isRecording = false;
-            _stopWatch?.Stop();
-            Console.WriteLine();
-            Console.WriteLine("Press any key to exit");
+            rec.OnStatusChanged += handler;
+            await semaphore.WaitAsync();
+            rec.OnStatusChanged -= handler;
         }
     }
 }
