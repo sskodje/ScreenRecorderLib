@@ -5,7 +5,7 @@
 #include <memory>
 #include "CommonTypes.h"
 #include "TextureManager.h"
-
+#include <thread>
 LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
 
 class MouseManager
@@ -52,7 +52,7 @@ private:
 	std::vector<BYTE> _InitBuffer;
 	std::vector<BYTE> _DesktopBuffer;
 	HANDLE m_StopPollingTaskEvent;
-
+	std::thread m_MousePollingThread;
 	long ParseColorString(std::string color);
 	void GetPointerPosition(_In_ PTR_INFO *pPtrInfo, DXGI_MODE_ROTATION rotation, int desktopWidth, int desktopHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop);
 	HRESULT ProcessMonoMask(_In_ ID3D11Texture2D *pBgTexture, _In_ DXGI_MODE_ROTATION rotation, _In_ bool IsMono, _Inout_ PTR_INFO *PtrInfo, _Out_ INT *PtrWidth, _Out_ INT *PtrHeight, _Out_ INT *PtrLeft, _Out_ INT *PtrTop, _Outptr_result_bytebuffer_(*PtrHeight **PtrWidth *BPP) BYTE **pInitBuffer);

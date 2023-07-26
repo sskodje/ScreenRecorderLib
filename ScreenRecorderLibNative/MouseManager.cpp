@@ -19,7 +19,6 @@ INT64 g_LastMouseClickDurationRemaining = 0;
 INT g_MouseClickDetectionDurationMillis = 50;
 UINT g_LastMouseClickButton = 0;
 
-concurrency::task<void> pollingTask = concurrency::task_from_result();
 
 DWORD WINAPI MouseHookThreadProc(_In_ void *Param) {
 	HHOOK mouseHook = SetWindowsHookEx(WH_MOUSE_LL, MouseHookProc, nullptr, 0);
@@ -129,28 +128,28 @@ void MouseManager::InitializeMouseClickDetection()
 				default:
 				case MOUSE_OPTIONS::MOUSE_DETECTION_MODE_POLLING: {
 					ResetEvent(m_StopPollingTaskEvent);
-					pollingTask = create_task([this]() {
+					m_MousePollingThread = std::thread([this] {
 						LOG_INFO("Starting mouse click polling task");
-					while (true) {
-						if (GetKeyState(VK_LBUTTON) < 0)
-						{
-							//If left mouse button is held, reset the duration of click duration
-							g_LastMouseClickButton = VK_LBUTTON;
-							g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-						}
-						else if (GetKeyState(VK_RBUTTON) < 0)
-						{
-							//If right mouse button is held, reset the duration of click duration
-							g_LastMouseClickButton = VK_RBUTTON;
-							g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
-						}
+						while (true) {
+							if (GetKeyState(VK_LBUTTON) < 0)
+							{
+								//If left mouse button is held, reset the duration of click duration
+								g_LastMouseClickButton = VK_LBUTTON;
+								g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
+							}
+							else if (GetKeyState(VK_RBUTTON) < 0)
+							{
+								//If right mouse button is held, reset the duration of click duration
+								g_LastMouseClickButton = VK_RBUTTON;
+								g_LastMouseClickDurationRemaining = g_MouseClickDetectionDurationMillis;
+							}
 
-						if (WaitForSingleObjectEx(m_StopPollingTaskEvent, 0, FALSE) == WAIT_OBJECT_0) {
-							break;
+							if (WaitForSingleObjectEx(m_StopPollingTaskEvent, 0, FALSE) == WAIT_OBJECT_0) {
+								break;
+							}
+							wait(1);
 						}
-						wait(1);
-					}
-					LOG_INFO("Exiting mouse click polling task");
+						LOG_INFO("Exiting mouse click polling task");
 
 						});
 					m_IsCapturingMouseClicks = true;
@@ -181,9 +180,9 @@ void MouseManager::StopMouseClickDetection()
 		m_MouseHookThread = nullptr;
 		m_MouseHookThreadId = 0;
 	}
-	if (!pollingTask.is_done()) {
+	if (m_MousePollingThread.joinable()) {
 		SetEvent(m_StopPollingTaskEvent);
-		pollingTask.wait();
+		m_MousePollingThread.join();
 	}
 	m_IsCapturingMouseClicks = false;
 }
