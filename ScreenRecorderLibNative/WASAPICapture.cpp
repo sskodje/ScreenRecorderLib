@@ -694,10 +694,6 @@ void WASAPICapture::ClearRecordedBytes()
 }
 
 HRESULT WASAPICapture::ReconnectThreadLoop() {
-	SetThreadDescription(
-		GetCurrentThread(),
-		L"WASAPICapture reconnect thread!");
-
 	const HANDLE events[] = {
 		m_ReconnectThreadStopEvent,
 		m_CaptureReconnectEvent,
