@@ -76,6 +76,7 @@ private:
 	UINT64 m_RenderedFrameCount;
 	std::chrono::steady_clock::time_point m_PreviousSnapshotTaken;
 	CRITICAL_SECTION m_CriticalSection;
+	bool m_UseManualNV12Converter;
 
 	std::shared_ptr<AUDIO_OPTIONS> GetAudioOptions() { return m_AudioOptions; }
 	std::shared_ptr<ENCODER_OPTIONS> GetEncoderOptions() { return m_EncoderOptions; }
