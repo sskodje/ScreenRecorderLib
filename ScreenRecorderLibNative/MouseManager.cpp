@@ -535,8 +535,16 @@ HRESULT MouseManager::DrawMousePointer(_In_ PTR_INFO *pPtrInfo, _Inout_ ID3D11Te
 	m_DeviceContext->PSSetShaderResources(0, 1, &ShaderRes);
 	m_DeviceContext->PSSetSamplers(0, 1, &m_SamplerLinear.p);
 	m_DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	// Save current view port so we can restore later
+	D3D11_VIEWPORT VP;
+	UINT numViewports = 1;
+	m_DeviceContext->RSGetViewports(&numViewports, &VP);
+	SetViewPort(m_DeviceContext, static_cast<float>(DesktopDesc.Width), static_cast<float>(DesktopDesc.Height));
 	// Draw
 	m_DeviceContext->Draw(NUMVERTICES, 0);
+	// Restore view port
+	m_DeviceContext->RSSetViewports(1, &VP);
 	// Clean
 	if (RTV) {
 		RTV->Release();
