@@ -3,6 +3,7 @@
 #include "MouseManager.h"
 #include "AudioManager.h"
 #include "OutputManager.h"
+#include "ScreenCaptureManager.h"
 #include "Log.h"
 #include "fifo_map.h"
 typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_map<std::wstring, int>);
@@ -101,6 +102,7 @@ private:
 
 	std::unique_ptr<TextureManager> m_TextureManager;
 	std::unique_ptr<OutputManager> m_OutputManager;
+	std::unique_ptr<ScreenCaptureManager> m_CaptureManager;
 	HRESULT m_EncoderResult = E_FAIL;
 	HRESULT m_MfStartupResult = E_FAIL;
 	std::wstring m_OutputFolder = L"";

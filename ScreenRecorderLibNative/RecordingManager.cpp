@@ -74,6 +74,7 @@ RecordingManager::RecordingManager() :
 	RecordingFrameNumberChangedCallback(nullptr),
 	m_TextureManager(nullptr),
 	m_OutputManager(nullptr),
+	m_CaptureManager(nullptr),
 	m_EncoderOptions(new H264_ENCODER_OPTIONS()),
 	m_AudioOptions(new AUDIO_OPTIONS),
 	m_MouseOptions(new MOUSE_OPTIONS),
@@ -233,7 +234,8 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		RETURN_RESULT_ON_BAD_HR(hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device), L"Failed to initialize TextureManager");
 		m_OutputManager = make_unique<OutputManager>();
 		RETURN_RESULT_ON_BAD_HR(hr = m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetEncoderOptions(), GetAudioOptions(), GetSnapshotOptions(), GetOutputOptions()), L"Failed to initialize OutputManager");
-
+		m_CaptureManager = make_unique<ScreenCaptureManager>();
+		RETURN_RESULT_ON_BAD_HR(m_CaptureManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetOutputOptions(), GetEncoderOptions(), GetMouseOptions()), L"Failed to initialize ScreenCaptureManager");
 		result = StartRecorderLoop(m_RecordingSources, m_Overlays, stream);
 		if (RecordingStatusChangedCallback != nullptr && !m_IsDestructing) {
 			RecordingStatusChangedCallback(STATUS_FINALIZING);
@@ -245,6 +247,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		return result;
 		}).then([this](concurrency::task<REC_RESULT> t)
 				{
+					m_CaptureManager.reset(nullptr);
 					m_IsRecording = false;
 					REC_RESULT result{ };
 					try {
@@ -378,14 +381,7 @@ void RecordingManager::SetRecordingCompleteStatus(_In_ REC_RESULT result, nlohma
 REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_opt_ IStream *pStream)
 {
 	std::optional<PTR_INFO> pPtrInfo = std::nullopt;
-	unique_ptr<ScreenCaptureManager> pCapture = make_unique<ScreenCaptureManager>();
-	HRESULT hr = pCapture->Initialize(
-		m_DxResources.Context,
-		m_DxResources.Device,
-		GetOutputOptions(),
-		GetEncoderOptions(),
-		GetMouseOptions());
-	RETURN_RESULT_ON_BAD_HR(hr, L"Failed to initialize ScreenCaptureManager");
+	HRESULT hr = S_OK;
 	auto recorderMode = GetOutputOptions()->GetRecorderMode();
 
 	// Event for when a thread encounters an error
@@ -396,13 +392,13 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	}
 	CloseHandleOnExit closeExpectedErrorEvent(ErrorEvent);
 
-	RETURN_RESULT_ON_BAD_HR(hr = pCapture->StartCapture(sources, overlays, ErrorEvent), L"Failed to start capture");
+	RETURN_RESULT_ON_BAD_HR(hr = m_CaptureManager->StartCapture(sources, overlays, ErrorEvent), L"Failed to start capture");
 
 
 	RECT videoInputFrameRect{};
 	SIZE videoOutputFrameSize{};
 	RETURN_RESULT_ON_BAD_HR(hr = InitializeRects(
-		pCapture->GetOutputSize(),
+		m_CaptureManager->GetOutputSize(),
 		&videoInputFrameRect,
 		&videoOutputFrameSize), L"Failed to initialize frame rects");
 
@@ -466,7 +462,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	auto PrepareAndRenderFrame([&](CComPtr<ID3D11Texture2D> pTextureToRender, INT64 duration100Nanos)->HRESULT {
 		HRESULT renderHr = E_FAIL;
 		int updatedOverlaysCount = 0;
-		pCapture->ProcessOverlays(pTextureToRender, &updatedOverlaysCount);
+		m_CaptureManager->ProcessOverlays(pTextureToRender, &updatedOverlaysCount);
 		if (pPtrInfo) {
 			renderHr = pMouseManager->ProcessMousePointer(pTextureToRender, &pPtrInfo.value());
 			if (FAILED(renderHr)) {
@@ -476,7 +472,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			}
 		}
 		if (IsValidRect(GetOutputOptions()->GetSourceRectangle())) {
-			RETURN_ON_BAD_HR(hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, nullptr));
+			RETURN_ON_BAD_HR(hr = InitializeRects(m_CaptureManager->GetOutputSize(), &videoInputFrameRect, nullptr));
 		}
 		CComPtr<ID3D11Texture2D> processedTexture;
 		RETURN_ON_BAD_HR(renderHr = ProcessTextureTransforms(pTextureToRender, &processedTexture, videoInputFrameRect, videoOutputFrameSize));
@@ -523,7 +519,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 
 	auto RestartCapture([&](CAPTURE_RESULT *result) {
 		//Stop existing capture
-		hr = pCapture->StopCapture();
+		hr = m_CaptureManager->StopCapture();
 
 		// As we have encountered an error due to a system transition we wait before trying again, using this dynamic wait
 		// the wait periods will get progressively long to avoid wasting too much system resource if this state lasts a long time
@@ -552,10 +548,10 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 		//Recreate capture manager and restart capture
 		if (SUCCEEDED(hr)) {
-			pCapture.reset(new ScreenCaptureManager());
+			m_CaptureManager.reset(new ScreenCaptureManager());
 		}
 		if (SUCCEEDED(hr)) {
-			hr = pCapture->Initialize(
+			hr = m_CaptureManager->Initialize(
 				m_DxResources.Context,
 				m_DxResources.Device,
 				GetOutputOptions(),
@@ -564,11 +560,11 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 		if (SUCCEEDED(hr)) {
 			ResetEvent(ErrorEvent);
-			hr = pCapture->StartCapture(sources, overlays, ErrorEvent);
+			hr = m_CaptureManager->StartCapture(sources, overlays, ErrorEvent);
 		}
 		if (SUCCEEDED(hr)) {
 			//The source dimensions may have changed
-			hr = InitializeRects(pCapture->GetOutputSize(), &videoInputFrameRect, nullptr);
+			hr = InitializeRects(m_CaptureManager->GetOutputSize(), &videoInputFrameRect, nullptr);
 			LOG_TRACE(L"Reinitialized input frame rect: [%d,%d,%d,%d]", videoInputFrameRect.left, videoInputFrameRect.top, videoInputFrameRect.right, videoInputFrameRect.bottom);
 		}
 		pPtrInfo.reset();
@@ -584,16 +580,16 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 
 		if (WaitForSingleObjectEx(ErrorEvent, 0, FALSE) == WAIT_OBJECT_0) {
-			std::vector<CAPTURE_THREAD_DATA> captureData = pCapture->GetCaptureThreadData();
+			std::vector<CAPTURE_THREAD_DATA> captureData = m_CaptureManager->GetCaptureThreadData();
 			if (captureData.size() > 0
 				&& std::all_of(captureData.begin(), captureData.end(), [&](const CAPTURE_THREAD_DATA obj)
 					{
 						return FAILED(obj.ThreadResult->RecordingResult) && !obj.ThreadResult->IsRecoverableError;
 					})) {
-				return pCapture->GetCaptureResults().at(0)->RecordingResult;
+				return m_CaptureManager->GetCaptureResults().at(0)->RecordingResult;
 			}
 
-			std::vector<CAPTURE_RESULT *> results = pCapture->GetCaptureResults();
+			std::vector<CAPTURE_RESULT *> results = m_CaptureManager->GetCaptureResults();
 			auto firstRecoverableError = find_if(results.begin(), results.end(), [&](const CAPTURE_RESULT *obj)
 				{
 					return FAILED(obj->RecordingResult) && obj->IsRecoverableError;
@@ -630,7 +626,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 		CAPTURED_FRAME capturedFrame{};
 		// Get new frame
-		hr = pCapture->AcquireNextFrame(GetTimeUntilNextFrameMillis(), m_MaxFrameLengthMillis, &capturedFrame);
+		hr = m_CaptureManager->AcquireNextFrame(GetTimeUntilNextFrameMillis(), m_MaxFrameLengthMillis, &capturedFrame);
 
 		if (SUCCEEDED(hr)) {
 			if (capturedFrame.PtrInfo) {
