@@ -75,6 +75,7 @@ RecordingManager::RecordingManager() :
 	m_TextureManager(nullptr),
 	m_OutputManager(nullptr),
 	m_CaptureManager(nullptr),
+	m_MouseManager(nullptr),
 	m_EncoderOptions(new H264_ENCODER_OPTIONS()),
 	m_AudioOptions(new AUDIO_OPTIONS),
 	m_MouseOptions(new MOUSE_OPTIONS),
@@ -236,6 +237,9 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		RETURN_RESULT_ON_BAD_HR(hr = m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetEncoderOptions(), GetAudioOptions(), GetSnapshotOptions(), GetOutputOptions()), L"Failed to initialize OutputManager");
 		m_CaptureManager = make_unique<ScreenCaptureManager>();
 		RETURN_RESULT_ON_BAD_HR(m_CaptureManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetOutputOptions(), GetEncoderOptions(), GetMouseOptions()), L"Failed to initialize ScreenCaptureManager");
+		m_MouseManager = make_unique<MouseManager>();
+		RETURN_RESULT_ON_BAD_HR(hr = m_MouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions()), L"Failed to initialize mouse manager");
+
 		result = StartRecorderLoop(m_RecordingSources, m_Overlays, stream);
 		if (RecordingStatusChangedCallback != nullptr && !m_IsDestructing) {
 			RecordingStatusChangedCallback(STATUS_FINALIZING);
@@ -248,6 +252,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		}).then([this](concurrency::task<REC_RESULT> t)
 				{
 					m_CaptureManager.reset(nullptr);
+					m_MouseManager.reset(nullptr);
 					m_IsRecording = false;
 					REC_RESULT result{ };
 					try {
@@ -405,11 +410,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
 
 	std::unique_ptr<AudioManager> pAudioManager = make_unique<AudioManager>();
-	std::unique_ptr<MouseManager> pMouseManager = make_unique<MouseManager>();
-	RETURN_RESULT_ON_BAD_HR(hr = pMouseManager->Initialize(
-		m_DxResources.Context,
-		m_DxResources.Device,
-		GetMouseOptions()), L"Failed to initialize mouse manager");
+
 
 	if (recorderMode == RecorderModeInternal::Video) {
 		hr = pAudioManager->Initialize(GetAudioOptions());
@@ -460,22 +461,8 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	});
 
 	auto PrepareAndRenderFrame([&](CComPtr<ID3D11Texture2D> pTextureToRender, INT64 duration100Nanos)->HRESULT {
-		HRESULT renderHr = E_FAIL;
-		int updatedOverlaysCount = 0;
-		m_CaptureManager->ProcessOverlays(pTextureToRender, &updatedOverlaysCount);
-		if (pPtrInfo) {
-			renderHr = pMouseManager->ProcessMousePointer(pTextureToRender, &pPtrInfo.value());
-			if (FAILED(renderHr)) {
-				_com_error err(renderHr);
-				LOG_ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
-				//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
-			}
-		}
-		if (IsValidRect(GetOutputOptions()->GetSourceRectangle())) {
-			RETURN_ON_BAD_HR(hr = InitializeRects(m_CaptureManager->GetOutputSize(), &videoInputFrameRect, nullptr));
-		}
 		CComPtr<ID3D11Texture2D> processedTexture;
-		RETURN_ON_BAD_HR(renderHr = ProcessTextureTransforms(pTextureToRender, &processedTexture, videoInputFrameRect, videoOutputFrameSize));
+		HRESULT renderHr = ProcessTexture(pTextureToRender, &processedTexture, pPtrInfo);
 		if (renderHr == S_OK) {
 			pTextureToRender.Release();
 			pTextureToRender.Attach(processedTexture);
@@ -531,7 +518,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			hr = InitializeDx(nullptr, &m_DxResources);
 			SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
 			if (SUCCEEDED(hr)) {
-				hr = pMouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
+				hr = m_MouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
 			}
 			if (SUCCEEDED(hr)) {
 				hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
@@ -801,5 +788,31 @@ HRESULT RecordingManager::SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pText
 			}
 		}
 		}));
+	return hr;
+}
+
+HRESULT RecordingManager::ProcessTexture(_In_ ID3D11Texture2D *pTexture, _Out_ ID3D11Texture2D **ppProcessedTexture, _In_opt_ std::optional<PTR_INFO> pPtrInfo = std::nullopt)
+{
+	*ppProcessedTexture = nullptr;
+	HRESULT hr = E_FAIL;
+	int updatedOverlaysCount = 0;
+	m_CaptureManager->ProcessOverlays(pTexture, &updatedOverlaysCount);
+	if (pPtrInfo) {
+		hr = m_MouseManager->ProcessMousePointer(pTexture, &pPtrInfo.value());
+		if (FAILED(hr)) {
+			_com_error err(hr);
+			LOG_ERROR(L"Error drawing mouse pointer: %s", err.ErrorMessage());
+			//We just log the error and continue if the mouse pointer failed to draw. If there is an error with DXGI, it will be handled on the next call to AcquireNextFrame.
+		}
+	}
+	SIZE videoOutputFrameSize{};
+	RECT videoInputFrameRect{};
+	RETURN_ON_BAD_HR(hr = InitializeRects(m_CaptureManager->GetOutputSize(), &videoInputFrameRect, &videoOutputFrameSize));
+	CComPtr<ID3D11Texture2D> processedTexture;
+	RETURN_ON_BAD_HR(hr = ProcessTextureTransforms(pTexture, &processedTexture, videoInputFrameRect, videoOutputFrameSize));
+
+	*ppProcessedTexture = processedTexture;
+	(*ppProcessedTexture)->AddRef();
+
 	return hr;
 }

@@ -103,6 +103,8 @@ private:
 	std::unique_ptr<TextureManager> m_TextureManager;
 	std::unique_ptr<OutputManager> m_OutputManager;
 	std::unique_ptr<ScreenCaptureManager> m_CaptureManager;
+	std::unique_ptr<MouseManager> m_MouseManager;
+
 	HRESULT m_EncoderResult = E_FAIL;
 	HRESULT m_MfStartupResult = E_FAIL;
 	std::wstring m_OutputFolder = L"";
@@ -140,6 +142,15 @@ private:
 	/// <param name="sourceRect">The area of the texture to save. If the texture is larger, it will be cropped to these coordinates.</param>
 	/// <returns></returns>
 	HRESULT SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ RECT sourceRect);
+
+	/// <summary>
+	/// Adds overlays, mouse cursors, and texture transforms.
+	/// </summary>
+	/// <param name="pTexture">The texture to process</param>
+	/// <param name="pPtrInfo">Mouse pointer info (optional).</param>
+	/// <param name="ppProcessedTexture">The output texture.</param>
+	/// <returns>S_OK if any processing has been done, S_FALSE if no changes, else an error code</returns>
+	HRESULT ProcessTexture(_In_ ID3D11Texture2D *pTexture, _Out_ ID3D11Texture2D **ppProcessedTexture, _In_opt_ std::optional<PTR_INFO> pPtrInfo);
 
 	/// <summary>
 	/// Perform cropping and resizing on texture if needed.
