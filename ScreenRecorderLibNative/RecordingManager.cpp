@@ -525,9 +525,6 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 					return S_FALSE;
 				wstring snapshotPath = GetSnapshotOptions()->GetSnapshotsDirectory() + L"\\" + s2ws(CurrentTimeToFormattedString(true)) + GetSnapshotOptions()->GetImageExtension();
 				SaveTextureAsVideoSnapshotAsync(pTextureToRender, snapshotPath, videoInputFrameRect, ([this, snapshotPath, &previousSnapshotTaken](HRESULT hr) {
-					if (m_TaskWrapperImpl->m_RecordTaskCts.get_token().is_canceled()) {
-						return;
-					}
 					bool success = SUCCEEDED(hr);
 					if (success) {
 						LOG_TRACE(L"Wrote snapshot to %s", snapshotPath.c_str());
@@ -814,10 +811,10 @@ bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
 }
 void RecordingManager::SaveTextureAsVideoSnapshotAsync(_In_ ID3D11Texture2D *pTexture, _In_ std::wstring snapshotPath, _In_ RECT destRect, _In_opt_ std::function<void(HRESULT)> onCompletion)
 {
-	pTexture->AddRef();
-	Concurrency::create_task([this, pTexture, snapshotPath, destRect, onCompletion]() {
+	auto token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
+	Concurrency::create_task([this, pTexture, snapshotPath, destRect, onCompletion, token]() {
 		return SaveTextureAsVideoSnapshot(pTexture, snapshotPath, destRect);
-	   }).then([this, snapshotPath, pTexture, destRect, onCompletion](concurrency::task<HRESULT> t)
+	   }, token).then([this, snapshotPath, pTexture, destRect, onCompletion, token](concurrency::task<HRESULT> t)
 		   {
 			   HRESULT hr;
 			   try {
@@ -829,12 +826,14 @@ void RecordingManager::SaveTextureAsVideoSnapshotAsync(_In_ ID3D11Texture2D *pTe
 				   LOG_ERROR(L"Exception saving snapshot: %s", s2ws(e.what()).c_str());
 				   hr = E_FAIL;
 			   }
-			   pTexture->Release();
+			   if (token.is_canceled()) {
+				   cancel_current_task();
+			   };
 			   if (onCompletion) {
 				   std::invoke(onCompletion, hr);
 			   }
 			   return hr;
-		   });
+		   }, token);
 }
 
 HRESULT RecordingManager::SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ std::wstring snapshotPath, _In_ RECT destRect)
