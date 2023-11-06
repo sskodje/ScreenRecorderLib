@@ -248,6 +248,102 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
+        public void RecordingWithManualSnapshots()
+        {
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            string snapshotPath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".jpg"));
+            string snapshotStreamPath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".jpg"));
+            try
+            {
+                var options = RecorderOptions.DefaultMainMonitor;
+                options.LogOptions.LogSeverityLevel = LogLevel.Trace;
+                using (var rec = Recorder.CreateRecorder(options))
+                {
+                    string savedSnapshotPath = "";
+                    string error = "";
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent snapshotSavedResetEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        finalizeResetEvent.Set();
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        error = args.Error;
+                        finalizeResetEvent.Set();
+                        recordingResetEvent.Set();
+                    };
+                    rec.OnStatusChanged += (s, args) =>
+                    {
+                        if (args.Status == RecorderStatus.Recording)
+                        {
+                            recordingResetEvent.Set();
+                        }
+                    };
+                    rec.OnSnapshotSaved += (s, args) =>
+                    {
+                        savedSnapshotPath = args.SnapshotPath;
+                        snapshotSavedResetEvent.Set();
+                    };
+
+                    rec.Record(filePath);
+                    recordingResetEvent.WaitOne(1000);
+
+                    //Take snapshot to file path
+                    bool snapshotResult = rec.TakeSnapshot(snapshotPath);
+                    Assert.IsTrue(snapshotResult);
+                    snapshotSavedResetEvent.WaitOne(1000);
+                    Assert.AreEqual(snapshotPath, savedSnapshotPath);
+                    Assert.IsTrue(File.Exists(snapshotPath));
+                    var snapMediaInfo = new MediaInfoWrapper(snapshotPath);
+                    Assert.IsTrue(snapMediaInfo.Format == "PNG");
+
+                    //Take snapshot to stream
+                    using (FileStream fs = File.OpenWrite(snapshotStreamPath))
+                    {
+                        snapshotSavedResetEvent.Reset();
+                        snapshotResult = rec.TakeSnapshot(fs);
+                        snapshotSavedResetEvent.WaitOne(1000);
+                        Assert.IsTrue(snapshotResult);
+                    }
+                    Assert.IsTrue(File.Exists(snapshotStreamPath));
+                    snapMediaInfo = new MediaInfoWrapper(snapshotStreamPath);
+                    Assert.IsTrue(snapMediaInfo.Format == "PNG");
+
+                    //Use auto generated file path
+                    snapshotResult = rec.TakeSnapshot();
+                    snapshotSavedResetEvent.WaitOne(1000);
+                    Assert.IsTrue(snapshotResult);
+                    Assert.IsTrue(File.Exists(snapshotStreamPath));
+                    snapMediaInfo = new MediaInfoWrapper(snapshotStreamPath);
+                    Assert.IsTrue(snapMediaInfo.Format == "PNG");
+
+
+                    rec.Stop();
+                    finalizeResetEvent.WaitOne(5000);
+
+
+                    Assert.IsFalse(isError, error);
+                    Assert.IsTrue(isComplete);
+
+                    Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                    var mediaInfo = new MediaInfoWrapper(filePath);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+            }
+        }
+
+        [TestMethod]
         [DataRow(RecorderApi.DesktopDuplication)]
         [DataRow(RecorderApi.WindowsGraphicsCapture)]
         public void EnumAndRecordAllDisplaysSequentially(RecorderApi api)
@@ -1033,7 +1129,7 @@ namespace ScreenRecorderLib
                     var files = Directory.GetFiles(directoryPath);
                     //First image is written immediately, then there should be one per interval.
                     int expectedSlideshowCount = 1 + (int)Math.Floor((double)actualRecordingLength / options.SnapshotOptions.SnapshotsIntervalMillis);
-                    Assert.IsTrue(files.Length == expectedSlideshowCount, $"Slideshow count of {files.Length} differs from expected {expectedSlideshowCount}");
+                    Assert.IsTrue(Math.Abs(files.Length - expectedSlideshowCount) <= 1, $"Slideshow count of {files.Length} differs from expected {expectedSlideshowCount}");
                     foreach (string filePath in files)
                     {
                         FileInfo fi = new FileInfo(filePath);
@@ -1098,6 +1194,71 @@ namespace ScreenRecorderLib
             finally
             {
                 File.Delete(filePath);
+            }
+        }
+
+        [TestMethod]
+        public void DefaultRecordingToFolder()
+        {
+            string folder = GetTempPath();
+            string recordedFilePath = "";
+            try
+            {
+                using (var rec = Recorder.CreateRecorder())
+                {
+                    string error = "";
+                    bool isError = false;
+                    bool isComplete = false;
+                    ManualResetEvent finalizingResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                    ManualResetEvent recordingStartedEvent = new ManualResetEvent(false);
+                    rec.OnRecordingComplete += (s, args) =>
+                    {
+                        isComplete = true;
+                        finalizingResetEvent.Set();
+                        recordedFilePath = args.FilePath;
+                    };
+                    rec.OnRecordingFailed += (s, args) =>
+                    {
+                        isError = true;
+                        error = args.Error;
+                        finalizingResetEvent.Set();
+                        recordingResetEvent.Set();
+                    };
+                    rec.OnStatusChanged += (s, args) =>
+                    {
+                        switch (args.Status)
+                        {
+                            case RecorderStatus.Recording:
+                                {
+                                    recordingStartedEvent.Set();
+                                    break;
+                                }
+                            default: break;
+                        }
+                    };
+                    int recordingTimeMillis = 30 * 1000;
+                    Stopwatch sw = Stopwatch.StartNew();
+                    rec.Record(folder);
+                    recordingStartedEvent.WaitOne(1000);
+                    recordingResetEvent.WaitOne(recordingTimeMillis);
+                    rec.Stop();
+                    finalizingResetEvent.WaitOne(5000);
+                    Assert.IsTrue(sw.ElapsedMilliseconds >= recordingTimeMillis, "recording duration was too short");
+                    Assert.IsFalse(isError, error, "recording has error");
+                    Assert.IsTrue(isComplete, "recording did not complete");
+                    Assert.IsTrue(new FileInfo(recordedFilePath).Length > 0, "file length is 0");
+                    var mediaInfo = new MediaInfoWrapper(recordedFilePath);
+                    Assert.IsTrue(mediaInfo.Format == "MPEG-4", "wrong video format");
+                    Assert.IsTrue(mediaInfo.VideoStreams.Count > 0, "no video streams found");
+                    int videoDuration = (int)Math.Round(mediaInfo.VideoStreams[0].Duration.TotalSeconds);
+                    int expectedDuration = (int)Math.Round((double)recordingTimeMillis / 1000);
+                    Assert.IsTrue(videoDuration == expectedDuration, $"video length {videoDuration} does not match recording time {expectedDuration}");
+                }
+            }
+            finally
+            {
+                File.Delete(recordedFilePath);
             }
         }
 

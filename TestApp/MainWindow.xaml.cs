@@ -668,6 +668,7 @@ namespace TestApp
                 }
                 OutputResultTextBlock.Text = filePath;
                 PauseButton.Visibility = Visibility.Collapsed;
+                ManualSnapshotButton.Visibility = Visibility.Collapsed;
                 RecordButton.Content = "Record";
                 RecordButton.IsEnabled = true;
                 StatusTextBlock.Text = "Error:";
@@ -690,6 +691,7 @@ namespace TestApp
 
                 OutputResultTextBlock.Text = filePath;
                 PauseButton.Visibility = Visibility.Collapsed;
+                ManualSnapshotButton.Visibility = Visibility.Collapsed;
                 RecordButton.Content = "Record";
                 RecordButton.IsEnabled = true;
                 _recordingStartTime = null;
@@ -700,7 +702,11 @@ namespace TestApp
         }
         private void Rec_OnSnapshotSaved(object sender, SnapshotSavedEventArgs e)
         {
-            //string filepath = e.SnapshotPath;
+            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
+            {
+                string filepath = e.SnapshotPath;
+                OutputResultTextBlock.Text = filepath;
+            }));
         }
         private void CleanupResources()
         {
@@ -732,6 +738,7 @@ namespace TestApp
                     case RecorderStatus.Recording:
                         _recordingStartTime = DateTimeOffset.Now;
                         PauseButton.Visibility = Visibility.Visible;
+                        ManualSnapshotButton.Visibility = Visibility.Visible;
                         this.FrameNumberPanel.Visibility = Visibility.Visible;
                         if (_recordingPauseTime != null)
                         {
@@ -1184,6 +1191,11 @@ namespace TestApp
         private void SourceComboBox_DropDownOpened(object sender, EventArgs e)
         {
             RefreshWindowSizeAndAvailability();
+        }
+
+        private void ManualSnapshotButton_Click(object sender, RoutedEventArgs e)
+        {
+            _rec?.TakeSnapshot();
         }
     }
 }

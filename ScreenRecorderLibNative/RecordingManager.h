@@ -30,9 +30,10 @@ public:
 	CallbackStatusChangedFunction RecordingStatusChangedCallback;
 	CallbackSnapshotFunction RecordingSnapshotCreatedCallback;
 	CallbackFrameNumberChangedFunction RecordingFrameNumberChangedCallback;
-	HRESULT BeginRecording(_In_opt_ std::wstring path);
-	HRESULT BeginRecording(_In_opt_ std::wstring path, _In_opt_ IStream *stream);
-	HRESULT BeginRecording(_In_opt_ IStream *stream);
+	HRESULT TakeSnapshot(_In_ std::wstring path);
+	HRESULT TakeSnapshot(_In_ IStream *stream);
+	HRESULT BeginRecording(_In_ std::wstring path);
+	HRESULT BeginRecording(_In_ IStream *stream);
 	void EndRecording();
 	void PauseRecording();
 	void ResumeRecording();
@@ -126,6 +127,10 @@ private:
 	HRESULT ConfigureOutputDir(_In_ std::wstring path);
 	REC_RESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_opt_ IStream *pStream);
 
+
+	HRESULT TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStream *pStream);
+	HRESULT BeginRecording(_In_opt_ std::wstring path, _In_opt_ IStream *pStream);
+
 	/// <summary>
 	/// Creates adjusted source and output rects from a recording frame rect. The source rect is normalized to start on [0,0], and the output is adjusted for any cropping.
 	/// </summary>
@@ -136,12 +141,28 @@ private:
 	HRESULT InitializeRects(_In_ SIZE outputSize, _Out_opt_ RECT *pAdjustedSourceRect, _Out_opt_ SIZE *pAdjustedOutputFrameSize);
 
 	/// <summary>
-	/// Save texture as image to video snapshot folder.
+	/// Save texture as snapshot image.
+	/// </summary>
+	/// <param name="pTexture">The texture to save to a snapshot</param>
+	/// <param name="snapshotPath">A file path to save the snapshot to</param>
+	/// <param name="sourceRect">The area of the texture to save. If the texture is larger, it will be cropped to these coordinates.</param>
+	/// <returns></returns>
+	HRESULT SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ std::wstring snapshotPath, _In_ RECT sourceRect);
+	/// <summary>
+	/// Save texture as snapshot image.
+	/// </summary>
+	/// <param name="pTexture">The texture to save to a snapshot</param>
+	/// <param name="pStream">A stream to save the snapshot to</param>
+	/// <param name="sourceRect">The area of the texture to save. If the texture is larger, it will be cropped to these coordinates.</param>
+	/// <returns></returns>
+	HRESULT SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ IStream *pStream, _In_ RECT sourceRect);
+	/// <summary>
+	/// Save texture as snapshot image async.
 	/// </summary>
 	/// <param name="pTexture">The texture to save to a snapshot</param>
 	/// <param name="sourceRect">The area of the texture to save. If the texture is larger, it will be cropped to these coordinates.</param>
 	/// <returns></returns>
-	HRESULT SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ RECT sourceRect);
+	void RecordingManager::SaveTextureAsVideoSnapshotAsync(_In_ ID3D11Texture2D *pTexture, _In_ std::wstring snapshotPath, _In_ RECT destRect, _In_opt_ std::function<void(HRESULT)> onCompletion);
 
 	/// <summary>
 	/// Adds overlays, mouse cursors, and texture transforms.

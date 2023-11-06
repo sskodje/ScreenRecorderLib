@@ -111,6 +111,9 @@ namespace ScreenRecorderLib {
 		void Record(System::String^ path);
 		void Record(System::Runtime::InteropServices::ComTypes::IStream^ stream);
 		void Record(System::IO::Stream^ stream);
+		bool TakeSnapshot();
+		bool TakeSnapshot(System::String^ path);
+		bool TakeSnapshot(System::IO::Stream^ stream);
 		void Pause();
 		void Resume();
 		void Stop();

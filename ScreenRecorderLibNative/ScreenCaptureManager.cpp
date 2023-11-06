@@ -206,6 +206,22 @@ HRESULT ScreenCaptureManager::StopCapture()
 	return hr;
 }
 
+HRESULT ScreenCaptureManager::CopyCurrentFrame(_Out_ CAPTURED_FRAME *pFrame)
+{
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
+	D3D11_TEXTURE2D_DESC desc;
+	m_FrameCopy->GetDesc(&desc);
+	ID3D11Texture2D *pFrameCopy;
+	RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&desc, nullptr, &pFrameCopy));
+
+	m_DeviceContext->CopyResource(pFrameCopy, m_FrameCopy);
+	RtlZeroMemory(pFrame, sizeof(pFrame));
+	pFrame->Frame = pFrameCopy;
+	pFrame->PtrInfo = m_PtrInfo;
+	pFrame->FrameUpdateCount = 0;
+}
+
 HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  double timeUntilNextFrame, _In_ double maxFrameLength, _Out_ CAPTURED_FRAME *pFrame)
 {
 	HRESULT hr;

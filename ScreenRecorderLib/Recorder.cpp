@@ -603,7 +603,24 @@ void Recorder::Resume() {
 void Recorder::Stop() {
 	m_Rec->EndRecording();
 }
-
+bool Recorder::TakeSnapshot()
+{
+	HRESULT hr = m_Rec->TakeSnapshot(L"");
+	return SUCCEEDED(hr);
+}
+bool Recorder::TakeSnapshot(System::String^ path)
+{
+	std::wstring stdPathString = msclr::interop::marshal_as<std::wstring>(path);
+	HRESULT hr = m_Rec->TakeSnapshot(stdPathString);
+	return SUCCEEDED(hr);
+}
+bool Recorder::TakeSnapshot(System::IO::Stream^ stream) {
+	ManagedIStream* interopStream = new ManagedIStream(stream);
+	HRESULT hr = m_Rec->TakeSnapshot(interopStream);
+	interopStream->Release();
+	OutputDebugStringW(L"Snapshot returning");
+	return SUCCEEDED(hr);
+}
 void Recorder::SetupCallbacks() {
 	CreateErrorCallback();
 	CreateCompletionCallback();

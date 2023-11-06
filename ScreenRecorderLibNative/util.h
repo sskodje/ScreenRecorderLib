@@ -287,21 +287,31 @@ inline bool IsFileAvailableForReading(std::wstring filePath) {
 	return false;
 }
 
-inline std::string CurrentTimeToFormattedString()
-{
-	std::chrono::system_clock::time_point p = std::chrono::system_clock::now();
-	time_t t = std::chrono::system_clock::to_time_t(p);
-	struct tm newTime;
-	auto err = localtime_s(&newTime, &t);
+inline std::string CurrentTimeToFormattedString(bool withMilliseconds = false) {
+	SYSTEMTIME systemTime;
+	GetSystemTime(&systemTime);
 
-	std::stringstream ss;
-	if (err)
-		ss << "NEW";
-	else
-		ss << std::put_time(&newTime, "%Y-%m-%d %X");
-	std::string time = ss.str();
-	std::replace(time.begin(), time.end(), ':', '-');
-	return time;
+	FILETIME fileTime;
+	SystemTimeToFileTime(&systemTime, &fileTime);
+
+	// Convert the FILETIME to 100-nanosecond intervals since January 1, 1601
+	ULARGE_INTEGER largeInteger;
+	largeInteger.LowPart = fileTime.dwLowDateTime;
+	largeInteger.HighPart = fileTime.dwHighDateTime;
+	unsigned long long fileTime100ns = largeInteger.QuadPart;
+
+	// Convert 100-nanosecond intervals to milliseconds (divide by 10,000)
+	unsigned long long milliseconds = fileTime100ns / 10000;
+
+	// Format the time as a string with three decimal places for milliseconds
+	std::ostringstream timeStream;
+	timeStream << std::setfill('0') << std::setw(2) << systemTime.wHour << "-"
+		<< std::setfill('0') << std::setw(2) << systemTime.wMinute << "-"
+		<< std::setfill('0') << std::setw(2) << systemTime.wSecond << ".";
+	if (withMilliseconds) {
+		timeStream << std::setfill('0') << std::setw(3) << (milliseconds % 1000);
+	}
+	return timeStream.str();
 }
 
 UINT GetSystemDpi();

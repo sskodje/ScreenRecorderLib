@@ -15,16 +15,17 @@ public:
 	ScreenCaptureManager();
 	virtual ~ScreenCaptureManager();
 	virtual HRESULT Initialize(
-		_In_ ID3D11DeviceContext *pDeviceContext, 
+		_In_ ID3D11DeviceContext *pDeviceContext,
 		_In_ ID3D11Device *pDevice,
 		_In_ std::shared_ptr<OUTPUT_OPTIONS> pOutputOptions,
-		_In_ std::shared_ptr<ENCODER_OPTIONS> pEncoderOptions, 
+		_In_ std::shared_ptr<ENCODER_OPTIONS> pEncoderOptions,
 		_In_ std::shared_ptr<MOUSE_OPTIONS> pMouseOptions);
 	virtual inline PTR_INFO *GetPointerInfo() {
 		return &m_PtrInfo;
 	}
 	virtual RECT GetOutputRect() { return m_OutputRect; }
 	virtual SIZE GetOutputSize() { return SIZE{ RectWidth(m_OutputRect),RectHeight(m_OutputRect) }; }
+	virtual HRESULT CopyCurrentFrame(_Out_ CAPTURED_FRAME *pFrame);
 	virtual HRESULT AcquireNextFrame(_In_  double timeUntilNextFrame, _In_ double maxFrameLength, _Out_ CAPTURED_FRAME *pFrame);
 	virtual HRESULT StartCapture(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hErrorEvent);
 	virtual HRESULT StopCapture();

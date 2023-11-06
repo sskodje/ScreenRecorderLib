@@ -265,31 +265,6 @@ HRESULT OutputManager::WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopI
 {
 	return SaveWICTextureToStream(m_DeviceContext, pAcquiredDesktopImage, GetSnapshotOptions()->GetSnapshotEncoderFormat(), pStream);
 }
-void OutputManager::WriteTextureToImageAsync(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath, _In_opt_ std::function<void(HRESULT)> onCompletion)
-{
-	pAcquiredDesktopImage->AddRef();
-	Concurrency::create_task([this, pAcquiredDesktopImage, filePath, onCompletion]() {
-		return WriteFrameToImage(pAcquiredDesktopImage, filePath);
-	   }).then([this, filePath, pAcquiredDesktopImage, onCompletion](concurrency::task<HRESULT> t)
-		   {
-			   HRESULT hr;
-			   try {
-				   hr = t.get();
-				   // if .get() didn't throw and the HRESULT succeeded, there are no errors.
-			   }
-			   catch (const exception &e) {
-				   // handle error
-				   LOG_ERROR(L"Exception saving snapshot: %s", s2ws(e.what()).c_str());
-				   hr = E_FAIL;
-			   }
-			   pAcquiredDesktopImage->Release();
-			   if (onCompletion) {
-				   std::invoke(onCompletion, hr);
-			   }
-			   return hr;
-		   });
-}
-
 HRESULT OutputManager::StartMediaClock()
 {
 	return m_PresentationClock->Start(0);

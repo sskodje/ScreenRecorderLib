@@ -158,9 +158,9 @@ HRESULT RecordingManager::ConfigureOutputDir(_In_ std::wstring path) {
 			LPWSTR pStrExtension = PathFindExtension(path.c_str());
 			if (pStrExtension == nullptr || pStrExtension[0] == 0)
 			{
-				m_OutputFullPath = m_OutputFolder + L"\\" + s2ws(CurrentTimeToFormattedString()) + ext;
+				m_OutputFullPath = m_OutputFolder + L"\\" + s2ws(CurrentTimeToFormattedString(true)) + ext;
 			}
-			if (m_SnapshotOptions->IsSnapshotWithVideoEnabled() && m_SnapshotOptions->GetSnapshotsDirectory().empty()) {
+			if (m_SnapshotOptions->GetSnapshotsDirectory().empty()) {
 				// Snapshots will be saved in a folder named as video file name without extension. 
 				m_SnapshotOptions->SetSnapshotDirectory(m_OutputFullPath.substr(0, m_OutputFullPath.find_last_of(L".")));
 			}
@@ -184,11 +184,62 @@ HRESULT RecordingManager::ConfigureOutputDir(_In_ std::wstring path) {
 	return S_OK;
 }
 
-HRESULT RecordingManager::BeginRecording(_In_opt_ IStream *stream) {
+HRESULT RecordingManager::TakeSnapshot(_In_ std::wstring path)
+{
+	if (path.empty()) {
+		if (!GetSnapshotOptions()->GetSnapshotsDirectory().empty())
+		{
+			path = GetSnapshotOptions()->GetSnapshotsDirectory() + L"\\" + s2ws(CurrentTimeToFormattedString(true)) + GetSnapshotOptions()->GetImageExtension();
+		}
+	}
+	return TakeSnapshot(path, nullptr);
+}
+
+HRESULT RecordingManager::TakeSnapshot(_In_ IStream *stream)
+{
+	return TakeSnapshot(L"", stream);
+}
+
+HRESULT RecordingManager::TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStream *stream) {
+	if (!m_IsRecording) {
+		return E_NOT_VALID_STATE;
+	}
+	CAPTURED_FRAME capturedFrame{};
+	HRESULT hr = m_CaptureManager->CopyCurrentFrame(&capturedFrame);
+	RETURN_ON_BAD_HR(hr);
+	CComPtr<ID3D11Texture2D> processedTexture;
+	hr = ProcessTexture(capturedFrame.Frame, &processedTexture, capturedFrame.PtrInfo);
+	SafeRelease(&capturedFrame.Frame);
+	RECT videoInputFrameRect{};
+	RETURN_ON_BAD_HR(hr = InitializeRects(m_CaptureManager->GetOutputSize(), &videoInputFrameRect, nullptr));
+
+	if (!path.empty()) {
+		RETURN_ON_BAD_HR(hr = SaveTextureAsVideoSnapshot(processedTexture, path, videoInputFrameRect));
+		LOG_TRACE(L"Wrote snapshot to %s", path.c_str());
+		if (RecordingSnapshotCreatedCallback != nullptr) {
+			RecordingSnapshotCreatedCallback(path);
+		}
+	}
+	else if (stream) {
+		RETURN_ON_BAD_HR(hr = SaveTextureAsVideoSnapshot(processedTexture, stream, videoInputFrameRect));
+		LOG_TRACE(L"Wrote snapshot to stream");
+		if (RecordingSnapshotCreatedCallback != nullptr) {
+			RecordingSnapshotCreatedCallback(L"");
+		}
+	}
+	else {
+		LOG_ERROR("Snapshot failed: No valid stream or path provided.");
+		hr = E_INVALIDARG;
+	}
+
+	return hr;
+}
+
+HRESULT RecordingManager::BeginRecording(_In_ IStream *stream) {
 	return BeginRecording(L"", stream);
 }
 
-HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path) {
+HRESULT RecordingManager::BeginRecording(_In_ std::wstring path) {
 	return BeginRecording(path, nullptr);
 }
 
@@ -470,13 +521,26 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 		if (recorderMode == RecorderModeInternal::Video) {
 			if (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()) {
-				if (SUCCEEDED(renderHr = SaveTextureAsVideoSnapshot(pTextureToRender, videoInputFrameRect))) {
-					previousSnapshotTaken = steady_clock::now();
-				}
-				else {
-					_com_error err(renderHr);
-					LOG_ERROR("Error saving video snapshot: %ls", err.ErrorMessage());
-				}
+				if (GetSnapshotOptions()->GetSnapshotsDirectory().empty())
+					return S_FALSE;
+				wstring snapshotPath = GetSnapshotOptions()->GetSnapshotsDirectory() + L"\\" + s2ws(CurrentTimeToFormattedString(true)) + GetSnapshotOptions()->GetImageExtension();
+				SaveTextureAsVideoSnapshotAsync(pTextureToRender, snapshotPath, videoInputFrameRect, ([this, snapshotPath, &previousSnapshotTaken](HRESULT hr) {
+					if (m_TaskWrapperImpl->m_RecordTaskCts.get_token().is_canceled()) {
+						return;
+					}
+					bool success = SUCCEEDED(hr);
+					if (success) {
+						LOG_TRACE(L"Wrote snapshot to %s", snapshotPath.c_str());
+						if (RecordingSnapshotCreatedCallback != nullptr) {
+							RecordingSnapshotCreatedCallback(snapshotPath);
+						}
+					}
+					else {
+						_com_error err(hr);
+						LOG_ERROR("Error saving snapshot: %s", err.ErrorMessage());
+					}
+					}));
+				previousSnapshotTaken = steady_clock::now();
 			}
 		}
 
@@ -502,7 +566,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 		lastFrameStartPos100Nanos += duration100Nanos;
 		return renderHr;
-	});
+					});
 
 	auto RestartCapture([&](CAPTURE_RESULT *result) {
 		//Stop existing capture
@@ -748,14 +812,33 @@ bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
 	*error = errorText;
 	return result;
 }
-
-
-HRESULT RecordingManager::SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ RECT destRect)
+void RecordingManager::SaveTextureAsVideoSnapshotAsync(_In_ ID3D11Texture2D *pTexture, _In_ std::wstring snapshotPath, _In_ RECT destRect, _In_opt_ std::function<void(HRESULT)> onCompletion)
 {
-	if (GetSnapshotOptions()->GetSnapshotsDirectory().empty())
-		return S_FALSE;
+	pTexture->AddRef();
+	Concurrency::create_task([this, pTexture, snapshotPath, destRect, onCompletion]() {
+		return SaveTextureAsVideoSnapshot(pTexture, snapshotPath, destRect);
+	   }).then([this, snapshotPath, pTexture, destRect, onCompletion](concurrency::task<HRESULT> t)
+		   {
+			   HRESULT hr;
+			   try {
+				   hr = t.get();
+				   // if .get() didn't throw and the HRESULT succeeded, there are no errors.
+			   }
+			   catch (const exception &e) {
+				   // handle error
+				   LOG_ERROR(L"Exception saving snapshot: %s", s2ws(e.what()).c_str());
+				   hr = E_FAIL;
+			   }
+			   pTexture->Release();
+			   if (onCompletion) {
+				   std::invoke(onCompletion, hr);
+			   }
+			   return hr;
+		   });
+}
 
-	HRESULT hr = S_OK;
+HRESULT RecordingManager::SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ std::wstring snapshotPath, _In_ RECT destRect)
+{
 	CComPtr<ID3D11Texture2D> pProcessedTexture = nullptr;
 	D3D11_TEXTURE2D_DESC frameDesc;
 	pTexture->GetDesc(&frameDesc);
@@ -764,31 +847,34 @@ HRESULT RecordingManager::SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pText
 	if ((int)frameDesc.Width > RectWidth(destRect)
 		|| (int)frameDesc.Height > RectHeight(destRect)) {
 		//If the source frame is larger than the destionation rect, we crop it, to avoid black borders around the snapshots.
-		RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(pTexture, destRect, &pProcessedTexture));
+		RETURN_ON_BAD_HR(m_TextureManager->CropTexture(pTexture, destRect, &pProcessedTexture));
 	}
 	else {
-		RETURN_ON_BAD_HR(hr = m_DxResources.Device->CreateTexture2D(&frameDesc, nullptr, &pProcessedTexture));
+		RETURN_ON_BAD_HR(m_DxResources.Device->CreateTexture2D(&frameDesc, nullptr, &pProcessedTexture));
 		// Copy the current frame for a separate thread to write it to a file asynchronously.
 		m_DxResources.Context->CopyResource(pProcessedTexture, pTexture);
 	}
+	return m_OutputManager->WriteFrameToImage(pProcessedTexture, snapshotPath.c_str());
+}
 
-	wstring snapshotPath = GetSnapshotOptions()->GetSnapshotsDirectory() + L"\\" + s2ws(CurrentTimeToFormattedString()) + GetSnapshotOptions()->GetImageExtension();
-	m_OutputManager->WriteTextureToImageAsync(pProcessedTexture, snapshotPath.c_str(), ([this, snapshotPath](HRESULT hr) {
-		if (!m_TaskWrapperImpl->m_RecordTaskCts.get_token().is_canceled()) {
-			bool success = SUCCEEDED(hr);
-			if (success) {
-				LOG_TRACE(L"Wrote snapshot to %s", snapshotPath.c_str());
-				if (RecordingSnapshotCreatedCallback != nullptr) {
-					RecordingSnapshotCreatedCallback(snapshotPath);
-				}
-			}
-			else {
-				_com_error err(hr);
-				LOG_ERROR("Error saving snapshot: %s", err.ErrorMessage());
-			}
-		}
-		}));
-	return hr;
+HRESULT RecordingManager::SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ IStream *pStream, _In_ RECT destRect)
+{
+	CComPtr<ID3D11Texture2D> pProcessedTexture = nullptr;
+	D3D11_TEXTURE2D_DESC frameDesc;
+	pTexture->GetDesc(&frameDesc);
+	int destWidth = RectWidth(destRect);
+	int destHeight = RectHeight(destRect);
+	if ((int)frameDesc.Width > RectWidth(destRect)
+		|| (int)frameDesc.Height > RectHeight(destRect)) {
+		//If the source frame is larger than the destionation rect, we crop it, to avoid black borders around the snapshots.
+		RETURN_ON_BAD_HR(m_TextureManager->CropTexture(pTexture, destRect, &pProcessedTexture));
+	}
+	else {
+		RETURN_ON_BAD_HR(m_DxResources.Device->CreateTexture2D(&frameDesc, nullptr, &pProcessedTexture));
+		// Copy the current frame for a separate thread to write it to a file asynchronously.
+		m_DxResources.Context->CopyResource(pProcessedTexture, pTexture);
+	}
+	return m_OutputManager->WriteFrameToImage(pProcessedTexture, pStream);
 }
 
 HRESULT RecordingManager::ProcessTexture(_In_ ID3D11Texture2D *pTexture, _Out_ ID3D11Texture2D **ppProcessedTexture, _In_opt_ std::optional<PTR_INFO> pPtrInfo = std::nullopt)
