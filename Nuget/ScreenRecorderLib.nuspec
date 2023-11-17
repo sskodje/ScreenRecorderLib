@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
     <id>ScreenRecorderLib</id>
-    <version>5.3.1</version>
+    <version>5.4.0</version>
     <authors>Sverre Kristoffer Skodje</authors>
     <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
@@ -10,9 +10,7 @@
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to video or image files.</description>
     <summary />
     <releaseNotes>
-- Fixed wrong mouse cursor render position when cropping input.
-- Fixed crash on load on Windows Server 2016.
-- Fixed broken "polling mode" when using mouse click detection.
+- Added functionality to manually take snapshot images to a file path or stream, while recording.
     </releaseNotes>
     <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
     <language>en-GB</language>
