@@ -111,6 +111,7 @@ private:
 	std::wstring m_OutputFolder = L"";
 	std::wstring m_OutputFullPath = L"";
 	double m_MaxFrameLengthMillis = 500;
+	int m_RestartCaptureCount = 0;
 
 	std::vector<RECORDING_SOURCE *> m_RecordingSources;
 	std::vector<RECORDING_OVERLAY *> m_Overlays;

@@ -9,6 +9,8 @@
 #include "GifReader.h"
 #include <typeinfo>
 #include "DynamicWait.h"
+#include "Exception.h"
+
 using namespace DirectX;
 using namespace std::chrono;
 using namespace std;
@@ -739,7 +741,7 @@ HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ RECT desktopRect, _Outptr_ I
 DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 {
 	HRESULT hr = E_FAIL;
-
+	_set_se_translator(ExceptionTranslator);
 	// Data passed in from thread creation
 	CAPTURE_THREAD_DATA *pData = static_cast<CAPTURE_THREAD_DATA *>(Param);
 	RECORDING_SOURCE_DATA *pSourceData = pData->RecordingSource;
@@ -758,97 +760,171 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	//This scope must be here for ReleaseOnExit to work.
 Start:
 	{
-		std::unique_ptr<CaptureBase> pRecordingSourceCapture = nullptr;
-		// D3D objects
-		CComPtr<ID3D11Texture2D> SharedSurf = nullptr;
-		CComPtr<IDXGIKeyedMutex> KeyMutex = nullptr;
-		SetEvent(pData->StartedEvent);
+		try
+		{
+			std::unique_ptr<CaptureBase> pRecordingSourceCapture = nullptr;
+			// D3D objects
+			CComPtr<ID3D11Texture2D> SharedSurf = nullptr;
+			CComPtr<IDXGIKeyedMutex> KeyMutex = nullptr;
+			SetEvent(pData->StartedEvent);
 
-		if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
-			hr = S_OK;
-			goto Exit;
-		}
-
-		hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
-		if (FAILED(hr)) {
-			goto Exit;
-		}
-
-		pRecordingSourceCapture.reset(CreateCaptureInstance(pSource));
-		if (!pRecordingSourceCapture) {
-			LOG_ERROR(L"Failed to create recording source");
-			hr = E_FAIL;
-			goto Exit;
-		}
-
-		// Obtain handle to sync shared Surface
-		hr = pSourceData->DxRes.Device->OpenSharedResource(pData->CanvasTexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Opening shared texture failed");
-			goto Exit;
-		}
-		hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&KeyMutex));
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");
-			goto Exit;
-		}
-		// Make duplication
-		hr = pRecordingSourceCapture->Initialize(pSourceData->DxRes.Context, pSourceData->DxRes.Device);
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Failed to initialize recording source %ls", pRecordingSourceCapture->Name().c_str());
-			goto Exit;
-		}
-		hr = pRecordingSourceCapture->StartCapture(*pSource);
-
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Failed to start capture");
-			goto Exit;
-		}
-		TextureManager textureManager{};
-		hr = textureManager.Initialize(pSourceData->DxRes.Context, pSourceData->DxRes.Device);
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Failed to initialize TextureManager");
-			goto Exit;
-		}
-		ExecuteFuncOnExit blankFrameOnExit([&]() {
-			if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) != WAIT_OBJECT_0) {
-				if (KeyMutex->AcquireSync(0, 500) == S_OK) {
-					textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-					KeyMutex->ReleaseSync(1);
-				}
-			}
-		});
-		*pData->ThreadResult = {};
-		pData->ThreadResult->RecordingResult = S_OK;
-		// Main duplication loop
-		std::chrono::steady_clock::time_point WaitForFrameBegin = (std::chrono::steady_clock::time_point::min)();
-		while (true)
-		{
 			if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
 				hr = S_OK;
-				break;
+				goto Exit;
 			}
-			if (!isCapturingVideo) {
-				Sleep(1);
-				if (pSource->IsVideoCaptureEnabled.value_or(true)) {
-					isCapturingVideo = true;
-					isSharedSurfaceDirty = true;
-				}
-				continue;
+
+			hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
+			if (FAILED(hr)) {
+				goto Exit;
 			}
-			CComPtr<ID3D11Texture2D> pFrame = nullptr;
-			if (!waitToProcessCurrentFrame)
+
+			pRecordingSourceCapture.reset(CreateCaptureInstance(pSource));
+			if (!pRecordingSourceCapture) {
+				LOG_ERROR(L"Failed to create recording source");
+				hr = E_FAIL;
+				goto Exit;
+			}
+
+			// Obtain handle to sync shared Surface
+			hr = pSourceData->DxRes.Device->OpenSharedResource(pData->CanvasTexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
+			if (FAILED(hr))
 			{
-				if (isSharedSurfaceDirty) {
-					hr = pRecordingSourceCapture->AcquireNextFrame(10, &pFrame);
+				LOG_ERROR(L"Opening shared texture failed");
+				goto Exit;
+			}
+			hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&KeyMutex));
+			if (FAILED(hr))
+			{
+				LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");
+				goto Exit;
+			}
+			// Make duplication
+			hr = pRecordingSourceCapture->Initialize(pSourceData->DxRes.Context, pSourceData->DxRes.Device);
+			if (FAILED(hr))
+			{
+				LOG_ERROR(L"Failed to initialize recording source %ls", pRecordingSourceCapture->Name().c_str());
+				goto Exit;
+			}
+			hr = pRecordingSourceCapture->StartCapture(*pSource);
+
+			if (FAILED(hr))
+			{
+				LOG_ERROR(L"Failed to start capture");
+				goto Exit;
+			}
+			TextureManager textureManager{};
+			hr = textureManager.Initialize(pSourceData->DxRes.Context, pSourceData->DxRes.Device);
+			if (FAILED(hr))
+			{
+				LOG_ERROR(L"Failed to initialize TextureManager");
+				goto Exit;
+			}
+			ExecuteFuncOnExit blankFrameOnExit([&]() {
+				if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) != WAIT_OBJECT_0) {
+					if (KeyMutex->AcquireSync(0, 500) == S_OK) {
+						textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+						KeyMutex->ReleaseSync(1);
+					}
+				}
+			});
+			*pData->ThreadResult = {};
+			pData->ThreadResult->RecordingResult = S_OK;
+			// Main duplication loop
+			std::chrono::steady_clock::time_point WaitForFrameBegin = (std::chrono::steady_clock::time_point::min)();
+			while (true)
+			{
+				if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
+					hr = S_OK;
+					break;
+				}
+				if (!isCapturingVideo) {
+					Sleep(1);
+					if (pSource->IsVideoCaptureEnabled.value_or(true)) {
+						isCapturingVideo = true;
+						isSharedSurfaceDirty = true;
+					}
+					continue;
+				}
+				CComPtr<ID3D11Texture2D> pFrame = nullptr;
+				if (!waitToProcessCurrentFrame)
+				{
+					if (isSharedSurfaceDirty) {
+						hr = pRecordingSourceCapture->AcquireNextFrame(10, &pFrame);
+					}
+					else {
+						hr = pRecordingSourceCapture->AcquireNextFrame(10, nullptr);
+					}
+					if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+						continue;
+					}
+					else if (FAILED(hr)) {
+						break;
+					}
+				}
+				{
+					MeasureExecutionTime measure(L"CaptureThreadProc wait for sync");
+					// We have a new frame so try and process it
+					// Try to acquire keyed mutex in order to access shared surface
+					hr = KeyMutex->AcquireSync(0, 1);
+				}
+				if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
+				{
+					// Can't use shared surface right now, try again later
+					if (!waitToProcessCurrentFrame) {
+						WaitForFrameBegin = chrono::steady_clock::now();
+					}
+					waitToProcessCurrentFrame = true;
+					continue;
+				}
+				else if (FAILED(hr))
+				{
+					// Generic unknown failure
+					LOG_ERROR(L"Unexpected error acquiring KeyMutex");
+					break;
+				}
+#if MEASURE_EXECUTION_TIME
+				MeasureExecutionTime measureLock(string_format(L"CaptureThreadProc sync lock for %ls", pRecordingSourceCapture->Name().c_str()));
+#endif
+				ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
+
+				// We can now process the current frame
+				if (waitToProcessCurrentFrame) {
+					waitToProcessCurrentFrame = false;
+					LONGLONG waitTimeMillis = duration_cast<milliseconds>(chrono::steady_clock::now() - WaitForFrameBegin).count();
+					//If the capture has been waiting for an excessive time to draw a frame, we assume the frame is stale, and drop it.
+					if (pData->TotalUpdatedFrameCount > 0 && waitTimeMillis > 1000) {
+						isSharedSurfaceDirty = true;
+						LOG_DEBUG("Dropped %ls frame because wait time exceeded limit", pRecordingSourceCapture->Name().c_str());
+						continue;
+					}
+					LOG_TRACE(L"CaptureThreadProc waited for busy shared surface for %lld ms", waitTimeMillis);
+				}
+				if (pSource->IsCursorCaptureEnabled.value_or(true)) {
+					// Get mouse info
+					hr = pRecordingSourceCapture->GetMouse(pData->PtrInfo, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+					if (FAILED(hr)) {
+						LOG_ERROR("Failed to get mouse data");
+					}
+				}
+				else if (pData->PtrInfo) {
+					pData->PtrInfo->Visible = false;
+				}
+
+				if (pSource->IsVideoCaptureEnabled.value_or(true)) {
+					if (isSharedSurfaceDirty && pFrame) {
+						//The screen has been blacked out, so we restore a full frame to the shared surface before starting to apply updates.
+						RECT offsetFrameCoordinates = pSourceData->FrameCoordinates;
+						OffsetRect(&offsetFrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+						hr = textureManager.DrawTexture(SharedSurf, pFrame, offsetFrameCoordinates);
+						isSharedSurfaceDirty = false;
+					}
+					hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates);
 				}
 				else {
-					hr = pRecordingSourceCapture->AcquireNextFrame(10, nullptr);
+					hr = textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+					if (SUCCEEDED(hr)) {
+						isCapturingVideo = false;
+					}
 				}
 				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
 					continue;
@@ -856,84 +932,18 @@ Start:
 				else if (FAILED(hr)) {
 					break;
 				}
-			}
-			{
-				MeasureExecutionTime measure(L"CaptureThreadProc wait for sync");
-				// We have a new frame so try and process it
-				// Try to acquire keyed mutex in order to access shared surface
-				hr = KeyMutex->AcquireSync(0, 1);
-			}
-			if (hr == static_cast<HRESULT>(WAIT_TIMEOUT))
-			{
-				// Can't use shared surface right now, try again later
-				if (!waitToProcessCurrentFrame) {
-					WaitForFrameBegin = chrono::steady_clock::now();
-				}
-				waitToProcessCurrentFrame = true;
-				continue;
-			}
-			else if (FAILED(hr))
-			{
-				// Generic unknown failure
-				LOG_ERROR(L"Unexpected error acquiring KeyMutex");
-				break;
-			}
-#if MEASURE_EXECUTION_TIME
-			MeasureExecutionTime measureLock(string_format(L"CaptureThreadProc sync lock for %ls", pRecordingSourceCapture->Name().c_str()));
-#endif
-			ReleaseKeyedMutexOnExit releaseMutex(KeyMutex, 1);
-
-			// We can now process the current frame
-			if (waitToProcessCurrentFrame) {
-				waitToProcessCurrentFrame = false;
-				LONGLONG waitTimeMillis = duration_cast<milliseconds>(chrono::steady_clock::now() - WaitForFrameBegin).count();
-				//If the capture has been waiting for an excessive time to draw a frame, we assume the frame is stale, and drop it.
-				if (pData->TotalUpdatedFrameCount > 0 && waitTimeMillis > 1000) {
-					isSharedSurfaceDirty = true;
-					LOG_DEBUG("Dropped %ls frame because wait time exceeded limit", pRecordingSourceCapture->Name().c_str());
+				else if (hr == S_FALSE) {
 					continue;
 				}
-				LOG_TRACE(L"CaptureThreadProc waited for busy shared surface for %lld ms", waitTimeMillis);
+				pData->TotalUpdatedFrameCount++;
+				QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
 			}
-			if (pSource->IsCursorCaptureEnabled.value_or(true)) {
-				// Get mouse info
-				hr = pRecordingSourceCapture->GetMouse(pData->PtrInfo, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-				if (FAILED(hr)) {
-					LOG_ERROR("Failed to get mouse data");
-				}
-			}
-			else if (pData->PtrInfo) {
-				pData->PtrInfo->Visible = false;
-			}
-
-			if (pSource->IsVideoCaptureEnabled.value_or(true)) {
-				if (isSharedSurfaceDirty && pFrame) {
-					//The screen has been blacked out, so we restore a full frame to the shared surface before starting to apply updates.
-					RECT offsetFrameCoordinates = pSourceData->FrameCoordinates;
-					OffsetRect(&offsetFrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-					hr = textureManager.DrawTexture(SharedSurf, pFrame, offsetFrameCoordinates);
-					isSharedSurfaceDirty = false;
-				}
-				hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates);
-			}
-			else {
-				hr = textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-				if (SUCCEEDED(hr)) {
-					isCapturingVideo = false;
-				}
-			}
-
-			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-				continue;
-			}
-			else if (FAILED(hr)) {
-				break;
-			}
-			else if (hr == S_FALSE) {
-				continue;
-			}
-			pData->TotalUpdatedFrameCount++;
-			QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
+		}
+		catch (const AccessViolationException &ex) {
+			hr = EXCEPTION_ACCESS_VIOLATION;
+		}
+		catch (...) {
+			hr = E_UNEXPECTED;
 		}
 	}
 Exit:
@@ -981,6 +991,7 @@ Exit:
 
 DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 	HRESULT hr = E_FAIL;
+	_set_se_translator(ExceptionTranslator);
 	// Data passed in from thread creation
 	OVERLAY_THREAD_DATA *pData = static_cast<OVERLAY_THREAD_DATA *>(Param);
 
@@ -997,118 +1008,129 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 	bool IsCapturingVideo = true;
 Start:
 	{
-		unique_ptr<CaptureBase> overlayCapture = nullptr;
-		// D3D objects
-		CComPtr<ID3D11Texture2D> pSharedTexture = nullptr;
-		CComPtr<ID3D11Texture2D> pCurrentFrame = nullptr;
-		CComPtr<ID3D11Texture2D> SharedSurf = nullptr;
-		CComPtr<IDXGIKeyedMutex> KeyMutex = nullptr;
-
-		SetEvent(pData->StartedEvent);
-
-		if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
-			hr = S_OK;
-			goto Exit;
-		}
-
-		hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
-		if (FAILED(hr)) {
-			goto Exit;
-		}
-
-		overlayCapture.reset(CreateCaptureInstance(pOverlay));
-		if (!overlayCapture) {
-			LOG_ERROR(L"Failed to create recording source");
-			goto Exit;
-		}
-
-		hr = overlayCapture->Initialize(pOverlayData->DxRes.Context, pOverlayData->DxRes.Device);
-		hr = overlayCapture->StartCapture(*pOverlay);
-		if (FAILED(hr))
+		try
 		{
-			goto Exit;
-		}
+			unique_ptr<CaptureBase> overlayCapture = nullptr;
+			// D3D objects
+			CComPtr<ID3D11Texture2D> pSharedTexture = nullptr;
+			CComPtr<ID3D11Texture2D> pCurrentFrame = nullptr;
+			CComPtr<ID3D11Texture2D> SharedSurf = nullptr;
+			CComPtr<IDXGIKeyedMutex> KeyMutex = nullptr;
 
-		// Obtain handle to sync shared Surface
-		hr = pOverlayData->DxRes.Device->OpenSharedResource(pData->CanvasTexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Opening shared texture failed");
-			goto Exit;
-		}
-		hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&KeyMutex));
-		if (FAILED(hr))
-		{
-			LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");
-			goto Exit;
-		}
+			SetEvent(pData->StartedEvent);
 
-		ExecuteFuncOnExit blankFrameOnExit([&]() {
-			if (pSharedTexture) {
-				D3D11_TEXTURE2D_DESC desc;
-				pSharedTexture->GetDesc(&desc);
-				CComPtr<ID3D11Texture2D> pBlankTexture;
-				pOverlayData->DxRes.Device->CreateTexture2D(&desc, nullptr, &pBlankTexture);
-				pOverlayData->DxRes.Context->CopyResource(pSharedTexture, pBlankTexture);
-			}
-		});
-
-		*pData->ThreadResult = {};
-		pData->ThreadResult->RecordingResult = S_OK;
-		// Main capture loop
-		while (true)
-		{
 			if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
 				hr = S_OK;
-				break;
-			}
-			if (!IsCapturingVideo) {
-				Sleep(1);
-				IsCapturingVideo = pOverlay->IsVideoCaptureEnabled.value_or(true);
-				continue;
-			}
-			pCurrentFrame.Release();
-			// Get new frame from video capture
-			hr = overlayCapture->AcquireNextFrame(10, &pCurrentFrame);
-			if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-				continue;
-			}
-			else if (FAILED(hr)) {
-				break;
+				goto Exit;
 			}
 
-			if (pSharedTexture == nullptr) {
-				D3D11_TEXTURE2D_DESC desc;
-				pCurrentFrame->GetDesc(&desc);
-				desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-				desc.SampleDesc.Count = 1;
-				desc.Usage = D3D11_USAGE_DEFAULT;
-				desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-				desc.CPUAccessFlags = 0;
-				desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
-				pOverlayData->DxRes.Device->CreateTexture2D(&desc, nullptr, &pSharedTexture);
-				HANDLE sharedHandle = GetSharedHandle(pSharedTexture);
-				pData->OverlayTexSharedHandle = sharedHandle;
+			hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
+			if (FAILED(hr)) {
+				goto Exit;
 			}
 
-			if (!pOverlay->IsVideoCaptureEnabled.value_or(true)) {
-				D3D11_TEXTURE2D_DESC desc;
-				pCurrentFrame->GetDesc(&desc);
+			overlayCapture.reset(CreateCaptureInstance(pOverlay));
+			if (!overlayCapture) {
+				LOG_ERROR(L"Failed to create recording source");
+				goto Exit;
+			}
+
+			hr = overlayCapture->Initialize(pOverlayData->DxRes.Context, pOverlayData->DxRes.Device);
+			hr = overlayCapture->StartCapture(*pOverlay);
+			if (FAILED(hr))
+			{
+				goto Exit;
+			}
+
+			// Obtain handle to sync shared Surface
+			hr = pOverlayData->DxRes.Device->OpenSharedResource(pData->CanvasTexSharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&SharedSurf));
+			if (FAILED(hr))
+			{
+				LOG_ERROR(L"Opening shared texture failed");
+				goto Exit;
+			}
+			hr = SharedSurf->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&KeyMutex));
+			if (FAILED(hr))
+			{
+				LOG_ERROR(L"Failed to get keyed mutex interface in spawned thread");
+				goto Exit;
+			}
+
+			ExecuteFuncOnExit blankFrameOnExit([&]() {
+				if (pSharedTexture) {
+					D3D11_TEXTURE2D_DESC desc;
+					pSharedTexture->GetDesc(&desc);
+					CComPtr<ID3D11Texture2D> pBlankTexture;
+					pOverlayData->DxRes.Device->CreateTexture2D(&desc, nullptr, &pBlankTexture);
+					pOverlayData->DxRes.Context->CopyResource(pSharedTexture, pBlankTexture);
+				}
+			});
+
+			*pData->ThreadResult = {};
+			pData->ThreadResult->RecordingResult = S_OK;
+			// Main capture loop
+			while (true)
+			{
+				if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
+					hr = S_OK;
+					break;
+				}
+				if (!IsCapturingVideo) {
+					Sleep(1);
+					IsCapturingVideo = pOverlay->IsVideoCaptureEnabled.value_or(true);
+					continue;
+				}
 				pCurrentFrame.Release();
-				pOverlayData->DxRes.Device->CreateTexture2D(&desc, nullptr, &pCurrentFrame);
-				IsCapturingVideo = false;
-			}
+				// Get new frame from video capture
+				hr = overlayCapture->AcquireNextFrame(10, &pCurrentFrame);
+				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+					continue;
+				}
+				else if (FAILED(hr)) {
+					break;
+				}
 
-			pOverlayData->DxRes.Context->CopyResource(pSharedTexture, pCurrentFrame);
-			//If a shared texture is updated on one device ID3D11DeviceContext::Flush must be called on that device. 
-			//https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-opensharedresource
-			pOverlayData->DxRes.Context->Flush();
-			QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
-			// Try to acquire keyed mutex in order to access shared surface. The timeout value is 0, and we just continue if we don't get a lock.
-			// This is just used to notify the rendering loop about updated overlays, so no reason to wait around if it's already updating.
-			if (KeyMutex->AcquireSync(0, 0) == S_OK) {
-				KeyMutex->ReleaseSync(1);
+				if (pSharedTexture == nullptr) {
+					D3D11_TEXTURE2D_DESC desc;
+					pCurrentFrame->GetDesc(&desc);
+					desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+					desc.SampleDesc.Count = 1;
+					desc.Usage = D3D11_USAGE_DEFAULT;
+					desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+					desc.CPUAccessFlags = 0;
+					desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+					pOverlayData->DxRes.Device->CreateTexture2D(&desc, nullptr, &pSharedTexture);
+					HANDLE sharedHandle = GetSharedHandle(pSharedTexture);
+					pData->OverlayTexSharedHandle = sharedHandle;
+				}
+
+				if (!pOverlay->IsVideoCaptureEnabled.value_or(true)) {
+					D3D11_TEXTURE2D_DESC desc;
+					pCurrentFrame->GetDesc(&desc);
+					pCurrentFrame.Release();
+					pOverlayData->DxRes.Device->CreateTexture2D(&desc, nullptr, &pCurrentFrame);
+					IsCapturingVideo = false;
+				}
+
+				pOverlayData->DxRes.Context->CopyResource(pSharedTexture, pCurrentFrame);
+				//If a shared texture is updated on one device ID3D11DeviceContext::Flush must be called on that device. 
+				//https://docs.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-opensharedresource
+				pOverlayData->DxRes.Context->Flush();
+				QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
+				// Try to acquire keyed mutex in order to access shared surface. The timeout value is 0, and we just continue if we don't get a lock.
+				// This is just used to notify the rendering loop about updated overlays, so no reason to wait around if it's already updating.
+				if (KeyMutex->AcquireSync(0, 0) == S_OK) {
+					KeyMutex->ReleaseSync(1);
+				}
 			}
+		}
+		catch (const AccessViolationException &e) {
+			hr = EXCEPTION_ACCESS_VIOLATION;
+			LOG_ERROR(L"Exception in WASAPICapture: AccessViolationException");
+		}
+		catch (...) {
+			hr = E_UNEXPECTED;
+			LOG_ERROR(L"Exception in WASAPICapture");
 		}
 	}
 Exit:
@@ -1245,6 +1267,12 @@ void ProcessCaptureHRESULT(_In_ HRESULT hr, _Inout_ CAPTURE_RESULT *pResult, _In
 			pResult->IsRecoverableError = true;
 			pResult->Error = L"Device not found";
 			pResult->NumberOfRetries = 30;
+			break;
+		case EXCEPTION_ACCESS_VIOLATION:
+			pResult->IsRecoverableError = true;
+			pResult->IsDeviceError = true;
+			pResult->Error = L"Access Violation Exception";
+			pResult->NumberOfRetries = 5;
 			break;
 		default:
 			//Unexpected error, return.

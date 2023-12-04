@@ -6,6 +6,8 @@
 #include "CoreAudio.util.h"
 #include "DynamicWait.h"
 #include "WASAPINotify.h"
+#include "Exception.h"
+
 using namespace std;
 
 struct WASAPICapture::TaskWrapper {
@@ -522,6 +524,7 @@ HRESULT WASAPICapture::StartCapture()
 	m_TaskWrapperImpl->m_CaptureThread = std::thread([&]() {
 		LOG_TRACE("WASAPICapture thread started");
 		HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+		_set_se_translator(ExceptionTranslator);
 		// register with MMCSS
 		DWORD nTaskIndex = 0;
 		HANDLE hTask = AvSetMmThreadCharacteristics(L"Audio", &nTaskIndex);
@@ -539,10 +542,12 @@ HRESULT WASAPICapture::StartCapture()
 				LOG_ERROR(L"Audio capture loop failed to start: hr = 0x%08x", hr);
 			}
 		}
-		catch (const exception &e) {
-			LOG_ERROR(L"Exception in WASAPICapture: %s", s2ws(e.what()).c_str());
+		catch (const AccessViolationException &e) {
+			hr = EXCEPTION_ACCESS_VIOLATION;
+			LOG_ERROR(L"Exception in WASAPICapture: AccessViolationException");
 		}
 		catch (...) {
+			hr = E_UNEXPECTED;
 			LOG_ERROR(L"Exception in WASAPICapture");
 		}
 		m_IsCapturing.store(false);
@@ -587,12 +592,8 @@ HRESULT WASAPICapture::StopCapture()
 			return S_FALSE;
 		}
 	}
-	catch (const exception &e) {
+	catch (const std::system_error &e) {
 		LOG_ERROR(L"Exception in StopCapture: %s", s2ws(e.what()).c_str());
-		return E_FAIL;
-	}
-	catch (...) {
-		LOG_ERROR(L"Exception in StopCapture");
 	}
 	return S_OK;
 }
@@ -610,12 +611,8 @@ HRESULT WASAPICapture::StopReconnectThread()
 			return S_FALSE;
 		}
 	}
-	catch (const exception &e) {
+	catch (const std::system_error &e) {
 		LOG_ERROR(L"Exception in StopReconnectThread: %s", s2ws(e.what()).c_str());
-		return E_FAIL;
-	}
-	catch (...) {
-		LOG_ERROR(L"Exception in StopReconnectThread");
 	}
 	return S_OK;
 }

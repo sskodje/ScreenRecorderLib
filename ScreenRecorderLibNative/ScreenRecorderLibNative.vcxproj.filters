@@ -162,6 +162,9 @@
     <ClInclude Include="WASAPINotify.h">
       <Filter>Header Files\Audio Capture</Filter>
     </ClInclude>
+    <ClInclude Include="Exception.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RecordingManager.cpp">

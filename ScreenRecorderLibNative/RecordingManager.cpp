@@ -315,10 +315,6 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 						result = t.get();
 						// if .get() didn't throw and the HRESULT succeeded, there are no errors.
 					}
-					catch (const exception &e) {
-						// handle error
-						LOG_ERROR(L"Exception in RecordTask: %s", s2ws(e.what()).c_str());
-					}
 					catch (...) {
 						LOG_ERROR(L"Exception in RecordTask");
 					}
@@ -558,7 +554,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		return renderHr;
 					});
 
-	auto RestartCapture([&](CAPTURE_RESULT *result) {
+	auto RestartCapture([&](CAPTURE_RESULT result) {
 		//Stop existing capture
 		hr = m_CaptureManager->StopCapture();
 
@@ -567,7 +563,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		retryWait.Wait();
 
 		//Recreate D3D resources if needed
-		if (SUCCEEDED(hr) && result->IsDeviceError) {
+		if (SUCCEEDED(hr) && result.IsDeviceError) {
 			CleanDx(&m_DxResources);
 			hr = InitializeDx(nullptr, &m_DxResources);
 			SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
@@ -600,6 +596,9 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 				GetMouseOptions());
 		}
 		if (SUCCEEDED(hr)) {
+			if (result.NumberOfRetries > 0) {
+				m_RestartCaptureCount++;
+			}
 			ResetEvent(ErrorEvent);
 			hr = m_CaptureManager->StartCapture(sources, overlays, ErrorEvent);
 		}
@@ -609,6 +608,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			LOG_TRACE(L"Reinitialized input frame rect: [%d,%d,%d,%d]", videoInputFrameRect.left, videoInputFrameRect.top, videoInputFrameRect.right, videoInputFrameRect.bottom);
 		}
 		pPtrInfo.reset();
+
 		return hr;
 	});
 
@@ -637,16 +637,23 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 				});
 
 			if (firstRecoverableError != results.end()) {
-				hr = RestartCapture(*(firstRecoverableError));
+				CAPTURE_RESULT *captureResult = *(firstRecoverableError);
+				if (captureResult->NumberOfRetries >= 0 && m_RestartCaptureCount >= captureResult->NumberOfRetries) {
+					RETURN_RESULT_ON_BAD_HR(captureResult->RecordingResult, L"Retry count was exceeded, exiting");
+				}
+				hr = RestartCapture(*captureResult);
 			}
 			else if (FAILED(hr)) {
 				CAPTURE_RESULT captureResult{};
 				ProcessCaptureHRESULT(hr, &captureResult, m_DxResources.Device);
 				if (captureResult.IsRecoverableError) {
-					hr = RestartCapture(&captureResult);
+					if (captureResult.NumberOfRetries >= 0 && m_RestartCaptureCount >= captureResult.NumberOfRetries) {
+						RETURN_RESULT_ON_BAD_HR(hr, L"Retry count was exceeded, exiting");
+					}
+					hr = RestartCapture(captureResult);
 				}
 				else {
-					LOG_ERROR("Fatal error while reinitializing capture, exiting..");
+					LOG_ERROR("Fatal error while reinitializing capture, exiting.");
 					return captureResult;
 				}
 			}
@@ -670,6 +677,9 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		hr = m_CaptureManager->AcquireNextFrame(GetTimeUntilNextFrameMillis(), m_MaxFrameLengthMillis, &capturedFrame);
 
 		if (SUCCEEDED(hr)) {
+			if (capturedFrame.FrameUpdateCount > 0) {
+				m_RestartCaptureCount = 0;
+			}
 			if (capturedFrame.PtrInfo) {
 				pPtrInfo = capturedFrame.PtrInfo.value();
 			}
@@ -804,6 +814,7 @@ bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
 }
 void RecordingManager::SaveTextureAsVideoSnapshotAsync(_In_ ID3D11Texture2D *pTexture, _In_ std::wstring snapshotPath, _In_ RECT destRect, _In_opt_ std::function<void(HRESULT)> onCompletion)
 {
+	pTexture->AddRef();
 	auto token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
 	Concurrency::create_task([this, pTexture, snapshotPath, destRect, onCompletion, token]() {
 		return SaveTextureAsVideoSnapshot(pTexture, snapshotPath, destRect);
@@ -814,9 +825,9 @@ void RecordingManager::SaveTextureAsVideoSnapshotAsync(_In_ ID3D11Texture2D *pTe
 				   hr = t.get();
 				   // if .get() didn't throw and the HRESULT succeeded, there are no errors.
 			   }
-			   catch (const exception &e) {
+			   catch (...) {
 				   // handle error
-				   LOG_ERROR(L"Exception saving snapshot: %s", s2ws(e.what()).c_str());
+				   LOG_ERROR(L"Exception saving snapshot", );
 				   hr = E_FAIL;
 			   }
 			   if (token.is_canceled()) {

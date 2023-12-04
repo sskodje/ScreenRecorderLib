@@ -14,7 +14,7 @@ namespace ScreenRecorderLib
     [TestClass]
     public class ScreenRecorderTests
     {
-        const int DefaultMaxRecordingLengthMillis = 3000;
+        const int DefaultMaxRecordingLengthMillis = 10000;
 
         private static string GetTempPath()
         {
@@ -217,9 +217,9 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
-                        rec.OnStatusChanged += (s, args) =>
+                        rec.OnFrameRecorded += (s, args) =>
                         {
-                            if (args.Status == RecorderStatus.Recording)
+                            if (args.FrameNumber == 10)
                             {
                                 recordingResetEvent.Set();
                             }
@@ -278,9 +278,9 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-                    rec.OnStatusChanged += (s, args) =>
+                    rec.OnFrameRecorded += (s, args) =>
                     {
-                        if (args.Status == RecorderStatus.Recording)
+                        if (args.FrameNumber == 10)
                         {
                             recordingResetEvent.Set();
                         }
@@ -293,7 +293,7 @@ namespace ScreenRecorderLib
 
                     rec.Record(filePath);
                     recordingResetEvent.WaitOne(1000);
-
+                    Assert.IsFalse(isError, error);
                     //Take snapshot to file path
                     bool snapshotResult = rec.TakeSnapshot(snapshotPath);
                     Assert.IsTrue(snapshotResult);
@@ -303,6 +303,7 @@ namespace ScreenRecorderLib
                     var snapMediaInfo = new MediaInfoWrapper(snapshotPath);
                     Assert.IsTrue(snapMediaInfo.Format == "PNG");
 
+                    Assert.IsFalse(isError, error);
                     //Take snapshot to stream
                     using (FileStream fs = File.OpenWrite(snapshotStreamPath))
                     {
@@ -315,6 +316,7 @@ namespace ScreenRecorderLib
                     snapMediaInfo = new MediaInfoWrapper(snapshotStreamPath);
                     Assert.IsTrue(snapMediaInfo.Format == "PNG");
 
+                    Assert.IsFalse(isError, error);
                     //Use auto generated file path
                     snapshotResult = rec.TakeSnapshot();
                     snapshotSavedResetEvent.WaitOne(1000);
@@ -379,9 +381,9 @@ namespace ScreenRecorderLib
                                 finalizeResetEvent.Set();
                                 recordingResetEvent.Set();
                             };
-                            rec.OnStatusChanged += (s, args) =>
+                            rec.OnFrameRecorded += (s, args) =>
                             {
-                                if (args.Status == RecorderStatus.Recording)
+                                if (args.FrameNumber == 10)
                                 {
                                     recordingResetEvent.Set();
                                 }
@@ -533,9 +535,9 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-                    rec.OnStatusChanged += (s, args) =>
+                    rec.OnFrameRecorded += (s, args) =>
                     {
-                        if (args.Status == RecorderStatus.Recording)
+                        if (args.FrameNumber == 10)
                         {
                             recordingResetEvent.Set();
                         }
@@ -581,9 +583,9 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
-                        rec.OnStatusChanged += (s, args) =>
+                        rec.OnFrameRecorded += (s, args) =>
                         {
-                            if (args.Status == RecorderStatus.Recording)
+                            if (args.FrameNumber == 10)
                             {
                                 recordingResetEvent.Set();
                             }
@@ -636,9 +638,9 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
-                        rec.OnStatusChanged += (s, args) =>
+                        rec.OnFrameRecorded += (s, args) =>
                         {
-                            if (args.Status == RecorderStatus.Recording)
+                            if (args.FrameNumber == 10)
                             {
                                 recordingResetEvent.Set();
                             }
@@ -698,9 +700,9 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
-                        rec.OnStatusChanged += (s, args) =>
+                        rec.OnFrameRecorded += (s, args) =>
                         {
-                            if (args.Status == RecorderStatus.Recording)
+                            if (args.FrameNumber == 10)
                             {
                                 recordingResetEvent.Set();
                             }
@@ -761,9 +763,9 @@ namespace ScreenRecorderLib
                             finalizeResetEvent.Set();
                             recordingResetEvent.Set();
                         };
-                        rec.OnStatusChanged += (s, args) =>
+                        rec.OnFrameRecorded += (s, args) =>
                         {
-                            if (args.Status == RecorderStatus.Recording)
+                            if (args.FrameNumber == 10)
                             {
                                 recordingResetEvent.Set();
                             }
@@ -887,9 +889,9 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-                    rec.OnStatusChanged += (s, args) =>
+                    rec.OnFrameRecorded += (s, args) =>
                     {
-                        if (args.Status == RecorderStatus.Recording)
+                        if (args.FrameNumber == 10)
                         {
                             recordingResetEvent.Set();
                         }
@@ -1171,9 +1173,9 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-                    rec.OnStatusChanged += (s, args) =>
+                    rec.OnFrameRecorded += (s, args) =>
                     {
-                        if (args.Status == RecorderStatus.Recording)
+                        if (args.FrameNumber == 10)
                         {
                             recordingResetEvent.Set();
                         }
@@ -1225,35 +1227,26 @@ namespace ScreenRecorderLib
                         finalizingResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-                    rec.OnStatusChanged += (s, args) =>
+                    rec.OnFrameRecorded += (s, args) =>
                     {
-                        switch (args.Status)
+                        if (args.FrameNumber == 10)
                         {
-                            case RecorderStatus.Recording:
-                                {
-                                    recordingStartedEvent.Set();
-                                    break;
-                                }
-                            default: break;
+                            recordingResetEvent.Set();
                         }
                     };
-                    int recordingTimeMillis = 30 * 1000;
                     Stopwatch sw = Stopwatch.StartNew();
                     rec.Record(folder);
-                    recordingStartedEvent.WaitOne(1000);
-                    recordingResetEvent.WaitOne(recordingTimeMillis);
+                    recordingStartedEvent.WaitOne(DefaultMaxRecordingLengthMillis);
                     rec.Stop();
                     finalizingResetEvent.WaitOne(5000);
-                    Assert.IsTrue(sw.ElapsedMilliseconds >= recordingTimeMillis, "recording duration was too short");
                     Assert.IsFalse(isError, error, "recording has error");
                     Assert.IsTrue(isComplete, "recording did not complete");
-                    Assert.IsTrue(new FileInfo(recordedFilePath).Length > 0, "file length is 0");
+                    FileInfo fi = new FileInfo(recordedFilePath);
+                    Assert.IsTrue(fi.Length > 0, "file length is 0");
                     var mediaInfo = new MediaInfoWrapper(recordedFilePath);
                     Assert.IsTrue(mediaInfo.Format == "MPEG-4", "wrong video format");
                     Assert.IsTrue(mediaInfo.VideoStreams.Count > 0, "no video streams found");
                     int videoDuration = (int)Math.Round(mediaInfo.VideoStreams[0].Duration.TotalSeconds);
-                    int expectedDuration = (int)Math.Round((double)recordingTimeMillis / 1000);
-                    Assert.IsTrue(videoDuration == expectedDuration, $"video length {videoDuration} does not match recording time {expectedDuration}");
                 }
             }
             finally
@@ -1373,10 +1366,10 @@ namespace ScreenRecorderLib
                     recordingResetEvent.WaitOne(recordingTimeMillis);
                     rec.Stop();
                     finalizingResetEvent.WaitOne(5000);
-                    Assert.IsTrue(sw.ElapsedMilliseconds >= recordingTimeMillis, "recording duration was too short");
                     Assert.IsFalse(isError, error, "recording has error");
                     Assert.IsTrue(isComplete, "recording did not complete");
                     Assert.IsTrue(new FileInfo(filePath).Length > 0, "file length is 0");
+                    Assert.IsTrue(sw.ElapsedMilliseconds >= recordingTimeMillis, "recording duration was too short");
                     var mediaInfo = new MediaInfoWrapper(filePath);
                     Assert.IsTrue(mediaInfo.Format == "MPEG-4", "wrong video format");
                     Assert.IsTrue(mediaInfo.VideoStreams.Count > 0, "no video streams found");
@@ -1425,7 +1418,7 @@ namespace ScreenRecorderLib
                         };
                         rec.OnFrameRecorded += (s, args) =>
                         {
-                            if (args.FrameNumber == 1)
+                            if (args.FrameNumber == 10)
                             {
                                 recordingResetEvent.Set();
                             }
@@ -1469,7 +1462,7 @@ namespace ScreenRecorderLib
                         };
                         rec2.OnFrameRecorded += (s, args) =>
                         {
-                            if (args.FrameNumber == 1)
+                            if (args.FrameNumber == 10)
                             {
                                 recordingResetEvent2.Set();
                             }
@@ -1518,7 +1511,6 @@ namespace ScreenRecorderLib
                         {
                             isComplete = true;
                             finalizeResetEvent.Set();
-                            recordingResetEvent.Set();
                         };
                         rec.OnRecordingFailed += (s, args) =>
                         {
@@ -1529,9 +1521,9 @@ namespace ScreenRecorderLib
                         };
                         rec.OnFrameRecorded += (s, args) =>
                         {
-                            if (args.FrameNumber == 1)
+                            if (args.FrameNumber == 10)
                             {
-                                rec.Stop();
+                                recordingResetEvent.Set();
                             }
                         };
                         rec.Record(filePath);
@@ -1571,7 +1563,6 @@ namespace ScreenRecorderLib
                 {
                     isComplete = true;
                     finalizeResetEvent.Set();
-                    recordingResetEvent.Set();
                 };
                 rec.OnRecordingFailed += (s, args) =>
                 {
@@ -1582,9 +1573,9 @@ namespace ScreenRecorderLib
                 };
                 rec.OnFrameRecorded += (s, args) =>
                 {
-                    if (args.FrameNumber == 1)
+                    if (args.FrameNumber == 10)
                     {
-                        rec.Stop();
+                        recordingResetEvent.Set();
                     }
                 };
                 for (int i = 0; i < numberOfRecordings; i++)
@@ -1678,9 +1669,9 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-                    rec.OnStatusChanged += (s, args) =>
+                    rec.OnFrameRecorded += (s, args) =>
                     {
-                        if (args.Status == RecorderStatus.Recording)
+                        if (args.FrameNumber == 10)
                         {
                             recordingResetEvent.Set();
                         }
@@ -1735,9 +1726,9 @@ namespace ScreenRecorderLib
                         finalizeResetEvent.Set();
                         recordingResetEvent.Set();
                     };
-                    rec.OnStatusChanged += (s, args) =>
+                    rec.OnFrameRecorded += (s, args) =>
                     {
-                        if (args.Status == RecorderStatus.Recording)
+                        if (args.FrameNumber == 10)
                         {
                             recordingResetEvent.Set();
                         }

@@ -83,7 +83,6 @@ HRESULT AudioManager::StopCapture()
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 	m_IsCaptureEnabled = false;
 	return ConfigureAudioCapture();
-	return S_OK;
 }
 
 HRESULT AudioManager::StopOptionsChangeListenerThread()
@@ -98,12 +97,9 @@ HRESULT AudioManager::StopOptionsChangeListenerThread()
 			return S_FALSE;
 		}
 	}
-	catch (const exception &e) {
-		LOG_ERROR(L"Exception in StopOptionsChangeListenerThread: %s", s2ws(e.what()).c_str());
-		return E_FAIL;
-	}
 	catch (...) {
 		LOG_ERROR(L"Exception in StopOptionsChangeListenerThread");
+		return E_FAIL;
 	}
 	return S_OK;
 }
