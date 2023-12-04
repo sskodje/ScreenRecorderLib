@@ -166,21 +166,7 @@ HRESULT RecordingManager::ConfigureOutputDir(_In_ std::wstring path) {
 			}
 		}
 	}
-	if (!m_SnapshotOptions->GetSnapshotsDirectory().empty()) {
-		std::error_code ec;
-		if (std::filesystem::exists(m_SnapshotOptions->GetSnapshotsDirectory()) || std::filesystem::create_directories(m_SnapshotOptions->GetSnapshotsDirectory(), ec))
-		{
-			LOG_DEBUG(L"Snapshot output folder is ready");
-		}
-		else
-		{
-			// Failed to create snapshot directory.
-			LOG_ERROR(L"failed to create snapshot output folder");
-			if (RecordingFailedCallback != nullptr)
-				RecordingFailedCallback(L"Failed to create snapshot output folder: " + s2ws(ec.message()), L"");
-			return E_FAIL;
-		}
-	}
+
 	return S_OK;
 }
 
@@ -200,20 +186,39 @@ HRESULT RecordingManager::TakeSnapshot(_In_ IStream *stream)
 	return TakeSnapshot(L"", stream);
 }
 
-HRESULT RecordingManager::TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStream *stream) {
+HRESULT RecordingManager::TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStream *stream, _In_opt_ ID3D11Texture2D *pTexture) {
 	if (!m_IsRecording) {
 		return E_NOT_VALID_STATE;
 	}
-	CAPTURED_FRAME capturedFrame{};
-	HRESULT hr = m_CaptureManager->CopyCurrentFrame(&capturedFrame);
-	RETURN_ON_BAD_HR(hr);
+	HRESULT hr = E_FAIL;
 	CComPtr<ID3D11Texture2D> processedTexture;
-	hr = ProcessTexture(capturedFrame.Frame, &processedTexture, capturedFrame.PtrInfo);
-	SafeRelease(&capturedFrame.Frame);
+	if (!pTexture) {
+		CAPTURED_FRAME capturedFrame{};
+		hr = m_CaptureManager->CopyCurrentFrame(&capturedFrame);
+		RETURN_ON_BAD_HR(hr);
+		hr = ProcessTexture(capturedFrame.Frame, &processedTexture, capturedFrame.PtrInfo);
+		SafeRelease(&capturedFrame.Frame);
+	}
+	else {
+		processedTexture = pTexture;
+	}
 	RECT videoInputFrameRect{};
 	RETURN_ON_BAD_HR(hr = InitializeRects(m_CaptureManager->GetOutputSize(), &videoInputFrameRect, nullptr));
 
 	if (!path.empty()) {
+		std::wstring directory = std::filesystem::path(path).parent_path().wstring();
+		if (!std::filesystem::exists(directory))
+		{
+			std::error_code ec;
+			if (std::filesystem::create_directories(directory, ec)) {
+				LOG_DEBUG(L"Snapshot output folder created");
+			}
+			else {
+				// Failed to create snapshot directory.
+				LOG_ERROR(L"failed to create snapshot output folder");
+				return E_FAIL;
+			}
+		}
 		RETURN_ON_BAD_HR(hr = SaveTextureAsVideoSnapshot(processedTexture, path, videoInputFrameRect));
 		LOG_TRACE(L"Wrote snapshot to %s", path.c_str());
 		if (RecordingSnapshotCreatedCallback != nullptr) {
@@ -524,19 +529,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 				if (GetSnapshotOptions()->GetSnapshotsDirectory().empty())
 					return S_FALSE;
 				wstring snapshotPath = GetSnapshotOptions()->GetSnapshotsDirectory() + L"\\" + s2ws(CurrentTimeToFormattedString(true)) + GetSnapshotOptions()->GetImageExtension();
-				SaveTextureAsVideoSnapshotAsync(pTextureToRender, snapshotPath, videoInputFrameRect, ([this, snapshotPath, &previousSnapshotTaken](HRESULT hr) {
-					bool success = SUCCEEDED(hr);
-					if (success) {
-						LOG_TRACE(L"Wrote snapshot to %s", snapshotPath.c_str());
-						if (RecordingSnapshotCreatedCallback != nullptr) {
-							RecordingSnapshotCreatedCallback(snapshotPath);
-						}
-					}
-					else {
-						_com_error err(hr);
-						LOG_ERROR("Error saving snapshot: %s", err.ErrorMessage());
-					}
-					}));
+				TakeSnapshot(snapshotPath, nullptr, pTextureToRender);
 				previousSnapshotTaken = steady_clock::now();
 			}
 		}

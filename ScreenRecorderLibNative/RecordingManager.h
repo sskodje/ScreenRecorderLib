@@ -128,7 +128,7 @@ private:
 	REC_RESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_opt_ IStream *pStream);
 
 
-	HRESULT TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStream *pStream);
+	HRESULT TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStream *pStream, _In_opt_ ID3D11Texture2D *pTexture = nullptr);
 	HRESULT BeginRecording(_In_opt_ std::wstring path, _In_opt_ IStream *pStream);
 
 	/// <summary>
