@@ -1215,8 +1215,8 @@ namespace ScreenRecorderLib
                     rec.OnRecordingComplete += (s, args) =>
                     {
                         isComplete = true;
-                        finalizingResetEvent.Set();
                         recordedFilePath = args.FilePath;
+                        finalizingResetEvent.Set();
                     };
                     rec.OnRecordingFailed += (s, args) =>
                     {
