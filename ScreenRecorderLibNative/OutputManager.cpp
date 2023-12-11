@@ -531,8 +531,15 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 
 HRESULT OutputManager::WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ ID3D11Texture2D *pAcquiredDesktopImage)
 {
+	//The encoder works async, so the input frame has to be copied, else it can be overwritten before the encoder uses it. See issue #277.
+	CComPtr<ID3D11Texture2D> pFrameCopy;
+	D3D11_TEXTURE2D_DESC desc;
+	pAcquiredDesktopImage->GetDesc(&desc);
+	m_Device->CreateTexture2D(&desc, nullptr, &pFrameCopy);
+	m_DeviceContext->CopyResource(pFrameCopy, pAcquiredDesktopImage);
+
 	IMFMediaBuffer *pMediaBuffer;
-	HRESULT hr = MFCreateDXGISurfaceBuffer(__uuidof(ID3D11Texture2D), pAcquiredDesktopImage, 0, FALSE, &pMediaBuffer);
+	HRESULT hr = MFCreateDXGISurfaceBuffer(__uuidof(ID3D11Texture2D), pFrameCopy, 0, FALSE, &pMediaBuffer);
 	IMF2DBuffer *p2DBuffer;
 	if (SUCCEEDED(hr))
 	{
