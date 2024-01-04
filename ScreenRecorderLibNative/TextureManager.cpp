@@ -616,14 +616,14 @@ HRESULT TextureManager::CopyTextureWithCPU(_In_ ID3D11Device *pDevice, _In_ ID3D
 	pSourceDevice->GetImmediateContext(&pDuplicationDeviceContext);
 
 	//Create a new staging texture on the source device that supports CPU access.
-	ID3D11Texture2D *pStagingTexture;
+	CComPtr<ID3D11Texture2D> pStagingTexture;
 	D3D11_TEXTURE2D_DESC stagingDesc;
 	pSourceTexture->GetDesc(&stagingDesc);
 	stagingDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 	stagingDesc.Usage = D3D11_USAGE_STAGING;
 	stagingDesc.MiscFlags = 0;
-	stagingDesc.BindFlags = D3D11_BIND_RENDER_TARGET;
-	RETURN_ON_BAD_HR(GetOrCreateTexture(stagingDesc, &pStagingTexture));
+	stagingDesc.BindFlags = 0;
+	RETURN_ON_BAD_HR(hr = pSourceDevice->CreateTexture2D(&stagingDesc, nullptr, &pStagingTexture));
 	//Copy the source surface to the new staging texture.
 	pDuplicationDeviceContext->CopyResource(pStagingTexture, pSourceTexture);
 	D3D11_MAPPED_SUBRESOURCE mapped{};
