@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
     <id>ScreenRecorderLib</id>
-    <version>5.4.0</version>
+    <version>6.0.0</version>
     <authors>Sverre Kristoffer Skodje</authors>
     <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
@@ -10,7 +10,10 @@
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to video or image files.</description>
     <summary />
     <releaseNotes>
-- Added functionality to manually take snapshot images to a file path or stream, while recording.
+      - Enabled Structured Exception Handling (SEH) in order to more gracefully handle hardware error from device drivers/codecs.
+      - Fixed a bug that under some conditions caused extra, empty folders to be generated.
+      - Fix for issue where mouse cursor could intermittenly disappear and reappear when recording with low framerate.
+      - Recording two monitors on two different graphics cards should now work again.
     </releaseNotes>
     <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
     <language>en-GB</language>
