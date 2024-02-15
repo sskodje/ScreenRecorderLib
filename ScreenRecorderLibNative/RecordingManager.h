@@ -146,22 +146,22 @@ private:
 	/// </summary>
 	/// <param name="pTexture">The texture to save to a snapshot</param>
 	/// <param name="snapshotPath">A file path to save the snapshot to</param>
-	/// <param name="sourceRect">The area of the texture to save. If the texture is larger, it will be cropped to these coordinates.</param>
+	/// <param name="destRect">The area of the texture to save. If the texture is larger, it will be cropped to these coordinates.</param>
 	/// <returns></returns>
-	HRESULT SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ std::wstring snapshotPath, _In_ RECT sourceRect);
+	HRESULT SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ std::wstring snapshotPath, _In_ RECT destRect);
 	/// <summary>
 	/// Save texture as snapshot image.
 	/// </summary>
 	/// <param name="pTexture">The texture to save to a snapshot</param>
 	/// <param name="pStream">A stream to save the snapshot to</param>
-	/// <param name="sourceRect">The area of the texture to save. If the texture is larger, it will be cropped to these coordinates.</param>
+	/// <param name="destRect">The area of the texture to save. If the texture is larger, it will be cropped to these coordinates.</param>
 	/// <returns></returns>
-	HRESULT SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ IStream *pStream, _In_ RECT sourceRect);
+	HRESULT SaveTextureAsVideoSnapshot(_In_ ID3D11Texture2D *pTexture, _In_ IStream *pStream, _In_ RECT destRect);
 	/// <summary>
 	/// Save texture as snapshot image async.
 	/// </summary>
 	/// <param name="pTexture">The texture to save to a snapshot</param>
-	/// <param name="sourceRect">The area of the texture to save. If the texture is larger, it will be cropped to these coordinates.</param>
+	/// <param name="destRect">The area of the texture to save. If the texture is larger, it will be cropped to these coordinates.</param>
 	/// <returns></returns>
 	void RecordingManager::SaveTextureAsVideoSnapshotAsync(_In_ ID3D11Texture2D *pTexture, _In_ std::wstring snapshotPath, _In_ RECT destRect, _In_opt_ std::function<void(HRESULT)> onCompletion);
 
