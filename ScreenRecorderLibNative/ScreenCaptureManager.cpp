@@ -222,6 +222,7 @@ HRESULT ScreenCaptureManager::CopyCurrentFrame(_Out_ CAPTURED_FRAME *pFrame)
 	pFrame->Frame = pFrameCopy;
 	pFrame->PtrInfo = m_PtrInfo;
 	pFrame->FrameUpdateCount = 0;
+	return S_OK;
 }
 
 HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  double timeUntilNextFrame, _In_ double maxFrameLength, _Out_ CAPTURED_FRAME *pFrame)
