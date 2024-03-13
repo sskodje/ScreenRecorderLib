@@ -310,6 +310,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 					m_CaptureManager.reset(nullptr);
 					m_MouseManager.reset(nullptr);
 					m_IsRecording = false;
+					m_IsPaused = false;
 					REC_RESULT result{ };
 					try {
 						result = t.get();
