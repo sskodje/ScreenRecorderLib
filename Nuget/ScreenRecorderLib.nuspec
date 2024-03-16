@@ -4,7 +4,7 @@
     <id>ScreenRecorderLib</id>
     <version>6.0.0</version>
     <authors>Sverre Kristoffer Skodje</authors>
-    <licenseUrl>https://github.com/sskodje/ScreenRecorderLib/blob/master/LICENSE</licenseUrl>
+    <license type="expression">MIT</license>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to video or image files.</description>
@@ -25,5 +25,7 @@
     <file src="..\ScreenRecorderLib\bin\x64\Release\ScreenRecorderLib.xml" target="build\x64\ScreenRecorderLib.xml" />
     <file src="..\ScreenRecorderLib\bin\x86\Release\ScreenRecorderLib.dll" target="build\x86\ScreenRecorderLib.dll" />
     <file src="..\ScreenRecorderLib\bin\x86\Release\ScreenRecorderLib.xml" target="build\x86\ScreenRecorderLib.xml" />
+    <file src="..\LICENSE" target="LICENSE" />
+    <file src="..\README.md" target="README.md" />
   </files>
 </package>
