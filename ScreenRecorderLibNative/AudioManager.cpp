@@ -125,7 +125,7 @@ HRESULT AudioManager::StopDeviceCapture(WASAPICapture *pCapture) {
 
 HRESULT AudioManager::ConfigureAudioCapture() {
 	HRESULT hr = S_FALSE;
-	if (GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsOutputDeviceEnabled() && m_IsCaptureEnabled)
+	if (GetAudioOptions() && GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsOutputDeviceEnabled() && m_IsCaptureEnabled)
 	{
 		if (!m_AudioOutputCapture) {
 			m_AudioOutputCapture = make_unique<WASAPICapture>(m_AudioOptions, L"AudioOutputDevice");
@@ -140,7 +140,7 @@ HRESULT AudioManager::ConfigureAudioCapture() {
 		hr = StopDeviceCapture(m_AudioOutputCapture.get());
 	}
 
-	if (GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsInputDeviceEnabled() && m_IsCaptureEnabled)
+	if (GetAudioOptions() && GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsInputDeviceEnabled() && m_IsCaptureEnabled)
 	{
 		if (!m_AudioInputCapture) {
 			m_AudioInputCapture = make_unique<WASAPICapture>(m_AudioOptions, L"AudioInputDevice");

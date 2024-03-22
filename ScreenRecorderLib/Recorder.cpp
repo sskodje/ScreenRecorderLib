@@ -63,6 +63,9 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 				case ImageFormat::BMP:
 					snapshotOptions->SetSnapshotSaveFormat(GUID_ContainerFormatBmp);
 					break;
+				case ImageFormat::GIF:
+					snapshotOptions->SetSnapshotSaveFormat(GUID_ContainerFormatGif);
+					break;
 				case ImageFormat::JPEG:
 					snapshotOptions->SetSnapshotSaveFormat(GUID_ContainerFormatJpeg);
 					break;
