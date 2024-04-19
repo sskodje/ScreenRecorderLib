@@ -286,6 +286,7 @@ namespace ScreenRecorderLib {
 		/// The file path to the video
 		/// </summary>
 		property String^ SourcePath;
+		property System::IO::Stream^ SourceStream;
 
 		VideoRecordingSource()
 		{
@@ -296,6 +297,10 @@ namespace ScreenRecorderLib {
 		}
 		VideoRecordingSource(VideoRecordingSource^ source) :RecordingSourceBase(source) {
 			SourcePath = source->SourcePath;
+			SourceStream = source->SourceStream;
+		}
+		VideoRecordingSource(System::IO::Stream^ stream) {
+			SourceStream = stream;
 		}
 	};
 
@@ -305,6 +310,7 @@ namespace ScreenRecorderLib {
 		/// The file path to the video
 		/// </summary>
 		property String^ SourcePath;
+		property System::IO::Stream^ SourceStream;
 
 		ImageRecordingSource()
 		{
@@ -315,6 +321,10 @@ namespace ScreenRecorderLib {
 		}
 		ImageRecordingSource(ImageRecordingSource^ source) :RecordingSourceBase(source) {
 			SourcePath = source->SourcePath;
+			SourceStream = source->SourceStream;
+		}
+		ImageRecordingSource(System::IO::Stream^ stream) {
+			SourceStream = stream;
 		}
 	};
 

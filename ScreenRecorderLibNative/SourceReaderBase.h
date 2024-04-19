@@ -47,6 +47,17 @@ protected:
 		_Outptr_ IMFMediaType **ppInputMediaType,
 		_Outptr_opt_ IMFMediaType **ppOutputMediaType,
 		_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform) abstract;
+
+	virtual HRESULT InitializeSourceReader(
+	_In_ IStream *pSourceStream,
+	_In_ std::optional<long> sourceFormatIndex,
+	_Out_ long *pStreamIndex,
+	_Outptr_ IMFSourceReader **ppSourceReader,
+	_Outptr_ IMFMediaType **ppInputMediaType,
+	_Outptr_opt_ IMFMediaType **ppOutputMediaType,
+	_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform) abstract;
+
+
 	virtual HRESULT CreateOutputMediaType(_In_ SIZE frameSize, _Outptr_ IMFMediaType **pType, _Out_ LONG *stride);
 	virtual HRESULT CreateIMFTransform(_In_ DWORD streamIndex, _In_ IMFMediaType *pInputMediaType, _Outptr_ IMFTransform **pColorConverter, _Outptr_ IMFMediaType **ppOutputMediaType);
 	virtual HRESULT SourceReaderBase::ResizeFrameBuffer(UINT bufferSize);

@@ -32,7 +32,7 @@ HRESULT CameraCapture::InitializeSourceReader(
 		*ppMediaTransform = nullptr;
 	}
 	*pStreamIndex = 0;
-	HRESULT hr = S_OK;
+	HRESULT hr = E_FAIL;
 	CComPtr<IMFAttributes> pAttributes = nullptr;
 	CComPtr<IMFSourceReader> pSourceReader = nullptr;
 	EnterCriticalSection(&m_CriticalSection);
@@ -98,6 +98,18 @@ HRESULT CameraCapture::InitializeSourceReader(
 		Close();
 	}
 	return hr;
+}
+
+HRESULT CameraCapture::InitializeSourceReader(
+	_In_ IStream *pSourceStream,
+	_In_ std::optional<long> sourceFormatIndex,
+	_Out_ long *pStreamIndex,
+	_Outptr_ IMFSourceReader **ppSourceReader,
+	_Outptr_ IMFMediaType **ppInputMediaType,
+	_Outptr_opt_ IMFMediaType **ppOutputMediaType,
+	_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform)
+{
+	return E_NOTIMPL;
 }
 
 HRESULT CameraCapture::InitializeMediaSource(

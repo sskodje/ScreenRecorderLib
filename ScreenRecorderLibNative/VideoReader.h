@@ -17,4 +17,24 @@ protected:
 		_Outptr_ IMFMediaType **ppInputMediaType,
 		_Outptr_opt_ IMFMediaType **ppOutputMediaType,
 		_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform) override;
+
+	virtual HRESULT InitializeSourceReader(
+   _In_ IStream *pSourceStream,
+   _In_ std::optional<long> sourceFormatIndex,
+   _Out_ long *pStreamIndex,
+   _Outptr_ IMFSourceReader **ppSourceReader,
+   _Outptr_ IMFMediaType **ppInputMediaType,
+   _Outptr_opt_ IMFMediaType **ppOutputMediaType,
+   _Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform) override;
+
+private:
+	HRESULT InitializeSourceReader(
+	   _In_ IMFSourceReader *ppSourceReader,
+	   _In_ std::optional<long> sourceFormatIndex,
+	   _Out_ long *pStreamIndex,
+	   _Outptr_ IMFMediaType **ppInputMediaType,
+	   _Outptr_opt_ IMFMediaType **ppOutputMediaType,
+	   _Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform);
+
+	HRESULT CreateAttributes(_Outptr_ IMFAttributes **ppAttributes);
 };

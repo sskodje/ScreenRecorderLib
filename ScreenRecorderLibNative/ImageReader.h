@@ -23,7 +23,8 @@ public:
 
 private:
 	HRESULT InitializeDecoder(_In_ std::wstring source);
-
+	HRESULT InitializeDecoder(_In_ IStream *pSourceStream);
+	HRESULT InitializeDecoder(_In_ IWICBitmapSource *pBitmap);
 	ID3D11Device *m_Device;
 	ID3D11DeviceContext *m_DeviceContext;
 	std::unique_ptr<TextureManager> m_TextureManager;

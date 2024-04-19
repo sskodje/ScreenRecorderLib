@@ -277,6 +277,31 @@ inline std::string ReadFileSignature(std::wstring filePath) {
 	return signature;
 }
 
+inline std::string ReadFileSignature(IStream *pStream) {
+	std::string signature = "";
+	if (pStream) {
+		LARGE_INTEGER li = { 0 };
+		HRESULT hr = pStream->Seek(li, STREAM_SEEK_SET, 0);
+		if (FAILED(hr)) {
+			LOG_ERROR("Could not seek in source stream while reading source signature");
+			return "";
+		}
+		char buffer[16]{ 0 }; // Buffer to store data
+		int charNum = 16;
+		ULONG count;
+		hr = pStream->Read(&buffer, charNum, &count);
+		if (FAILED(hr)) {
+			LOG_ERROR("Could not read from source stream while reading source signature");
+			return "";
+		}
+		if (count == charNum) {
+			signature = std::string(buffer);
+		}
+		pStream->Seek(li, STREAM_SEEK_SET, 0);
+	}
+	return signature;
+}
+
 inline bool IsFileAvailableForReading(std::wstring filePath) {
 	FILE *stream;
 	_wfopen_s(&stream, filePath.c_str(), L"r");

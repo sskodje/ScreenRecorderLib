@@ -575,3 +575,45 @@ HRESULT CreateWICBitmapFromFile(_In_z_ const wchar_t *filePath, _In_ const GUID 
 	}
 	return hr;
 }
+HRESULT CreateWICBitmapFromStream(_In_ IStream *pStream, _In_ const GUID targetFormat, _Outptr_ IWICBitmapSource **ppIWICBitmapSource)
+{
+	HRESULT hr = S_OK;
+	if (ppIWICBitmapSource) {
+		*ppIWICBitmapSource = nullptr;
+	}
+
+	if (!pStream)
+		return E_INVALIDARG;
+
+	// Step 1: Decode the source image
+	auto pWIC = _GetWIC();
+	if (!pWIC)
+		return E_NOINTERFACE;
+	// Create a decoder
+	CComPtr<IWICBitmapDecoder> pDecoder = NULL;
+	RETURN_ON_BAD_HR(hr = pWIC->CreateDecoderFromStream(
+		pStream,                      // Image to be decoded
+		NULL,                            // Do not prefer a particular vendor
+		WICDecodeMetadataCacheOnDemand,  // Cache metadata when needed
+		&pDecoder                        // Pointer to the decoder
+	));
+
+	CComPtr<IWICBitmapFrameDecode> pFrame = NULL;
+	RETURN_ON_BAD_HR(hr = pDecoder->GetFrame(0, &pFrame));
+
+	WICPixelFormatGUID sourcePixelFormat;
+	RETURN_ON_BAD_HR(hr = pFrame->GetPixelFormat(&sourcePixelFormat));
+
+	// Convert to 32bpp RGBA for easier processing.
+	CComPtr<IWICBitmapSource> pConvertedFrame = NULL;
+	RETURN_ON_BAD_HR(hr = WICConvertBitmapSource(targetFormat, pFrame, &pConvertedFrame));
+
+	if (SUCCEEDED(hr))
+	{
+		if (ppIWICBitmapSource) {
+			*ppIWICBitmapSource = pConvertedFrame;
+			(*ppIWICBitmapSource)->AddRef();
+		}
+	}
+	return hr;
+}

@@ -11,6 +11,44 @@ VideoReader::~VideoReader()
 }
 
 HRESULT VideoReader::InitializeSourceReader(
+	_In_ IStream *pSourceStream,
+	_In_ std::optional<long> sourceFormatIndex,
+	_Out_ long *pStreamIndex,
+	_Outptr_ IMFSourceReader **ppSourceReader,
+	_Outptr_ IMFMediaType **ppInputMediaType,
+	_Outptr_opt_ IMFMediaType **ppOutputMediaType,
+	_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform)
+{
+	if (ppSourceReader) {
+		*ppSourceReader = nullptr;
+	}
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"InitializeSourceReader video reader");
+	CComPtr<IMFAttributes> pAttributes = nullptr;
+	HRESULT hr = CreateAttributes(&pAttributes);
+	if (SUCCEEDED(hr)) {
+		CComPtr<IMFSourceReader> pSourceReader = nullptr;
+		if (SUCCEEDED(hr)) {
+			CComPtr<IMFByteStream> pMfByteStream = nullptr;
+			hr = MFCreateMFByteStreamOnStream(pSourceStream, &pMfByteStream);
+			if (SUCCEEDED(hr)) {
+				hr = MFCreateSourceReaderFromByteStream(pMfByteStream, pAttributes, &pSourceReader);
+			}
+		}
+		if (SUCCEEDED(hr)) {
+			hr = InitializeSourceReader(pSourceReader, sourceFormatIndex, pStreamIndex, ppInputMediaType, ppOutputMediaType, ppMediaTransform);
+		}
+		if (SUCCEEDED(hr)) {
+			if (ppSourceReader) {
+				*ppSourceReader = pSourceReader;
+				(*ppSourceReader)->AddRef();
+			}
+		}
+	}
+	return hr;
+}
+
+HRESULT VideoReader::InitializeSourceReader(
 	_In_ std::wstring filePath,
 	_In_ std::optional<long> sourceFormatIndex,
 	_Out_ long *pStreamIndex,
@@ -22,6 +60,38 @@ HRESULT VideoReader::InitializeSourceReader(
 	if (ppSourceReader) {
 		*ppSourceReader = nullptr;
 	}
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"InitializeSourceReader video reader");
+	CComPtr<IMFAttributes> pAttributes = nullptr;
+	HRESULT hr = CreateAttributes(&pAttributes);
+	if (SUCCEEDED(hr)) {
+		CComPtr<IMFSourceReader> pSourceReader = nullptr;
+		if (SUCCEEDED(hr)) {
+			hr = MFCreateSourceReaderFromURL(filePath.c_str(), pAttributes, &pSourceReader);
+		}
+		if (SUCCEEDED(hr)) {
+			hr = InitializeSourceReader(pSourceReader, sourceFormatIndex, pStreamIndex, ppInputMediaType, ppOutputMediaType, ppMediaTransform);
+		}
+		if (SUCCEEDED(hr)) {
+			if (ppSourceReader) {
+				*ppSourceReader = pSourceReader;
+				(*ppSourceReader)->AddRef();
+			}
+		}
+	}
+	return hr;
+}
+
+
+HRESULT VideoReader::InitializeSourceReader(
+	_In_ IMFSourceReader *pSourceReader,
+	_In_ std::optional<long> sourceFormatIndex,
+	_Out_ long *pStreamIndex,
+	_Outptr_ IMFMediaType **ppInputMediaType,
+	_Outptr_opt_ IMFMediaType **ppOutputMediaType,
+	_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform)
+{
+
 	if (ppInputMediaType) {
 		*ppInputMediaType = nullptr;
 	}
@@ -32,27 +102,7 @@ HRESULT VideoReader::InitializeSourceReader(
 		*ppMediaTransform = nullptr;
 	}
 	HRESULT hr = S_OK;
-	CComPtr<IMFAttributes> pAttributes = nullptr;
-	CComPtr<IMFSourceReader> pSourceReader = nullptr;
-	EnterCriticalSection(&m_CriticalSection);
-	LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"InitializeSourceReader video reader");
-	//Allocate attributes
-	if (SUCCEEDED(hr))
-		hr = MFCreateAttributes(&pAttributes, 2);
 
-	// Set the callback pointer.
-	if (SUCCEEDED(hr))
-		hr = pAttributes->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK, this);
-	//Enable hardware transforms
-	if (SUCCEEDED(hr)) {
-		hr = pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, true);
-	}
-	// Add device manager to attributes. This enables hardware decoding.
-	if (SUCCEEDED(hr)) {
-		hr = pAttributes->SetUnknown(MF_SOURCE_READER_D3D_MANAGER, GetDeviceManager());
-	}
-	if (SUCCEEDED(hr))
-		hr = MFCreateSourceReaderFromURL(filePath.c_str(), pAttributes, &pSourceReader);
 	bool noMoreMedia = false;
 	bool foundValidTopology = false;
 	// Try to find a suitable output type.
@@ -128,10 +178,7 @@ HRESULT VideoReader::InitializeSourceReader(
 						*ppOutputMediaType = pOutputMediaType;
 						(*ppOutputMediaType)->AddRef();
 					}
-					if (ppSourceReader) {
-						*ppSourceReader = pSourceReader;
-						(*ppSourceReader)->AddRef();
-					}
+
 					if (ppMediaTransform) {
 						CComPtr<IMFAttributes> pTransformAttributes;
 						if (pMediaTransform && SUCCEEDED(pMediaTransform->GetAttributes(&pTransformAttributes))) {
@@ -161,6 +208,37 @@ HRESULT VideoReader::InitializeSourceReader(
 	if (FAILED(hr))
 	{
 		Close();
+	}
+	return hr;
+}
+
+HRESULT VideoReader::CreateAttributes(_Outptr_ IMFAttributes **ppAttributes)
+{
+	CComPtr<IMFAttributes> pAttributes = nullptr;
+
+	if (ppAttributes) {
+		*ppAttributes = nullptr;
+	}
+
+	//Allocate attributes
+	HRESULT hr = MFCreateAttributes(&pAttributes, 2);
+
+	// Set the callback pointer.
+	if (SUCCEEDED(hr))
+		hr = pAttributes->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK, this);
+	//Enable hardware transforms
+	if (SUCCEEDED(hr)) {
+		hr = pAttributes->SetUINT32(MF_READWRITE_ENABLE_HARDWARE_TRANSFORMS, true);
+	}
+	// Add device manager to attributes. This enables hardware decoding.
+	if (SUCCEEDED(hr)) {
+		hr = pAttributes->SetUnknown(MF_SOURCE_READER_D3D_MANAGER, GetDeviceManager());
+	}
+	if (SUCCEEDED(hr)) {
+		if (ppAttributes) {
+			*ppAttributes = pAttributes;
+			(*ppAttributes)->AddRef();
+		}
 	}
 	return hr;
 }

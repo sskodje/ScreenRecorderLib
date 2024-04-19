@@ -1200,7 +1200,14 @@ _Ret_maybenull_ CaptureBase *CreateCaptureInstance(_In_ RECORDING_SOURCE_BASE *p
 			}
 		}
 		case RecordingSourceType::Picture: {
-			std::string signature = ReadFileSignature(pSource->SourcePath.c_str());
+			std::string signature = "";
+
+			if (pSource->SourceStream) {
+				signature = ReadFileSignature(pSource->SourceStream);
+			}
+			else {
+				signature = ReadFileSignature(pSource->SourcePath.c_str());
+			}
 			ImageFileType imageType = getImageTypeByMagic(signature.c_str());
 			if (imageType == ImageFileType::IMAGE_FILE_GIF) {
 				return new GifReader();

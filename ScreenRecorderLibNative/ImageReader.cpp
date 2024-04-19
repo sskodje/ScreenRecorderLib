@@ -37,7 +37,12 @@ HRESULT ImageReader::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ I
 HRESULT ImageReader::StartCapture(_In_ RECORDING_SOURCE_BASE &source)
 {
 	m_RecordingSource = &source;
-	return InitializeDecoder(source.SourcePath);
+	if (source.SourceStream) {
+		return  InitializeDecoder(source.SourceStream);
+	}
+	else {
+		return  InitializeDecoder(source.SourcePath);
+	}
 }
 
 HRESULT ImageReader::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ SIZE *nativeMediaSize)
@@ -46,11 +51,15 @@ HRESULT ImageReader::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, 
 	MeasureExecutionTime measure(L"ImageReader GetNativeSize");
 	if (!m_Texture) {
 		CComPtr<IWICBitmapSource> pBitmap;
-		HRESULT hr = CreateWICBitmapFromFile(recordingSource.SourcePath.c_str(), GUID_WICPixelFormat32bppBGRA, &pBitmap);
+		if (recordingSource.SourceStream) {
+			hr = CreateWICBitmapFromStream(recordingSource.SourceStream, GUID_WICPixelFormat32bppBGRA, &pBitmap);
+		}
+		else {
+			hr = CreateWICBitmapFromFile(recordingSource.SourcePath.c_str(), GUID_WICPixelFormat32bppBGRA, &pBitmap);
+		}
 		if (FAILED(hr)) {
 			return hr;
 		}
-
 		// Copy the 32bpp RGBA image to a buffer for further processing.
 		UINT width, height;
 		RETURN_ON_BAD_HR(hr = pBitmap->GetSize(&width, &height));
@@ -91,9 +100,14 @@ HRESULT ImageReader::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _In
 	CComPtr<ID3D11Texture2D> pProcessedTexture;
 	HRESULT hr = AcquireNextFrame(timeoutMillis, &pProcessedTexture);
 	RETURN_ON_BAD_HR(hr);
+	if (!m_RecordingSource) {
+		LOG_ERROR("No recording source found in ImageReader");
+		return E_FAIL;
+	}
 	D3D11_TEXTURE2D_DESC frameDesc;
 	pProcessedTexture->GetDesc(&frameDesc);
 	RECORDING_SOURCE *recordingSource = dynamic_cast<RECORDING_SOURCE *>(m_RecordingSource);
+
 	if (recordingSource && recordingSource->SourceRect.has_value()
 		&& IsValidRect(recordingSource->SourceRect.value())
 		&& (RectWidth(recordingSource->SourceRect.value()) != frameDesc.Width || (RectHeight(recordingSource->SourceRect.value()) != frameDesc.Height))) {
@@ -132,7 +146,21 @@ HRESULT ImageReader::InitializeDecoder(_In_ std::wstring source)
 	if (FAILED(hr)) {
 		return hr;
 	}
+	return InitializeDecoder(pBitmap);
+}
 
+HRESULT ImageReader::InitializeDecoder(_In_ IStream *pSourceStream)
+{
+	CComPtr<IWICBitmapSource> pBitmap;
+	HRESULT hr = CreateWICBitmapFromStream(pSourceStream, GUID_WICPixelFormat32bppBGRA, &pBitmap);
+	if (FAILED(hr)) {
+		return hr;
+	}
+	return InitializeDecoder(pBitmap);
+}
+
+HRESULT ImageReader::InitializeDecoder(_In_ IWICBitmapSource *pBitmap) {
+	HRESULT hr = E_FAIL;
 	// Copy the 32bpp RGBA image to a buffer for further processing.
 	UINT width, height;
 	RETURN_ON_BAD_HR(hr = pBitmap->GetSize(&width, &height));

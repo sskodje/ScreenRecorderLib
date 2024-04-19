@@ -191,6 +191,7 @@ enum class RecordingSourceApi {
 
 struct RECORDING_SOURCE_BASE abstract {
 	std::wstring SourcePath;
+	IStream *SourceStream;
 	HWND SourceWindow;
 	RecordingSourceType Type;
 	std::wstring ID;
@@ -227,6 +228,7 @@ struct RECORDING_SOURCE_BASE abstract {
 		Type(RecordingSourceType::Display),
 		SourceWindow(nullptr),
 		SourcePath(L""),
+		SourceStream(nullptr),
 		OutputSize{ std::nullopt },
 		ID(L""),
 		Stretch(TextureStretchMode::Uniform),

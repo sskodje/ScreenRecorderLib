@@ -71,7 +71,7 @@ namespace ScreenRecorderLib
                             },
                             new ImageRecordingSource
                             {
-                               SourcePath=@"testmedia\earth.gif" //400x400px
+                               SourceStream=File.OpenRead(@"testmedia\earth.gif") //400x400px
                             }
                },
                new ScreenSize(900,500)
@@ -86,9 +86,10 @@ namespace ScreenRecorderLib
                                 SourceRect = new ScreenRect(100,100,500,500),
                                 Position = new ScreenPoint(50,50)
                             },
-                            new ImageRecordingSource
+                            new VideoRecordingSource
                             {
-                               SourcePath=@"testmedia\earth.gif"//400x400px
+                               SourceStream=File.OpenRead(@"testmedia\cat.mp4"),//480x480px,
+                               OutputSize = new ScreenSize(400,400)
                             }
                },
                new ScreenSize(950,550)
@@ -743,7 +744,7 @@ namespace ScreenRecorderLib
                         RecordingSources = recordingSources.ToList()
                     };
                     ScreenSize calculatedSize = Recorder.GetOutputDimensionsForRecordingSources(recordingSources).CombinedOutputSize;
-                    Assert.AreEqual(calculatedSize, expectedSize, $"Expected size {expectedSize.Width}x{expectedSize.Height} and calculated dimensions {calculatedSize.Width}x{calculatedSize.Height} differ");
+                    Assert.AreEqual(expectedSize, calculatedSize, $"Expected size {expectedSize.Width}x{expectedSize.Height} and calculated dimensions {calculatedSize.Width}x{calculatedSize.Height} differ");
                     using (var rec = Recorder.CreateRecorder(options))
                     {
                         string error = "";
@@ -1608,6 +1609,9 @@ namespace ScreenRecorderLib
         public void RecordingWithOverlays()
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            Stream imageStream = File.OpenRead("testmedia\\alphatest.png");
+            Stream gifStream = File.OpenRead("testmedia\\giftest.gif");
+            Stream videoStream = File.OpenRead("testmedia\\cat.mp4");
             try
             {
                 var overlays = new List<RecordingOverlayBase>();
@@ -1615,22 +1619,43 @@ namespace ScreenRecorderLib
                 {
                     AnchorPoint = Anchor.TopRight,
                     SourcePath = @"testmedia\cat.mp4",
-                    Size = new ScreenSize(0, 200),
+                    Size = new ScreenSize(200, 0),
                     Offset = new ScreenSize(50, 50)
+                });
+                overlays.Add(new VideoOverlay
+                {
+                    AnchorPoint = Anchor.TopRight,
+                    SourceStream = videoStream,
+                    Size = new ScreenSize(200, 0),
+                    Offset = new ScreenSize(250, 50)
                 });
                 overlays.Add(new ImageOverlay
                 {
                     AnchorPoint = Anchor.BottomLeft,
                     SourcePath = @"testmedia\alphatest.png",
-                    Size = new ScreenSize(0, 300),
+                    Size = new ScreenSize(300, 0),
                     Offset = new ScreenSize(0, 0)
                 });
                 overlays.Add(new ImageOverlay
                 {
-                    AnchorPoint = Anchor.BottomRight,
+                    AnchorPoint = Anchor.BottomLeft,
+                    SourceStream = imageStream,
+                    Size = new ScreenSize(300, 0),
+                    Offset = new ScreenSize(325, 0)
+                });
+                overlays.Add(new ImageOverlay
+                {
+                    AnchorPoint = Anchor.TopLeft,
                     SourcePath = @"testmedia\giftest.gif",
-                    Size = new ScreenSize(0, 300),
+                    Size = new ScreenSize(300, 0),
                     Offset = new ScreenSize(75, 25)
+                });
+                overlays.Add(new ImageOverlay
+                {
+                    AnchorPoint = Anchor.TopLeft,
+                    SourceStream = gifStream,
+                    Size = new ScreenSize(300, 0),
+                    Offset = new ScreenSize(400, 25)
                 });
                 if (Recorder.GetWindows().Where(x => x.IsValidWindow() && !x.IsMinmimized()).Count() > 0)
                 {
@@ -1644,9 +1669,10 @@ namespace ScreenRecorderLib
                 }
                 overlays.Add(new DisplayOverlay
                 {
-                    AnchorPoint = Anchor.BottomRight,
+                    AnchorPoint = Anchor.Center,
+                    DeviceName = DisplayRecordingSource.MainMonitor.DeviceName,
                     Size = new ScreenSize(0, 300),
-                    Offset = new ScreenSize(75, 25)
+                    Offset = new ScreenSize(600, 25)
                 });
                 RecorderOptions options = new RecorderOptions();
                 options.OverlayOptions = new OverLayOptions { Overlays = overlays };
@@ -1671,7 +1697,7 @@ namespace ScreenRecorderLib
                     };
                     rec.OnFrameRecorded += (s, args) =>
                     {
-                        if (args.FrameNumber == 10)
+                        if (args.FrameNumber == 100)
                         {
                             recordingResetEvent.Set();
                         }
@@ -1692,6 +1718,9 @@ namespace ScreenRecorderLib
             finally
             {
                 File.Delete(filePath);
+                imageStream?.Dispose();
+                gifStream?.Dispose();
+                videoStream?.Dispose();
             }
         }
         [TestMethod]

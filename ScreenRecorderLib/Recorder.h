@@ -67,7 +67,8 @@ namespace ScreenRecorderLib {
 		void EventSnapshotCreated(std::wstring str);
 		void FrameNumberChanged(int newFrameNumber, INT64 timestamp);
 		void SetupCallbacks();
-		void ClearCallbacks();
+		void ReleaseCallbacks();
+		void ReleaseResources();
 		static HRESULT CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Out_ RECORDING_SOURCE* pNativeSource);
 		static HRESULT CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ managedOverlay, _Out_ RECORDING_OVERLAY* pNativeOverlay);
 		static List<VideoCaptureFormat^>^ CreateVideoCaptureFormatList(_In_ std::vector< IMFMediaType*> mediaTypes);

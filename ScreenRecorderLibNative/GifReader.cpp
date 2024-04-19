@@ -48,7 +48,12 @@ HRESULT GifReader::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSource)
 {
 	HRESULT hr;
 	m_RecordingSource = &recordingSource;
-	RETURN_ON_BAD_HR(hr = InitializeDecoder(recordingSource.SourcePath));
+	if (recordingSource.SourceStream) {
+		RETURN_ON_BAD_HR(hr = InitializeDecoder(recordingSource.SourceStream));
+	}
+	else {
+		RETURN_ON_BAD_HR(hr = InitializeDecoder(recordingSource.SourcePath));
+	}
 	RETURN_ON_BAD_HR(hr = CreateDeviceResources());
 	// If we have at least one frame, start playing
 	// the animation from the first frame
@@ -65,7 +70,12 @@ HRESULT GifReader::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, _O
 	HRESULT hr = S_OK;
 	MeasureExecutionTime measure(L"GifReader GetNativeSize");
 	if (m_cxGifImage == 0 || m_cyGifImage == 0) {
-		RETURN_ON_BAD_HR(hr = InitializeDecoder(recordingSource.SourcePath));
+		if (recordingSource.SourceStream) {
+			RETURN_ON_BAD_HR(hr = InitializeDecoder(recordingSource.SourceStream));
+		}
+		else {
+			RETURN_ON_BAD_HR(hr = InitializeDecoder(recordingSource.SourcePath));
+		}
 	}
 	*nativeMediaSize = SIZE{ static_cast<LONG>(m_cxGifImage) , static_cast<LONG>(m_cyGifImage) };
 	return hr;
@@ -134,7 +144,7 @@ HRESULT GifReader::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inou
 	RECORDING_SOURCE *recordingSource = dynamic_cast<RECORDING_SOURCE *>(m_RecordingSource);
 	D3D11_TEXTURE2D_DESC frameDesc;
 	pProcessedTexture->GetDesc(&frameDesc);
-	
+
 	if (recordingSource && recordingSource->SourceRect.has_value()
 		&& IsValidRect(recordingSource->SourceRect.value())
 		&& (RectWidth(recordingSource->SourceRect.value()) != frameDesc.Width || (RectHeight(recordingSource->SourceRect.value()) != frameDesc.Height))) {
@@ -166,8 +176,8 @@ HRESULT GifReader::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inou
 
 	D3D11_BOX Box{};
 	// Copy back to shared surface
-	Box.right = right-left;
-	Box.bottom = bottom-top;
+	Box.right = right - left;
+	Box.bottom = bottom - top;
 	Box.back = 1;
 
 	CComPtr<ID3D11Texture2D> pBlankFrame;
@@ -193,19 +203,24 @@ HRESULT GifReader::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In_ ID3
 	m_DeviceContext->AddRef();
 
 	m_TextureManager = make_unique<TextureManager>();
-	HRESULT hr = m_TextureManager->Initialize(m_DeviceContext, m_Device);
-	return hr;
+
+	return m_TextureManager->Initialize(m_DeviceContext, m_Device);
 }
 
-HRESULT GifReader::InitializeDecoder(_In_ std::wstring source)
+void GifReader::ResetGifState()
 {
-	HRESULT hr = S_OK;
-
 	// Reset the states
 	m_uNextFrameIndex = 0;
 	m_uFrameDisposal = DM_NONE;  // No previous frame, use disposal none
 	m_uLoopNumber = 0;
 	m_fHasLoop = FALSE;
+}
+
+HRESULT GifReader::InitializeDecoder(_In_ std::wstring source)
+{
+	HRESULT hr = E_FAIL;
+
+	ResetGifState();
 	SafeRelease(&m_pSavedFrame);
 
 	if (!m_pD2DFactory) {
@@ -214,11 +229,11 @@ HRESULT GifReader::InitializeDecoder(_In_ std::wstring source)
 	}
 	if (!m_pIWICFactory) {
 		// Create WIC factory
-		hr = CoCreateInstance(
+		RETURN_ON_BAD_HR(hr = CoCreateInstance(
 			CLSID_WICImagingFactory,
 			NULL,
 			CLSCTX_INPROC_SERVER,
-			IID_PPV_ARGS(&m_pIWICFactory));
+			IID_PPV_ARGS(&m_pIWICFactory)));
 
 	}
 
@@ -228,6 +243,42 @@ HRESULT GifReader::InitializeDecoder(_In_ std::wstring source)
 		source.c_str(),
 		NULL,
 		GENERIC_READ,
+		WICDecodeMetadataCacheOnLoad,
+		&m_pDecoder);
+	if (SUCCEEDED(hr))
+	{
+		hr = GetGlobalMetadata();
+	}
+
+	return hr;
+}
+
+HRESULT GifReader::InitializeDecoder(_In_ IStream *pSourceStream)
+{
+	HRESULT hr = E_FAIL;
+
+	ResetGifState();
+	SafeRelease(&m_pSavedFrame);
+
+	if (!m_pD2DFactory) {
+		// Create D2D factory
+		RETURN_ON_BAD_HR(hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, __uuidof(ID2D1Factory), (void **)&m_pD2DFactory));
+	}
+	if (!m_pIWICFactory) {
+		// Create WIC factory
+		RETURN_ON_BAD_HR(hr = CoCreateInstance(
+			CLSID_WICImagingFactory,
+			NULL,
+			CLSCTX_INPROC_SERVER,
+			IID_PPV_ARGS(&m_pIWICFactory)));
+
+	}
+
+	// Create a decoder for the gif file
+	SafeRelease(&m_pDecoder);
+	hr = m_pIWICFactory->CreateDecoderFromStream(
+		pSourceStream,
+		NULL,
 		WICDecodeMetadataCacheOnLoad,
 		&m_pDecoder);
 	if (SUCCEEDED(hr))

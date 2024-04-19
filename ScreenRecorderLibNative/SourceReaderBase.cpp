@@ -56,7 +56,13 @@ HRESULT SourceReaderBase::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSour
 	m_RecordingSource = &recordingSource;
 	long streamIndex;
 
-	RETURN_ON_BAD_HR(hr = InitializeSourceReader(recordingSource.SourcePath, recordingSource.CaptureFormatIndex, &streamIndex, &m_SourceReader, &m_InputMediaType, &m_OutputMediaType, &m_MediaTransform));
+	if (recordingSource.SourceStream) {
+		RETURN_ON_BAD_HR(hr = InitializeSourceReader(recordingSource.SourceStream, recordingSource.CaptureFormatIndex, &streamIndex, &m_SourceReader, &m_InputMediaType, &m_OutputMediaType, &m_MediaTransform));
+	}
+	else {
+		RETURN_ON_BAD_HR(hr = InitializeSourceReader(recordingSource.SourcePath, recordingSource.CaptureFormatIndex, &streamIndex, &m_SourceReader, &m_InputMediaType, &m_OutputMediaType, &m_MediaTransform));
+	}
+
 	RETURN_ON_BAD_HR(GetDefaultStride(m_OutputMediaType, &m_Stride));
 	RETURN_ON_BAD_HR(GetFrameRate(m_InputMediaType, &m_FrameRate));
 	RETURN_ON_BAD_HR(GetFrameSize(m_InputMediaType, &m_FrameSize));
@@ -76,7 +82,12 @@ HRESULT SourceReaderBase::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSou
 		long streamIndex;
 		RETURN_ON_BAD_HR(MFStartup(MF_VERSION, MFSTARTUP_LITE));
 		CComPtr<IMFMediaType> pInputMediaType;
-		RETURN_ON_BAD_HR(InitializeSourceReader(recordingSource.SourcePath, recordingSource.CaptureFormatIndex, &streamIndex, &m_SourceReader, &pInputMediaType, nullptr, nullptr));
+		if (recordingSource.SourceStream) {
+			RETURN_ON_BAD_HR(InitializeSourceReader(recordingSource.SourceStream, recordingSource.CaptureFormatIndex, &streamIndex, &m_SourceReader, &pInputMediaType, nullptr, nullptr));
+		}
+		else {
+			RETURN_ON_BAD_HR(InitializeSourceReader(recordingSource.SourcePath, recordingSource.CaptureFormatIndex, &streamIndex, &m_SourceReader, &pInputMediaType, nullptr, nullptr));
+		}
 		RETURN_ON_BAD_HR(MFShutdown());
 		return GetFrameSize(pInputMediaType, nativeMediaSize);
 	}

@@ -34,6 +34,7 @@
 			DM_PREVIOUS = 3
 		};
 		HRESULT InitializeDecoder(_In_ std::wstring source);
+		HRESULT InitializeDecoder(_In_ IStream *pSourceStream);
 		HRESULT CreateDeviceResources();
 
 
@@ -49,6 +50,8 @@
 		HRESULT SaveComposedFrame();
 		HRESULT RestoreSavedFrame();
 		HRESULT ClearCurrentFrameArea();
+
+		void ResetGifState();
 
 		BOOL IsLastFrame()
 		{

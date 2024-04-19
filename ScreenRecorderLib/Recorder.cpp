@@ -452,9 +452,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 				for each (RecordingSourceBase ^ recordingSource in recordingSources)
 				{
 					if (isinst<WindowRecordingSource^>(recordingSource)) {
-						WindowRecordingSource^ windowRecordingSource = (WindowRecordingSource^)recordingSource;
-						HWND hwnd = (HWND)windowRecordingSource->Handle.ToPointer();
-						if (hwnd == nativeSource->SourceWindow) {
+						if ((gcnew String(nativeSource->ID.c_str()))->Equals(recordingSource->ID)) {
 							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
 							break;
 						}
@@ -466,8 +464,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 				for each (RecordingSourceBase ^ recordingSource in recordingSources)
 				{
 					if (isinst<DisplayRecordingSource^>(recordingSource)) {
-						DisplayRecordingSource^ displayRecordingSource = (DisplayRecordingSource^)recordingSource;
-						if ((gcnew String(nativeSource->SourcePath.c_str()))->Equals(displayRecordingSource->DeviceName)) {
+						if ((gcnew String(nativeSource->ID.c_str()))->Equals(recordingSource->ID)) {
 							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
 							break;
 						}
@@ -479,8 +476,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 				for each (RecordingSourceBase ^ recordingSource in recordingSources)
 				{
 					if (isinst<VideoRecordingSource^>(recordingSource)) {
-						VideoRecordingSource^ videoRecordingSource = (VideoRecordingSource^)recordingSource;
-						if ((gcnew String(nativeSource->SourcePath.c_str()))->Equals(videoRecordingSource->SourcePath)) {
+						if ((gcnew String(nativeSource->ID.c_str()))->Equals(recordingSource->ID)) {
 							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
 							break;
 						}
@@ -492,8 +488,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 				for each (RecordingSourceBase ^ recordingSource in recordingSources)
 				{
 					if (isinst<VideoCaptureRecordingSource^>(recordingSource)) {
-						VideoCaptureRecordingSource^ cameraRecordingSource = (VideoCaptureRecordingSource^)recordingSource;
-						if ((gcnew String(nativeSource->ID.c_str()))->Equals(cameraRecordingSource->ID)) {
+						if ((gcnew String(nativeSource->ID.c_str()))->Equals(recordingSource->ID)) {
 							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
 							break;
 						}
@@ -505,8 +500,7 @@ OutputDimensions^ Recorder::GetOutputDimensionsForRecordingSources(IEnumerable<R
 				for each (RecordingSourceBase ^ recordingSource in recordingSources)
 				{
 					if (isinst<ImageRecordingSource^>(recordingSource)) {
-						ImageRecordingSource^ videoRecordingSource = (ImageRecordingSource^)recordingSource;
-						if ((gcnew String(nativeSource->SourcePath.c_str()))->Equals(videoRecordingSource->SourcePath)) {
+						if ((gcnew String(nativeSource->ID.c_str()))->Equals(recordingSource->ID)) {
 							outputDimensions->OutputCoordinates->Add(gcnew SourceCoordinates(recordingSource, gcnew ScreenRect(nativeSourceRect.left, nativeSourceRect.top, RectWidth(nativeSourceRect), RectHeight(nativeSourceRect))));
 							break;
 						}
@@ -563,11 +557,7 @@ Recorder::!Recorder() {
 		delete m_Rec;
 		m_Rec = nullptr;
 	}
-	if (m_ManagedStream) {
-		delete m_ManagedStream;
-		m_ManagedStream = nullptr;
-	}
-	ClearCallbacks();
+	ReleaseResources();
 }
 
 Recorder^ Recorder::CreateRecorder() {
@@ -629,7 +619,7 @@ void Recorder::SetupCallbacks() {
 	CreateFrameNumberCallback();
 }
 
-void Recorder::ClearCallbacks() {
+void Recorder::ReleaseCallbacks() {
 	if (_statusChangedDelegateGcHandler.IsAllocated)
 		_statusChangedDelegateGcHandler.Free();
 	if (_errorDelegateGcHandler.IsAllocated)
@@ -640,6 +630,24 @@ void Recorder::ClearCallbacks() {
 		_snapshotDelegateGcHandler.Free();
 	if (_frameNumberDelegateGcHandler.IsAllocated)
 		_frameNumberDelegateGcHandler.Free();
+}
+
+void Recorder::ReleaseResources() {
+	ReleaseCallbacks();
+	if (m_ManagedStream) {
+		delete m_ManagedStream;
+		m_ManagedStream = nullptr;
+	}
+	if (m_Rec) {
+		for each (auto var in m_Rec->GetRecordingOverlays())
+		{
+			SafeRelease(&var->SourceStream);
+		}
+		for each (auto var in m_Rec->GetRecordingSources())
+		{
+			SafeRelease(&var->SourceStream);
+		}
+	}
 }
 
 HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Out_ RECORDING_SOURCE* pNativeSource)
@@ -724,19 +732,25 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 	}
 	else if (isinst<VideoRecordingSource^>(managedSource)) {
 		VideoRecordingSource^ videoSource = (VideoRecordingSource^)managedSource;
-		if (!String::IsNullOrEmpty(videoSource->SourcePath)) {
-			std::wstring sourcePath = msclr::interop::marshal_as<std::wstring>(videoSource->SourcePath);
-			nativeSource.Type = RecordingSourceType::Video;
-			nativeSource.SourcePath = sourcePath;
+		nativeSource.Type = RecordingSourceType::Video;
+		if (videoSource->SourceStream) {
+			nativeSource.SourceStream = new ManagedIStream(videoSource->SourceStream);
+			hr = S_OK;
+		}
+		else if (!String::IsNullOrEmpty(videoSource->SourcePath)) {
+			nativeSource.SourcePath = msclr::interop::marshal_as<std::wstring>(videoSource->SourcePath);
 			hr = S_OK;
 		}
 	}
 	else if (isinst<ImageRecordingSource^>(managedSource)) {
 		ImageRecordingSource^ imageSource = (ImageRecordingSource^)managedSource;
-		if (!String::IsNullOrEmpty(imageSource->SourcePath)) {
-			std::wstring sourcePath = msclr::interop::marshal_as<std::wstring>(imageSource->SourcePath);
-			nativeSource.Type = RecordingSourceType::Picture;
-			nativeSource.SourcePath = sourcePath;
+		nativeSource.Type = RecordingSourceType::Picture;
+		if (imageSource->SourceStream) {
+			nativeSource.SourceStream = new ManagedIStream(imageSource->SourceStream);
+			hr = S_OK;
+		}
+		else if (!String::IsNullOrEmpty(imageSource->SourcePath)) {
+			nativeSource.SourcePath = msclr::interop::marshal_as<std::wstring>(imageSource->SourcePath);
 			hr = S_OK;
 		}
 	}
@@ -767,7 +781,11 @@ HRESULT Recorder::CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ manage
 	else if (isinst<ImageOverlay^>(managedOverlay)) {
 		ImageOverlay^ pictureOverlay = (ImageOverlay^)managedOverlay;
 		nativeOverlay.Type = RecordingSourceType::Picture;
-		if (!String::IsNullOrEmpty(pictureOverlay->SourcePath)) {
+		if (pictureOverlay->SourceStream) {
+			nativeOverlay.SourceStream = new ManagedIStream(pictureOverlay->SourceStream);
+			hr = S_OK;
+		}
+		else if (!String::IsNullOrEmpty(pictureOverlay->SourcePath)) {
 			nativeOverlay.SourcePath = msclr::interop::marshal_as<std::wstring>(pictureOverlay->SourcePath);
 			hr = S_OK;
 		}
@@ -775,7 +793,11 @@ HRESULT Recorder::CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ manage
 	else if (isinst<VideoOverlay^>(managedOverlay)) {
 		VideoOverlay^ videoOverlay = (VideoOverlay^)managedOverlay;
 		nativeOverlay.Type = RecordingSourceType::Video;
-		if (!String::IsNullOrEmpty(videoOverlay->SourcePath)) {
+		if (videoOverlay->SourceStream) {
+			nativeOverlay.SourceStream = new ManagedIStream(videoOverlay->SourceStream);
+			hr = S_OK;
+		}
+		else if (!String::IsNullOrEmpty(videoOverlay->SourcePath)) {
 			nativeOverlay.SourcePath = msclr::interop::marshal_as<std::wstring>(videoOverlay->SourcePath);
 			hr = S_OK;
 		}
@@ -953,27 +975,19 @@ void Recorder::CreateFrameNumberCallback() {
 }
 void Recorder::EventComplete(std::wstring path, fifo_map<std::wstring, int> delays)
 {
-	ClearCallbacks();
+	ReleaseResources();
 
 	List<FrameData^>^ frameInfos = gcnew List<FrameData^>();
 
 	for (auto x : delays) {
 		frameInfos->Add(gcnew FrameData(gcnew String(x.first.c_str()), x.second));
 	}
-	if (m_ManagedStream) {
-		delete m_ManagedStream;
-		m_ManagedStream = nullptr;
-	}
 	RecordingCompleteEventArgs^ args = gcnew RecordingCompleteEventArgs(gcnew String(path.c_str()), frameInfos);
 	OnRecordingComplete(this, args);
 }
 void Recorder::EventFailed(std::wstring error, std::wstring path)
 {
-	ClearCallbacks();
-	if (m_ManagedStream) {
-		delete m_ManagedStream;
-		m_ManagedStream = nullptr;
-	}
+	ReleaseResources();
 	OnRecordingFailed(this, gcnew RecordingFailedEventArgs(gcnew String(error.c_str()), gcnew String(path.c_str())));
 }
 void Recorder::EventStatusChanged(int status)

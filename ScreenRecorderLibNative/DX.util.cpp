@@ -218,7 +218,14 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 			}
 			case RecordingSourceType::Picture: {
 				SIZE size{};
-				std::string signature = ReadFileSignature(source->SourcePath.c_str());
+				std::string signature = "";
+
+				if (source->SourceStream) {
+					signature = ReadFileSignature(source->SourceStream);
+				}
+				else {
+					signature = ReadFileSignature(source->SourcePath.c_str());
+				}
 				ImageFileType imageType = getImageTypeByMagic(signature.c_str());
 				std::unique_ptr<CaptureBase> reader = nullptr;
 				if (imageType == ImageFileType::IMAGE_FILE_GIF) {
@@ -240,11 +247,11 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 		}
 	}
 	auto sortRect = [](const std::pair<RECORDING_SOURCE *, RECT> &p1, const std::pair<RECORDING_SOURCE *, RECT> &p2)
-	{
-		RECT r1 = p1.second;
-		RECT r2 = p2.second;
-		return std::tie(r1.left, r1.top) < std::tie(r2.left, r2.top);
-	};
+		{
+			RECT r1 = p1.second;
+			RECT r2 = p2.second;
+			return std::tie(r1.left, r1.top) < std::tie(r2.left, r2.top);
+		};
 	//Sort all sources according to leftmost and then topmost edge
 	std::sort(validOutputs.begin(), validOutputs.end(), sortRect);
 
@@ -389,9 +396,9 @@ void GetCombinedRects(_In_ std::vector<RECT> inputs, _Out_ RECT *pOutRect, _Out_
 {
 	*pOutRect = RECT{};
 	auto sortRects = [](const RECT &r1, const RECT &r2)
-	{
-		return std::tie(r1.left, r1.top) < std::tie(r2.left, r2.top);
-	};
+		{
+			return std::tie(r1.left, r1.top) < std::tie(r2.left, r2.top);
+		};
 	std::sort(inputs.begin(), inputs.end(), sortRects);
 	if (pOffsets) {
 		*pOffsets = std::vector<SIZE>();

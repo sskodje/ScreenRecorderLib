@@ -37,3 +37,8 @@ HRESULT CreateWICBitmapFromFile(
 	_In_z_ const wchar_t *filePath,
 	_In_ const GUID targetFormat,
 	_Outptr_ IWICBitmapSource **ppIWICBitmapSource);
+
+HRESULT CreateWICBitmapFromStream(
+	_In_ IStream *pStream,
+	_In_ const GUID targetFormat,
+	_Outptr_ IWICBitmapSource **ppIWICBitmapSource);

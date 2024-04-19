@@ -115,7 +115,11 @@ namespace ScreenRecorderLib {
 		VideoOverlay(String^ path) {
 			SourcePath = path;
 		}
+		VideoOverlay(System::IO::Stream^ stream) {
+			SourceStream = stream;
+		}
 		property String^ SourcePath;
+		property System::IO::Stream^ SourceStream;
 	};
 	public ref class ImageOverlay :RecordingOverlayBase {
 	public:
@@ -125,7 +129,11 @@ namespace ScreenRecorderLib {
 		ImageOverlay(String^ path) {
 			SourcePath = path;
 		}
+		ImageOverlay(System::IO::Stream^ stream) {
+			SourceStream = stream;
+		}
 		property String^ SourcePath;
+		property System::IO::Stream^ SourceStream;
 	};
 	public ref class DisplayOverlay :RecordingOverlayBase {
 	private:
