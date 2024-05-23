@@ -370,14 +370,14 @@ HRESULT SourceReaderBase::OnReadSample(HRESULT status, DWORD streamIndex, DWORD 
 				if (m_MediaTransform) {
 					//Run media transform to convert sample to MFVideoFormat_ARGB32
 					MFT_OUTPUT_STREAM_INFO info{};
-					hr = m_MediaTransform->GetOutputStreamInfo(streamIndex, &info);
+					hr = m_MediaTransform->GetOutputStreamInfo(0, &info);
 					if (FAILED(hr)) {
 						LOG_ERROR(L"GetOutputStreamInfo failed: hr = 0x%08x", hr);
 					}
 					bool transformProvidesSamples = info.dwFlags & (MFT_OUTPUT_STREAM_PROVIDES_SAMPLES | MFT_OUTPUT_STREAM_CAN_PROVIDE_SAMPLES);
 					MFT_OUTPUT_DATA_BUFFER outputDataBuffer;
 					RtlZeroMemory(&outputDataBuffer, sizeof(outputDataBuffer));
-					outputDataBuffer.dwStreamID = streamIndex;
+					outputDataBuffer.dwStreamID = 0;
 					if (!transformProvidesSamples) {
 						IMFMediaBuffer *transformBuffer = nullptr;
 						//create a buffer for the output sample
@@ -396,7 +396,7 @@ HRESULT SourceReaderBase::OnReadSample(HRESULT status, DWORD streamIndex, DWORD 
 						outputDataBuffer.pSample = transformSample;
 						SafeRelease(&transformBuffer);
 					}
-					hr = m_MediaTransform->ProcessInput(streamIndex, sample, 0);
+					hr = m_MediaTransform->ProcessInput(0, sample, 0);
 					if (FAILED(hr)) {
 						LOG_ERROR(L"ProcessInput failed: hr = 0x%08x", hr);
 					}
