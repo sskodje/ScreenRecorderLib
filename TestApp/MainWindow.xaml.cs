@@ -959,13 +959,8 @@ namespace TestApp
             foreach (RecordableCamera cam in Recorder.GetSystemVideoCaptureDevices())
             {
                 var availableFormats = Recorder.GetSupportedVideoCaptureFormatsForDevice(cam.DeviceName);
-                var formatsToDisplay = availableFormats
-                    .GroupBy(x => x.Framerate)
-                    .FirstOrDefault()
-                    .GroupBy(x => x.FrameSize)
-                    .SelectMany(x => new List<VideoCaptureFormat> { x.First() })
-                    .ToList();
-                foreach (var format in formatsToDisplay)
+
+                foreach (var format in availableFormats)
                 {
                     RecordingSources.Add(new CheckableRecordableCamera(cam) { CaptureFormat = format });
                 }
