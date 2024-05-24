@@ -72,10 +72,8 @@ HRESULT CameraCapture::InitializeSourceReader(
 			continue;
 		}
 		m_DeviceSymbolicLink = std::wstring(symbolicLink);
-		LOG_TRACE(L"Try to activate media source");
 		CComPtr<IMFMediaSource> pSource = nullptr;
 		CONTINUE_ON_BAD_HR(hr = pDevice->ActivateObject(__uuidof(IMFMediaSource), (void **)&pSource));
-		LOG_TRACE(L"Try to initialize media source");
 		hr = InitializeMediaSource(pSource, sourceFormatIndex, pStreamIndex, ppSourceReader, ppInputMediaType, ppOutputMediaType, ppMediaTransform);
 		if (FAILED(hr)) {
 			pDevice->ShutdownObject();

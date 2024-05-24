@@ -101,7 +101,6 @@ void SourceReaderBase::Close()
 	EnterCriticalSection(&m_CriticalSection);
 	SafeRelease(&m_Sample);
 	if (m_FramerateTimer) {
-		LOG_DEBUG("Stopping source reader sync timer");
 		m_FramerateTimer->StopTimer(true);
 	}
 	SetEvent(m_StopCaptureEvent);
@@ -109,7 +108,6 @@ void SourceReaderBase::Close()
 	SafeRelease(&m_SourceReader);
 	SafeRelease(&m_InputMediaType);
 	SafeRelease(&m_MediaTransform);
-	LOG_DEBUG("Closed source reader");
 }
 
 HRESULT SourceReaderBase::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame)
