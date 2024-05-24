@@ -471,6 +471,14 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_MPEG4SINK_MOOV_BEFORE_MDAT, GetEncoderOptions()->GetIsFastStartEnabled()));
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_LOW_LATENCY, GetEncoderOptions()->GetIsLowLatencyModeEnabled()));
 	RETURN_ON_BAD_HR(pAttributes->SetUINT32(MF_SINK_WRITER_DISABLE_THROTTLING, GetEncoderOptions()->GetIsThrottlingDisabled()));
+	RETURN_ON_BAD_HR(pAttributes->SetUINT32(CODECAPI_AVEncCommonRateControlMode, GetEncoderOptions()->GetVideoBitrateMode()));
+	switch (GetEncoderOptions()->GetVideoBitrateMode()) {
+		case eAVEncCommonRateControlMode_Quality:
+			RETURN_ON_BAD_HR(pAttributes->SetUINT32(CODECAPI_AVEncCommonQuality, GetEncoderOptions()->GetVideoQuality()));
+			break;
+		default:
+			break;
+	}
 	// Add device manager to attributes. This enables hardware encoding.
 	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_D3D_MANAGER, m_DeviceManager));
 	RETURN_ON_BAD_HR(pAttributes->SetUnknown(MF_SINK_WRITER_ASYNC_CALLBACK, pCallback));
@@ -495,27 +503,6 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 	RETURN_ON_BAD_HR(hr);
 	if (pAudioMediaTypeIn) {
 		RETURN_ON_BAD_HR(pSinkWriter->SetInputMediaType(audioStreamIndex, pAudioMediaTypeIn, nullptr));
-	}
-
-	auto SetAttributeU32([](_Inout_ CComPtr<ICodecAPI> &codec, _In_ const GUID &guid, _In_ UINT32 value)
-	{
-		VARIANT val;
-		val.vt = VT_UI4;
-		val.uintVal = value;
-		return codec->SetValue(&guid, &val);
-	});
-
-	CComPtr<ICodecAPI> encoder = nullptr;
-	pSinkWriter->GetServiceForStream(videoStreamIndex, GUID_NULL, IID_PPV_ARGS(&encoder));
-	if (encoder) {
-		RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonRateControlMode, GetEncoderOptions()->GetVideoBitrateMode()));
-		switch (GetEncoderOptions()->GetVideoBitrateMode()) {
-			case eAVEncCommonRateControlMode_Quality:
-				RETURN_ON_BAD_HR(SetAttributeU32(encoder, CODECAPI_AVEncCommonQuality, GetEncoderOptions()->GetVideoQuality()));
-				break;
-			default:
-				break;
-		}
 	}
 
 	// Tell the sink writer to start accepting data.
