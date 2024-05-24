@@ -66,6 +66,9 @@ HRESULT CameraCapture::InitializeSourceReader(
 		hr = pDevice->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK, &symbolicLink, &cchSymbolicLink);
 		CoTaskMemFreeOnExit freeSymbolicLink(symbolicLink);
 		if (symbolicLink == NULL || !source.empty() && source != symbolicLink) {
+			if (SUCCEEDED(hr)) {
+				hr = E_FAIL;
+			}
 			continue;
 		}
 		m_DeviceSymbolicLink = std::wstring(symbolicLink);
