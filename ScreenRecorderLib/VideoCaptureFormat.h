@@ -45,7 +45,7 @@ namespace ScreenRecorderLib {
 		property VideoNominalRange NominalRange;
 
 		virtual String^ ToString() override {
-			return String::Format("{0}:{1} {2}fps", FrameSize->Width, FrameSize->Height, Framerate);
+			return String::Format("{0} - [{1},{2}] {3}fps", VideoFormatName, FrameSize->Width, FrameSize->Height, Framerate);
 		}
 	private:
 
