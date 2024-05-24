@@ -131,11 +131,9 @@ namespace ScreenRecorderLib {
 	private:
 		bool _isCursorCaptureEnabled = true;
 		bool _isBorderRequired = true;
+		IntPtr _handle;
 	public:
-		/// <summary>
-		/// The handle to the window to record.
-		/// </summary>
-		property IntPtr Handle;
+
 
 		WindowRecordingSource() :RecordingSourceBase()
 		{
@@ -152,6 +150,19 @@ namespace ScreenRecorderLib {
 		property RecorderApi RecorderApi {
 			ScreenRecorderLib::RecorderApi get() {
 				return ScreenRecorderLib::RecorderApi::WindowsGraphicsCapture;
+			}
+		}
+
+		/// <summary>
+		///This HWND of the window to record
+		/// </summary>
+		property IntPtr Handle {
+			IntPtr get() {
+				return _handle;
+			}
+			void set(IntPtr value) {
+				_handle = value;
+				OnPropertyChanged("Handle");
 			}
 		}
 		/// <summary>
@@ -186,6 +197,7 @@ namespace ScreenRecorderLib {
 		RecorderApi _recorderApi = ScreenRecorderLib::RecorderApi::DesktopDuplication;
 		bool _isCursorCaptureEnabled = true;
 		bool _isBorderRequired = true;
+		String^ _deviceName;
 	public:
 		static property DisplayRecordingSource^ MainMonitor {
 			DisplayRecordingSource^ get() {
@@ -199,9 +211,17 @@ namespace ScreenRecorderLib {
 			}
 		}
 		/// <summary>
-		/// The device name to record, e.g. \\\\.\\DISPLAY1\
+		///The device name to record, e.g. \\\\.\\DISPLAY1\
 		/// </summary>
-		property String^ DeviceName;
+		property String^ DeviceName {
+			String^ get() {
+				return _deviceName;
+			}
+			void set(String^ value) {
+				_deviceName = value;
+				OnPropertyChanged("DeviceName");
+			}
+		}
 
 		DisplayRecordingSource()
 		{

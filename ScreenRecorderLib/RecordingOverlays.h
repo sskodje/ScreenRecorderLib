@@ -37,10 +37,10 @@ namespace ScreenRecorderLib {
 			String^ get() {
 				return _id;
 			}
-		private:
-			void set(String^ id) {
-				_id = id;
-			}
+	private:
+		void set(String^ id) {
+			_id = id;
+		}
 		}
 		/// <summary>
 		/// Gets or sets a value that describes how an overlay should be stretched to fill the destination rectangle.
@@ -98,54 +98,145 @@ namespace ScreenRecorderLib {
 		}
 	};
 	public ref class VideoCaptureOverlay :RecordingOverlayBase {
+	private:
+		String^ _deviceName;
 	public:
-		VideoCaptureOverlay() {
+		VideoCaptureOverlay() :RecordingOverlayBase() {
 
 		}
-		VideoCaptureOverlay(String^ deviceName) {
+		VideoCaptureOverlay(String^ deviceName) :RecordingOverlayBase() {
 			DeviceName = deviceName;
 		}
-		property String^ DeviceName;
+		VideoCaptureOverlay(VideoCaptureOverlay^ source) :RecordingOverlayBase(source) {
+			DeviceName = source->DeviceName;
+		}
+		/// <summary>
+		///The device name to record, e.g. \\\\.\\xxxxxxxxx\
+		/// </summary>
+		property String^ DeviceName {
+			String^ get() {
+				return _deviceName;
+			}
+			void set(String^ value) {
+				_deviceName = value;
+				OnPropertyChanged("DeviceName");
+			}
+		}
 	};
 	public ref class VideoOverlay :RecordingOverlayBase {
+	private:
+		String^ _sourcePath;
+		System::IO::Stream^ _sourceStream;
 	public:
-		VideoOverlay() {
+		VideoOverlay() :RecordingOverlayBase() {
 
 		}
-		VideoOverlay(String^ path) {
+		VideoOverlay(String^ path) :RecordingOverlayBase() {
 			SourcePath = path;
 		}
-		VideoOverlay(System::IO::Stream^ stream) {
+		VideoOverlay(System::IO::Stream^ stream) :RecordingOverlayBase() {
 			SourceStream = stream;
 		}
-		property String^ SourcePath;
-		property System::IO::Stream^ SourceStream;
+		VideoOverlay(VideoOverlay^ source) :RecordingOverlayBase(source) {
+			SourcePath = source->SourcePath;
+			SourceStream = source->SourceStream;
+		}
+		/// <summary>
+		///The file path of the video to record
+		/// </summary>
+		property String^ SourcePath {
+			String^ get() {
+				return _sourcePath;
+			}
+			void set(String^ value) {
+				_sourcePath = value;
+				OnPropertyChanged("SourcePath");
+			}
+		}
+		/// <summary>
+		///The source stream of the image to record
+		/// </summary>
+		property System::IO::Stream^ SourceStream {
+			System::IO::Stream^ get() {
+				return _sourceStream;
+			}
+			void set(System::IO::Stream^ value) {
+				_sourceStream = value;
+				OnPropertyChanged("SourceStream");
+			}
+		}
 	};
 	public ref class ImageOverlay :RecordingOverlayBase {
+	private:
+		String^ _sourcePath;
+		System::IO::Stream^ _sourceStream;
 	public:
-		ImageOverlay() {
+		ImageOverlay() :RecordingOverlayBase() {
 
 		}
-		ImageOverlay(String^ path) {
+		ImageOverlay(String^ path) :RecordingOverlayBase() {
 			SourcePath = path;
 		}
-		ImageOverlay(System::IO::Stream^ stream) {
+		ImageOverlay(System::IO::Stream^ stream) :RecordingOverlayBase() {
 			SourceStream = stream;
 		}
-		property String^ SourcePath;
-		property System::IO::Stream^ SourceStream;
+		ImageOverlay(ImageOverlay^ source) :RecordingOverlayBase(source) {
+			SourcePath = source->SourcePath;
+			SourceStream = source->SourceStream;
+		}
+		/// <summary>
+		///The file path of the image to record
+		/// </summary>
+		property String^ SourcePath {
+			String^ get() {
+				return _sourcePath;
+			}
+			void set(String^ value) {
+				_sourcePath = value;
+				OnPropertyChanged("SourcePath");
+			}
+		}
+		/// <summary>
+		///The source stream of the image to record
+		/// </summary>
+		property System::IO::Stream^ SourceStream {
+			System::IO::Stream^ get() {
+				return _sourceStream;
+			}
+			void set(System::IO::Stream^ value) {
+				_sourceStream = value;
+				OnPropertyChanged("SourceStream");
+			}
+		}
 	};
 	public ref class DisplayOverlay :RecordingOverlayBase {
 	private:
 		bool _isCursorCaptureEnabled = true;
+		String^ _deviceName;
 	public:
-		DisplayOverlay() {
+		DisplayOverlay() :RecordingOverlayBase() {
 
 		}
-		DisplayOverlay(String^ deviceName) {
+		DisplayOverlay(String^ deviceName) :RecordingOverlayBase() {
 			DeviceName = deviceName;
 		}
-		property String^ DeviceName;
+		DisplayOverlay(DisplayOverlay^ source) :RecordingOverlayBase(source) {
+			DeviceName = source->DeviceName;
+			IsCursorCaptureEnabled = source->IsCursorCaptureEnabled;
+		}
+		/// <summary>
+		///The device name to record, e.g. \\\\.\\DISPLAY1\
+		/// </summary>
+		property String^ DeviceName {
+			String^ get() {
+				return _deviceName;
+			}
+			void set(String^ value) {
+				_deviceName = value;
+				OnPropertyChanged("DeviceName");
+			}
+		}
+
 		/// <summary>
 		///This option determines if the mouse cursor is recorded for this source. Defaults to true.
 		/// </summary>
@@ -162,14 +253,30 @@ namespace ScreenRecorderLib {
 	public ref class WindowOverlay :RecordingOverlayBase {
 	private:
 		bool _isCursorCaptureEnabled = true;
+		IntPtr _handle;
 	public:
-		WindowOverlay() {
+		WindowOverlay() :RecordingOverlayBase() {
 
 		}
-		WindowOverlay(IntPtr handle) {
+		WindowOverlay(IntPtr handle) :RecordingOverlayBase() {
 			Handle = handle;
 		}
-		property IntPtr Handle;
+		WindowOverlay(WindowOverlay^ source) :RecordingOverlayBase(source) {
+			Handle = source->Handle;
+			IsCursorCaptureEnabled = source->IsCursorCaptureEnabled;
+		}
+		/// <summary>
+		///This HWND of the window to record
+		/// </summary>
+		property IntPtr Handle {
+			IntPtr get() {
+				return _handle;
+			}
+			void set(IntPtr value) {
+				_handle = value;
+				OnPropertyChanged("Handle");
+			}
+		}
 		/// <summary>
 		///This option determines if the mouse cursor is recorded for this source. Defaults to true.
 		/// </summary>

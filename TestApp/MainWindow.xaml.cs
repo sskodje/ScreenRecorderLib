@@ -237,8 +237,8 @@ namespace TestApp
                         if (IsCustomOutputSourceRectEnabled)
                         {
                             _rec?.GetDynamicOptionsBuilder()
-                                    .SetDynamicOutputOptions(new DynamicOutputOptions { SourceRect = SourceRect })
-                                    .Apply();
+                                 .SetDynamicOutputOptions(new DynamicOutputOptions { SourceRect = SourceRect })
+                                   .Apply();
                         }
                         break;
                     }
@@ -247,68 +247,15 @@ namespace TestApp
 
         private void RecordingSource_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            switch (e.PropertyName)
-            {
-                case nameof(RecordingSourceBase.IsVideoCaptureEnabled):
-                    {
-                        _rec?.GetDynamicOptionsBuilder()
-                                .SetVideoCaptureEnabledForRecordingSource(((RecordingSourceBase)sender).ID, ((RecordingSourceBase)sender).IsVideoCaptureEnabled)
-                                .Apply();
-                        break;
-                    }
-                case nameof(RecordingSourceBase.SourceRect):
-                    {
-                        if (((ICheckableRecordingSource)sender).IsCustomOutputSourceRectEnabled)
-                        {
-                            _rec?.GetDynamicOptionsBuilder()
-                                    .SetSourceRectForRecordingSource(((RecordingSourceBase)sender).ID, ((RecordingSourceBase)sender).SourceRect)
-                                    .Apply();
-                        }
-                        break;
-                    }
-                case nameof(DisplayRecordingSource.IsCursorCaptureEnabled):
-                    {
-                        if (sender is DisplayRecordingSource)
-                        {
-                            _rec?.GetDynamicOptionsBuilder()
-                                    .SetCursorCaptureForRecordingSource(((RecordingSourceBase)sender).ID, ((DisplayRecordingSource)sender).IsCursorCaptureEnabled)
-                                    .Apply();
-                        }
-                        else if (sender is WindowRecordingSource)
-                        {
-                            _rec?.GetDynamicOptionsBuilder()
-                                    .SetCursorCaptureForRecordingSource(((RecordingSourceBase)sender).ID, ((WindowRecordingSource)sender).IsCursorCaptureEnabled)
-                                    .Apply();
-                        }
-                        break;
-                    }
-                default:
-                    break;
-            }
+            _rec?.GetDynamicOptionsBuilder()
+                .SetUpdatedRecordingSource(sender as RecordingSourceBase)
+                .Apply();
         }
         private void Overlay_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            switch (e.PropertyName)
-            {
-                case nameof(DisplayRecordingSource.IsCursorCaptureEnabled):
-                    {
-                        if (sender is DisplayOverlay)
-                        {
-                            _rec?.GetDynamicOptionsBuilder()
-                                    .SetCursorCaptureForOverlay(((DisplayOverlay)sender).ID, ((DisplayOverlay)sender).IsCursorCaptureEnabled)
-                                    .Apply();
-                        }
-                        else if (sender is DisplayOverlay)
-                        {
-                            _rec?.GetDynamicOptionsBuilder()
-                                    .SetCursorCaptureForOverlay(((DisplayOverlay)sender).ID, ((DisplayOverlay)sender).IsCursorCaptureEnabled)
-                                    .Apply();
-                        }
-                        break;
-                    }
-                default:
-                    break;
-            }
+            _rec?.GetDynamicOptionsBuilder()
+                .SetUpdatedOverlay(sender as RecordingOverlayBase)
+                .Apply();
         }
         private void RecorderOptions_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
@@ -428,6 +375,18 @@ namespace TestApp
             });
             Overlays.Add(new OverlayModel
             {
+                Overlay = new VideoOverlay
+                {
+                    AnchorPoint = Anchor.TopRight,
+                    SourcePath = @"testmedia\cat2.mp4",
+                    Offset = new ScreenSize(250, 50),
+                    Size = new ScreenSize(0, 200)
+
+                },
+                IsEnabled = false
+            });
+            Overlays.Add(new OverlayModel
+            {
                 Overlay = new ImageOverlay
                 {
                     AnchorPoint = Anchor.BottomLeft,
@@ -443,6 +402,17 @@ namespace TestApp
                 {
                     AnchorPoint = Anchor.Center,
                     SourcePath = @"testmedia\giftest.gif",
+                    Offset = new ScreenSize(0, 0),
+                    Size = new ScreenSize(0, 300)
+                },
+                IsEnabled = false
+            });
+            Overlays.Add(new OverlayModel
+            {
+                Overlay = new ImageOverlay()
+                {
+                    AnchorPoint = Anchor.Center,
+                    SourcePath = @"testmedia\earth.gif",
                     Offset = new ScreenSize(0, 0),
                     Size = new ScreenSize(0, 300)
                 },
@@ -1002,8 +972,10 @@ namespace TestApp
             }
 
             RecordingSources.Add(new CheckableRecordableVideo(@"testmedia\cat.mp4"));
+            RecordingSources.Add(new CheckableRecordableVideo(@"testmedia\cat2.mp4"));
             RecordingSources.Add(new CheckableRecordableImage(@"testmedia\renault.png"));
             RecordingSources.Add(new CheckableRecordableImage(@"testmedia\earth.gif"));
+            RecordingSources.Add(new CheckableRecordableImage(@"testmedia\giftest.gif"));
 
             (this.Resources["RecordableDisplayToDeviceIdConverter"] as RecordableDisplayToDeviceIdConverter).Displays = RecordingSources.Where(x => x is RecordableDisplay).Cast<RecordableDisplay>().ToList();
             (this.Resources["RecordableWindowToHandleConverter"] as RecordableWindowToHandleConverter).Windows = RecordingSources.Where(x => x is RecordableWindow).Cast<RecordableWindow>().ToList();

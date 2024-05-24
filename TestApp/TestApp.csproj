@@ -177,6 +177,10 @@
       <Link>Testmedia\cat.mp4</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="..\Testmedia\cat2.mp4">
+      <Link>Testmedia\cat2.mp4</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="..\Testmedia\renault.png">
       <Link>Testmedia\renault.png</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

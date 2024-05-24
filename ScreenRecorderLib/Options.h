@@ -665,7 +665,7 @@ namespace ScreenRecorderLib {
 		List<RecordingOverlayBase^>^ _overlays;
 	public:
 		OverLayOptions() {
-
+			Overlays = gcnew List<RecordingOverlayBase^>();
 		}
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
 		void OnPropertyChanged(String^ info)
@@ -785,13 +785,25 @@ namespace ScreenRecorderLib {
 		property DynamicAudioOptions^ AudioOptions;
 		property DynamicMouseOptions^ MouseOptions;
 		property DynamicOutputOptions^ OutputOptions;
+		property List<RecordingSourceBase^>^ RecordingSources;
+		property List<RecordingOverlayBase^>^ RecordingOverlays;
+
+		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingSources.", false)]
 		property Dictionary<String^, bool>^ SourceVideoCaptures;
-		property Dictionary<String^, bool>^ OverlayVideoCaptures;
+		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingSources.", false)]
 		property Dictionary<String^, ScreenRect^>^ SourceRects;
+		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingSources.", false)]
 		property Dictionary<String^, bool>^ SourceCursorCaptures;
+
+		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
+		property Dictionary<String^, bool>^ OverlayVideoCaptures;
+		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
 		property Dictionary<String^, bool>^ OverlayCursorCaptures;
+		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
 		property Dictionary<String^, ScreenSize^>^ OverlaySizes;
+		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
 		property Dictionary<String^, ScreenSize^>^ OverlayOffsets;
+		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
 		property Dictionary<String^, Anchor>^ OverlayAnchors;
 	};
 }

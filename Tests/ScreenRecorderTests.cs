@@ -192,6 +192,75 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
+        public void OverlayAndSourceChangeDuringRecording()
+        {
+            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
+            try
+            {
+                using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
+                {
+                    var recordingSource = new ImageRecordingSource(File.OpenRead(@"testmedia\renault.png"));
+                    var overlaySource = new VideoOverlay(@"testmedia\cat.mp4");
+                    var options = new RecorderOptions
+                    {
+                        SourceOptions = new SourceOptions
+                        {
+                            RecordingSources = { { recordingSource } }
+                        },
+                        OverlayOptions = new OverLayOptions
+                        {
+                            Overlays = { { overlaySource } }
+                        }
+                    };
+                    using (var rec = Recorder.CreateRecorder(options))
+                    {
+                        string error = "";
+                        bool isError = false;
+                        bool isComplete = false;
+                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
+                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
+                        rec.OnRecordingComplete += (s, args) =>
+                        {
+                            isComplete = true;
+                            finalizeResetEvent.Set();
+                        };
+                        rec.OnRecordingFailed += (s, args) =>
+                        {
+                            isError = true;
+                            error = args.Error;
+                            finalizeResetEvent.Set();
+                            recordingResetEvent.Set();
+                        };
+
+                        rec.Record(outStream);
+                        recordingResetEvent.WaitOne(3000);
+                        rec.GetDynamicOptionsBuilder()
+                            .SetUpdatedOverlay(new VideoOverlay(overlaySource) { SourcePath = @"testmedia\cat2.mp4" })
+                            .SetUpdatedRecordingSource(new ImageRecordingSource(recordingSource) { SourceStream = File.OpenRead(@"testmedia\alphatest.png") })
+                            .Apply();
+                        recordingResetEvent.WaitOne(3000);
+                        rec.Stop();
+                        finalizeResetEvent.WaitOne(5000);
+                        outStream.Flush();
+                        Assert.IsFalse(isError, error);
+                        Assert.IsTrue(isComplete);
+                        Assert.AreNotEqual(outStream.Length, 0);
+                        outStream.Seek(0, SeekOrigin.Begin);
+
+                        Assert.IsTrue(new FileInfo(filePath).Length > 0);
+                        var mediaInfo = new MediaInfoWrapper(filePath);
+                        Assert.IsTrue(mediaInfo.Format == "MPEG-4");
+                        Assert.IsTrue(mediaInfo.VideoStreams.Count > 0);
+                    }
+                }
+            }
+            finally
+            {
+                File.Delete(filePath);
+            }
+        }
+
+        [TestMethod]
         public void DefaultRecordingToStream()
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
@@ -1786,11 +1855,12 @@ namespace ScreenRecorderLib
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
             {
+                DisplayRecordingSource recordingSource = DisplayRecordingSource.MainMonitor;
                 RecorderOptions options = new RecorderOptions
                 {
                     SourceOptions = new SourceOptions
                     {
-                        RecordingSources = { { DisplayRecordingSource.MainMonitor } }
+                        RecordingSources = { { recordingSource } }
                     }
                 };
                 using (var rec = Recorder.CreateRecorder(options))
@@ -1819,9 +1889,12 @@ namespace ScreenRecorderLib
                     rec.Record(filePath);
                     Thread.Sleep(100);
                     rec?.GetDynamicOptionsBuilder()
-                        .SetVideoCaptureEnabledForRecordingSource(DisplayRecordingSource.MainMonitor.ID, false)
-                        .SetCursorCaptureForRecordingSource(DisplayRecordingSource.MainMonitor.ID, false)
-                        .SetSourceRectForRecordingSource(DisplayRecordingSource.MainMonitor.ID, new ScreenRect(0, 0, 500, 500))
+                        .SetUpdatedRecordingSource(new DisplayRecordingSource(recordingSource)
+                        {
+                            IsVideoCaptureEnabled = false,
+                            IsCursorCaptureEnabled = false,
+                            SourceRect = new ScreenRect(0, 0, 500, 500)
+                        })
                         .SetDynamicOutputOptions(new DynamicOutputOptions { IsVideoCaptureEnabled = false })
                         .SetDynamicAudioOptions(new DynamicAudioOptions { IsOutputDeviceEnabled = false })
                         .SetDynamicMouseOptions(new DynamicMouseOptions { IsMousePointerEnabled = false })

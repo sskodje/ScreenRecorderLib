@@ -91,7 +91,7 @@ HRESULT ImageReader::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3
 		return S_OK;
 	}
 	else {
-		return E_ABORT;
+		return S_FALSE;
 	}
 }
 

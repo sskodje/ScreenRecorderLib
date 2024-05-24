@@ -316,6 +316,38 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 			}
 		}
 	}
+
+	if (options->RecordingOverlays) {
+		for each (RecordingOverlayBase ^ managedOverlay in options->RecordingOverlays)
+		{
+			std::wstring id = msclr::interop::marshal_as<std::wstring>(managedOverlay->ID);
+			for each (RECORDING_OVERLAY * nativeOverlay in m_Rec->GetRecordingOverlays())
+			{
+				if (nativeOverlay->ID == id) {
+					HRESULT hr = CreateOrUpdateNativeRecordingOverlay(managedOverlay, nativeOverlay);
+					if (FAILED(hr)) {
+						LOG_ERROR("Failed to update recording overlay properties with ID %ls", id.c_str());
+					}
+				}
+			}
+		}
+	}
+
+	if (options->RecordingSources) {
+		for each (RecordingSourceBase ^ managedSource in options->RecordingSources)
+		{
+			std::wstring id = msclr::interop::marshal_as<std::wstring>(managedSource->ID);
+			for each (RECORDING_SOURCE * nativeSource in m_Rec->GetRecordingSources())
+			{
+				if (nativeSource->ID == id) {
+					HRESULT hr = CreateOrUpdateNativeRecordingSource(managedSource, nativeSource);
+					if (FAILED(hr)) {
+						LOG_ERROR("Failed to update recording source properties with ID %ls", id.c_str());
+					}
+				}
+			}
+		}
+	}
 }
 
 bool Recorder::SetExcludeFromCapture(System::IntPtr hwnd, bool isExcluded)
@@ -650,29 +682,28 @@ void Recorder::ReleaseResources() {
 	}
 }
 
-HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Out_ RECORDING_SOURCE* pNativeSource)
+HRESULT Recorder::CreateOrUpdateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Inout_ RECORDING_SOURCE* pNativeSource)
 {
 	HRESULT hr = E_FAIL;
-	RECORDING_SOURCE nativeSource{};
-	nativeSource.ID = msclr::interop::marshal_as<std::wstring>(managedSource->ID);
+	pNativeSource->ID = msclr::interop::marshal_as<std::wstring>(managedSource->ID);
 	if (managedSource->OutputSize
 		&& !managedSource->OutputSize->Equals(ScreenSize::Empty)
 		&& (managedSource->OutputSize->Width > 0 || managedSource->OutputSize->Height > 0)) {
-		nativeSource.OutputSize = managedSource->OutputSize->ToSIZE();
+		pNativeSource->OutputSize = managedSource->OutputSize->ToSIZE();
 	}
 
 	if (managedSource->Position && !managedSource->Position->Equals(ScreenPoint::Empty)) {
-		nativeSource.Position = managedSource->Position->ToPOINT();
+		pNativeSource->Position = managedSource->Position->ToPOINT();
 	}
 	if (managedSource->SourceRect
 		&& !managedSource->SourceRect->Equals(ScreenRect::Empty)
 		&& managedSource->SourceRect->Right > managedSource->SourceRect->Left
 		&& managedSource->SourceRect->Bottom > managedSource->SourceRect->Top) {
-		nativeSource.SourceRect = managedSource->SourceRect->ToRECT();
+		pNativeSource->SourceRect = managedSource->SourceRect->ToRECT();
 	}
-	nativeSource.IsVideoCaptureEnabled = managedSource->IsVideoCaptureEnabled;
-	nativeSource.Stretch = static_cast<TextureStretchMode>(managedSource->Stretch);
-	nativeSource.Anchor = static_cast<ContentAnchor>(managedSource->AnchorPoint);
+	pNativeSource->IsVideoCaptureEnabled = managedSource->IsVideoCaptureEnabled;
+	pNativeSource->Stretch = static_cast<TextureStretchMode>(managedSource->Stretch);
+	pNativeSource->Anchor = static_cast<ContentAnchor>(managedSource->AnchorPoint);
 	if (isinst<DisplayRecordingSource^>(managedSource)) {
 		DisplayRecordingSource^ displaySource = (DisplayRecordingSource^)managedSource;
 		if (!String::IsNullOrEmpty(displaySource->DeviceName)) {
@@ -682,19 +713,19 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 			if (SUCCEEDED(hr)) {
 				DXGI_OUTPUT_DESC desc;
 				hr = output->GetDesc(&desc);
-				nativeSource.Type = RecordingSourceType::Display;
-				nativeSource.SourcePath = desc.DeviceName;
-				nativeSource.IsCursorCaptureEnabled = displaySource->IsCursorCaptureEnabled;
-				nativeSource.IsBorderRequired = displaySource->IsBorderRequired;
+				pNativeSource->Type = RecordingSourceType::Display;
+				pNativeSource->SourcePath = desc.DeviceName;
+				pNativeSource->IsCursorCaptureEnabled = displaySource->IsCursorCaptureEnabled;
+				pNativeSource->IsBorderRequired = displaySource->IsBorderRequired;
 
 				switch (displaySource->RecorderApi)
 				{
 					case RecorderApi::DesktopDuplication: {
-						nativeSource.SourceApi = RecordingSourceApi::DesktopDuplication;
+						pNativeSource->SourceApi = RecordingSourceApi::DesktopDuplication;
 						break;
 					}
 					case RecorderApi::WindowsGraphicsCapture: {
-						nativeSource.SourceApi = RecordingSourceApi::WindowsGraphicsCapture;
+						pNativeSource->SourceApi = RecordingSourceApi::WindowsGraphicsCapture;
 						break;
 					}
 					default:
@@ -709,11 +740,11 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 		if (windowSource->Handle != IntPtr::Zero) {
 			HWND windowHandle = (HWND)(windowSource->Handle.ToPointer());
 			if (IsWindow(windowHandle)) {
-				nativeSource.Type = RecordingSourceType::Window;
-				nativeSource.SourceWindow = windowHandle;
-				nativeSource.IsCursorCaptureEnabled = windowSource->IsCursorCaptureEnabled;
-				nativeSource.IsBorderRequired = windowSource->IsBorderRequired;
-				nativeSource.SourceApi = RecordingSourceApi::WindowsGraphicsCapture;
+				pNativeSource->Type = RecordingSourceType::Window;
+				pNativeSource->SourceWindow = windowHandle;
+				pNativeSource->IsCursorCaptureEnabled = windowSource->IsCursorCaptureEnabled;
+				pNativeSource->IsBorderRequired = windowSource->IsBorderRequired;
+				pNativeSource->SourceApi = RecordingSourceApi::WindowsGraphicsCapture;
 				hr = S_OK;
 			}
 		}
@@ -722,103 +753,105 @@ HRESULT Recorder::CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedS
 		VideoCaptureRecordingSource^ videoCaptureSource = (VideoCaptureRecordingSource^)managedSource;
 		if (!String::IsNullOrEmpty(videoCaptureSource->DeviceName)) {
 			std::wstring deviceName = msclr::interop::marshal_as<std::wstring>(videoCaptureSource->DeviceName);
-			nativeSource.Type = RecordingSourceType::CameraCapture;
-			nativeSource.SourcePath = deviceName;
+			pNativeSource->Type = RecordingSourceType::CameraCapture;
+			pNativeSource->SourcePath = deviceName;
 			if (videoCaptureSource->CaptureFormat) {
-				nativeSource.CaptureFormatIndex = videoCaptureSource->CaptureFormat->Index;
+				pNativeSource->CaptureFormatIndex = videoCaptureSource->CaptureFormat->Index;
 			}
 			hr = S_OK;
 		}
 	}
 	else if (isinst<VideoRecordingSource^>(managedSource)) {
 		VideoRecordingSource^ videoSource = (VideoRecordingSource^)managedSource;
-		nativeSource.Type = RecordingSourceType::Video;
+		pNativeSource->Type = RecordingSourceType::Video;
 		if (videoSource->SourceStream) {
-			nativeSource.SourceStream = new ManagedIStream(videoSource->SourceStream);
+			pNativeSource->SourceStream = new ManagedIStream(videoSource->SourceStream);
 			hr = S_OK;
 		}
 		else if (!String::IsNullOrEmpty(videoSource->SourcePath)) {
-			nativeSource.SourcePath = msclr::interop::marshal_as<std::wstring>(videoSource->SourcePath);
+			pNativeSource->SourcePath = msclr::interop::marshal_as<std::wstring>(videoSource->SourcePath);
 			hr = S_OK;
 		}
 	}
 	else if (isinst<ImageRecordingSource^>(managedSource)) {
 		ImageRecordingSource^ imageSource = (ImageRecordingSource^)managedSource;
-		nativeSource.Type = RecordingSourceType::Picture;
+		pNativeSource->Type = RecordingSourceType::Picture;
 		if (imageSource->SourceStream) {
-			nativeSource.SourceStream = new ManagedIStream(imageSource->SourceStream);
+			pNativeSource->SourceStream = new ManagedIStream(imageSource->SourceStream);
 			hr = S_OK;
 		}
 		else if (!String::IsNullOrEmpty(imageSource->SourcePath)) {
-			nativeSource.SourcePath = msclr::interop::marshal_as<std::wstring>(imageSource->SourcePath);
+			pNativeSource->SourcePath = msclr::interop::marshal_as<std::wstring>(imageSource->SourcePath);
 			hr = S_OK;
 		}
 	}
 	else {
 		return E_NOTIMPL;
 	}
-	*pNativeSource = nativeSource;
 	return hr;
 }
 
-HRESULT Recorder::CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ managedOverlay, _Out_ RECORDING_OVERLAY* pNativeOverlay)
+HRESULT Recorder::CreateOrUpdateNativeRecordingOverlay(_In_ RecordingOverlayBase^ managedOverlay, _Inout_ RECORDING_OVERLAY* pNativeOverlay)
 {
 	HRESULT hr = E_FAIL;
-	RECORDING_OVERLAY nativeOverlay{};
-	nativeOverlay.ID = msclr::interop::marshal_as<std::wstring>(managedOverlay->ID);
-	nativeOverlay.Offset = SIZE{ static_cast<long>(managedOverlay->Offset->Width), static_cast<long>(managedOverlay->Offset->Height) };
-	nativeOverlay.OutputSize = SIZE{ static_cast<long>(managedOverlay->Size->Width), static_cast<long>(managedOverlay->Size->Height) };
-	nativeOverlay.Anchor = static_cast<ContentAnchor>(managedOverlay->AnchorPoint);
-	nativeOverlay.Stretch = static_cast<TextureStretchMode>(managedOverlay->Stretch);
+	pNativeOverlay->ID = msclr::interop::marshal_as<std::wstring>(managedOverlay->ID);
+	if (managedOverlay->Offset) {
+		pNativeOverlay->Offset = SIZE{ static_cast<long>(managedOverlay->Offset->Width), static_cast<long>(managedOverlay->Offset->Height) };
+	}
+	if (managedOverlay->Size) {
+		pNativeOverlay->OutputSize = SIZE{ static_cast<long>(managedOverlay->Size->Width), static_cast<long>(managedOverlay->Size->Height) };
+	}
+	pNativeOverlay->Anchor = static_cast<ContentAnchor>(managedOverlay->AnchorPoint);
+	pNativeOverlay->Stretch = static_cast<TextureStretchMode>(managedOverlay->Stretch);
 	if (isinst<VideoCaptureOverlay^>(managedOverlay)) {
 		VideoCaptureOverlay^ videoCaptureOverlay = (VideoCaptureOverlay^)managedOverlay;
-		nativeOverlay.Type = RecordingSourceType::CameraCapture;
+		pNativeOverlay->Type = RecordingSourceType::CameraCapture;
 		if (!String::IsNullOrEmpty(videoCaptureOverlay->DeviceName)) {
-			nativeOverlay.SourcePath = msclr::interop::marshal_as<std::wstring>(videoCaptureOverlay->DeviceName);
+			pNativeOverlay->SourcePath = msclr::interop::marshal_as<std::wstring>(videoCaptureOverlay->DeviceName);
 			hr = S_OK;
 		}
 	}
 	else if (isinst<ImageOverlay^>(managedOverlay)) {
 		ImageOverlay^ pictureOverlay = (ImageOverlay^)managedOverlay;
-		nativeOverlay.Type = RecordingSourceType::Picture;
+		pNativeOverlay->Type = RecordingSourceType::Picture;
 		if (pictureOverlay->SourceStream) {
-			nativeOverlay.SourceStream = new ManagedIStream(pictureOverlay->SourceStream);
+			pNativeOverlay->SourceStream = new ManagedIStream(pictureOverlay->SourceStream);
 			hr = S_OK;
 		}
 		else if (!String::IsNullOrEmpty(pictureOverlay->SourcePath)) {
-			nativeOverlay.SourcePath = msclr::interop::marshal_as<std::wstring>(pictureOverlay->SourcePath);
+			pNativeOverlay->SourcePath = msclr::interop::marshal_as<std::wstring>(pictureOverlay->SourcePath);
 			hr = S_OK;
 		}
 	}
 	else if (isinst<VideoOverlay^>(managedOverlay)) {
 		VideoOverlay^ videoOverlay = (VideoOverlay^)managedOverlay;
-		nativeOverlay.Type = RecordingSourceType::Video;
+		pNativeOverlay->Type = RecordingSourceType::Video;
 		if (videoOverlay->SourceStream) {
-			nativeOverlay.SourceStream = new ManagedIStream(videoOverlay->SourceStream);
+			pNativeOverlay->SourceStream = new ManagedIStream(videoOverlay->SourceStream);
 			hr = S_OK;
 		}
 		else if (!String::IsNullOrEmpty(videoOverlay->SourcePath)) {
-			nativeOverlay.SourcePath = msclr::interop::marshal_as<std::wstring>(videoOverlay->SourcePath);
+			pNativeOverlay->SourcePath = msclr::interop::marshal_as<std::wstring>(videoOverlay->SourcePath);
 			hr = S_OK;
 		}
 	}
 	else if (isinst<DisplayOverlay^>(managedOverlay)) {
 		DisplayOverlay^ displayOverlay = (DisplayOverlay^)managedOverlay;
-		nativeOverlay.Type = RecordingSourceType::Display;
+		pNativeOverlay->Type = RecordingSourceType::Display;
 		if (!String::IsNullOrEmpty(displayOverlay->DeviceName)) {
-			nativeOverlay.SourcePath = msclr::interop::marshal_as<std::wstring>(displayOverlay->DeviceName);
-			nativeOverlay.IsCursorCaptureEnabled = displayOverlay->IsCursorCaptureEnabled;
+			pNativeOverlay->SourcePath = msclr::interop::marshal_as<std::wstring>(displayOverlay->DeviceName);
+			pNativeOverlay->IsCursorCaptureEnabled = displayOverlay->IsCursorCaptureEnabled;
 			hr = S_OK;
 		}
 	}
 	else if (isinst<WindowOverlay^>(managedOverlay)) {
 		WindowOverlay^ windowOverlay = (WindowOverlay^)managedOverlay;
-		nativeOverlay.Type = RecordingSourceType::Window;
+		pNativeOverlay->Type = RecordingSourceType::Window;
 		if (windowOverlay->Handle != IntPtr::Zero) {
 			HWND windowHandle = (HWND)(windowOverlay->Handle.ToPointer());
 			if (!IsIconic(windowHandle) && IsWindow(windowHandle)) {
-				nativeOverlay.SourceWindow = windowHandle;
-				nativeOverlay.IsCursorCaptureEnabled = windowOverlay->IsCursorCaptureEnabled;
+				pNativeOverlay->SourceWindow = windowHandle;
+				pNativeOverlay->IsCursorCaptureEnabled = windowOverlay->IsCursorCaptureEnabled;
 				hr = S_OK;
 			}
 		}
@@ -826,7 +859,6 @@ HRESULT Recorder::CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ manage
 	else {
 		return E_NOTIMPL;
 	}
-	*pNativeOverlay = nativeOverlay;
 	return hr;
 }
 
@@ -902,7 +934,7 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(_In_ IEnumerab
 		for each (RecordingSourceBase ^ source in managedSources)
 		{
 			RECORDING_SOURCE nativeSource{};
-			HRESULT hr = CreateNativeRecordingSource(source, &nativeSource);
+			HRESULT hr = CreateOrUpdateNativeRecordingSource(source, &nativeSource);
 			if (SUCCEEDED(hr)) {
 				if (std::find(sources.begin(), sources.end(), nativeSource) == sources.end()) {
 					sources.insert(sources.end(), nativeSource);
@@ -921,7 +953,7 @@ std::vector<RECORDING_OVERLAY> Recorder::CreateOverlayList(_In_ IEnumerable<Reco
 		for each (RecordingOverlayBase ^ overlay in managedOverlays)
 		{
 			RECORDING_OVERLAY nativeOverlay{};
-			HRESULT hr = CreateNativeRecordingOverlay(overlay, &nativeOverlay);
+			HRESULT hr = CreateOrUpdateNativeRecordingOverlay(overlay, &nativeOverlay);
 			if (SUCCEEDED(hr)) {
 				if (std::find(overlays.begin(), overlays.end(), nativeOverlay) == overlays.end()) {
 					overlays.insert(overlays.end(), nativeOverlay);

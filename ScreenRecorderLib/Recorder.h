@@ -69,8 +69,8 @@ namespace ScreenRecorderLib {
 		void SetupCallbacks();
 		void ReleaseCallbacks();
 		void ReleaseResources();
-		static HRESULT CreateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Out_ RECORDING_SOURCE* pNativeSource);
-		static HRESULT CreateNativeRecordingOverlay(_In_ RecordingOverlayBase^ managedOverlay, _Out_ RECORDING_OVERLAY* pNativeOverlay);
+		static HRESULT CreateOrUpdateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Inout_ RECORDING_SOURCE* pNativeSource);
+		static HRESULT CreateOrUpdateNativeRecordingOverlay(_In_ RecordingOverlayBase^ managedOverlay, _Inout_ RECORDING_OVERLAY* pNativeOverlay);
 		static List<VideoCaptureFormat^>^ CreateVideoCaptureFormatList(_In_ std::vector< IMFMediaType*> mediaTypes);
 		static std::vector<RECORDING_SOURCE> CreateRecordingSourceList(_In_ IEnumerable<RecordingSourceBase^>^ options);
 		static std::vector<RECORDING_OVERLAY> CreateOverlayList(_In_ IEnumerable<RecordingOverlayBase^>^ managedOverlays);
@@ -162,6 +162,7 @@ namespace ScreenRecorderLib {
 		/// <param name="recordingSourceID">ID for a recording source in progress</param>
 		/// <param name="sourceRect"></param>
 		/// <returns></returns>
+		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedRecordingSource.", false)]
 		DynamicOptionsBuilder^ SetSourceRectForRecordingSource(String^ recordingSourceID, ScreenRect^ sourceRect) {
 			if (!_options->SourceRects) {
 				_options->SourceRects = gcnew Dictionary<String^, ScreenRect^>();
@@ -175,6 +176,7 @@ namespace ScreenRecorderLib {
 		/// <param name="recordingSourceID">ID for a recording source in progress</param>
 		/// <param name="isCursorCaptureEnabled"></param>
 		/// <returns></returns>
+		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedRecordingSource.", false)]
 		DynamicOptionsBuilder^ SetCursorCaptureForRecordingSource(String^ recordingSourceID, bool isCursorCaptureEnabled) {
 			if (!_options->SourceCursorCaptures) {
 				_options->SourceCursorCaptures = gcnew Dictionary<String^, bool>();
@@ -188,6 +190,7 @@ namespace ScreenRecorderLib {
 		/// <param name="recordingSourceID">ID for a recording source in progress</param>
 		/// <param name="isCursorCaptureEnabled"></param>
 		/// <returns></returns>
+		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedOverlay.", false)]
 		DynamicOptionsBuilder^ SetCursorCaptureForOverlay(String^ recordingSourceID, bool isCursorCaptureEnabled) {
 			if (!_options->OverlayCursorCaptures) {
 				_options->OverlayCursorCaptures = gcnew Dictionary<String^, bool>();
@@ -201,6 +204,7 @@ namespace ScreenRecorderLib {
 		/// <param name="overlayID">ID for a recording source in progress</param>
 		/// <param name="size">The size of the overlay in pixels</param>
 		/// <returns></returns>
+		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedOverlay.", false)]
 		DynamicOptionsBuilder^ SetSizeForOverlay(String^ overlayID, ScreenSize^ size) {
 			if (!_options->OverlaySizes) {
 				_options->OverlaySizes = gcnew Dictionary<String^, ScreenSize^>();
@@ -214,6 +218,7 @@ namespace ScreenRecorderLib {
 		/// <param name="overlayID">ID for an overlay in progress</param>
 		/// <param name="offset">The offset for the overlay, relative to the configured Anchor.</param>
 		/// <returns></returns>
+		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedOverlay.", false)]
 		DynamicOptionsBuilder^ SetOffsetForOverlay(String^ overlayID, ScreenSize^ offset) {
 			if (!_options->OverlayOffsets) {
 				_options->OverlayOffsets = gcnew Dictionary<String^, ScreenSize^>();
@@ -227,6 +232,7 @@ namespace ScreenRecorderLib {
 		/// <param name="overlayID">ID for an overlay in progress</param>
 		/// <param name="anchor">Where to anchor the overlay</param>
 		/// <returns></returns>
+		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedOverlay.", false)]
 		DynamicOptionsBuilder^ SetAnchorForOverlay(String^ overlayID, Anchor anchor) {
 			if (!_options->OverlayAnchors) {
 				_options->OverlayAnchors = gcnew Dictionary<String^, Anchor>();
@@ -240,6 +246,7 @@ namespace ScreenRecorderLib {
 		/// <param name="recordingSourceID">ID for a recording source in progress</param>
 		/// <param name="isCaptureEnabled">If false, the source will be blacked out for the duration.</param>
 		/// <returns></returns>
+		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedRecordingSource.", false)]
 		DynamicOptionsBuilder^ SetVideoCaptureEnabledForRecordingSource(String^ recordingSourceID, bool isCaptureEnabled) {
 			if (!_options->SourceVideoCaptures) {
 				_options->SourceVideoCaptures = gcnew Dictionary<String^, bool>();
@@ -250,14 +257,50 @@ namespace ScreenRecorderLib {
 		/// <summary>
 		/// Configure if video capture is enabled for the overlay with the given ID.
 		/// </summary>
-		/// <param name="overlayID">ID for a recording source in progress</param>
+		/// <param name="overlayID">ID for an overlay in progress</param>
 		/// <param name="isCaptureEnabled">If false, the overlay will be blacked out for the duration.</param>
 		/// <returns></returns>
+		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedOverlay.", false)]
 		DynamicOptionsBuilder^ SetVideoCaptureEnabledForOverlay(String^ overlayID, bool isCaptureEnabled) {
 			if (!_options->OverlayVideoCaptures) {
 				_options->OverlayVideoCaptures = gcnew Dictionary<String^, bool>();
 			}
 			_options->OverlayVideoCaptures[overlayID] = isCaptureEnabled;
+			return this;
+		}
+
+		/// <summary>
+		/// Update properties for the given overlay
+		/// </summary>
+		/// <param name="overlay">The overlay to update. It must have the same ID as an existing overlay</param>
+		/// <returns></returns>
+		DynamicOptionsBuilder^ SetUpdatedOverlay(RecordingOverlayBase^ overlay) {
+			if (!_options->RecordingOverlays) {
+				_options->RecordingOverlays = gcnew List<RecordingOverlayBase^>();
+			}
+			else if (_options->RecordingOverlays->Contains(overlay)) {
+				_options->RecordingOverlays->Remove(overlay);
+			}
+			_options->RecordingOverlays->Add(overlay);
+
+			return this;
+		}
+
+
+		/// <summary>
+		/// Update properties for the given recording source
+		/// </summary>
+		/// <param name="source">The recording source to update. It must have the same ID as an existing source</param>
+		/// <returns></returns>
+		DynamicOptionsBuilder^ SetUpdatedRecordingSource(RecordingSourceBase^ source) {
+			if (!_options->RecordingSources) {
+				_options->RecordingSources = gcnew List<RecordingSourceBase^>();
+			}
+			else if (_options->RecordingSources->Contains(source)) {
+				_options->RecordingSources->Remove(source);
+			}
+			_options->RecordingSources->Add(source);
+
 			return this;
 		}
 

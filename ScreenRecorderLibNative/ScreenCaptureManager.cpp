@@ -758,6 +758,12 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	bool isCapturingVideo = true;
 	bool isSharedSurfaceDirty = false;
 	bool waitToProcessCurrentFrame = false;
+
+	hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
+	if (FAILED(hr)) {
+		goto Exit;
+	}
+
 	//This scope must be here for ReleaseOnExit to work.
 Start:
 	{
@@ -771,11 +777,6 @@ Start:
 
 			if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
 				hr = S_OK;
-				goto Exit;
-			}
-
-			hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
-			if (FAILED(hr)) {
 				goto Exit;
 			}
 
@@ -828,6 +829,14 @@ Start:
 					}
 				}
 			});
+
+			const IStream *sourceStream = pSource->SourceStream;
+			const std::wstring sourcePath = pSource->SourcePath;
+			const HWND sourceWindowHandle = pSource->SourceWindow;
+			auto IsSourceChanged([sourceStream, sourcePath, sourceWindowHandle](RECORDING_SOURCE *source) {
+				return source->SourcePath != sourcePath || source->SourceStream != sourceStream || source->SourceWindow != sourceWindowHandle;
+			});
+
 			*pData->ThreadResult = {};
 			pData->ThreadResult->RecordingResult = S_OK;
 			// Main duplication loop
@@ -838,6 +847,11 @@ Start:
 					hr = S_OK;
 					break;
 				}
+
+				if (IsSourceChanged(pSource)) {
+					goto Start;
+				}
+
 				if (!isCapturingVideo) {
 					Sleep(1);
 					if (pSource->IsVideoCaptureEnabled.value_or(true)) {
@@ -856,6 +870,10 @@ Start:
 						hr = pRecordingSourceCapture->AcquireNextFrame(10, nullptr);
 					}
 					if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+						continue;
+					}
+					else if (hr == S_FALSE) {
+						Sleep(10);
 						continue;
 					}
 					else if (FAILED(hr)) {
@@ -1007,6 +1025,12 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 						});
 	int retryCount = 0;
 	bool IsCapturingVideo = true;
+
+	hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
+	if (FAILED(hr)) {
+		goto Exit;
+	}
+
 Start:
 	{
 		try
@@ -1022,11 +1046,6 @@ Start:
 
 			if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
 				hr = S_OK;
-				goto Exit;
-			}
-
-			hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
-			if (FAILED(hr)) {
 				goto Exit;
 			}
 
@@ -1066,6 +1085,13 @@ Start:
 					pOverlayData->DxRes.Context->CopyResource(pSharedTexture, pBlankTexture);
 				}
 			});
+			const IStream *sourceStream = pOverlay->SourceStream;
+			const std::wstring sourcePath = pOverlay->SourcePath;
+			const HWND sourceWindowHandle = pOverlay->SourceWindow;
+
+			auto IsSourceChanged([sourceStream, sourcePath, sourceWindowHandle](RECORDING_OVERLAY *overlay) {
+				return overlay->SourcePath != sourcePath || overlay->SourceStream != sourceStream || overlay->SourceWindow != sourceWindowHandle;
+				});
 
 			*pData->ThreadResult = {};
 			pData->ThreadResult->RecordingResult = S_OK;
@@ -1076,6 +1102,11 @@ Start:
 					hr = S_OK;
 					break;
 				}
+
+				if (IsSourceChanged(pOverlay)) {
+					goto Start;
+				}
+
 				if (!IsCapturingVideo) {
 					Sleep(1);
 					IsCapturingVideo = pOverlay->IsVideoCaptureEnabled.value_or(true);
@@ -1085,6 +1116,10 @@ Start:
 				// Get new frame from video capture
 				hr = overlayCapture->AcquireNextFrame(10, &pCurrentFrame);
 				if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+					continue;
+				}
+				else if (hr == S_FALSE) {
+					Sleep(10);
 					continue;
 				}
 				else if (FAILED(hr)) {
@@ -1284,7 +1319,7 @@ void ProcessCaptureHRESULT(_In_ HRESULT hr, _Inout_ CAPTURE_RESULT *pResult, _In
 			break;
 		default:
 			//Unexpected error, return.
-			LOG_ERROR(L"Unexpected error, aborting capture: %s", err.ErrorMessage());
+			LOG_ERROR(L"Unexpected error, aborting capture: hr = 0x%08x, error = %s", hr, err.ErrorMessage());
 			pResult->Error = L"Unexpected error, aborting capture";
 			break;
 	}
