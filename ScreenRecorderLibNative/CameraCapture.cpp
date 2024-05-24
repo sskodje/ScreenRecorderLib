@@ -168,7 +168,7 @@ HRESULT CameraCapture::InitializeMediaSource(
 				}
 				GUID inputSubType;
 				pInputMediaType->GetGUID(MF_MT_SUBTYPE, &inputSubType);
-				LogMediaType(pInputMediaType);
+				//LogMediaType(pInputMediaType);
 				if (ppOutputMediaType) {
 					SafeRelease(&pMediaTransform);
 					hr = CreateIMFTransform(streamIndex, pInputMediaType, &pMediaTransform, &pOutputMediaType);
@@ -178,6 +178,17 @@ HRESULT CameraCapture::InitializeMediaSource(
 						CONTINUE_ON_BAD_HR(hr = FindVideoDecoder(&inputSubType, nullptr, false, true, true, &pConverterActivate));
 						CComPtr<IMFTransform> pConverter = NULL;
 						CONTINUE_ON_BAD_HR(pConverterActivate->ActivateObject(IID_PPV_ARGS(&pConverter)));
+
+						CComPtr<IMFAttributes> pConverterAttributes = nullptr;
+						pConverter->GetAttributes(&pConverterAttributes);
+						UINT32 asyncSupport = 0;
+						hr = pConverterAttributes->GetUINT32(MF_TRANSFORM_ASYNC, &asyncSupport);
+						if (SUCCEEDED(hr) && asyncSupport)
+						{
+							// The MFT supports asynchronous processing
+							pConverterAttributes->SetUINT32(MF_TRANSFORM_ASYNC_UNLOCK, TRUE);
+						}
+
 						CONTINUE_ON_BAD_HR(pConverter->SetInputType(streamIndex, pInputMediaType, 0));
 						GUID guidMinor;
 						GUID guidMajor;
@@ -202,7 +213,7 @@ HRESULT CameraCapture::InitializeMediaSource(
 								CONTINUE_ON_BAD_HR(hr = pSourceReader->SetCurrentMediaType(streamIndex, NULL, pIntermediateMediaType));
 								CONTINUE_ON_BAD_HR(hr = CreateIMFTransform(streamIndex, pIntermediateMediaType, &pMediaTransform, &pOutputMediaType));
 								LOG_DEBUG("Successfully created video reader intermediate media transform:");
-								LogMediaType(pIntermediateMediaType);
+								//LogMediaType(pIntermediateMediaType);
 								break;
 							}
 						}
