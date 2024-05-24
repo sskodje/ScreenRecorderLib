@@ -560,10 +560,21 @@ List<VideoCaptureFormat^>^ ScreenRecorderLib::Recorder::GetSupportedVideoCapture
 	MeasureExecutionTime measure(L"GetSupportedVideoCaptureFormatsForDevice");
 	std::vector<IMFActivate*> captureDevices;
 	HRESULT hr = EnumVideoCaptureDevices(&captureDevices);
+	std::wstring devicePathWstring = msclr::interop::marshal_as<std::wstring>(DevicePath);
+
+
 	if (SUCCEEDED(hr))
 	{
 		ReleaseVectorOnExit release(captureDevices);
 		for (auto const& pDevice : captureDevices) {
+			// Get the device path
+			WCHAR* symbolicLink = NULL;
+			UINT32 cchSymbolicLink;
+			hr = pDevice->GetAllocatedString(MF_DEVSOURCE_ATTRIBUTE_SOURCE_TYPE_VIDCAP_SYMBOLIC_LINK, &symbolicLink, &cchSymbolicLink);
+			CoTaskMemFreeOnExit freeSymbolicLink(symbolicLink);
+			if (FAILED(hr) || symbolicLink == NULL || (!devicePathWstring.empty() && devicePathWstring != symbolicLink)) {
+				continue;
+			}
 
 			CComPtr<IMFMediaSource> pSource = nullptr;
 			CONTINUE_ON_BAD_HR(hr = pDevice->ActivateObject(__uuidof(IMFMediaSource), (void**)&pSource));
