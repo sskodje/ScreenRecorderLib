@@ -69,7 +69,10 @@ HRESULT STDMETHODCALLTYPE WASAPINotify::OnDefaultDeviceChanged(EDataFlow flow, E
 	if (flow == m_CaptureClient->GetFlow()) {
 		m_CaptureClient->SetDefaultDevice(flow, role, pwstrDeviceId);
 		std::wstring deviceName;
-		GetAudioDeviceFriendlyName(pwstrDeviceId, &deviceName);
+		HRESULT hr = GetAudioDeviceFriendlyName(pwstrDeviceId, &deviceName);
+		if (FAILED(hr)) {
+			deviceName = L"Unknown Device";
+		}
 
 		LOG_DEBUG("New default device: name=%s, flow = %s, role = %s\n",
 			   deviceName.c_str(), pszFlow, pszRole);

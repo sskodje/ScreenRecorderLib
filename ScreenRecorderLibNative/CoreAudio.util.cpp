@@ -226,6 +226,9 @@ HRESULT GetAudioDeviceFriendlyName(_In_ IMMDevice *pDevice, _Out_ std::wstring *
 	// Get the endpoint device's friendly-name property.
 	RETURN_ON_BAD_HR(hr = pProps->GetValue(PKEY_Device_FriendlyName, &varString));
 
+	if (varString.pwszVal == NULL) {
+		return E_FAIL;
+	}
 	*deviceName = std::wstring(varString.pwszVal);
 	return hr;
 }

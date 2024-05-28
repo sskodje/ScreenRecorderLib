@@ -70,7 +70,7 @@ HRESULT WASAPICapture::Initialize(_In_ std::wstring deviceId, _In_ EDataFlow flo
 	else {
 		RETURN_ON_BAD_HR(GetActiveAudioDevice(deviceId.c_str(), flow, &pDevice));
 	}
-
+	HRESULT hr = E_FAIL;
 	if (pDevice) {
 		LPWSTR deviceId;
 		pDevice->GetId(&deviceId);
@@ -78,7 +78,10 @@ HRESULT WASAPICapture::Initialize(_In_ std::wstring deviceId, _In_ EDataFlow flo
 		if (m_IsDefaultDevice) {
 			m_DefaultDeviceId = m_DeviceId;
 		}
-		GetAudioDeviceFriendlyName(deviceId, &m_DeviceName);
+		hr = GetAudioDeviceFriendlyName(deviceId, &m_DeviceName);
+		if (FAILED(hr)) {
+			m_DeviceName = L"Unknown Device";
+		}
 		CoTaskMemFree(deviceId);
 	}
 	else {
@@ -86,7 +89,7 @@ HRESULT WASAPICapture::Initialize(_In_ std::wstring deviceId, _In_ EDataFlow flo
 		return E_FAIL;
 	}
 
-	HRESULT hr = InitializeAudioClient(pDevice, &m_AudioClient);
+	hr = InitializeAudioClient(pDevice, &m_AudioClient);
 	if (SUCCEEDED(hr)) {
 		WWMFResampler *pResampler;
 		hr = InitializeResampler(m_AudioOptions->GetAudioSamplesPerSecond(), m_AudioOptions->GetAudioChannels(), m_AudioClient, &m_InputFormat, &m_OutputFormat, &pResampler);
