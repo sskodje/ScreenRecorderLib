@@ -776,6 +776,7 @@ HRESULT Recorder::CreateOrUpdateNativeRecordingSource(_In_ RecordingSourceBase^ 
 		VideoRecordingSource^ videoSource = (VideoRecordingSource^)managedSource;
 		pNativeSource->Type = RecordingSourceType::Video;
 		if (videoSource->SourceStream) {
+			SafeRelease(&pNativeSource->SourceStream);
 			pNativeSource->SourceStream = new ManagedIStream(videoSource->SourceStream);
 			hr = S_OK;
 		}
@@ -788,6 +789,7 @@ HRESULT Recorder::CreateOrUpdateNativeRecordingSource(_In_ RecordingSourceBase^ 
 		ImageRecordingSource^ imageSource = (ImageRecordingSource^)managedSource;
 		pNativeSource->Type = RecordingSourceType::Picture;
 		if (imageSource->SourceStream) {
+			SafeRelease(&pNativeSource->SourceStream);
 			pNativeSource->SourceStream = new ManagedIStream(imageSource->SourceStream);
 			hr = S_OK;
 		}
@@ -826,6 +828,7 @@ HRESULT Recorder::CreateOrUpdateNativeRecordingOverlay(_In_ RecordingOverlayBase
 		ImageOverlay^ pictureOverlay = (ImageOverlay^)managedOverlay;
 		pNativeOverlay->Type = RecordingSourceType::Picture;
 		if (pictureOverlay->SourceStream) {
+			SafeRelease(&pNativeOverlay->SourceStream);
 			pNativeOverlay->SourceStream = new ManagedIStream(pictureOverlay->SourceStream);
 			hr = S_OK;
 		}
@@ -838,6 +841,7 @@ HRESULT Recorder::CreateOrUpdateNativeRecordingOverlay(_In_ RecordingOverlayBase
 		VideoOverlay^ videoOverlay = (VideoOverlay^)managedOverlay;
 		pNativeOverlay->Type = RecordingSourceType::Video;
 		if (videoOverlay->SourceStream) {
+			SafeRelease(&pNativeOverlay->SourceStream);
 			pNativeOverlay->SourceStream = new ManagedIStream(videoOverlay->SourceStream);
 			hr = S_OK;
 		}
