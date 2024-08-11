@@ -199,15 +199,23 @@ namespace ScreenRecorderLib {
 		bool _isBorderRequired = true;
 		String^ _deviceName;
 	public:
+		/// <summary>
+		/// Returns a recording source for the main display output. If no display output is available, it returns NULL.
+		/// </summary>
 		static property DisplayRecordingSource^ MainMonitor {
 			DisplayRecordingSource^ get() {
 				DisplayRecordingSource^ source = gcnew DisplayRecordingSource();
 				IDXGIOutput* output;
-				GetMainOutput(&output);
-				DXGI_OUTPUT_DESC outputDesc;
-				output->GetDesc(&outputDesc);
-				source->DeviceName = gcnew String(outputDesc.DeviceName);
-				return source;
+				HRESULT hr = GetMainOutput(&output);
+				if (SUCCEEDED(hr)) {
+					DXGI_OUTPUT_DESC outputDesc;
+					output->GetDesc(&outputDesc);
+					source->DeviceName = gcnew String(outputDesc.DeviceName);
+					return source;
+				}
+				else {
+					return nullptr;
+				}
 			}
 		}
 		/// <summary>

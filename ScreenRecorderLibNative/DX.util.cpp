@@ -278,7 +278,7 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 }
 
 HRESULT GetMainOutput(_Outptr_result_maybenull_ IDXGIOutput **ppOutput) {
-	HRESULT hr = S_FALSE;
+	HRESULT hr = DXGI_ERROR_NOT_FOUND;
 	if (ppOutput) {
 		*ppOutput = nullptr;
 	}
