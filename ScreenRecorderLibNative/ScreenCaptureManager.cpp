@@ -757,6 +757,7 @@ DWORD WINAPI CaptureThreadProc(_In_ void *Param)
 	int retryCount = 0;
 	bool isCapturingVideo = true;
 	bool isSharedSurfaceDirty = false;
+	bool isSourceDirty = false;
 	bool waitToProcessCurrentFrame = false;
 
 	hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
@@ -821,20 +822,21 @@ Start:
 				LOG_ERROR(L"Failed to initialize TextureManager");
 				goto Exit;
 			}
-			ExecuteFuncOnExit blankFrameOnExit([&]() {
-				if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) != WAIT_OBJECT_0) {
-					if (KeyMutex->AcquireSync(0, 500) == S_OK) {
-						textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-						KeyMutex->ReleaseSync(1);
-					}
-				}
-			});
 
 			const IStream *sourceStream = pSource->SourceStream;
 			const std::wstring sourcePath = pSource->SourcePath;
 			const HWND sourceWindowHandle = pSource->SourceWindow;
 			auto IsSourceChanged([sourceStream, sourcePath, sourceWindowHandle](RECORDING_SOURCE *source) {
 				return source->SourcePath != sourcePath || source->SourceStream != sourceStream || source->SourceWindow != sourceWindowHandle;
+			});
+
+			ExecuteFuncOnExit blankFrameOnExit([&]() {
+				if (!IsSourceChanged(pSource)
+					&& WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) != WAIT_OBJECT_0
+					&& KeyMutex->AcquireSync(0, 500) == S_OK) {
+					textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+					KeyMutex->ReleaseSync(1);
+				}
 			});
 
 			*pData->ThreadResult = {};
@@ -849,6 +851,7 @@ Start:
 				}
 
 				if (IsSourceChanged(pSource)) {
+					isSourceDirty = true;
 					goto Start;
 				}
 
@@ -936,6 +939,10 @@ Start:
 						OffsetRect(&offsetFrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
 						hr = textureManager.DrawTexture(SharedSurf, pFrame, offsetFrameCoordinates);
 						isSharedSurfaceDirty = false;
+					}
+					if (isSourceDirty) {
+						textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+						isSourceDirty = false;
 					}
 					hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates);
 				}
@@ -1025,7 +1032,7 @@ DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {
 						});
 	int retryCount = 0;
 	bool IsCapturingVideo = true;
-
+	CComPtr<ID3D11Texture2D> pSharedTexture = nullptr;
 	hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 	if (FAILED(hr)) {
 		goto Exit;
@@ -1035,9 +1042,9 @@ Start:
 	{
 		try
 		{
+			bool isSharedTextureDirty = true;
 			unique_ptr<CaptureBase> overlayCapture = nullptr;
 			// D3D objects
-			CComPtr<ID3D11Texture2D> pSharedTexture = nullptr;
 			CComPtr<ID3D11Texture2D> pCurrentFrame = nullptr;
 			CComPtr<ID3D11Texture2D> SharedSurf = nullptr;
 			CComPtr<IDXGIKeyedMutex> KeyMutex = nullptr;
@@ -1076,20 +1083,11 @@ Start:
 				goto Exit;
 			}
 
-			ExecuteFuncOnExit blankFrameOnExit([&]() {
-				if (pSharedTexture) {
-					D3D11_TEXTURE2D_DESC desc;
-					pSharedTexture->GetDesc(&desc);
-					CComPtr<ID3D11Texture2D> pBlankTexture;
-					pOverlayData->DxRes.Device->CreateTexture2D(&desc, nullptr, &pBlankTexture);
-					pOverlayData->DxRes.Context->CopyResource(pSharedTexture, pBlankTexture);
-				}
-			});
 			const IStream *sourceStream = pOverlay->SourceStream;
 			const std::wstring sourcePath = pOverlay->SourcePath;
 			const HWND sourceWindowHandle = pOverlay->SourceWindow;
 
-			auto IsSourceChanged([sourceStream, sourcePath, sourceWindowHandle](RECORDING_OVERLAY *overlay) {
+			auto IsSourceChanged([&sourceStream, &sourcePath, &sourceWindowHandle](RECORDING_OVERLAY *overlay) {
 				return overlay->SourcePath != sourcePath || overlay->SourceStream != sourceStream || overlay->SourceWindow != sourceWindowHandle;
 				});
 
@@ -1126,18 +1124,33 @@ Start:
 					break;
 				}
 
-				if (pSharedTexture == nullptr) {
+				if (pSharedTexture == nullptr || isSharedTextureDirty) {
 					D3D11_TEXTURE2D_DESC desc;
 					pCurrentFrame->GetDesc(&desc);
-					desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
-					desc.SampleDesc.Count = 1;
-					desc.Usage = D3D11_USAGE_DEFAULT;
-					desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-					desc.CPUAccessFlags = 0;
-					desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
-					pOverlayData->DxRes.Device->CreateTexture2D(&desc, nullptr, &pSharedTexture);
-					HANDLE sharedHandle = GetSharedHandle(pSharedTexture);
-					pData->OverlayTexSharedHandle = sharedHandle;
+					bool createSharedTexture = true;
+					if (pSharedTexture) {
+						D3D11_TEXTURE2D_DESC pSharedTextureDesc;
+						pSharedTexture->GetDesc(&pSharedTextureDesc);
+						if (pSharedTextureDesc.Width == desc.Width && pSharedTextureDesc.Height == desc.Height) {
+							createSharedTexture = false;
+						}
+						else {
+							pSharedTexture.Release();
+						}
+					}
+					if (createSharedTexture) {
+						desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+						desc.SampleDesc.Count = 1;
+						desc.Usage = D3D11_USAGE_DEFAULT;
+						desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+						desc.CPUAccessFlags = 0;
+						desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+						pOverlayData->DxRes.Device->CreateTexture2D(&desc, nullptr, &pSharedTexture);
+						HANDLE sharedHandle = GetSharedHandle(pSharedTexture);
+						pData->OverlayTexSharedHandle = sharedHandle;
+						LOG_INFO("Created new overlay shared texture");
+					}
+					isSharedTextureDirty = false;
 				}
 
 				if (!pOverlay->IsVideoCaptureEnabled.value_or(true)) {
@@ -1205,6 +1218,16 @@ Exit:
 			}
 		}
 	}
+
+	//Blank shared texture before exiting.
+	if (pSharedTexture) {
+		D3D11_TEXTURE2D_DESC desc;
+		pSharedTexture->GetDesc(&desc);
+		CComPtr<ID3D11Texture2D> pBlankTexture;
+		pOverlayData->DxRes.Device->CreateTexture2D(&desc, nullptr, &pBlankTexture);
+		pOverlayData->DxRes.Context->CopyResource(pSharedTexture, pBlankTexture);
+	}
+
 	CoUninitialize();
 	LOG_DEBUG("Exiting OverlayCaptureThreadProc");
 	return 0;
