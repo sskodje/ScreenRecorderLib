@@ -425,7 +425,7 @@ namespace TestApp
                     AnchorPoint = Anchor.TopLeft,
                     Offset = new ScreenSize(400, 100),
                     Size = new ScreenSize(300, 0),
-                    DeviceName = DisplayRecordingSource.MainMonitor.DeviceName
+                    DeviceName = DisplayRecordingSource.MainMonitor?.DeviceName
                 },
                 IsEnabled = false
             });
