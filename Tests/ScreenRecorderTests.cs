@@ -200,7 +200,8 @@ namespace ScreenRecorderLib
                 using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                 {
                     var recordingSource = new ImageRecordingSource(File.OpenRead(@"testmedia\renault.png"));
-                    var overlaySource = new VideoOverlay(@"testmedia\cat.mp4");
+                    var overlaySource = new VideoOverlay(@"testmedia\cat.mp4") { AnchorPoint = Anchor.TopLeft, Size = new ScreenSize(100, 0) };
+                    var dynamicAddOverlaySource = new ImageOverlay(@"testmedia\earth.gif") { AnchorPoint = Anchor.TopRight, Size = new ScreenSize(100, 0) };
                     var options = new RecorderOptions
                     {
                         SourceOptions = new SourceOptions
@@ -236,6 +237,7 @@ namespace ScreenRecorderLib
                         recordingResetEvent.WaitOne(3000);
                         rec.GetDynamicOptionsBuilder()
                             .SetUpdatedOverlay(new VideoOverlay(overlaySource) { SourcePath = @"testmedia\cat2.mp4" })
+                            .SetUpdatedOverlay(dynamicAddOverlaySource)
                             .SetUpdatedRecordingSource(new ImageRecordingSource(recordingSource) { SourceStream = File.OpenRead(@"testmedia\alphatest.png") })
                             .Apply();
                         recordingResetEvent.WaitOne(3000);

@@ -60,6 +60,18 @@ public:
 	inline std::vector<RECORDING_SOURCE *> GetRecordingSources() {
 		return m_RecordingSources;
 	}
+
+	inline HRESULT GetRecordingSourceForId(std::wstring id, _Outptr_ RECORDING_SOURCE **ppRecordingSource) {
+		for each (RECORDING_SOURCE * nativeSource in GetRecordingSources())
+		{
+			if (nativeSource->ID == id) {
+				*ppRecordingSource = nativeSource;
+				return S_OK;
+			}
+		}
+		return E_FAIL;
+	}
+
 	inline void ClearOverlays() {
 		for each (RECORDING_OVERLAY * overlay in m_Overlays)
 		{
@@ -74,10 +86,27 @@ public:
 			m_Overlays.push_back(new RECORDING_OVERLAY(overlay));
 		}
 	}
-	inline std::vector<RECORDING_OVERLAY *> GetRecordingOverlays() {
+	inline std::vector<RECORDING_OVERLAY *> &GetRecordingOverlays() {
 		return m_Overlays;
 	}
 
+	inline HRESULT GetRecordingOverlayForId(std::wstring id, _Outptr_ RECORDING_OVERLAY **ppOverlay) {
+		for each (RECORDING_OVERLAY * nativeOverlay in GetRecordingOverlays())
+		{
+			if (nativeOverlay->ID == id) {
+				*ppOverlay = nativeOverlay;
+				return S_OK;
+			}
+		}
+		return E_FAIL;
+	}
+
+	inline HRESULT UpdateOverlays() {
+		if (m_IsRecording) {
+			return m_CaptureManager->InitializeOverlays(m_Overlays, nullptr);
+		}
+		return S_OK;
+	}
 
 	void SetLogEnabled(bool value);
 	void SetLogFilePath(std::wstring value);

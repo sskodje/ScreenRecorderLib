@@ -359,6 +359,16 @@ struct OVERLAY_THREAD_DATA :THREAD_DATA_BASE
 	RECORDING_OVERLAY_DATA *RecordingOverlay{};
 };
 
+struct CAPTURE_THREAD {
+	HANDLE ThreadHandle{ nullptr };
+	CAPTURE_THREAD_DATA *ThreadData{ nullptr };
+};
+
+struct OVERLAY_THREAD {
+	HANDLE ThreadHandle{ nullptr };
+	OVERLAY_THREAD_DATA *ThreadData{ nullptr };
+};
+
 struct MOUSE_OPTIONS {
 protected:
 	bool m_IsMouseClicksDetected = false;

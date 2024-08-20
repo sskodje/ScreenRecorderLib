@@ -321,14 +321,22 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 		for each (RecordingOverlayBase ^ managedOverlay in options->RecordingOverlays)
 		{
 			std::wstring id = msclr::interop::marshal_as<std::wstring>(managedOverlay->ID);
-			for each (RECORDING_OVERLAY * nativeOverlay in m_Rec->GetRecordingOverlays())
-			{
-				if (nativeOverlay->ID == id) {
-					HRESULT hr = CreateOrUpdateNativeRecordingOverlay(managedOverlay, nativeOverlay);
-					if (FAILED(hr)) {
-						LOG_ERROR("Failed to update recording overlay properties with ID %ls", id.c_str());
-					}
-				}
+
+			RECORDING_OVERLAY* nativeOverlay;
+			HRESULT hr = m_Rec->GetRecordingOverlayForId(id, &nativeOverlay);
+
+			if (SUCCEEDED(hr)) {
+				hr = CreateOrUpdateNativeRecordingOverlay(managedOverlay, nativeOverlay);
+			}
+			else {
+				nativeOverlay = new RECORDING_OVERLAY{};
+				hr = CreateOrUpdateNativeRecordingOverlay(managedOverlay, nativeOverlay);
+				m_Rec->GetRecordingOverlays().push_back(nativeOverlay);
+				hr = m_Rec->UpdateOverlays();
+			}
+
+			if (FAILED(hr)) {
+				LOG_ERROR("Failed to update recording overlay properties with ID %ls", id.c_str());
 			}
 		}
 	}

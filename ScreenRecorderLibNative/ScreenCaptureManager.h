@@ -39,6 +39,7 @@ public:
 	std::vector<CAPTURE_THREAD_DATA> GetCaptureThreadData();
 	std::vector<OVERLAY_THREAD_DATA> GetOverlayThreadData();
 	virtual HRESULT ProcessOverlays(_Inout_ ID3D11Texture2D *pBackgroundFrame, _Out_ int *updateCount);
+	HRESULT InitializeOverlays(_In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_opt_  HANDLE hErrorEvent);
 protected:
 	LARGE_INTEGER m_LastAcquiredFrameTimeStamp;
 	ID3D11Texture2D *m_SharedSurf;
@@ -49,7 +50,7 @@ protected:
 	PTR_INFO m_PtrInfo;
 
 	virtual HRESULT CreateSharedSurf(_In_ RECT desktopRect, _Outptr_ ID3D11Texture2D **ppSharedTexture, _Outptr_ IDXGIKeyedMutex **ppKeyedMutex);
-	virtual HRESULT CreateSharedSurf(_In_ const std::vector<RECORDING_SOURCE *> &sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds);
+	virtual HRESULT CreateSharedSurf(_In_ const std::vector<RECORDING_SOURCE *> &sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds, _Outptr_ ID3D11Texture2D **ppSharedTexture, _Outptr_ IDXGIKeyedMutex **ppKeyedMutex);
 private:
 	bool m_IsCapturing;
 	HANDLE m_TerminateThreadsEvent;
@@ -57,22 +58,16 @@ private:
 	std::shared_ptr<ENCODER_OPTIONS> m_EncoderOptions;
 	std::shared_ptr<OUTPUT_OPTIONS> m_OutputOptions;
 	std::shared_ptr<MOUSE_OPTIONS> m_MouseOptions;
-
 	std::unique_ptr<TextureManager> m_TextureManager;
-
 	CComPtr<ID3D11Texture2D> m_FrameCopy;
 
-	UINT m_CaptureThreadCount;
-	_Field_size_(m_CaptureThreadCount) HANDLE *m_CaptureThreadHandles;
-	_Field_size_(m_CaptureThreadCount) CAPTURE_THREAD_DATA *m_CaptureThreadData;
-
-	UINT m_OverlayThreadCount;
-	_Field_size_(m_OverlayThreadCount) HANDLE *m_OverlayThreadHandles;
-	_Field_size_(m_OverlayThreadCount) OVERLAY_THREAD_DATA *m_OverlayThreadData;
+	std::vector<CAPTURE_THREAD *> m_CaptureThreads;
+	std::vector<OVERLAY_THREAD *> m_OverlayThreads;
 
 	void Clean();
 	HRESULT WaitForThreadTermination();
 	_Ret_maybenull_ CAPTURE_THREAD_DATA *GetCaptureDataForRect(RECT rect);
 	RECT GetSourceRect(_In_ SIZE canvasSize, _In_ RECORDING_SOURCE_DATA *pSource);
 	RECT GetOverlayRect(_In_ SIZE canvasSize, _In_ SIZE overlayTextureSize, _In_ RECORDING_OVERLAY *pOverlay);
+	HRESULT ScreenCaptureManager::InitializeRecordingSources(_In_ const std::vector<RECORDING_SOURCE_DATA *> &recordingSources, _In_opt_  HANDLE hErrorEvent);
 };

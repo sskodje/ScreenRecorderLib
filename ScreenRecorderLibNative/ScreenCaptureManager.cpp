@@ -25,12 +25,8 @@ ScreenCaptureManager::ScreenCaptureManager() :
 	m_OutputRect{},
 	m_SharedSurf(nullptr),
 	m_KeyMutex(nullptr),
-	m_CaptureThreadCount(0),
-	m_CaptureThreadHandles(nullptr),
-	m_CaptureThreadData(nullptr),
-	m_OverlayThreadCount(0),
-	m_OverlayThreadHandles(nullptr),
-	m_OverlayThreadData(nullptr),
+	m_CaptureThreads{},
+	m_OverlayThreads{},
 	m_TextureManager(nullptr),
 	m_IsCapturing(false),
 	m_OutputOptions(nullptr),
@@ -85,114 +81,132 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 	ResetEvent(m_TerminateThreadsEvent);
 
 	HRESULT hr = E_FAIL;
-	std::vector<RECORDING_SOURCE_DATA *> CreatedOutputs{};
-	RETURN_ON_BAD_HR(hr = CreateSharedSurf(sources, &CreatedOutputs, &m_OutputRect));
-	m_CaptureThreadCount = (UINT)(CreatedOutputs.size());
-	m_CaptureThreadHandles = new (std::nothrow) HANDLE[m_CaptureThreadCount]{};
-	m_CaptureThreadData = new (std::nothrow) CAPTURE_THREAD_DATA[m_CaptureThreadCount]{};
-	HANDLE *captureStartEventHandles = new (std::nothrow) HANDLE[m_CaptureThreadCount]{};
-	DeleteArrayOnExit deleteCaptureStartHandleArray(captureStartEventHandles);
-	if (!m_CaptureThreadHandles || !m_CaptureThreadData || !captureStartEventHandles)
-	{
-		return E_OUTOFMEMORY;
-	}
-	for (UINT i = 0; i < m_CaptureThreadCount; i++)
-	{
-		// Event for when a thread has started
-		HANDLE startedEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-		if (nullptr == startedEvent) {
-			LOG_ERROR(L"CreateEvent failed: last error is %u", GetLastError());
-			return E_FAIL;
-		}
-		captureStartEventHandles[i] = startedEvent;
-	}
-	HANDLE sharedHandle = GetSharedHandle(m_SharedSurf);
-	// Create appropriate # of threads for duplication
+	std::vector<RECORDING_SOURCE_DATA *> createdOutputs{};
+	RETURN_ON_BAD_HR(hr = CreateSharedSurf(sources, &createdOutputs, &m_OutputRect, &m_SharedSurf, &m_KeyMutex));
 
-	for (UINT i = 0; i < m_CaptureThreadCount; i++)
-	{
-		RECORDING_SOURCE_DATA *data = CreatedOutputs.at(i);
-		m_CaptureThreadData[i].ThreadResult = new CAPTURE_RESULT();
-		m_CaptureThreadData[i].ErrorEvent = hErrorEvent;
-		m_CaptureThreadData[i].StartedEvent = captureStartEventHandles[i];
-		m_CaptureThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
-		m_CaptureThreadData[i].CanvasTexSharedHandle = sharedHandle;
-		m_CaptureThreadData[i].PtrInfo = &m_PtrInfo;
 
-		m_CaptureThreadData[i].RecordingSource = data;
-		RtlZeroMemory(&m_CaptureThreadData[i].RecordingSource->DxRes, sizeof(DX_RESOURCES));
-		RETURN_ON_BAD_HR(hr = InitializeDx(nullptr, &m_CaptureThreadData[i].RecordingSource->DxRes));
-		DWORD ThreadId;
-		m_CaptureThreadHandles[i] = CreateThread(nullptr, 0, CaptureThreadProc, &m_CaptureThreadData[i], 0, &ThreadId);
-		if (m_CaptureThreadHandles[i] == nullptr)
-		{
-			return E_FAIL;
-		}
-	}
-	m_OverlayThreadCount = (UINT)(overlays.size());
-	m_OverlayThreadHandles = new (std::nothrow) HANDLE[m_OverlayThreadCount]{};
-	m_OverlayThreadData = new (std::nothrow) OVERLAY_THREAD_DATA[m_OverlayThreadCount]{};
-	HANDLE *overlayCaptureStartEventHandles = new (std::nothrow) HANDLE[m_OverlayThreadCount]{};
-	DeleteArrayOnExit deleteOverlayCaptureStartHandleArray(overlayCaptureStartEventHandles);
-	if (!m_OverlayThreadHandles || !m_OverlayThreadData || !overlayCaptureStartEventHandles)
-	{
-		return E_OUTOFMEMORY;
-	}
-	for (UINT i = 0; i < m_OverlayThreadCount; i++)
-	{
-		// Event for when a thread has started
-		HANDLE startedEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
-		if (nullptr == startedEvent) {
-			LOG_ERROR(L"CreateEvent failed: last error is %u", GetLastError());
-			return E_FAIL;
-		}
-		overlayCaptureStartEventHandles[i] = startedEvent;
-	}
-	for (UINT i = 0; i < m_OverlayThreadCount; i++)
-	{
-		auto overlay = overlays.at(i);
-		m_OverlayThreadData[i].ThreadResult = new CAPTURE_RESULT();
-		m_OverlayThreadData[i].ErrorEvent = hErrorEvent;
-		m_OverlayThreadData[i].StartedEvent = overlayCaptureStartEventHandles[i];
-		m_OverlayThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
-		m_OverlayThreadData[i].CanvasTexSharedHandle = sharedHandle;
-		m_OverlayThreadData[i].TerminateThreadsEvent = m_TerminateThreadsEvent;
-		m_OverlayThreadData[i].RecordingOverlay = new RECORDING_OVERLAY_DATA(overlay);
-		RtlZeroMemory(&m_OverlayThreadData[i].RecordingOverlay->DxRes, sizeof(DX_RESOURCES));
-		RETURN_ON_BAD_HR(hr = InitializeDx(nullptr, &m_OverlayThreadData[i].RecordingOverlay->DxRes));
-
-		DWORD ThreadId;
-		m_OverlayThreadHandles[i] = CreateThread(nullptr, 0, OverlayCaptureThreadProc, &m_OverlayThreadData[i], 0, &ThreadId);
-		if (m_OverlayThreadHandles[i] == nullptr)
-		{
-			return E_FAIL;
-		}
-	}
-	if (m_OverlayThreadCount != 0)
-	{
-		WaitForMultipleObjectsEx(m_OverlayThreadCount, overlayCaptureStartEventHandles, TRUE, INFINITE, FALSE);
-		for (UINT i = 0; i < m_OverlayThreadCount; ++i)
-		{
-			if (overlayCaptureStartEventHandles[i])
-			{
-				CloseHandle(overlayCaptureStartEventHandles[i]);
-			}
-		}
-	}
-	if (m_CaptureThreadCount != 0) {
-		WaitForMultipleObjectsEx(m_CaptureThreadCount, captureStartEventHandles, TRUE, INFINITE, FALSE);
-		for (UINT i = 0; i < m_CaptureThreadCount; ++i)
-		{
-			if (captureStartEventHandles[i])
-			{
-				CloseHandle(captureStartEventHandles[i]);
-			}
-		}
-	}
-
+	RETURN_ON_BAD_HR(hr = InitializeRecordingSources(createdOutputs, hErrorEvent));
+	RETURN_ON_BAD_HR(hr = InitializeOverlays(overlays, hErrorEvent));
 	m_IsCapturing = true;
 	return hr;
 }
+
+HRESULT ScreenCaptureManager::InitializeRecordingSources(_In_ const std::vector<RECORDING_SOURCE_DATA *> &recordingSources, _In_opt_  HANDLE hErrorEvent)
+{
+	HRESULT hr = S_FALSE;
+	UINT sourceCount = static_cast<UINT>(recordingSources.size());
+	std::vector<HANDLE> startedEventHandles{};
+	for (UINT i = 0; i < sourceCount; i++)
+	{
+		// Event for when a thread has started
+		HANDLE startedEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+		if (nullptr == startedEvent) {
+			LOG_ERROR(L"CreateEvent failed: last error is %u", GetLastError());
+			return E_FAIL;
+		}
+		startedEventHandles.push_back(startedEvent);
+
+		HANDLE sharedHandle = GetSharedHandle(m_SharedSurf);
+		// Create appropriate # of threads for duplication
+
+		RECORDING_SOURCE_DATA *data = recordingSources.at(i);
+
+		CAPTURE_THREAD_DATA *threadData = new CAPTURE_THREAD_DATA();
+		threadData->ThreadResult = new CAPTURE_RESULT();
+		threadData->ErrorEvent = hErrorEvent;
+		threadData->StartedEvent = startedEvent;
+		threadData->TerminateThreadsEvent = m_TerminateThreadsEvent;
+		threadData->CanvasTexSharedHandle = sharedHandle;
+		threadData->PtrInfo = &m_PtrInfo;
+
+		threadData->RecordingSource = data;
+		RtlZeroMemory(&threadData->RecordingSource->DxRes, sizeof(DX_RESOURCES));
+		RETURN_ON_BAD_HR(hr = InitializeDx(nullptr, &threadData->RecordingSource->DxRes));
+
+		CAPTURE_THREAD *thread = new CAPTURE_THREAD();
+		thread->ThreadData = threadData;
+
+		DWORD ThreadId;
+		thread->ThreadHandle = CreateThread(nullptr, 0, CaptureThreadProc, threadData, 0, &ThreadId);
+		m_CaptureThreads.push_back(thread);
+	}
+	if (sourceCount != 0) {
+		UINT startedEventHandleCount = static_cast<UINT>(startedEventHandles.size());
+		DWORD result = WaitForMultipleObjectsEx(startedEventHandleCount, startedEventHandles.data(), TRUE, INFINITE, FALSE);
+		if (result < WAIT_OBJECT_0 || result >= WAIT_OBJECT_0 + startedEventHandleCount) {
+			LOG_WARN("Failed to wait for overlay capture start");
+		}
+		for each (HANDLE handle in startedEventHandles)
+		{
+			CloseHandle(handle);
+		}
+	}
+	return hr;
+}
+
+HRESULT ScreenCaptureManager::InitializeOverlays(_In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_opt_  HANDLE hErrorEvent)
+{
+	HRESULT hr = S_FALSE;
+	if (!m_SharedSurf) {
+		LOG_ERROR(L"Shared surface is not initialized");
+		return E_FAIL;
+	}
+	HANDLE sharedHandle = GetSharedHandle(m_SharedSurf);
+	UINT overlayCount = static_cast<UINT>(overlays.size());
+	std::vector<HANDLE> startedEventHandles{};
+	for (UINT i = 0; i < overlayCount; i++)
+	{
+		auto overlay = overlays.at(i);
+		std::vector<OVERLAY_THREAD *>::iterator iterator = std::find_if(
+			m_OverlayThreads.begin(), m_OverlayThreads.end(),
+			[&overlay](const OVERLAY_THREAD *x) { return x->ThreadData->RecordingOverlay->RecordingOverlay->ID == overlay->ID; });
+
+		if (iterator == m_OverlayThreads.end()) {
+			// Event for when a thread has started
+			HANDLE startedEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+			if (nullptr == startedEvent) {
+				LOG_ERROR(L"CreateEvent failed: last error is %u", GetLastError());
+				return E_FAIL;
+			}
+			startedEventHandles.push_back(startedEvent);
+
+			OVERLAY_THREAD_DATA *threadData = new OVERLAY_THREAD_DATA();
+			threadData->ThreadResult = new CAPTURE_RESULT();
+			threadData->ErrorEvent = hErrorEvent;
+			threadData->StartedEvent = startedEvent;
+			threadData->TerminateThreadsEvent = m_TerminateThreadsEvent;
+			threadData->CanvasTexSharedHandle = sharedHandle;
+			threadData->TerminateThreadsEvent = m_TerminateThreadsEvent;
+			threadData->RecordingOverlay = new RECORDING_OVERLAY_DATA(overlay);
+			RtlZeroMemory(&threadData->RecordingOverlay->DxRes, sizeof(DX_RESOURCES));
+			RETURN_ON_BAD_HR(hr = InitializeDx(nullptr, &threadData->RecordingOverlay->DxRes));
+			OVERLAY_THREAD *thread = new OVERLAY_THREAD();
+			thread->ThreadData = threadData;
+			DWORD ThreadId;
+			thread->ThreadHandle = CreateThread(nullptr, 0, OverlayCaptureThreadProc, threadData, 0, &ThreadId);
+			m_OverlayThreads.push_back(thread);
+		}
+		else {
+			if (!hErrorEvent) {
+				hErrorEvent = (*iterator)->ThreadData->ErrorEvent;
+			}
+		}
+	}
+	if (startedEventHandles.size() > 0)
+	{
+		UINT startedEventHandleCount = static_cast<UINT>(startedEventHandles.size());
+		DWORD result = WaitForMultipleObjectsEx(startedEventHandleCount, startedEventHandles.data(), TRUE, INFINITE, FALSE);
+		if (result < WAIT_OBJECT_0 || result >= WAIT_OBJECT_0 + startedEventHandleCount) {
+			LOG_WARN("Failed to wait for overlay capture start");
+		}
+		for each (HANDLE handle in startedEventHandles)
+		{
+			CloseHandle(handle);
+		}
+	}
+	return hr;
+}
+
 
 HRESULT ScreenCaptureManager::StopCapture()
 {
@@ -358,65 +372,42 @@ void ScreenCaptureManager::Clean()
 	}
 	RtlZeroMemory(&m_PtrInfo, sizeof(m_PtrInfo));
 
-	if (m_CaptureThreadHandles) {
-		for (UINT i = 0; i < m_CaptureThreadCount; ++i)
-		{
-			if (m_CaptureThreadHandles[i])
-			{
-				CloseHandle(m_CaptureThreadHandles[i]);
-			}
-		}
-		delete[] m_CaptureThreadHandles;
-		m_CaptureThreadHandles = nullptr;
-	}
-
-	if (m_CaptureThreadData)
+	for each (CAPTURE_THREAD * threadObject in m_CaptureThreads)
 	{
-		for (UINT i = 0; i < m_CaptureThreadCount; ++i)
-		{
-			if (m_CaptureThreadData[i].RecordingSource) {
-				CleanDx(&m_CaptureThreadData[i].RecordingSource->DxRes);
-				delete m_CaptureThreadData[i].RecordingSource;
-				m_CaptureThreadData[i].RecordingSource = nullptr;
-				delete m_CaptureThreadData[i].ThreadResult;
-				m_CaptureThreadData[i].ThreadResult = nullptr;
-			}
+		if (threadObject->ThreadHandle) {
+			CloseHandle(threadObject->ThreadHandle);
 		}
-		delete[] m_CaptureThreadData;
-		m_CaptureThreadData = nullptr;
-	}
-
-	m_CaptureThreadCount = 0;
-
-	if (m_OverlayThreadHandles) {
-		for (UINT i = 0; i < m_OverlayThreadCount; ++i)
-		{
-			if (m_OverlayThreadHandles[i])
-			{
-				CloseHandle(m_OverlayThreadHandles[i]);
-			}
+		if (threadObject->ThreadData) {
+			CleanDx(&threadObject->ThreadData->RecordingSource->DxRes);
+			delete threadObject->ThreadData->RecordingSource;
+			threadObject->ThreadData->RecordingSource = nullptr;
+			delete threadObject->ThreadData->ThreadResult;
+			threadObject->ThreadData->ThreadResult = nullptr;
+			delete threadObject->ThreadData;
+			threadObject->ThreadData = nullptr;
 		}
-		delete[] m_OverlayThreadHandles;
-		m_OverlayThreadHandles = nullptr;
+		delete threadObject;
 	}
+	m_CaptureThreads.clear();
 
-	if (m_OverlayThreadData)
+
+	for each (OVERLAY_THREAD * threadObject in m_OverlayThreads)
 	{
-		for (UINT i = 0; i < m_OverlayThreadCount; ++i)
-		{
-			if (m_OverlayThreadData[i].RecordingOverlay) {
-				CleanDx(&m_OverlayThreadData[i].RecordingOverlay->DxRes);
-				delete m_OverlayThreadData[i].RecordingOverlay;
-				m_OverlayThreadData[i].RecordingOverlay = nullptr;
-				delete m_OverlayThreadData[i].ThreadResult;
-				m_OverlayThreadData[i].ThreadResult = nullptr;
-			}
+		if (threadObject->ThreadHandle) {
+			CloseHandle(threadObject->ThreadHandle);
 		}
-		delete[] m_OverlayThreadData;
-		m_OverlayThreadData = nullptr;
+		if (threadObject->ThreadData) {
+			CleanDx(&threadObject->ThreadData->RecordingOverlay->DxRes);
+			delete threadObject->ThreadData->RecordingOverlay;
+			threadObject->ThreadData->RecordingOverlay = nullptr;
+			delete threadObject->ThreadData->ThreadResult;
+			threadObject->ThreadData->ThreadResult = nullptr;
+			delete threadObject->ThreadData;
+			threadObject->ThreadData = nullptr;
+		}
+		delete threadObject;
 	}
-
-	m_OverlayThreadCount = 0;
+	m_OverlayThreads.clear();
 
 	CloseHandle(m_TerminateThreadsEvent);
 }
@@ -427,32 +418,43 @@ void ScreenCaptureManager::Clean()
 HRESULT ScreenCaptureManager::WaitForThreadTermination()
 {
 	LOG_TRACE("Waiting for capture thread termination..");
-	if (m_OverlayThreadCount != 0) {
-		if (WaitForMultipleObjects(m_OverlayThreadCount, m_OverlayThreadHandles, TRUE, 5000) == WAIT_TIMEOUT) {
+	UINT overlayCount = static_cast<UINT>(m_OverlayThreads.size());
+	if (overlayCount > 0) {
+		std::vector<HANDLE> threadHandles{};
+		for (OVERLAY_THREAD *obj : m_OverlayThreads) {
+			threadHandles.push_back(obj->ThreadHandle);
+		}
+		if (WaitForMultipleObjects(overlayCount, threadHandles.data(), TRUE, 5000) == WAIT_TIMEOUT) {
 			LOG_ERROR(L"Timeout in overlay capture thread termination");
 			return E_FAIL;
 		}
 	}
-	if (m_CaptureThreadCount != 0) {
-		if (WaitForMultipleObjects(m_CaptureThreadCount, m_CaptureThreadHandles, TRUE, 5000) == WAIT_TIMEOUT) {
+
+	UINT sourceCount = static_cast<UINT>(m_CaptureThreads.size());
+	if (sourceCount > 0) {
+		std::vector<HANDLE> threadHandles{};
+		for (CAPTURE_THREAD *obj : m_CaptureThreads) {
+			threadHandles.push_back(obj->ThreadHandle);
+		}
+		if (WaitForMultipleObjects(sourceCount, threadHandles.data(), TRUE, 5000) == WAIT_TIMEOUT) {
 			LOG_ERROR(L"Timeout in capture thread termination");
 			return E_FAIL;
 		}
 	}
+
 	return S_OK;
 }
 
 _Ret_maybenull_ CAPTURE_THREAD_DATA *ScreenCaptureManager::GetCaptureDataForRect(RECT rect)
 {
 	POINT pt{ rect.left,rect.top };
-	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
+	for each (CAPTURE_THREAD * threadObject in m_CaptureThreads)
 	{
-		if (m_CaptureThreadData[i].RecordingSource) {
-			if (PtInRect(&m_CaptureThreadData[i].RecordingSource->FrameCoordinates, pt)) {
-				return &m_CaptureThreadData[i];
-			}
+		if (PtInRect(&threadObject->ThreadData->RecordingSource->FrameCoordinates, pt)) {
+			return threadObject->ThreadData;
 		}
 	}
+
 	return nullptr;
 }
 
@@ -465,15 +467,15 @@ RECT ScreenCaptureManager::GetSourceRect(_In_ SIZE canvasSize, _In_ RECORDING_SO
 
 bool ScreenCaptureManager::IsUpdatedFramesAvailable()
 {
-	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
+	for each (CAPTURE_THREAD * threadObject in m_CaptureThreads)
 	{
-		if (m_CaptureThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
+		if (threadObject->ThreadData->LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
 			return true;
 		}
 	}
-	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
+	for each (OVERLAY_THREAD * threadObject in m_OverlayThreads)
 	{
-		if (m_OverlayThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
+		if (threadObject->ThreadData && threadObject->ThreadData->LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
 			return true;
 		}
 	}
@@ -482,13 +484,11 @@ bool ScreenCaptureManager::IsUpdatedFramesAvailable()
 
 bool ScreenCaptureManager::IsInitialFrameWriteComplete()
 {
-	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
+	for each (CAPTURE_THREAD * threadObject in m_CaptureThreads)
 	{
-		if (m_CaptureThreadData[i].RecordingSource) {
-			if (m_CaptureThreadData[i].TotalUpdatedFrameCount == 0) {
-				//If any of the recordings have not yet written a frame, we return and wait for them.
-				return false;
-			}
+		if (threadObject->ThreadData && threadObject->ThreadData->TotalUpdatedFrameCount == 0) {
+			//If any of the recordings have not yet written a frame, we return and wait for them.
+			return false;
 		}
 	}
 	return true;
@@ -496,10 +496,10 @@ bool ScreenCaptureManager::IsInitialFrameWriteComplete()
 
 bool ScreenCaptureManager::IsInitialOverlayWriteComplete()
 {
-	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
+	for each (OVERLAY_THREAD * threadObject in m_OverlayThreads)
 	{
-		if (m_OverlayThreadData[i].RecordingOverlay) {
-			if (!FAILED(m_OverlayThreadData[i].ThreadResult->RecordingResult) && m_OverlayThreadData[i].LastUpdateTimeStamp.QuadPart == 0) {
+		if (threadObject->ThreadData && threadObject->ThreadData->RecordingOverlay) {
+			if (!FAILED(threadObject->ThreadData->ThreadResult->RecordingResult) && threadObject->ThreadData->LastUpdateTimeStamp.QuadPart == 0) {
 				//If any of the overlays have not yet written a frame, we return and wait for them.
 				return false;
 			}
@@ -512,9 +512,9 @@ UINT ScreenCaptureManager::GetUpdatedSourceCount()
 {
 	int updatedFrameCount = 0;
 
-	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
+	for each (CAPTURE_THREAD * threadObject in m_CaptureThreads)
 	{
-		if (m_CaptureThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
+		if (threadObject->ThreadData && threadObject->ThreadData->LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
 			updatedFrameCount++;
 		}
 	}
@@ -525,9 +525,9 @@ UINT ScreenCaptureManager::GetUpdatedOverlayCount()
 {
 	int updatedFrameCount = 0;
 
-	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
+	for each (OVERLAY_THREAD * thread in m_OverlayThreads)
 	{
-		if (m_OverlayThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
+		if (thread->ThreadData && thread->ThreadData->LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
 			updatedFrameCount++;
 		}
 	}
@@ -551,9 +551,9 @@ std::vector<CAPTURE_RESULT *> ScreenCaptureManager::GetCaptureResults()
 std::vector<CAPTURE_THREAD_DATA> ScreenCaptureManager::GetCaptureThreadData()
 {
 	std::vector<CAPTURE_THREAD_DATA> threadData;
-	for (UINT i = 0; i < m_CaptureThreadCount; ++i)
+	for each (CAPTURE_THREAD * threadObject in m_CaptureThreads)
 	{
-		threadData.push_back(m_CaptureThreadData[i]);
+		threadData.push_back(*threadObject->ThreadData);
 	}
 	return threadData;
 }
@@ -561,9 +561,9 @@ std::vector<CAPTURE_THREAD_DATA> ScreenCaptureManager::GetCaptureThreadData()
 std::vector<OVERLAY_THREAD_DATA> ScreenCaptureManager::GetOverlayThreadData()
 {
 	std::vector<OVERLAY_THREAD_DATA> threadData;
-	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
+	for each (OVERLAY_THREAD * threadObject in m_OverlayThreads)
 	{
-		threadData.push_back(m_OverlayThreadData[i]);
+		threadData.push_back(*threadObject->ThreadData);
 	}
 	return threadData;
 }
@@ -633,14 +633,14 @@ HRESULT ScreenCaptureManager::ProcessOverlays(_Inout_ ID3D11Texture2D *pCanvasTe
 	pCanvasTexture->GetDesc(&desc);
 	SIZE canvasSize = SIZE{ static_cast<LONG>(desc.Width),static_cast<LONG>(desc.Height) };
 
-	for (UINT i = 0; i < m_OverlayThreadCount; ++i)
+	for each (OVERLAY_THREAD * threadObject in m_OverlayThreads)
 	{
-		if (m_OverlayThreadData[i].RecordingOverlay) {
-			if (FAILED(m_OverlayThreadData[i].ThreadResult->RecordingResult) && !m_OverlayThreadData[i].ThreadResult->IsRecoverableError) {
+		if (threadObject->ThreadData) {
+			if (FAILED(threadObject->ThreadData->ThreadResult->RecordingResult) && !threadObject->ThreadData->ThreadResult->IsRecoverableError) {
 				continue;
 			}
-			RECORDING_OVERLAY_DATA *pOverlayData = m_OverlayThreadData[i].RecordingOverlay;
-			HANDLE sharedHandle = m_OverlayThreadData[i].OverlayTexSharedHandle;
+			RECORDING_OVERLAY_DATA *pOverlayData = threadObject->ThreadData->RecordingOverlay;
+			HANDLE sharedHandle = threadObject->ThreadData->OverlayTexSharedHandle;
 			if (pOverlayData && sharedHandle) {
 				CComPtr<ID3D11Texture2D> pOverlayTexture;
 				CONTINUE_ON_BAD_HR(hr = m_Device->OpenSharedResource(sharedHandle, __uuidof(ID3D11Texture2D), reinterpret_cast<void **>(&pOverlayTexture)));
@@ -648,7 +648,7 @@ HRESULT ScreenCaptureManager::ProcessOverlays(_Inout_ ID3D11Texture2D *pCanvasTe
 				pOverlayTexture->GetDesc(&overlayDesc);
 				SIZE textureSize = SIZE{ static_cast<LONG>(overlayDesc.Width),static_cast<LONG>(overlayDesc.Height) };
 				CONTINUE_ON_BAD_HR(hr = m_TextureManager->DrawTexture(pCanvasTexture, pOverlayTexture, GetOverlayRect(canvasSize, textureSize, pOverlayData->RecordingOverlay)));
-				if (m_OverlayThreadData[i].LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
+				if (threadObject->ThreadData->LastUpdateTimeStamp.QuadPart > m_LastAcquiredFrameTimeStamp.QuadPart) {
 					count++;
 				}
 			}
@@ -661,7 +661,7 @@ HRESULT ScreenCaptureManager::ProcessOverlays(_Inout_ ID3D11Texture2D *pCanvasTe
 	return hr;
 }
 
-HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ const std::vector<RECORDING_SOURCE *> &sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds)
+HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ const std::vector<RECORDING_SOURCE *> &sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds, _Outptr_ ID3D11Texture2D **ppSharedTexture, _Outptr_ IDXGIKeyedMutex **ppKeyedMutex)
 {
 	*pCreatedOutputs = std::vector<RECORDING_SOURCE_DATA *>();
 	std::vector<std::pair<RECORDING_SOURCE *, RECT>> validOutputs;
@@ -692,7 +692,7 @@ HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ const std::vector<RECORDING_
 	}
 
 	// Set created outputs
-	hr = ScreenCaptureManager::CreateSharedSurf(*pDeskBounds, &m_SharedSurf, &m_KeyMutex);
+	hr = ScreenCaptureManager::CreateSharedSurf(*pDeskBounds, ppSharedTexture, ppKeyedMutex);
 	return hr;
 }
 
