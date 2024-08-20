@@ -194,7 +194,16 @@ HRESULT RecordingManager::TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStr
 	CComPtr<ID3D11Texture2D> processedTexture;
 	if (!pTexture) {
 		CAPTURED_FRAME capturedFrame{};
-		hr = m_CaptureManager->CopyCurrentFrame(&capturedFrame);
+		if (m_IsPaused) {
+			hr = m_CaptureManager->AcquireNextFrame(0, m_MaxFrameLengthMillis, &capturedFrame);
+			if (SUCCEEDED(hr)) {
+				capturedFrame.Frame->AddRef();
+			}
+		}
+		else {
+			hr = m_CaptureManager->CopyCurrentFrame(&capturedFrame);
+		}
+
 		RETURN_ON_BAD_HR(hr);
 		hr = ProcessTexture(capturedFrame.Frame, &processedTexture, capturedFrame.PtrInfo);
 		SafeRelease(&capturedFrame.Frame);
