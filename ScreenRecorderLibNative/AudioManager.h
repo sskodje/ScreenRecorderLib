@@ -34,6 +34,4 @@ private:
 	HRESULT StopOptionsChangeListenerThread();
 
 	std::vector<BYTE> MixAudio(_In_ std::vector<BYTE> const &first, _In_ std::vector<BYTE> const &second, _In_ float firstVolume, _In_ float secondVolume);
-	HRESULT GetDeviceFriendlyName(_In_ LPCWSTR pwstrId, _Out_ std::wstring *deviceName);
-	HRESULT PrintDeviceName(LPCWSTR pwstrId);
 };
