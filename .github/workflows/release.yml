@@ -19,12 +19,12 @@ jobs:
         platform: [x64, x86]
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: microsoft/setup-msbuild@v1.1
     - run: nuget restore ${{ env.SOLUTION_NAME }}.sln
     - run: msbuild /m /p:Configuration=Release /p:Platform="${{ matrix.platform }}" ${{ env.SOLUTION_NAME }}.sln
     
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: ScreenRecorderLib.${{matrix.platform}}
         path: ${{ env.PROJECT_NAME }}\bin\${{ matrix.platform }}\Release\ScreenRecorderLib.dll
@@ -34,11 +34,11 @@ jobs:
       runs-on: windows-2019
       needs : build
       steps:
-        - uses: actions/download-artifact@v3
+        - uses: actions/download-artifact@v4
           with:
             name: ScreenRecorderLib.x86
             path: ScreenRecorderLib.x86.zip
-        - uses: actions/download-artifact@v3
+        - uses: actions/download-artifact@v4
           with:
             name: ScreenRecorderLib.x64
             path: ScreenRecorderLib.x64.zip
@@ -49,5 +49,5 @@ jobs:
             repo_token: "${{ secrets.GITHUB_TOKEN }}"
             prerelease: false
             files: |
-              .\${{ env.PROJECT_NAME }}\ScreenRecorderLib.x86.zip
-              .\${{ env.PROJECT_NAME }}\ScreenRecorderLib.x64.zip
+              ScreenRecorderLib.x86.zip
+              ScreenRecorderLib.x64.zip
