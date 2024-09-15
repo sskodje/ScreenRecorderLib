@@ -76,6 +76,22 @@
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
     <Prefer32Bit>true</Prefer32Bit>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|ARM64'">
+    <DefineConstants>TRACE</DefineConstants>
+    <PlatformTarget>ARM64</PlatformTarget>
+    <Optimize>true</Optimize>
+    <ErrorReport>prompt</ErrorReport>
+    <DebugType>pdbonly</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\ARM64\Release\</OutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|ARM64'">
+    <DefineConstants>TRACE;DEBUG</DefineConstants>
+    <PlatformTarget>ARM64</PlatformTarget>
+    <ErrorReport>prompt</ErrorReport>
+    <DebugType>full</DebugType>
+    <OutputPath>bin\ARM64\Debug\</OutputPath>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.Core" />

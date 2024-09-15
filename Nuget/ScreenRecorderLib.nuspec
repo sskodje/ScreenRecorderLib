@@ -28,6 +28,9 @@
     <file src="..\ScreenRecorderLib\bin\x86\Release\ScreenRecorderLib.dll" target="build\x86\ScreenRecorderLib.dll" />
     <file src="..\ScreenRecorderLib\bin\x86\Release\ScreenRecorderLib.xml" target="build\x86\ScreenRecorderLib.xml" />
     <file src="..\ScreenRecorderLib\bin\x86\Release\ScreenRecorderLib.pdb" target="build\x86\ScreenRecorderLib.pdb" />
+    <file src="..\ScreenRecorderLib\bin\ARM64\Release\ScreenRecorderLib.dll" target="build\ARM64\ScreenRecorderLib.dll" />
+    <file src="..\ScreenRecorderLib\bin\ARM64\Release\ScreenRecorderLib.xml" target="build\ARM64\ScreenRecorderLib.xml" />
+    <file src="..\ScreenRecorderLib\bin\ARM64\Release\ScreenRecorderLib.pdb" target="build\ARM64\ScreenRecorderLib.pdb" />
     <file src="..\LICENSE" target="LICENSE" />
     <file src="..\README.md" target="README.md" />
   </files>
