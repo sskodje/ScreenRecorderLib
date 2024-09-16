@@ -269,7 +269,7 @@ struct RECORDING_OVERLAY_DATA
 {
 	DX_RESOURCES DxRes{};
 	RECORDING_OVERLAY *RecordingOverlay;
-	RECORDING_OVERLAY_DATA() {}
+	RECORDING_OVERLAY_DATA() :RecordingOverlay{ nullptr } {}
 	RECORDING_OVERLAY_DATA(RECORDING_OVERLAY *overlay)
 		:RecordingOverlay{ overlay }
 	{

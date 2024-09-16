@@ -34,7 +34,9 @@ DesktopDuplicationCapture::DesktopDuplicationCapture() :
 	m_CursorScaleX(1.0),
 	m_CursorScaleY(1.0),
 	m_CpuCopyBuffer(nullptr),
-	m_GpuCopyBuffer(nullptr)
+	m_CpuCopyBufferDesc{},
+	m_GpuCopyBuffer(nullptr),
+	m_GpuCopyBufferDesc{}
 {
 	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 	RtlZeroMemory(&m_OutputDesc, sizeof(m_OutputDesc));

@@ -21,7 +21,18 @@ GifReader::GifReader()
 	m_LastSampleReceivedTimeStamp{ 0 },
 	m_LastGrabTimeStamp{ 0 },
 	m_cxGifImage(0),
-	m_cyGifImage(0)
+	m_cyGifImage(0),
+	m_backgroundColor(D2D1::ColorF(0, 0.f)),
+	m_cFrames(0),
+	m_cxGifImagePixel(0),
+	m_cyGifImagePixel(0),
+	m_fHasLoop(false),
+	m_uLoopNumber(0),
+	m_uNextFrameIndex(0),
+	m_uTotalLoopCount(0),
+	m_uFrameDisposal(0),
+	m_uFrameDelay(0),
+	m_framePosition{}
 {
 	InitializeCriticalSection(&m_CriticalSection);
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
