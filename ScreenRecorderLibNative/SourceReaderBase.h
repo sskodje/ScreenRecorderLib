@@ -64,6 +64,8 @@ protected:
 	CRITICAL_SECTION m_CriticalSection;
 	inline IMFDXGIDeviceManager *GetDeviceManager() { return m_DeviceManager; }
 private:
+	 HRESULT AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame, _In_ bool sendFrameDataEvent);
+
 	long m_ReferenceCount;
 	HANDLE m_NewFrameEvent;
 	HANDLE m_StopCaptureEvent;
