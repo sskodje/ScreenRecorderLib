@@ -25,7 +25,7 @@ private:
 	HRESULT InitializeDecoder(_In_ std::wstring source);
 	HRESULT InitializeDecoder(_In_ IStream *pSourceStream);
 	HRESULT InitializeDecoder(_In_ IWICBitmapSource *pBitmap);
-	HRESULT SendBitmapCallback(_In_ ID3D11Texture2D *pSharedSurf);
+	HRESULT SendBitmapCallback(_In_ ID3D11Texture2D *pTexture);
 
 	ID3D11Device *m_Device;
 	ID3D11DeviceContext *m_DeviceContext;

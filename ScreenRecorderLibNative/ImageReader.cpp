@@ -187,7 +187,7 @@ HRESULT ImageReader::InitializeDecoder(_In_ IWICBitmapSource *pBitmap) {
 	return hr;
 }
 
-HRESULT ImageReader::SendBitmapCallback(_In_ ID3D11Texture2D *pSharedSurf) {
+HRESULT ImageReader::SendBitmapCallback(_In_ ID3D11Texture2D *pTexture) {
 	CComPtr<ID3D11Texture2D> cpuCopyBuffer; 
 	D3D11_TEXTURE2D_DESC cpuCopyBufferDesc;
 	m_Texture->GetDesc(&cpuCopyBufferDesc);
@@ -197,6 +197,7 @@ HRESULT ImageReader::SendBitmapCallback(_In_ ID3D11Texture2D *pSharedSurf) {
 	cpuCopyBufferDesc.BindFlags = 0;
 	RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&cpuCopyBufferDesc, nullptr, &cpuCopyBuffer));
 
+	m_DeviceContext->CopyResource(cpuCopyBuffer, pTexture);
 	D3D11_MAPPED_SUBRESOURCE map;
 	m_DeviceContext->Map(cpuCopyBuffer, 0, D3D11_MAP_READ, 0, &map);
 
@@ -215,7 +216,7 @@ HRESULT ImageReader::SendBitmapCallback(_In_ ID3D11Texture2D *pSharedSurf) {
 	   cpuCopyBufferDesc.Height						 // Image height in pixels.
 	);
 
-	//m_RecordingSource->RecordingNewFrameDataCallback(abs(stride), frameBuffer, len, cpuCopyBufferDesc.Width, cpuCopyBufferDesc.Height);
+	m_RecordingSource->RecordingNewFrameDataCallback(abs(stride), frameBuffer, len, cpuCopyBufferDesc.Width, cpuCopyBufferDesc.Height);
 	delete[] frameBuffer;
 	m_DeviceContext->Unmap(cpuCopyBuffer, 0);
 	return hr;
