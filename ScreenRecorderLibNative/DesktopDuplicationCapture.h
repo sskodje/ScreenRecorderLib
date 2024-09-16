@@ -26,14 +26,17 @@ private:
 	HRESULT CopyMove(_Inout_ ID3D11Texture2D *pSharedSurf, _In_reads_(moveCount) DXGI_OUTDUPL_MOVE_RECT *pMoveBuffer, UINT moveCount, INT offsetX, INT offsetY, _In_ RECT desktopCoordinates, _In_ DXGI_MODE_ROTATION rotation);
 	void SetDirtyVert(_Out_writes_(NUMVERTICES) VERTEX *pVertices, _In_ RECT *pDirty, INT offsetX, INT offsetY, _In_ RECT desktopCoordinates, _In_ DXGI_MODE_ROTATION rotation, _In_ D3D11_TEXTURE2D_DESC *pFullDesc, _In_ D3D11_TEXTURE2D_DESC *pThisDesc);
 	void SetMoveRect(_Out_ RECT *SrcRect, _Out_ RECT *pDestRect, _In_ DXGI_MODE_ROTATION rotation, _In_ DXGI_OUTDUPL_MOVE_RECT *pMoveRect, INT texWidth, INT texHeight);
-
+	HRESULT SendBitmapCallback(_In_ ID3D11Texture2D *pSharedSurf, _In_ SIZE frameOffset, _In_ SIZE contentOffset, _In_ RECT destinationRect);
 	ID3D11Device *m_Device;
 	ID3D11DeviceContext *m_DeviceContext;
 	std::unique_ptr<TextureManager> m_TextureManager;
 	std::unique_ptr<MouseManager> m_MouseManager;
 	RECORDING_SOURCE_BASE *m_RecordingSource;
 	DUPL_FRAME_DATA m_CurrentData;
-
+	ID3D11Texture2D *m_CpuCopyBuffer;
+	D3D11_TEXTURE2D_DESC m_CpuCopyBufferDesc;
+	ID3D11Texture2D *m_GpuCopyBuffer;
+	D3D11_TEXTURE2D_DESC m_GpuCopyBufferDesc;
 	int m_CursorOffsetX;
 	int m_CursorOffsetY;
 	float m_CursorScaleX;

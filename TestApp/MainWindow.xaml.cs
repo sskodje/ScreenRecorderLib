@@ -604,12 +604,28 @@ namespace TestApp
                 }
                 else if (x is CheckableRecordableDisplay disp)
                 {
-                    return new DisplayRecordingSource(disp)
+                    var source = new DisplayRecordingSource(disp)
                     {
                         OutputSize = disp.IsCustomOutputSizeEnabled ? disp.OutputSize : null,
                         SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
-                        Position = disp.IsCustomPositionEnabled ? disp.Position : null
+                        Position = disp.IsCustomPositionEnabled ? disp.Position : null,
+                        IsVideoFramePreviewEnabled = true
                     };
+                    source.OnFrameRecorded += (s, args) =>
+                    {
+                        byte[] bytes = new byte[args.Length];
+                        Marshal.Copy(args.Data, bytes, 0, args.Length);
+                        //  Debug.WriteLine($"Received preview frame with {args.Length} size, {args.Width} width and {args.Height} height");
+                        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, (Action)(() =>
+                        {
+                            if (RecordingPreviewBitmap == null || RecordingPreviewBitmap.Width != args.Width || RecordingPreviewBitmap.Height != args.Height)
+                            {
+                                RecordingPreviewBitmap = new WriteableBitmap(args.Width, args.Height, 96, 96, PixelFormats.Bgra32, null);
+                            }
+                            RecordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, args.Width, args.Height), bytes, Math.Abs(args.Stride), 0);
+                        }));
+                    };
+                    return source;
                 }
                 else if (x is CheckableRecordableCamera cam)
                 {

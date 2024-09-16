@@ -963,15 +963,15 @@ Start:
 				}
 				pData->TotalUpdatedFrameCount++;
 				QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
+				}
 			}
-		}
 		catch (const AccessViolationException &ex) {
 			hr = EXCEPTION_ACCESS_VIOLATION;
 		}
 		catch (...) {
 			hr = E_UNEXPECTED;
 		}
-	}
+		}
 Exit:
 	if (pData->ThreadResult) {
 		//E_ABORT is returned when the capture loop should be stopped, but the recording continue. On other errors, we check how to handle them.
@@ -1012,7 +1012,7 @@ Exit:
 	CoUninitialize();
 	LOG_DEBUG("Exiting CaptureThreadProc");
 	return 0;
-}
+	}
 
 
 DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {

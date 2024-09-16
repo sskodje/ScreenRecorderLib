@@ -32,7 +32,9 @@ DesktopDuplicationCapture::DesktopDuplicationCapture() :
 	m_CursorOffsetX(0),
 	m_CursorOffsetY(0),
 	m_CursorScaleX(1.0),
-	m_CursorScaleY(1.0)
+	m_CursorScaleY(1.0),
+	m_CpuCopyBuffer(nullptr),
+	m_GpuCopyBuffer(nullptr)
 {
 	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 	RtlZeroMemory(&m_OutputDesc, sizeof(m_OutputDesc));
@@ -50,6 +52,8 @@ DesktopDuplicationCapture::~DesktopDuplicationCapture()
 	SafeRelease(&m_SamplerLinear);
 	SafeRelease(&m_RTV);
 	SafeRelease(&m_CurrentData.Frame);
+	SafeRelease(&m_CpuCopyBuffer);
+	SafeRelease(&m_GpuCopyBuffer);
 
 	if (m_MetaDataBuffer)
 	{
@@ -177,14 +181,19 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 				cursorOffsetX += static_cast<int>(round(contentOffset.cx / cursorScaleX));
 				cursorOffsetY += static_cast<int>(round(contentOffset.cy / cursorScaleY));
 
-				D3D11_BOX Box;
-				Box.front = 0;
+				D3D11_BOX Box{};
 				Box.back = 1;
-				Box.left = 0;
-				Box.top = 0;
 				Box.right = MakeEven(RectWidth(contentRect));
 				Box.bottom = MakeEven(RectHeight(contentRect));
-				m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, destinationRect.left + offsetX + contentOffset.cx, destinationRect.top + offsetY + contentOffset.cy, 0, pProcessedTexture, 0, &Box);
+
+				int dstX = destinationRect.left + offsetX + contentOffset.cx;
+				int dstY = destinationRect.top + offsetY + contentOffset.cy;
+
+				m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, dstX, dstY, 0, pProcessedTexture, 0, &Box);
+
+				if (m_RecordingSource->RecordingNewFrameDataCallback) {
+					hr = SendBitmapCallback(pSharedSurf, SIZE{ offsetX,offsetY }, contentOffset, destinationRect);
+				}
 
 				m_CursorOffsetX = cursorOffsetX;
 				m_CursorOffsetY = cursorOffsetY;
@@ -202,6 +211,9 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 				{
 					RETURN_ON_BAD_HR(hr = CopyDirty(m_CurrentData.Frame, pSharedSurf, reinterpret_cast<RECT *>(m_CurrentData.MetaData + (m_CurrentData.MoveCount * sizeof(DXGI_OUTDUPL_MOVE_RECT))), m_CurrentData.DirtyCount, offsetX, offsetY, destinationRect, rotation));
 				}
+				if (m_RecordingSource->RecordingNewFrameDataCallback) {
+					hr = SendBitmapCallback(pSharedSurf, SIZE{ offsetX,offsetY }, SIZE{ 0,0 }, destinationRect);
+				}
 			}
 		}
 		else if (m_LastGrabTimeStamp.QuadPart > 0
@@ -216,6 +228,64 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 			QueryPerformanceCounter(&m_LastGrabTimeStamp);
 		}
 	}
+	return hr;
+}
+
+HRESULT DesktopDuplicationCapture::SendBitmapCallback(_In_ ID3D11Texture2D *pSharedSurf, _In_ SIZE frameOffset, _In_ SIZE contentOffset, _In_ RECT destinationRect) {
+	int width = MakeEven(RectWidth(destinationRect));
+	int height = MakeEven(RectHeight(destinationRect));
+
+	if (m_CpuCopyBufferDesc.Width != width || m_CpuCopyBufferDesc.Height != height) {
+		SafeRelease(&m_CpuCopyBuffer);
+		m_CurrentData.Frame->GetDesc(&m_CpuCopyBufferDesc);
+		m_CpuCopyBufferDesc.Usage = D3D11_USAGE_STAGING;
+		m_CpuCopyBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+		m_CpuCopyBufferDesc.MiscFlags = 0;
+		m_CpuCopyBufferDesc.BindFlags = 0;
+		RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&m_CpuCopyBufferDesc, nullptr, &m_CpuCopyBuffer));
+
+		m_CurrentData.Frame->GetDesc(&m_GpuCopyBufferDesc);
+		m_GpuCopyBufferDesc.Width = width;
+		m_GpuCopyBufferDesc.Height = height;
+		m_GpuCopyBufferDesc.CPUAccessFlags = 0;
+		m_GpuCopyBufferDesc.MiscFlags = 0;
+		m_GpuCopyBufferDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+		RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&m_GpuCopyBufferDesc, nullptr, &m_GpuCopyBuffer));
+	}
+
+	D3D11_BOX Box{};
+	Box.back = 1;
+	Box.right = MakeEven(width);
+	Box.bottom = MakeEven(height);
+	m_DeviceContext->CopySubresourceRegion(m_GpuCopyBuffer, 0, frameOffset.cx + contentOffset.cx, frameOffset.cy + contentOffset.cy, 0, pSharedSurf, 0, &Box);
+	PTR_INFO ptrInfo;
+	RtlZeroMemory(&ptrInfo, sizeof(ptrInfo));
+	HRESULT hr = GetMouse(&ptrInfo, destinationRect, frameOffset.cx, frameOffset.cy);
+	hr = m_MouseManager->ProcessMousePointer(m_GpuCopyBuffer, &ptrInfo);
+	delete[] ptrInfo.PtrShapeBuffer;
+
+	m_DeviceContext->CopyResource(m_CpuCopyBuffer, m_GpuCopyBuffer);
+	D3D11_MAPPED_SUBRESOURCE map;
+	m_DeviceContext->Map(m_CpuCopyBuffer, 0, D3D11_MAP_READ, 0, &map);
+
+	int bytesPerPixel = map.RowPitch / m_CpuCopyBufferDesc.Width;
+	int len = map.DepthPitch;//bufferDesc.Width * bufferDesc.Height * bytesPerPixel;
+	int stride = map.RowPitch;
+	BYTE *data = static_cast<BYTE *>(map.pData);
+	BYTE *frameBuffer = new BYTE[len];
+	//Copy the bitmap buffer, with handling of negative stride. https://docs.microsoft.com/en-us/windows/win32/medfound/image-stride
+	hr = MFCopyImage(
+	   frameBuffer,								 // Destination buffer.
+	   abs(stride),                    // Destination stride. We use the absolute value to flip bitmaps with negative stride. 
+	   stride > 0 ? data : data + (m_CpuCopyBufferDesc.Height - 1) * abs(stride), // First row in source image with positive stride, or the last row with negative stride.
+	   stride,								 // Source stride.
+	   bytesPerPixel * m_CpuCopyBufferDesc.Width,	 // Image width in bytes.
+	   m_CpuCopyBufferDesc.Height						 // Image height in pixels.
+	);
+
+	m_RecordingSource->RecordingNewFrameDataCallback(abs(stride), frameBuffer, len, m_CpuCopyBufferDesc.Width, m_CpuCopyBufferDesc.Height);
+	delete[] frameBuffer;
+	m_DeviceContext->Unmap(m_CpuCopyBuffer, 0);
 	return hr;
 }
 
