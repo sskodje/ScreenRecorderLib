@@ -640,6 +640,8 @@ namespace TestApp
                     };
                     source.OnFrameRecorded += (s, args) =>
                     {
+                        byte[] bytes = new byte[args.Length];
+                        Marshal.Copy(args.Data, bytes, 0, args.Length);
                         //  Debug.WriteLine($"Received preview frame with {args.Length} size, {args.Width} width and {args.Height} height");
                         Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
                         {
@@ -647,8 +649,6 @@ namespace TestApp
                             {
                                 RecordingPreviewBitmap = new WriteableBitmap(args.Width, args.Height, 96, 96, PixelFormats.Bgra32, null);
                             }
-                            byte[] bytes = new byte[args.Length];
-                            Marshal.Copy(args.Data, bytes, 0, args.Length);
                             RecordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, args.Width, args.Height), bytes, Math.Abs(args.Stride), 0);
                         }));
                     };
@@ -656,12 +656,28 @@ namespace TestApp
                 }
                 else if (x is CheckableRecordableImage img)
                 {
-                    return new ImageRecordingSource(img)
+                    var source = new ImageRecordingSource(img)
                     {
                         OutputSize = img.IsCustomOutputSizeEnabled ? img.OutputSize : null,
                         SourceRect = img.IsCustomOutputSourceRectEnabled ? img.SourceRect : null,
-                        Position = img.IsCustomPositionEnabled ? img.Position : null
+                        Position = img.IsCustomPositionEnabled ? img.Position : null,
+                        IsVideoFramePreviewEnabled = true
                     };
+                    source.OnFrameRecorded += (s, args) =>
+                    {
+                        byte[] bytes = new byte[args.Length];
+                        Marshal.Copy(args.Data, bytes, 0, args.Length);
+                        //  Debug.WriteLine($"Received preview frame with {args.Length} size, {args.Width} width and {args.Height} height");
+                        Dispatcher.Invoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
+                        {
+                            if (RecordingPreviewBitmap == null || RecordingPreviewBitmap.Width != args.Width || RecordingPreviewBitmap.Height != args.Height)
+                            {
+                                RecordingPreviewBitmap = new WriteableBitmap(args.Width, args.Height, 96, 96, PixelFormats.Bgra32, null);
+                            }
+                            RecordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, args.Width, args.Height), bytes, Math.Abs(args.Stride), 0);
+                        }));
+                    };
+                    return source;
                 }
                 else if (x is CheckableRecordableVideo vid)
                 {
