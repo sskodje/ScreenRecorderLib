@@ -64,6 +64,8 @@
 		}
 
 	private:
+		HRESULT SendBitmapCallback(_In_ ID3D11Texture2D *pTexture);
+
 		HANDLE m_NewFrameEvent;
 		CRITICAL_SECTION m_CriticalSection;
 		Concurrency::task<void> m_CaptureTask = concurrency::task_from_result();
@@ -85,6 +87,9 @@
 
 		IWICImagingFactory *m_pIWICFactory;
 		IWICBitmapDecoder *m_pDecoder;
+
+		ID3D11Texture2D *m_CpuCopyBuffer;
+		D3D11_TEXTURE2D_DESC m_CpuCopyBufferDesc;
 
 		UINT    m_uNextFrameIndex;
 		UINT    m_uTotalLoopCount;  // The number of loops for which the animation will be played
