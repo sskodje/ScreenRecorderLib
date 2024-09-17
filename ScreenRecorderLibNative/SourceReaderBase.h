@@ -64,24 +64,17 @@ protected:
 	CRITICAL_SECTION m_CriticalSection;
 	inline IMFDXGIDeviceManager *GetDeviceManager() { return m_DeviceManager; }
 private:
-	 HRESULT AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame, _In_ bool sendFrameDataEvent);
-
 	long m_ReferenceCount;
 	HANDLE m_NewFrameEvent;
 	HANDLE m_StopCaptureEvent;
 	LARGE_INTEGER m_LastSampleReceivedTimeStamp;
-	LARGE_INTEGER m_LastGrabTimeStamp;
 	IMFMediaBuffer *m_Sample;
-	ID3D11Device *m_Device;
-	ID3D11DeviceContext *m_DeviceContext;
 	HighresTimer *m_FramerateTimer;
 	IMFMediaType *m_OutputMediaType;
 	IMFMediaType *m_InputMediaType;
 	IMFSourceReader *m_SourceReader;
 	IMFTransform *m_MediaTransform;
-	std::unique_ptr<TextureManager> m_TextureManager;
 	CComPtr<IMFDXGIDeviceManager> m_DeviceManager;
-	RECORDING_SOURCE_BASE *m_RecordingSource;
 	UINT m_ResetToken;
 	UINT m_BufferSize;
 	_Field_size_bytes_(m_BufferSize) BYTE *m_PtrFrameBuffer;

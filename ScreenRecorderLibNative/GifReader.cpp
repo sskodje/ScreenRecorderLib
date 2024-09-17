@@ -14,12 +14,7 @@ GifReader::GifReader()
 	m_pIWICFactory(nullptr),
 	m_pDecoder(nullptr),
 	m_FramerateTimer(nullptr),
-	m_Device(nullptr),
-	m_DeviceContext(nullptr),
-	m_TextureManager(nullptr),
-	m_RecordingSource(nullptr),
 	m_LastSampleReceivedTimeStamp{ 0 },
-	m_LastGrabTimeStamp{ 0 },
 	m_cxGifImage(0),
 	m_cyGifImage(0),
 	m_backgroundColor(D2D1::ColorF(0, 0.f)),
@@ -32,9 +27,7 @@ GifReader::GifReader()
 	m_uTotalLoopCount(0),
 	m_uFrameDisposal(0),
 	m_uFrameDelay(0),
-	m_framePosition{},
-	m_CpuCopyBuffer{ nullptr },
-	m_CpuCopyBufferDesc{}
+	m_framePosition{}
 {
 	InitializeCriticalSection(&m_CriticalSection);
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
@@ -204,44 +197,7 @@ HRESULT GifReader::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inou
 		m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, left, top, 0, pBlankFrame, 0, &Box);
 	}
 	m_TextureManager->DrawTexture(pSharedSurf, pProcessedTexture, RECT{ left,top,right,bottom });
-	if (m_RecordingSource->RecordingNewFrameDataCallback) {
-		SendBitmapCallback(pProcessedTexture);
-	}
-	return hr;
-}
-
-HRESULT GifReader::SendBitmapCallback(_In_ ID3D11Texture2D *pTexture) {
-	CComPtr<ID3D11Texture2D> cpuCopyBuffer;
-	D3D11_TEXTURE2D_DESC cpuCopyBufferDesc;
-	pTexture->GetDesc(&cpuCopyBufferDesc);
-	cpuCopyBufferDesc.Usage = D3D11_USAGE_STAGING;
-	cpuCopyBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-	cpuCopyBufferDesc.MiscFlags = 0;
-	cpuCopyBufferDesc.BindFlags = 0;
-	RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&cpuCopyBufferDesc, nullptr, &cpuCopyBuffer));
-
-	m_DeviceContext->CopyResource(cpuCopyBuffer, pTexture);
-	D3D11_MAPPED_SUBRESOURCE map;
-	m_DeviceContext->Map(cpuCopyBuffer, 0, D3D11_MAP_READ, 0, &map);
-
-	int bytesPerPixel = map.RowPitch / cpuCopyBufferDesc.Width;
-	int len = map.DepthPitch;//bufferDesc.Width * bufferDesc.Height * bytesPerPixel;
-	int stride = map.RowPitch;
-	BYTE *data = static_cast<BYTE *>(map.pData);
-	BYTE *frameBuffer = new BYTE[len];
-	//Copy the bitmap buffer, with handling of negative stride. https://docs.microsoft.com/en-us/windows/win32/medfound/image-stride
-	HRESULT hr = MFCopyImage(
-	   frameBuffer,								 // Destination buffer.
-	   abs(stride),                    // Destination stride. We use the absolute value to flip bitmaps with negative stride. 
-	   stride > 0 ? data : data + (cpuCopyBufferDesc.Height - 1) * abs(stride), // First row in source image with positive stride, or the last row with negative stride.
-	   stride,								 // Source stride.
-	   bytesPerPixel * cpuCopyBufferDesc.Width,	 // Image width in bytes.
-	   cpuCopyBufferDesc.Height						 // Image height in pixels.
-	);
-
-	m_RecordingSource->RecordingNewFrameDataCallback(abs(stride), frameBuffer, len, cpuCopyBufferDesc.Width, cpuCopyBufferDesc.Height);
-	delete[] frameBuffer;
-	m_DeviceContext->Unmap(cpuCopyBuffer, 0);
+	SendBitmapCallback(pProcessedTexture);
 	return hr;
 }
 

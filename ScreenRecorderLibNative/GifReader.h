@@ -64,18 +64,11 @@
 		}
 
 	private:
-		HRESULT SendBitmapCallback(_In_ ID3D11Texture2D *pTexture);
-
 		HANDLE m_NewFrameEvent;
 		CRITICAL_SECTION m_CriticalSection;
 		Concurrency::task<void> m_CaptureTask = concurrency::task_from_result();
-		ID3D11Device *m_Device;
-		ID3D11DeviceContext *m_DeviceContext;
 		LARGE_INTEGER m_LastSampleReceivedTimeStamp;
-		LARGE_INTEGER m_LastGrabTimeStamp;
 		std::unique_ptr<HighresTimer> m_FramerateTimer;
-		std::unique_ptr<TextureManager> m_TextureManager;
-		RECORDING_SOURCE_BASE *m_RecordingSource;
 
 		ID3D11Texture2D *m_RenderTexture;
 		ID2D1Factory *m_pD2DFactory;
@@ -87,9 +80,6 @@
 
 		IWICImagingFactory *m_pIWICFactory;
 		IWICBitmapDecoder *m_pDecoder;
-
-		ID3D11Texture2D *m_CpuCopyBuffer;
-		D3D11_TEXTURE2D_DESC m_CpuCopyBufferDesc;
 
 		UINT    m_uNextFrameIndex;
 		UINT    m_uTotalLoopCount;  // The number of loops for which the animation will be played

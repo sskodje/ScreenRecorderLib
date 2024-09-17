@@ -30,24 +30,17 @@ WindowsGraphicsCapture::WindowsGraphicsCapture() :
 	m_framePool(nullptr),
 	m_session(nullptr),
 	m_LastFrameRect{},
-	m_Device(nullptr),
-	m_DeviceContext(nullptr),
-	m_TextureManager(nullptr),
 	m_HaveDeliveredFirstFrame(false),
 	m_IsInitialized(false),
 	m_MouseManager(nullptr),
 	m_QPCFrequency{ 0 },
 	m_LastSampleReceivedTimeStamp{ 0 },
-	m_LastGrabTimeStamp{ 0 },
 	m_LastCaptureSessionRestart{ 0 },
-	m_RecordingSource(nullptr),
 	m_CursorOffsetX(0),
 	m_CursorOffsetY(0),
 	m_CursorScaleX(1.0),
-	m_CursorScaleY(1.0),
-	m_CpuCopyBuffer(nullptr)
+	m_CursorScaleY(1.0)
 {
-	RtlZeroMemory(&m_CpuCopyBufferDesc, sizeof(m_CpuCopyBufferDesc));
 	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 	m_NewFrameEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 	QueryPerformanceFrequency(&m_QPCFrequency);
@@ -56,10 +49,7 @@ WindowsGraphicsCapture::WindowsGraphicsCapture() :
 WindowsGraphicsCapture::~WindowsGraphicsCapture()
 {
 	StopCapture();
-	SafeRelease(&m_Device);
-	SafeRelease(&m_DeviceContext);
 	SafeRelease(&m_CurrentData.Frame);
-	SafeRelease(&m_CpuCopyBuffer);
 	CloseHandle(m_NewFrameEvent);
 }
 
@@ -189,41 +179,7 @@ HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeout
 		m_CursorScaleX = cursorScaleX;
 		m_CursorScaleY = cursorScaleY;
 		QueryPerformanceCounter(&m_LastGrabTimeStamp);
-
-		if (m_RecordingSource->RecordingNewFrameDataCallback) {
-			if (m_CpuCopyBufferDesc.Width != desc.Width || m_CpuCopyBufferDesc.Height != desc.Height) {
-				SafeRelease(&m_CpuCopyBuffer);
-
-				pProcessedTexture->GetDesc(&m_CpuCopyBufferDesc);
-				m_CpuCopyBufferDesc.Usage = D3D11_USAGE_STAGING;
-				m_CpuCopyBufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-				m_CpuCopyBufferDesc.MiscFlags = 0;
-				m_CpuCopyBufferDesc.BindFlags = 0;
-				RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&m_CpuCopyBufferDesc, nullptr, &m_CpuCopyBuffer));
-			}
-			m_DeviceContext->CopyResource(m_CpuCopyBuffer, pProcessedTexture);
-			D3D11_MAPPED_SUBRESOURCE map;
-			m_DeviceContext->Map(m_CpuCopyBuffer, 0, D3D11_MAP_READ, 0, &map);
-
-			int bytesPerPixel = map.RowPitch / m_CpuCopyBufferDesc.Width;
-			int len = map.DepthPitch;//bufferDesc.Width * bufferDesc.Height * bytesPerPixel;
-			int stride = map.RowPitch;
-			BYTE *data = static_cast<BYTE *>(map.pData);
-			BYTE *frameBuffer = new BYTE[len];
-			//Copy the bitmap buffer, with handling of negative stride. https://docs.microsoft.com/en-us/windows/win32/medfound/image-stride
-			hr = MFCopyImage(
-				frameBuffer,								 // Destination buffer.
-				abs(stride),                    // Destination stride. We use the absolute value to flip bitmaps with negative stride. 
-				stride > 0 ? data : data + (m_CpuCopyBufferDesc.Height - 1) * abs(stride), // First row in source image with positive stride, or the last row with negative stride.
-				stride,								 // Source stride.
-				bytesPerPixel * m_CpuCopyBufferDesc.Width,	 // Image width in bytes.
-				m_CpuCopyBufferDesc.Height						 // Image height in pixels.
-			);
-
-			m_RecordingSource->RecordingNewFrameDataCallback(abs(stride), frameBuffer, len, m_CpuCopyBufferDesc.Width, m_CpuCopyBufferDesc.Height);
-			delete[] frameBuffer;
-			m_DeviceContext->Unmap(m_CpuCopyBuffer, 0);
-		}
+		SendBitmapCallback(pProcessedTexture);
 	}
 	return hr;
 }

@@ -25,13 +25,7 @@ private:
 	HRESULT InitializeDecoder(_In_ std::wstring source);
 	HRESULT InitializeDecoder(_In_ IStream *pSourceStream);
 	HRESULT InitializeDecoder(_In_ IWICBitmapSource *pBitmap);
-	HRESULT SendBitmapCallback(_In_ ID3D11Texture2D *pTexture);
 
-	ID3D11Device *m_Device;
-	ID3D11DeviceContext *m_DeviceContext;
-	std::unique_ptr<TextureManager> m_TextureManager;
 	CComPtr<ID3D11Texture2D> m_Texture;
 	SIZE m_NativeSize;
-	LARGE_INTEGER m_LastGrabTimeStamp;
-	RECORDING_SOURCE_BASE *m_RecordingSource;
 };

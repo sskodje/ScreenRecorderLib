@@ -5,10 +5,7 @@ using namespace std;
 
 SourceReaderBase::SourceReaderBase() :
 	m_Sample{ nullptr },
-	m_Device(nullptr),
-	m_DeviceContext(nullptr),
 	m_LastSampleReceivedTimeStamp{ 0 },
-	m_LastGrabTimeStamp{ 0 },
 	m_ReferenceCount(1),
 	m_Stride(0),
 	m_FrameRate(0),
@@ -20,10 +17,8 @@ SourceReaderBase::SourceReaderBase() :
 	m_InputMediaType(nullptr),
 	m_SourceReader(nullptr),
 	m_MediaTransform(nullptr),
-	m_TextureManager(nullptr),
 	m_BufferSize(0),
 	m_PtrFrameBuffer(nullptr),
-	m_RecordingSource(nullptr),
 	m_DeviceManager(nullptr),
 	m_ResetToken(0)
 {
@@ -35,8 +30,6 @@ SourceReaderBase::~SourceReaderBase()
 {
 	Close();
 	EnterCriticalSection(&m_CriticalSection);
-	SafeRelease(&m_Device);
-	SafeRelease(&m_DeviceContext);
 
 	delete m_FramerateTimer;
 	CloseHandle(m_NewFrameEvent);
@@ -109,10 +102,8 @@ void SourceReaderBase::Close()
 	SafeRelease(&m_InputMediaType);
 	SafeRelease(&m_MediaTransform);
 }
-HRESULT SourceReaderBase::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame) {
-	return AcquireNextFrame(timeoutMillis, ppFrame, false);
-}
-HRESULT SourceReaderBase::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame, _In_ bool sendFrameDataEvent)
+
+HRESULT SourceReaderBase::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D11Texture2D **ppFrame)
 {
 	DWORD result = WAIT_OBJECT_0;
 
@@ -158,9 +149,6 @@ HRESULT SourceReaderBase::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt
 					*ppFrame = pTexture;
 					(*ppFrame)->AddRef();
 					QueryPerformanceCounter(&m_LastGrabTimeStamp);
-				}
-				if (m_RecordingSource->RecordingNewFrameDataCallback && sendFrameDataEvent) {
-					m_RecordingSource->RecordingNewFrameDataCallback(abs(m_Stride), m_PtrFrameBuffer, len, m_FrameSize.cx, m_FrameSize.cy);
 				}
 			}
 		}
@@ -222,7 +210,7 @@ HRESULT SourceReaderBase::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _
 HRESULT SourceReaderBase::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect)
 {
 	CComPtr<ID3D11Texture2D> pProcessedTexture;
-	HRESULT hr = AcquireNextFrame(timeoutMillis, &pProcessedTexture, true);
+	HRESULT hr = AcquireNextFrame(timeoutMillis, &pProcessedTexture);
 	RETURN_ON_BAD_HR(hr);
 
 	D3D11_TEXTURE2D_DESC frameDesc;
@@ -257,6 +245,7 @@ HRESULT SourceReaderBase::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis
 	long bottom = top + MakeEven(frameDesc.Height);
 
 	m_TextureManager->DrawTexture(pSharedSurf, pProcessedTexture, RECT{ left,top,right,bottom });
+	SendBitmapCallback(pProcessedTexture);
 	return hr;
 }
 

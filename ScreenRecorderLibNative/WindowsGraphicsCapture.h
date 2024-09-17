@@ -30,13 +30,7 @@ private:
 	winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool m_framePool;
 	winrt::Windows::Graphics::Capture::GraphicsCaptureSession m_session;
 
-	ID3D11Device *m_Device;
-	ID3D11DeviceContext *m_DeviceContext;
-	std::unique_ptr<TextureManager> m_TextureManager;
 	std::unique_ptr<MouseManager> m_MouseManager;
-	RECORDING_SOURCE_BASE *m_RecordingSource;
-	ID3D11Texture2D *m_CpuCopyBuffer;
-	D3D11_TEXTURE2D_DESC m_CpuCopyBufferDesc;
 	int m_CursorOffsetX;
 	int m_CursorOffsetY;
 	float m_CursorScaleX;
@@ -50,6 +44,5 @@ private:
 	LARGE_INTEGER m_QPCFrequency;
 	LARGE_INTEGER m_LastSampleReceivedTimeStamp;
 	LARGE_INTEGER m_LastCaptureSessionRestart;
-	LARGE_INTEGER m_LastGrabTimeStamp;
 
 };

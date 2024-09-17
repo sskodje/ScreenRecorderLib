@@ -26,6 +26,7 @@ protected:
 		_Outptr_ IMFMediaType **ppInputMediaType,
 		_Outptr_opt_ IMFMediaType **ppOutputMediaType,
 		_Outptr_opt_result_maybenull_ IMFTransform **ppMediaTransform) override;
+
 private:
 	HRESULT InitializeMediaSource(
 		_In_ CComPtr<IMFMediaSource> pDevice,
