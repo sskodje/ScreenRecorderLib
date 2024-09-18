@@ -183,7 +183,7 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 
 				m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, dstX, dstY, 0, pProcessedTexture, 0, &Box);
 
-				hr = SendBitmapCallback(pSharedSurf, SIZE{ offsetX,offsetY }, contentOffset, destinationRect);
+				SendBitmapCallback(pSharedSurf, SIZE{ offsetX,offsetY }, contentOffset, destinationRect);
 
 				m_CursorOffsetX = cursorOffsetX;
 				m_CursorOffsetY = cursorOffsetY;
@@ -201,7 +201,7 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 				{
 					RETURN_ON_BAD_HR(hr = CopyDirty(m_CurrentData.Frame, pSharedSurf, reinterpret_cast<RECT *>(m_CurrentData.MetaData + (m_CurrentData.MoveCount * sizeof(DXGI_OUTDUPL_MOVE_RECT))), m_CurrentData.DirtyCount, offsetX, offsetY, destinationRect, rotation));
 				}
-				hr = SendBitmapCallback(pSharedSurf, SIZE{ offsetX,offsetY }, SIZE{ 0,0 }, destinationRect);
+				SendBitmapCallback(pSharedSurf, SIZE{ offsetX,offsetY }, SIZE{ 0,0 }, destinationRect);
 			}
 		}
 		else if (m_LastGrabTimeStamp.QuadPart > 0
