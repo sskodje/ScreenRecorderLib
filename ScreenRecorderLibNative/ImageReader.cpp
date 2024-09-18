@@ -68,21 +68,20 @@ HRESULT ImageReader::GetNativeSize(_In_ RECORDING_SOURCE_BASE &recordingSource, 
 
 HRESULT ImageReader::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_result_maybenull_ ID3D11Texture2D **ppFrame)
 {
-	if (m_Texture && m_LastGrabTimeStamp.QuadPart == 0) {
-		if (ppFrame) {
-			CComPtr<ID3D11Texture2D> pStagingTexture = nullptr;
-			D3D11_TEXTURE2D_DESC desc;
-			m_Texture->GetDesc(&desc);
-			desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
-			desc.MiscFlags = 0;
-			desc.Usage = D3D11_USAGE_DEFAULT;
+	if (m_Texture && ppFrame) {
+		CComPtr<ID3D11Texture2D> pStagingTexture = nullptr;
+		D3D11_TEXTURE2D_DESC desc;
+		m_Texture->GetDesc(&desc);
+		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		desc.MiscFlags = 0;
+		desc.Usage = D3D11_USAGE_DEFAULT;
 
-			RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&desc, nullptr, &pStagingTexture));
-			m_DeviceContext->CopyResource(pStagingTexture, m_Texture);
-			*ppFrame = pStagingTexture;
-			(*ppFrame)->AddRef();
-			QueryPerformanceCounter(&m_LastGrabTimeStamp);
-		}
+		RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&desc, nullptr, &pStagingTexture));
+		m_DeviceContext->CopyResource(pStagingTexture, m_Texture);
+		*ppFrame = pStagingTexture;
+		(*ppFrame)->AddRef();
+		QueryPerformanceCounter(&m_LastGrabTimeStamp);
+
 		return S_OK;
 	}
 	else {
