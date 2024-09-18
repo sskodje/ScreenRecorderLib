@@ -722,9 +722,9 @@ HRESULT Recorder::CreateOrUpdateNativeRecordingSource(_In_ RecordingSourceBase^ 
 	}
 
 	pNativeSource->IsVideoFramePreviewEnabled = managedSource->IsVideoFramePreviewEnabled;
-	if (pNativeSource->RecordingNewFrameDataCallback == nullptr) {
-		pNativeSource->RecordingNewFrameDataCallback = managedSource->RegisterNewFrameDataCallback();
-	}
+	auto callback = managedSource->RegisterFrameDataCallback();
+	pNativeSource->UnregisterCallback(callback);
+	pNativeSource->RegisterCallback(callback);
 
 	pNativeSource->IsVideoCaptureEnabled = managedSource->IsVideoCaptureEnabled;
 	pNativeSource->Stretch = static_cast<TextureStretchMode>(managedSource->Stretch);

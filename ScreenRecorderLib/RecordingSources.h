@@ -6,6 +6,7 @@ using namespace System;
 using namespace System::ComponentModel;
 using namespace System::Collections::Generic;
 using namespace System::Runtime::InteropServices;
+using namespace System::Diagnostics;
 
 namespace ScreenRecorderLib {
 	delegate void InternalNewFrameDataCallbackDelegate(int stride, byte* data, int length, int width, int height);
@@ -26,9 +27,10 @@ namespace ScreenRecorderLib {
 		bool _isVideoCaptureEnabled;
 		bool _isVideoFramePreviewEnabled;
 		GCHandle _frameRecordedGcHandler;
-		CallbackNewFrameDataFunction _cb;
+		[DebuggerBrowsable(DebuggerBrowsableState::Never)]
+			CallbackNewFrameDataFunction _cb;
 		void RecordingSourceBase::FrameRecorded(int frameNumber, byte* data, int length, int width, int height) {
-			OnFrameRecorded(this, gcnew FrameDataRecordedEventArgs(frameNumber, data, length, width, height));
+				OnFrameRecorded(this, gcnew FrameDataRecordedEventArgs(frameNumber, data, length, width, height));
 		}
 
 	internal:
@@ -37,6 +39,7 @@ namespace ScreenRecorderLib {
 			Stretch = StretchMode::Uniform;
 			AnchorPoint = Anchor::Center;
 			IsVideoCaptureEnabled = true;
+			_cb = nullptr;
 		}
 		RecordingSourceBase(RecordingSourceBase^ base) :RecordingSourceBase() {
 			ID = base->ID;
@@ -53,7 +56,7 @@ namespace ScreenRecorderLib {
 				_frameRecordedGcHandler.Free();
 		}
 
-		CallbackNewFrameDataFunction RegisterNewFrameDataCallback() {
+		CallbackNewFrameDataFunction RegisterFrameDataCallback() {
 			if (!_frameRecordedGcHandler.IsAllocated)
 			{
 				InternalNewFrameDataCallbackDelegate^ fp = gcnew InternalNewFrameDataCallbackDelegate(this, &RecordingSourceBase::FrameRecorded);

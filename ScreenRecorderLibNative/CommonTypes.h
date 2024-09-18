@@ -191,6 +191,9 @@ enum class RecordingSourceApi {
 };
 
 struct RECORDING_SOURCE_BASE abstract {
+private:
+	std::vector<CallbackNewFrameDataFunction> m_NewFrameDataCallbacks;
+public:
 	std::wstring SourcePath;
 	IStream *SourceStream;
 	HWND SourceWindow;
@@ -230,8 +233,6 @@ struct RECORDING_SOURCE_BASE abstract {
 	std::optional<bool> IsVideoFramePreviewEnabled;
 
 
-	CallbackNewFrameDataFunction RecordingNewFrameDataCallback;
-
 	RECORDING_SOURCE_BASE() :
 		Type(RecordingSourceType::Display),
 		SourceWindow(nullptr),
@@ -245,12 +246,31 @@ struct RECORDING_SOURCE_BASE abstract {
 		IsCursorCaptureEnabled(std::nullopt),
 		IsBorderRequired(std::nullopt),
 		IsVideoFramePreviewEnabled(std::nullopt),
-		RecordingNewFrameDataCallback(nullptr)
+		m_NewFrameDataCallbacks{}
 	{
 
 	}
 	virtual ~RECORDING_SOURCE_BASE() {
 
+	}
+	void RegisterCallback(CallbackNewFrameDataFunction callback)
+	{
+		this->m_NewFrameDataCallbacks.push_back(callback);
+	}
+
+	void UnregisterCallback(CallbackNewFrameDataFunction callback)
+	{
+		m_NewFrameDataCallbacks.erase(std::remove(m_NewFrameDataCallbacks.begin(), m_NewFrameDataCallbacks.end(), callback), m_NewFrameDataCallbacks.end());
+	}
+
+	void NotifyNewFrameDataCallbacks(int stride, byte *data, int len, int width, int height) {
+		for each (CallbackNewFrameDataFunction callback in std::vector(m_NewFrameDataCallbacks))
+		{
+			callback(stride, data, len, width, height);
+		}
+	}
+	bool HasRegisteredCallbacks() {
+		return m_NewFrameDataCallbacks.size() > 0;
 	}
 };
 

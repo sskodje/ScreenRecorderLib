@@ -56,7 +56,7 @@ SIZE CaptureBase::GetContentOffset(_In_ ContentAnchor anchor, _In_ RECT parentRe
 
 HRESULT CaptureBase::SendBitmapCallback(_In_ ID3D11Texture2D *pTexture) {
 	HRESULT hr = S_FALSE;
-	if (m_RecordingSource->RecordingNewFrameDataCallback && m_RecordingSource->IsVideoFramePreviewEnabled.value_or(false)) {
+	if (m_RecordingSource->IsVideoFramePreviewEnabled.value_or(false) && m_RecordingSource->HasRegisteredCallbacks()) {
 		D3D11_TEXTURE2D_DESC textureDesc;
 		pTexture->GetDesc(&textureDesc);
 		int width = textureDesc.Width;
@@ -90,8 +90,7 @@ HRESULT CaptureBase::SendBitmapCallback(_In_ ID3D11Texture2D *pTexture) {
 		  bytesPerPixel * width,	 // Image width in bytes.
 		  height						 // Image height in pixels.
 		);
-
-		m_RecordingSource->RecordingNewFrameDataCallback(abs(stride), frameBuffer, len, width, height);
+		m_RecordingSource->NotifyNewFrameDataCallbacks(abs(stride), frameBuffer, len, width, height);
 		delete[] frameBuffer;
 		m_DeviceContext->Unmap(m_FrameDataCallbackTexture, 0);
 	}

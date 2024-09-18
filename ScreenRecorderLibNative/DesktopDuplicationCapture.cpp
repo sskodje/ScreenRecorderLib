@@ -183,9 +183,7 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 
 				m_DeviceContext->CopySubresourceRegion(pSharedSurf, 0, dstX, dstY, 0, pProcessedTexture, 0, &Box);
 
-				if (m_RecordingSource->RecordingNewFrameDataCallback) {
-					hr = SendBitmapCallback(pSharedSurf, SIZE{ offsetX,offsetY }, contentOffset, destinationRect);
-				}
+				hr = SendBitmapCallback(pSharedSurf, SIZE{ offsetX,offsetY }, contentOffset, destinationRect);
 
 				m_CursorOffsetX = cursorOffsetX;
 				m_CursorOffsetY = cursorOffsetY;
@@ -203,9 +201,7 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 				{
 					RETURN_ON_BAD_HR(hr = CopyDirty(m_CurrentData.Frame, pSharedSurf, reinterpret_cast<RECT *>(m_CurrentData.MetaData + (m_CurrentData.MoveCount * sizeof(DXGI_OUTDUPL_MOVE_RECT))), m_CurrentData.DirtyCount, offsetX, offsetY, destinationRect, rotation));
 				}
-				if (m_RecordingSource->RecordingNewFrameDataCallback) {
-					hr = SendBitmapCallback(pSharedSurf, SIZE{ offsetX,offsetY }, SIZE{ 0,0 }, destinationRect);
-				}
+				hr = SendBitmapCallback(pSharedSurf, SIZE{ offsetX,offsetY }, SIZE{ 0,0 }, destinationRect);
 			}
 		}
 		else if (m_LastGrabTimeStamp.QuadPart > 0
@@ -224,30 +220,36 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 }
 
 HRESULT DesktopDuplicationCapture::SendBitmapCallback(_In_ ID3D11Texture2D *pSharedSurf, _In_ SIZE frameOffset, _In_ SIZE contentOffset, _In_ RECT destinationRect) {
-	int width = MakeEven(RectWidth(destinationRect));
-	int height = MakeEven(RectHeight(destinationRect));
+	if (m_RecordingSource->IsVideoFramePreviewEnabled && m_RecordingSource->HasRegisteredCallbacks())
+	{
+		int width = MakeEven(RectWidth(destinationRect));
+		int height = MakeEven(RectHeight(destinationRect));
 
-	if (m_BitmapDataCallbackTextureDesc.Width != width || m_BitmapDataCallbackTextureDesc.Height != height) {
-		m_CurrentData.Frame->GetDesc(&m_BitmapDataCallbackTextureDesc);
-		m_BitmapDataCallbackTextureDesc.Width = width;
-		m_BitmapDataCallbackTextureDesc.Height = height;
-		m_BitmapDataCallbackTextureDesc.CPUAccessFlags = 0;
-		m_BitmapDataCallbackTextureDesc.MiscFlags = 0;
-		m_BitmapDataCallbackTextureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
-		RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&m_BitmapDataCallbackTextureDesc, nullptr, &m_BitmapDataCallbackTexture));
+		if (m_BitmapDataCallbackTextureDesc.Width != width || m_BitmapDataCallbackTextureDesc.Height != height) {
+			m_CurrentData.Frame->GetDesc(&m_BitmapDataCallbackTextureDesc);
+			m_BitmapDataCallbackTextureDesc.Width = width;
+			m_BitmapDataCallbackTextureDesc.Height = height;
+			m_BitmapDataCallbackTextureDesc.CPUAccessFlags = 0;
+			m_BitmapDataCallbackTextureDesc.MiscFlags = 0;
+			m_BitmapDataCallbackTextureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+			RETURN_ON_BAD_HR(m_Device->CreateTexture2D(&m_BitmapDataCallbackTextureDesc, nullptr, &m_BitmapDataCallbackTexture));
+		}
+
+		D3D11_BOX Box{};
+		Box.back = 1;
+		Box.right = MakeEven(width);
+		Box.bottom = MakeEven(height);
+		m_DeviceContext->CopySubresourceRegion(m_BitmapDataCallbackTexture, 0, frameOffset.cx + contentOffset.cx, frameOffset.cy + contentOffset.cy, 0, pSharedSurf, 0, &Box);
+		PTR_INFO ptrInfo;
+		RtlZeroMemory(&ptrInfo, sizeof(ptrInfo));
+		HRESULT hr = GetMouse(&ptrInfo, destinationRect, frameOffset.cx, frameOffset.cy);
+		hr = m_MouseManager->ProcessMousePointer(m_BitmapDataCallbackTexture, &ptrInfo);
+		delete[] ptrInfo.PtrShapeBuffer;
+		return CaptureBase::SendBitmapCallback(m_BitmapDataCallbackTexture);
 	}
-
-	D3D11_BOX Box{};
-	Box.back = 1;
-	Box.right = MakeEven(width);
-	Box.bottom = MakeEven(height);
-	m_DeviceContext->CopySubresourceRegion(m_BitmapDataCallbackTexture, 0, frameOffset.cx + contentOffset.cx, frameOffset.cy + contentOffset.cy, 0, pSharedSurf, 0, &Box);
-	PTR_INFO ptrInfo;
-	RtlZeroMemory(&ptrInfo, sizeof(ptrInfo));
-	HRESULT hr = GetMouse(&ptrInfo, destinationRect, frameOffset.cx, frameOffset.cy);
-	hr = m_MouseManager->ProcessMousePointer(m_BitmapDataCallbackTexture, &ptrInfo);
-	delete[] ptrInfo.PtrShapeBuffer;
-	return CaptureBase::SendBitmapCallback(m_BitmapDataCallbackTexture);
+	else {
+		return S_FALSE;
+	}
 }
 
 HRESULT DesktopDuplicationCapture::StartCapture(_In_ RECORDING_SOURCE_BASE &recordingSource)
