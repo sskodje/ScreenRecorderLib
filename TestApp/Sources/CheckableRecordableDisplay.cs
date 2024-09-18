@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Media.Imaging;
 using ScreenRecorderLib;
 
 namespace TestApp.Sources
@@ -117,7 +118,19 @@ namespace TestApp.Sources
             }
         }
 
-
+        private WriteableBitmap _previewBitmap;
+        public WriteableBitmap PreviewBitmap
+        {
+            get { return _previewBitmap; }
+            set
+            {
+                if (_previewBitmap != value)
+                {
+                    _previewBitmap = value;
+                    OnPropertyChanged(nameof(PreviewBitmap));
+                }
+            }
+        }
         public CheckableRecordableDisplay() : base()
         {
 

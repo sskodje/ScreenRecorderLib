@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Media.Imaging;
 
 namespace TestApp.Sources
 {
@@ -80,6 +81,19 @@ namespace TestApp.Sources
             }
         }
 
+        private WriteableBitmap _previewBitmap;
+        public WriteableBitmap PreviewBitmap
+        {
+            get { return _previewBitmap; }
+            set
+            {
+                if (_previewBitmap != value)
+                {
+                    _previewBitmap = value;
+                    OnPropertyChanged(nameof(PreviewBitmap));
+                }
+            }
+        }
 
         public CheckableRecordableVideo() : base()
         {

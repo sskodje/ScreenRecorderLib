@@ -11,7 +11,7 @@
         mc:Ignorable="d"
         Title="ScreenRecorderLib Demo"
         Height="800"
-        Width="1000"
+        Width="1120"
         SizeToContent="Height"
         WindowStartupLocation="CenterScreen"
         Activated="MainWin_Activated">
@@ -115,6 +115,11 @@
         <CollectionViewSource x:Key="SelectedRecordingSourcesViewSource"
                               Source="{Binding ElementName=MainWin,Path=RecordingSources }"
                               Filter="SelectedRecordingSourcesViewSource_Filter"
+                              IsLiveSortingRequested="True">
+        </CollectionViewSource>
+        <CollectionViewSource x:Key="SelectedPreviewRecordingSourcesViewSource"
+                              Source="{Binding ElementName=MainWin,Path=RecordingSources }"
+                              Filter="SelectedPreviewRecordingSourcesViewSource_Filter"
                               IsLiveSortingRequested="True">
         </CollectionViewSource>
 
@@ -436,6 +441,11 @@
                                               SelectedItem="{Binding Stretch}"
                                               Margin="5,0,0,0"
                                               VerticalAlignment="Center" />
+                                    <CheckBox VerticalAlignment="Center"
+                                              Content="Preview"
+                                              Margin="5,0,0,0"
+                                              x:Name="CheckBoxIsVideoFramePreviewEnabledForSource"
+                                              IsChecked="{Binding IsVideoFramePreviewEnabled,Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="3"
                                             Margin="0,0,0,0"
@@ -470,16 +480,20 @@
                                               Margin="5,0,0,0"
                                               IsChecked="{Binding IsCursorCaptureEnabled,Mode=TwoWay}" />
                                     <CheckBox VerticalAlignment="Center"
-                                              Padding="0"
+                                              Content="Video"
                                               Margin="5,0,0,0"
                                               x:Name="CheckBoxIsVideoCaptureEnabledForSource"
                                               IsChecked="{Binding IsVideoCaptureEnabled,Mode=TwoWay}" />
-                                    <Label Content="Video"
-                                           VerticalContentAlignment="Center" />
 
                                     <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
                                               SelectedItem="{Binding Stretch}"
+                                              Margin="5,0,0,0"
                                               VerticalAlignment="Center" />
+                                    <CheckBox VerticalAlignment="Center"
+                                              Content="Preview"
+                                              Margin="5,0,0,0"
+                                              x:Name="CheckBoxIsVideoFramePreviewEnabledForSource"
+                                              IsChecked="{Binding IsVideoFramePreviewEnabled,Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2"
                                             Orientation="Horizontal">
@@ -509,6 +523,11 @@
                                               SelectedItem="{Binding Stretch}"
                                               Margin="5,0,0,0"
                                               VerticalAlignment="Center" />
+                                    <CheckBox VerticalAlignment="Center"
+                                              Content="Preview"
+                                              Margin="5,0,0,0"
+                                              x:Name="CheckBoxIsVideoFramePreviewEnabledForSource"
+                                              IsChecked="{Binding IsVideoFramePreviewEnabled,Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2"
                                             Orientation="Horizontal">
@@ -539,6 +558,11 @@
                                               SelectedItem="{Binding Stretch}"
                                               Margin="5,0,0,0"
                                               VerticalAlignment="Center" />
+                                    <CheckBox VerticalAlignment="Center"
+                                              Content="Preview"
+                                              Margin="5,0,0,0"
+                                              x:Name="CheckBoxIsVideoFramePreviewEnabledForSource"
+                                              IsChecked="{Binding IsVideoFramePreviewEnabled,Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2"
                                             Orientation="Horizontal">
@@ -563,12 +587,18 @@
                                             Orientation="Horizontal">
                                     <CheckBox VerticalAlignment="Center"
                                               Content="Video"
+                                              Margin="5,0,0,0"
                                               x:Name="CheckBoxIsVideoCaptureEnabledForSource"
                                               IsChecked="{Binding IsVideoCaptureEnabled,Mode=TwoWay}" />
                                     <ComboBox ItemsSource="{Binding Source={StaticResource RecorderStretchData}}"
                                               SelectedItem="{Binding Stretch}"
                                               Margin="5,0,0,0"
                                               VerticalAlignment="Center" />
+                                    <CheckBox VerticalAlignment="Center"
+                                              Content="Preview"
+                                              Margin="5,0,0,0"
+                                              x:Name="CheckBoxIsVideoFramePreviewEnabledForSource"
+                                              IsChecked="{Binding IsVideoFramePreviewEnabled,Mode=TwoWay}" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2"
                                             Orientation="Horizontal">
@@ -1223,6 +1253,32 @@
                         </ItemsControl.Resources>
                     </ListView>
                 </StackPanel>
+                <ListBox ItemsSource="{Binding Source={StaticResource SelectedPreviewRecordingSourcesViewSource}}"
+                         BorderThickness="0">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <Border BorderThickness="1"
+                                        BorderBrush="Black">
+                                    <Image x:Name="PreviewImageControl"
+                                           Source="{Binding PreviewBitmap}"
+                                           Height="150"
+                                           StretchDirection="DownOnly" />
+                                </Border>
+                                <TextBlock Text="{Binding}"
+                                           HorizontalAlignment="Center"
+                                           TextWrapping="NoWrap"
+                                           MinWidth="100">
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="0.33*" />
@@ -1230,11 +1286,6 @@
                         <ColumnDefinition Width="0.33*" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0">
-                        <Image Source="{Binding ElementName=MainWin, Path=RecordingPreviewBitmap}"
-                               Height="150px"
-                               Margin="10px"/>
-                    </StackPanel>
                     <StackPanel Orientation="Vertical"
                                 x:Name="ControlsPanel"
                                 Grid.Column="1">

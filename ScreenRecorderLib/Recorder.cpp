@@ -720,6 +720,12 @@ HRESULT Recorder::CreateOrUpdateNativeRecordingSource(_In_ RecordingSourceBase^ 
 		&& managedSource->SourceRect->Bottom > managedSource->SourceRect->Top) {
 		pNativeSource->SourceRect = managedSource->SourceRect->ToRECT();
 	}
+
+	pNativeSource->IsVideoFramePreviewEnabled = managedSource->IsVideoFramePreviewEnabled;
+	if (pNativeSource->RecordingNewFrameDataCallback == nullptr) {
+		pNativeSource->RecordingNewFrameDataCallback = managedSource->RegisterNewFrameDataCallback();
+	}
+
 	pNativeSource->IsVideoCaptureEnabled = managedSource->IsVideoCaptureEnabled;
 	pNativeSource->Stretch = static_cast<TextureStretchMode>(managedSource->Stretch);
 	pNativeSource->Anchor = static_cast<ContentAnchor>(managedSource->AnchorPoint);
@@ -810,10 +816,8 @@ HRESULT Recorder::CreateOrUpdateNativeRecordingSource(_In_ RecordingSourceBase^ 
 		return E_NOTIMPL;
 	}
 	if (managedSource->IsVideoFramePreviewEnabled) {
-		nativeSource.RecordingNewFrameDataCallback = managedSource->RegisterNewFrameDataCallback();
+		pNativeSource->RecordingNewFrameDataCallback = managedSource->RegisterNewFrameDataCallback();
 	}
-
-	*pNativeSource = nativeSource;
 	return hr;
 }
 

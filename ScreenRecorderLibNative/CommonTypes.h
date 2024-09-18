@@ -224,6 +224,11 @@ struct RECORDING_SOURCE_BASE abstract {
 	/// Toggles the display of a yellow border around recorded displays and windows when using Windows Graphics Capture on Windows 10 2104 or newer. If false, it will be hidden.
 	/// </summary>
 	std::optional<bool> IsBorderRequired;
+	/// <summary>
+	/// Toggles video frame preview on and off for this source.
+	/// </summary>
+	std::optional<bool> IsVideoFramePreviewEnabled;
+
 
 	CallbackNewFrameDataFunction RecordingNewFrameDataCallback;
 
@@ -239,6 +244,7 @@ struct RECORDING_SOURCE_BASE abstract {
 		IsVideoCaptureEnabled(std::nullopt),
 		IsCursorCaptureEnabled(std::nullopt),
 		IsBorderRequired(std::nullopt),
+		IsVideoFramePreviewEnabled(std::nullopt),
 		RecordingNewFrameDataCallback(nullptr)
 	{
 

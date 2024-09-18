@@ -46,6 +46,7 @@ namespace ScreenRecorderLib {
 			Stretch = base->Stretch;
 			SourceRect = base->SourceRect;
 			IsVideoCaptureEnabled = base->IsVideoCaptureEnabled;
+			IsVideoFramePreviewEnabled = base->IsVideoFramePreviewEnabled;
 		}
 		~RecordingSourceBase() {
 			if (_frameRecordedGcHandler.IsAllocated)

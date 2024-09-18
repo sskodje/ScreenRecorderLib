@@ -6,11 +6,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media.Imaging;
 
 namespace TestApp.Sources
 {
-    public interface ICheckableRecordingSource:INotifyPropertyChanged
+    public interface ICheckableRecordingSource : INotifyPropertyChanged
     {
+        string ID {  get; }
         bool IsSelected { get; set; }
         bool IsCheckable { get; set; }
 
@@ -21,7 +23,7 @@ namespace TestApp.Sources
         bool IsCustomOutputSizeEnabled { get; set; }
         bool IsCustomOutputSourceRectEnabled { get; set; }
         bool IsVideoCaptureEnabled { get; set; }
-
+        WriteableBitmap PreviewBitmap { get; set; }
         void UpdateScreenCoordinates(ScreenPoint position, ScreenSize size);
     }
 }

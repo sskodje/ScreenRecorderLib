@@ -215,20 +215,6 @@ namespace TestApp
                 }
             }
         }
-        private WriteableBitmap _recordingPreviewBitmap;
-        public WriteableBitmap RecordingPreviewBitmap
-        {
-            get { return _recordingPreviewBitmap; }
-            set
-            {
-                if (_recordingPreviewBitmap != value)
-                {
-                    _recordingPreviewBitmap = value;
-                    RaisePropertyChanged(nameof(RecordingPreviewBitmap));
-                }
-            }
-        }
-
 
         public H264Profile CurrentH264Profile { get; set; } = H264Profile.High;
         public H265Profile CurrentH265Profile { get; set; } = H265Profile.Main;
@@ -268,6 +254,10 @@ namespace TestApp
             _rec?.GetDynamicOptionsBuilder()
                 .SetUpdatedRecordingSource(sender as RecordingSourceBase)
                 .Apply();
+            if (e.PropertyName == nameof(RecordingSourceBase.IsVideoFramePreviewEnabled))
+            {
+                ((CollectionViewSource)this.Resources["SelectedPreviewRecordingSourcesViewSource"]).View.Refresh();
+            }
         }
         private void Overlay_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
@@ -569,11 +559,13 @@ namespace TestApp
             //  Debug.WriteLine($"Received preview frame with {args.Length} size, {args.Width} width and {args.Height} height");
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, (Action)(() =>
             {
-                if (RecordingPreviewBitmap == null || RecordingPreviewBitmap.Width != args.Width || RecordingPreviewBitmap.Height != args.Height)
+                ICheckableRecordingSource recordingSource = this.RecordingSources.FirstOrDefault(x => x.ID == ((RecordingSourceBase)sender).ID);
+                var recordingPreviewBitmap = recordingSource.PreviewBitmap;
+                if (recordingPreviewBitmap == null || recordingPreviewBitmap.Width != args.Width || recordingPreviewBitmap.Height != args.Height)
                 {
-                    RecordingPreviewBitmap = new WriteableBitmap(args.Width, args.Height, 96, 96, PixelFormats.Bgra32, null);
+                    recordingSource.PreviewBitmap = recordingPreviewBitmap = new WriteableBitmap(args.Width, args.Height, 96, 96, PixelFormats.Bgra32, null);
                 }
-                RecordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, args.Width, args.Height), bytes, Math.Abs(args.Stride), 0);
+                recordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, args.Width, args.Height), bytes, Math.Abs(args.Stride), 0);
             }));
         }
         private List<RecordingSourceBase> CreateSelectedRecordingSources()
@@ -597,7 +589,6 @@ namespace TestApp
                         OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
                         SourceRect = win.IsCustomOutputSourceRectEnabled ? win.SourceRect : null,
                         Position = win.IsCustomPositionEnabled ? win.Position : null,
-                        IsVideoFramePreviewEnabled = true
                     };
                     source.OnFrameRecorded += onFrameDataRecorded;
                     return source;
@@ -609,7 +600,6 @@ namespace TestApp
                         OutputSize = disp.IsCustomOutputSizeEnabled ? disp.OutputSize : null,
                         SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
                         Position = disp.IsCustomPositionEnabled ? disp.Position : null,
-                        IsVideoFramePreviewEnabled = true
                     };
                     source.OnFrameRecorded += onFrameDataRecorded;
                     return source;
@@ -622,7 +612,6 @@ namespace TestApp
                         SourceRect = cam.IsCustomOutputSourceRectEnabled ? cam.SourceRect : null,
                         Position = cam.IsCustomPositionEnabled ? cam.Position : null,
                         CaptureFormat = cam.CaptureFormat,
-                        IsVideoFramePreviewEnabled = true
 
                     };
                     source.OnFrameRecorded += onFrameDataRecorded;
@@ -635,7 +624,6 @@ namespace TestApp
                         OutputSize = img.IsCustomOutputSizeEnabled ? img.OutputSize : null,
                         SourceRect = img.IsCustomOutputSourceRectEnabled ? img.SourceRect : null,
                         Position = img.IsCustomPositionEnabled ? img.Position : null,
-                        IsVideoFramePreviewEnabled = true
                     };
                     source.OnFrameRecorded += onFrameDataRecorded;
                     return source;
@@ -647,7 +635,6 @@ namespace TestApp
                         OutputSize = vid.IsCustomOutputSizeEnabled ? vid.OutputSize : null,
                         SourceRect = vid.IsCustomOutputSourceRectEnabled ? vid.SourceRect : null,
                         Position = vid.IsCustomPositionEnabled ? vid.Position : null,
-                        IsVideoFramePreviewEnabled = true
                     };
                     source.OnFrameRecorded += onFrameDataRecorded;
                     return source;
@@ -822,6 +809,7 @@ namespace TestApp
 
         private void SourceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            ((CollectionViewSource)Resources["SelectedPreviewRecordingSourcesViewSource"]).View.Refresh();
             if (e.AddedItems.Count == 0)
                 return;
             SetSourceComboBoxTitle();
@@ -1171,6 +1159,23 @@ namespace TestApp
         {
             e.Accepted = e.Item is RecordableWindow window && window.IsValidWindow();
         }
+        private void SelectedPreviewRecordingSourcesViewSource_Filter(object sender, FilterEventArgs e)
+        {
+            bool isPreviewEnabled = e.Item is RecordingSourceBase recordingSource && recordingSource.IsVideoFramePreviewEnabled;
+            if (!RecordingSources.Any(x => x.IsSelected))
+            {
+                e.Accepted = isPreviewEnabled
+                    && e.Item == SelectedRecordingSource
+                    && SelectedRecordingSource.IsCheckable;
+            }
+            else
+            {
+                e.Accepted = isPreviewEnabled
+                    && ((ICheckableRecordingSource)e.Item).IsSelected
+                    && ((ICheckableRecordingSource)e.Item).IsCheckable;
+            }
+        }
+
         private void MainWin_Activated(object sender, EventArgs e)
         {
             SetOutputDimensions();
