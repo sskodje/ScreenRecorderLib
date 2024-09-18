@@ -90,8 +90,10 @@ namespace ScreenRecorderLib {
 				return _outputSize;
 			}
 			void set(ScreenSize^ rect) {
-				_outputSize = rect;
-				OnPropertyChanged("OutputSize");
+				if (_outputSize != rect) {
+					_outputSize = rect;
+					OnPropertyChanged("OutputSize");
+				}
 			}
 		}
 		/// <summary>
@@ -102,8 +104,10 @@ namespace ScreenRecorderLib {
 				return _position;
 			}
 			void set(ScreenPoint^ pos) {
-				_position = pos;
-				OnPropertyChanged("Position");
+				if (_position != pos) {
+					_position = pos;
+					OnPropertyChanged("Position");
+				}
 			}
 		}
 		/// <summary>
@@ -114,8 +118,10 @@ namespace ScreenRecorderLib {
 				return _anchorPoint;
 			}
 			void set(Anchor anchor) {
-				_anchorPoint = anchor;
-				OnPropertyChanged("AnchorPoint");
+				if (_anchorPoint != anchor) {
+					_anchorPoint = anchor;
+					OnPropertyChanged("AnchorPoint");
+				}
 			}
 		}
 		/// <summary>
@@ -126,8 +132,10 @@ namespace ScreenRecorderLib {
 				return _stretch;
 			}
 			void set(StretchMode stretch) {
-				_stretch = stretch;
-				OnPropertyChanged("Stretch");
+				if (_stretch != stretch) {
+					_stretch = stretch;
+					OnPropertyChanged("Stretch");
+				}
 			}
 		}
 		property ScreenRect^ SourceRect {
@@ -135,8 +143,10 @@ namespace ScreenRecorderLib {
 				return _sourceRect;
 			}
 			void set(ScreenRect^ rect) {
-				_sourceRect = rect;
-				OnPropertyChanged("SourceRect");
+				if (_sourceRect != rect) {
+					_sourceRect = rect;
+					OnPropertyChanged("SourceRect");
+				}
 			}
 		}
 		property bool IsVideoCaptureEnabled {
@@ -144,8 +154,10 @@ namespace ScreenRecorderLib {
 				return _isVideoCaptureEnabled;
 			}
 			void set(bool value) {
-				_isVideoCaptureEnabled = value;
-				OnPropertyChanged("IsVideoCaptureEnabled");
+				if (_isVideoCaptureEnabled != value) {
+					_isVideoCaptureEnabled = value;
+					OnPropertyChanged("IsVideoCaptureEnabled");
+				}
 			}
 		}
 		/// <summary>
@@ -156,8 +168,10 @@ namespace ScreenRecorderLib {
 				return _isVideoFramePreviewEnabled;
 			}
 			void set(bool value) {
-				_isVideoFramePreviewEnabled = value;
-				OnPropertyChanged("IsVideoFramePreviewEnabled");
+				if (_isVideoFramePreviewEnabled != value) {
+					_isVideoFramePreviewEnabled = value;
+					OnPropertyChanged("IsVideoFramePreviewEnabled");
+				}
 			}
 		}
 
@@ -201,8 +215,10 @@ namespace ScreenRecorderLib {
 				return _handle;
 			}
 			void set(IntPtr value) {
-				_handle = value;
-				OnPropertyChanged("Handle");
+				if (_handle != value) {
+					_handle = value;
+					OnPropertyChanged("Handle");
+				}
 			}
 		}
 		/// <summary>
@@ -213,8 +229,10 @@ namespace ScreenRecorderLib {
 				return _isCursorCaptureEnabled;
 			}
 			void set(bool value) {
-				_isCursorCaptureEnabled = value;
-				OnPropertyChanged("IsCursorCaptureEnabled");
+				if (_isCursorCaptureEnabled != value) {
+					_isCursorCaptureEnabled = value;
+					OnPropertyChanged("IsCursorCaptureEnabled");
+				}
 			}
 		}
 		/// <summary>
@@ -226,8 +244,10 @@ namespace ScreenRecorderLib {
 				return _isBorderRequired;
 			}
 			void set(bool value) {
-				_isBorderRequired = value;
-				OnPropertyChanged("IsBorderRequired");
+				if (_isBorderRequired != value) {
+					_isBorderRequired = value;
+					OnPropertyChanged("IsBorderRequired");
+				}
 			}
 		}
 	};
@@ -266,8 +286,10 @@ namespace ScreenRecorderLib {
 				return _deviceName;
 			}
 			void set(String^ value) {
-				_deviceName = value;
-				OnPropertyChanged("DeviceName");
+				if (_deviceName != value) {
+					_deviceName = value;
+					OnPropertyChanged("DeviceName");
+				}
 			}
 		}
 
@@ -290,8 +312,10 @@ namespace ScreenRecorderLib {
 				return _recorderApi;
 			}
 			void set(ScreenRecorderLib::RecorderApi api) {
-				_recorderApi = api;
-				OnPropertyChanged("RecorderApi");
+				if (_recorderApi != api) {
+					_recorderApi = api;
+					OnPropertyChanged("RecorderApi");
+				}
 			}
 		}
 		/// <summary>
@@ -302,8 +326,10 @@ namespace ScreenRecorderLib {
 				return _isCursorCaptureEnabled;
 			}
 			void set(bool value) {
-				_isCursorCaptureEnabled = value;
-				OnPropertyChanged("IsCursorCaptureEnabled");
+				if (_isCursorCaptureEnabled != value) {
+					_isCursorCaptureEnabled = value;
+					OnPropertyChanged("IsCursorCaptureEnabled");
+				}
 			}
 		}
 		/// <summary>
@@ -315,8 +341,10 @@ namespace ScreenRecorderLib {
 				return _isBorderRequired;
 			}
 			void set(bool value) {
-				_isBorderRequired = value;
-				OnPropertyChanged("IsBorderRequired");
+				if (_isBorderRequired != value) {
+					_isBorderRequired = value;
+					OnPropertyChanged("IsBorderRequired");
+				}
 			}
 		}
 	};
