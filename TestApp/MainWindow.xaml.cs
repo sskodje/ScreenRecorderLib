@@ -589,6 +589,7 @@ namespace TestApp
                         OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
                         SourceRect = win.IsCustomOutputSourceRectEnabled ? win.SourceRect : null,
                         Position = win.IsCustomPositionEnabled ? win.Position : null,
+                        VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
                     source.OnFrameRecorded += onFrameDataRecorded;
                     return source;
@@ -600,6 +601,7 @@ namespace TestApp
                         OutputSize = disp.IsCustomOutputSizeEnabled ? disp.OutputSize : null,
                         SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
                         Position = disp.IsCustomPositionEnabled ? disp.Position : null,
+                        VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
                     source.OnFrameRecorded += onFrameDataRecorded;
                     return source;
@@ -612,7 +614,7 @@ namespace TestApp
                         SourceRect = cam.IsCustomOutputSourceRectEnabled ? cam.SourceRect : null,
                         Position = cam.IsCustomPositionEnabled ? cam.Position : null,
                         CaptureFormat = cam.CaptureFormat,
-
+                        VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
                     source.OnFrameRecorded += onFrameDataRecorded;
                     return source;
@@ -624,6 +626,7 @@ namespace TestApp
                         OutputSize = img.IsCustomOutputSizeEnabled ? img.OutputSize : null,
                         SourceRect = img.IsCustomOutputSourceRectEnabled ? img.SourceRect : null,
                         Position = img.IsCustomPositionEnabled ? img.Position : null,
+                        VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
                     source.OnFrameRecorded += onFrameDataRecorded;
                     return source;
@@ -635,6 +638,7 @@ namespace TestApp
                         OutputSize = vid.IsCustomOutputSizeEnabled ? vid.OutputSize : null,
                         SourceRect = vid.IsCustomOutputSourceRectEnabled ? vid.SourceRect : null,
                         Position = vid.IsCustomPositionEnabled ? vid.Position : null,
+                        VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
                     source.OnFrameRecorded += onFrameDataRecorded;
                     return source;

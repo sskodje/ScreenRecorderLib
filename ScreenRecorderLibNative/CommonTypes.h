@@ -231,7 +231,10 @@ public:
 	/// Toggles video frame preview on and off for this source.
 	/// </summary>
 	std::optional<bool> IsVideoFramePreviewEnabled;
-
+	/// <summary>
+	/// The requested dimensions of the frame preview bitmap
+	/// </summary>
+	std::optional<SIZE> VideoFramePreviewSize;
 
 	RECORDING_SOURCE_BASE() :
 		Type(RecordingSourceType::Display),
@@ -246,6 +249,7 @@ public:
 		IsCursorCaptureEnabled(std::nullopt),
 		IsBorderRequired(std::nullopt),
 		IsVideoFramePreviewEnabled(std::nullopt),
+		VideoFramePreviewSize(std::nullopt),
 		m_NewFrameDataCallbacks{}
 	{
 

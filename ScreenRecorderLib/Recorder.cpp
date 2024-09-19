@@ -725,6 +725,11 @@ HRESULT Recorder::CreateOrUpdateNativeRecordingSource(_In_ RecordingSourceBase^ 
 	auto callback = managedSource->RegisterFrameDataCallback();
 	pNativeSource->UnregisterCallback(callback);
 	pNativeSource->RegisterCallback(callback);
+	if (managedSource->VideoFramePreviewSize
+		&& !managedSource->VideoFramePreviewSize->Equals(ScreenSize::Empty)
+		&& (managedSource->VideoFramePreviewSize->Width > 0 || managedSource->VideoFramePreviewSize->Height > 0)) {
+		pNativeSource->VideoFramePreviewSize = managedSource->VideoFramePreviewSize->ToSIZE();
+	}
 
 	pNativeSource->IsVideoCaptureEnabled = managedSource->IsVideoCaptureEnabled;
 	pNativeSource->Stretch = static_cast<TextureStretchMode>(managedSource->Stretch);

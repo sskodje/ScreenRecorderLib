@@ -56,9 +56,32 @@ SIZE CaptureBase::GetContentOffset(_In_ ContentAnchor anchor, _In_ RECT parentRe
 
 HRESULT CaptureBase::SendBitmapCallback(_In_ ID3D11Texture2D *pTexture) {
 	HRESULT hr = S_FALSE;
+	CComPtr< ID3D11Texture2D> pProcessedTexture = nullptr;
 	if (m_RecordingSource->IsVideoFramePreviewEnabled.value_or(false) && m_RecordingSource->HasRegisteredCallbacks()) {
 		D3D11_TEXTURE2D_DESC textureDesc;
 		pTexture->GetDesc(&textureDesc);
+		if (m_RecordingSource->VideoFramePreviewSize.has_value()) {
+
+			//RECT originalSourceRect = m_r
+			long cx = m_RecordingSource->VideoFramePreviewSize.value().cx;
+			long cy = m_RecordingSource->VideoFramePreviewSize.value().cy;
+			if (cx > 0 && cy == 0) {
+				cy = static_cast<long>(round((static_cast<double>(textureDesc.Height) / static_cast<double>(textureDesc.Width)) * cx));
+			}
+			else if (cx == 0 && cy > 0) {
+				cx = static_cast<long>(round((static_cast<double>(textureDesc.Width) / static_cast<double>(textureDesc.Height)) * cy));
+			}
+
+			ID3D11Texture2D *pResizedTexture;
+			RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pTexture, SIZE{ cx,cy }, TextureStretchMode::Uniform, &pResizedTexture));
+			//SafeRelease(&pTexture);
+			pProcessedTexture.Attach(pResizedTexture);
+			pResizedTexture->GetDesc(&textureDesc);
+		}
+		else {
+			pProcessedTexture.Attach(pTexture);
+			pTexture->AddRef();
+		}
 		int width = textureDesc.Width;
 		int height = textureDesc.Height;
 
@@ -72,7 +95,7 @@ HRESULT CaptureBase::SendBitmapCallback(_In_ ID3D11Texture2D *pTexture) {
 			m_FrameDataCallbackTextureDesc = textureDesc;
 		}
 
-		m_DeviceContext->CopyResource(m_FrameDataCallbackTexture, pTexture);
+		m_DeviceContext->CopyResource(m_FrameDataCallbackTexture, pProcessedTexture);
 		D3D11_MAPPED_SUBRESOURCE map;
 		m_DeviceContext->Map(m_FrameDataCallbackTexture, 0, D3D11_MAP_READ, 0, &map);
 

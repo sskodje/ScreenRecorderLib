@@ -19,6 +19,7 @@ namespace ScreenRecorderLib {
 	public ref class RecordingSourceBase abstract : public INotifyPropertyChanged {
 	private:
 		String^ _id;
+		ScreenSize^ _previewSize;
 		ScreenSize^ _outputSize;
 		ScreenPoint^ _position;
 		Anchor _anchorPoint;
@@ -171,6 +172,21 @@ namespace ScreenRecorderLib {
 				if (_isVideoFramePreviewEnabled != value) {
 					_isVideoFramePreviewEnabled = value;
 					OnPropertyChanged("IsVideoFramePreviewEnabled");
+				}
+			}
+		}
+
+		/// <summary>
+		/// This option can be configured to set the preview size of this source in pixels.
+		/// </summary>
+		property ScreenSize^ VideoFramePreviewSize {
+			ScreenSize^ get() {
+				return _previewSize;
+			}
+			void set(ScreenSize^ size) {
+				if (_previewSize != size) {
+					_previewSize = size;
+					OnPropertyChanged("VideoFramePreviewSize");
 				}
 			}
 		}
