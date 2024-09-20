@@ -81,14 +81,13 @@ HRESULT ImageReader::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_resu
 		*ppFrame = pStagingTexture;
 		(*ppFrame)->AddRef();
 		QueryPerformanceCounter(&m_LastGrabTimeStamp);
-
 		return S_OK;
 	}
 	else {
 		if (ppFrame) {
 			*ppFrame = nullptr;
 		}
-		return S_FALSE;
+		return m_LastGrabTimeStamp.QuadPart == 0 ? S_OK : S_FALSE;
 	}
 }
 
