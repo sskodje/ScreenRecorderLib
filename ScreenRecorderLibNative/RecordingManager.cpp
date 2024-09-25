@@ -510,13 +510,24 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	DynamicWait retryWait{};
 	INT64 totalDiff = 0;
 
+	auto IsAnySourcePreviewsActive([&]()
+		{
+			for each (RECORDING_SOURCE * source in GetRecordingSources())
+			{
+				if (source->IsVideoFramePreviewEnabled.value_or(false) && source->HasRegisteredCallbacks()) {
+					return true;
+				}
+			}
+			return false;
+		});
+
 	auto GetTimeUntilNextFrameMillis([&]() {
 		INT64 timestamp;
 		m_OutputManager->GetMediaTimeStamp(&timestamp);
 		INT64 durationSinceLastFrame100Nanos = timestamp - lastFrameStartPos100Nanos;
 		INT64 nanosRemaining = max(0, videoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
 		return HundredNanosToMillisDouble(nanosRemaining);
-	});
+		});
 
 	auto IsTimeToTakeSnapshot([&]()
 	{
@@ -560,12 +571,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		frameNr++;
 		totalDiff += diff;
 		if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
-
-
 			SendNewFrameCallback(frameNr, pTextureToRender);
-
-
-
 		}
 		lastFrameStartPos100Nanos += duration100Nanos;
 		return renderHr;
@@ -683,16 +689,24 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			if (m_OutputManager->isMediaClockRunning()) {
 				m_OutputManager->PauseMediaClock();
 			}
-			wait(10);
-			previousSnapshotTaken = steady_clock::now();
-			if (pAudioManager)
-				pAudioManager->ClearRecordedBytes();
-			continue;
+			ExecuteFuncOnExit clearDataOnExit([&]() {
+				previousSnapshotTaken = steady_clock::now();
+				if (pAudioManager)
+					pAudioManager->ClearRecordedBytes();
+			});
+			if (!IsAnySourcePreviewsActive()) {
+				wait(10);
+				continue;
+			}
 		}
 		CAPTURED_FRAME capturedFrame{};
 		// Get new frame
 		hr = m_CaptureManager->AcquireNextFrame(GetTimeUntilNextFrameMillis(), m_MaxFrameLengthMillis, &capturedFrame);
 
+		//If there are any source previews on paused status, the loop exits here. This allows the source previews to continu render.
+		if (m_IsPaused) {
+			continue;
+		}
 		if (SUCCEEDED(hr)) {
 			if (capturedFrame.FrameUpdateCount > 0) {
 				m_RestartCaptureCount = 0;

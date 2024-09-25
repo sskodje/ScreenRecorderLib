@@ -522,13 +522,12 @@ namespace TestApp
             }));
         }
 
-        private void onSourceFrameDataRecorded(object sender, FrameDataRecordedEventArgs args)
+        private void Source_OnFrameRecorded(object sender, FrameDataRecordedEventArgs args)
         {
-            var data = args.BitmapData;
+            FrameBitmapData data = args.BitmapData;
             byte[] bytes = new byte[data.Length];
             Marshal.Copy(data.Data, bytes, 0, data.Length);
-            //  Debug.WriteLine($"Received preview frame with {bitmapData.Length} size, {bitmapData.Width} width and {bitmapData.Height} height");
-            Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, (Action)(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
             {
                 ICheckableRecordingSource recordingSource = this.RecordingSources.FirstOrDefault(x => x.ID == ((RecordingSourceBase)sender).ID);
                 var recordingPreviewBitmap = recordingSource.PreviewBitmap;
@@ -562,7 +561,7 @@ namespace TestApp
                         Position = win.IsCustomPositionEnabled ? win.Position : null,
                         VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
-                    source.OnFrameRecorded += onSourceFrameDataRecorded;
+                    source.OnFrameRecorded += Source_OnFrameRecorded;
                     return source;
                 }
                 else if (x is CheckableRecordableDisplay disp)
@@ -574,7 +573,7 @@ namespace TestApp
                         Position = disp.IsCustomPositionEnabled ? disp.Position : null,
                         VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
-                    source.OnFrameRecorded += onSourceFrameDataRecorded;
+                    source.OnFrameRecorded += Source_OnFrameRecorded;
                     return source;
                 }
                 else if (x is CheckableRecordableCamera cam)
@@ -587,7 +586,7 @@ namespace TestApp
                         CaptureFormat = cam.CaptureFormat,
                         VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
-                    source.OnFrameRecorded += onSourceFrameDataRecorded;
+                    source.OnFrameRecorded += Source_OnFrameRecorded;
                     return source;
                 }
                 else if (x is CheckableRecordableImage img)
@@ -599,7 +598,7 @@ namespace TestApp
                         Position = img.IsCustomPositionEnabled ? img.Position : null,
                         VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
-                    source.OnFrameRecorded += onSourceFrameDataRecorded;
+                    source.OnFrameRecorded += Source_OnFrameRecorded;
                     return source;
                 }
                 else if (x is CheckableRecordableVideo vid)
@@ -611,7 +610,7 @@ namespace TestApp
                         Position = vid.IsCustomPositionEnabled ? vid.Position : null,
                         VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
-                    source.OnFrameRecorded += onSourceFrameDataRecorded;
+                    source.OnFrameRecorded += Source_OnFrameRecorded;
                     return source;
                 }
                 else
