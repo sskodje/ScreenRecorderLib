@@ -33,6 +33,8 @@ private:
 
 	ID3D11Texture2D *m_BitmapDataCallbackTexture;
 	D3D11_TEXTURE2D_DESC m_BitmapDataCallbackTextureDesc;
+	PTR_INFO m_BitmapDataCallbackPtrInfo;
+
 	int m_CursorOffsetX;
 	int m_CursorOffsetY;
 	float m_CursorScaleX;

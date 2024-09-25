@@ -29,7 +29,8 @@ DesktopDuplicationCapture::DesktopDuplicationCapture() :
 	m_CursorScaleX(1.0),
 	m_CursorScaleY(1.0),
 	m_BitmapDataCallbackTexture(nullptr),
-	m_BitmapDataCallbackTextureDesc{}
+	m_BitmapDataCallbackTextureDesc{},
+	m_BitmapDataCallbackPtrInfo{}
 {
 	RtlZeroMemory(&m_CurrentData, sizeof(m_CurrentData));
 	RtlZeroMemory(&m_OutputDesc, sizeof(m_OutputDesc));
@@ -57,6 +58,11 @@ DesktopDuplicationCapture::~DesktopDuplicationCapture()
 	{
 		delete[] m_DirtyVertexBufferAlloc;
 		m_DirtyVertexBufferAlloc = nullptr;
+	}
+
+	if (m_BitmapDataCallbackPtrInfo.PtrShapeBuffer) {
+		delete[] m_BitmapDataCallbackPtrInfo.PtrShapeBuffer;
+		m_BitmapDataCallbackPtrInfo.PtrShapeBuffer = nullptr;
 	}
 }
 
@@ -220,7 +226,7 @@ HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD time
 }
 
 HRESULT DesktopDuplicationCapture::SendBitmapCallback(_In_ ID3D11Texture2D *pSharedSurf, _In_ SIZE frameOffset, _In_ SIZE contentOffset, _In_ RECT destinationRect) {
-	if (m_RecordingSource->IsVideoFramePreviewEnabled && m_RecordingSource->HasRegisteredCallbacks())
+	if (m_RecordingSource->IsVideoFramePreviewEnabled.value_or(false) && m_RecordingSource->HasRegisteredCallbacks())
 	{
 		int width = MakeEven(RectWidth(destinationRect));
 		int height = MakeEven(RectHeight(destinationRect));
@@ -240,11 +246,11 @@ HRESULT DesktopDuplicationCapture::SendBitmapCallback(_In_ ID3D11Texture2D *pSha
 		Box.right = MakeEven(width);
 		Box.bottom = MakeEven(height);
 		m_DeviceContext->CopySubresourceRegion(m_BitmapDataCallbackTexture, 0, frameOffset.cx + contentOffset.cx, frameOffset.cy + contentOffset.cy, 0, pSharedSurf, 0, &Box);
-		PTR_INFO ptrInfo;
-		RtlZeroMemory(&ptrInfo, sizeof(ptrInfo));
-		HRESULT hr = GetMouse(&ptrInfo, destinationRect, frameOffset.cx, frameOffset.cy);
-		hr = m_MouseManager->ProcessMousePointer(m_BitmapDataCallbackTexture, &ptrInfo);
-		delete[] ptrInfo.PtrShapeBuffer;
+
+		HRESULT hr = GetMouse(&m_BitmapDataCallbackPtrInfo, destinationRect, frameOffset.cx, frameOffset.cy);
+		if (SUCCEEDED(hr)) {
+			LOG_ON_BAD_HR(hr = m_MouseManager->ProcessMousePointer(m_BitmapDataCallbackTexture, &m_BitmapDataCallbackPtrInfo));
+		}
 		return CaptureBase::SendBitmapCallback(m_BitmapDataCallbackTexture);
 	}
 	else {
