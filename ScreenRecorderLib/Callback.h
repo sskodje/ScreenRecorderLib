@@ -21,6 +21,23 @@ namespace ScreenRecorderLib {
 		}
 	};
 
+	public ref class FrameBitmapData {
+	public:
+		property int Stride;
+		property int Width;
+		property int Height;
+		property IntPtr Data;
+		property int Length;
+		FrameBitmapData() {}
+		FrameBitmapData(int stride, byte* data, int length, int width, int height) {
+			Stride = stride;
+			Data = IntPtr(data);
+			Length = length;
+			Width = width;
+			Height = height;
+		}
+	};
+
 	public ref class RecordingStatusEventArgs :System::EventArgs {
 	public:
 		property RecorderStatus Status;
@@ -58,25 +75,29 @@ namespace ScreenRecorderLib {
 	public:
 		property int FrameNumber;
 		property INT64 Timestamp;
+		FrameBitmapData^ BitmapData;
+		FrameRecordedEventArgs() {}
 		FrameRecordedEventArgs(int frameNumber, INT64 timestamp) {
 			FrameNumber = frameNumber;
 			Timestamp = timestamp;
+		}
+		FrameRecordedEventArgs(int frameNumber, INT64 timestamp, FrameBitmapData^ bitmapData) {
+			FrameNumber = frameNumber;
+			Timestamp = timestamp;
+			BitmapData = bitmapData;
 		}
 	};
 
 	public ref class FrameDataRecordedEventArgs :System::EventArgs {
 	public:
-		property int Stride;
-		property int Width;
-		property int Height;
-		property IntPtr Data;
-		property int Length;
-		FrameDataRecordedEventArgs(int stride, byte* data, int length,int width, int height) {
-			Stride = stride;
-			Data = IntPtr(data);
-			Length = length;
-			Width = width;
-			Height = height;
+		property FrameBitmapData^ BitmapData;
+		FrameDataRecordedEventArgs() {}
+		FrameDataRecordedEventArgs(FrameBitmapData^ bitmapData)
+		{
+			this->BitmapData = bitmapData;
+		}
+		FrameDataRecordedEventArgs(int stride, byte* data, int length, int width, int height) {
+			this->BitmapData = gcnew FrameBitmapData(stride, data, length, width, height);
 		}
 	};
 }

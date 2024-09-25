@@ -216,6 +216,19 @@ namespace TestApp
             }
         }
 
+        private WriteableBitmap _recordingPreviewBitmap;
+        public WriteableBitmap RecordingPreviewBitmap
+        {
+            get { return _recordingPreviewBitmap; }
+            set
+            {
+                if (_recordingPreviewBitmap != value)
+                {
+                    _recordingPreviewBitmap = value;
+                    RaisePropertyChanged(nameof(RecordingPreviewBitmap));
+                }
+            }
+        }
         public H264Profile CurrentH264Profile { get; set; } = H264Profile.High;
         public H265Profile CurrentH265Profile { get; set; } = H265Profile.Main;
 
@@ -267,86 +280,27 @@ namespace TestApp
         }
         private void RecorderOptions_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            switch (e.PropertyName)
+
+            if (e.PropertyName == nameof(OutputOptions.RecorderMode) || e.PropertyName == nameof(SnapshotOptions.SnapshotsWithVideo))
             {
-                case nameof(OutputOptions.RecorderMode):
-                case nameof(SnapshotOptions.SnapshotsWithVideo):
-                    {
-                        UpdateUiState();
-                        break;
-                    }
-                case nameof(AudioOptions.InputVolume):
-                    {
-                        _rec?.GetDynamicOptionsBuilder()
-                                .SetDynamicAudioOptions(new DynamicAudioOptions { InputVolume = RecorderOptions.AudioOptions.InputVolume })
-                                .Apply();
-                        break;
-                    }
-                case nameof(AudioOptions.OutputVolume):
-                    {
-                        _rec?.GetDynamicOptionsBuilder()
-                                .SetDynamicAudioOptions(new DynamicAudioOptions { OutputVolume = RecorderOptions.AudioOptions.OutputVolume })
-                                .Apply();
-                        break;
-                    }
-                case nameof(AudioOptions.IsInputDeviceEnabled):
-                    {
-                        _rec?.GetDynamicOptionsBuilder()
-                             .SetDynamicAudioOptions(new DynamicAudioOptions { IsInputDeviceEnabled = RecorderOptions.AudioOptions.IsInputDeviceEnabled })
-                             .Apply();
-                        break;
-                    }
-                case nameof(AudioOptions.IsOutputDeviceEnabled):
-                    {
-                        _rec?.GetDynamicOptionsBuilder()
-                             .SetDynamicAudioOptions(new DynamicAudioOptions { IsOutputDeviceEnabled = RecorderOptions.AudioOptions.IsOutputDeviceEnabled })
-                             .Apply();
-                        break;
-                    }
-                case nameof(MouseOptions.MouseLeftClickDetectionColor):
-                    {
-                        _rec?.GetDynamicOptionsBuilder()
-                                 .SetDynamicMouseOptions(new DynamicMouseOptions { MouseLeftClickDetectionColor = RecorderOptions.MouseOptions.MouseLeftClickDetectionColor })
-                                 .Apply();
-                        break;
-                    }
-                case nameof(MouseOptions.MouseRightClickDetectionColor):
-                    {
-                        _rec?.GetDynamicOptionsBuilder()
-                                 .SetDynamicMouseOptions(new DynamicMouseOptions { MouseRightClickDetectionColor = RecorderOptions.MouseOptions.MouseRightClickDetectionColor })
-                                 .Apply();
-                        break;
-                    }
-                case nameof(MouseOptions.IsMouseClicksDetected):
-                    {
-                        _rec?.GetDynamicOptionsBuilder()
-                                 .SetDynamicMouseOptions(new DynamicMouseOptions { IsMouseClicksDetected = RecorderOptions.MouseOptions.IsMouseClicksDetected })
-                                 .Apply();
-                        break;
-                    }
-                case nameof(MouseOptions.IsMousePointerEnabled):
-                    {
-                        _rec?.GetDynamicOptionsBuilder()
-                                 .SetDynamicMouseOptions(new DynamicMouseOptions { IsMousePointerEnabled = RecorderOptions.MouseOptions.IsMousePointerEnabled })
-                                 .Apply();
-                        break;
-                    }
-                case nameof(MouseOptions.MouseClickDetectionRadius):
-                    {
-                        _rec?.GetDynamicOptionsBuilder()
-                                 .SetDynamicMouseOptions(new DynamicMouseOptions { MouseClickDetectionRadius = RecorderOptions.MouseOptions.MouseClickDetectionRadius })
-                                 .Apply();
-                        break;
-                    }
-                case nameof(MouseOptions.MouseClickDetectionDuration):
-                    {
-                        _rec?.GetDynamicOptionsBuilder()
-                                 .SetDynamicMouseOptions(new DynamicMouseOptions { MouseClickDetectionDuration = RecorderOptions.MouseOptions.MouseClickDetectionDuration })
-                                 .Apply();
-                        break;
-                    }
-                default:
-                    break;
+                UpdateUiState();
+            }
+            if (_rec != null)
+            {
+                DynamicOptionsBuilder builder = _rec.GetDynamicOptionsBuilder();
+                if (sender is DynamicAudioOptions)
+                {
+                    builder.SetDynamicAudioOptions(RecorderOptions.AudioOptions);
+                }
+                else if (sender is DynamicMouseOptions)
+                {
+                    builder.SetDynamicMouseOptions(RecorderOptions.MouseOptions);
+                }
+                else if (sender is DynamicOutputOptions)
+                {
+                    builder.SetDynamicOutputOptions(RecorderOptions.OutputOptions);
+                }
+                builder.Apply();
             }
         }
 
@@ -513,6 +467,7 @@ namespace TestApp
             {
                 RecorderOptions.OutputOptions.SourceRect = SourceRect;
             }
+            RecorderOptions.OutputOptions.VideoFramePreviewSize = new ScreenSize(0, 150);
             if (IsLogToFileEnabled)
             {
                 RecorderOptions.LogOptions.LogFilePath = LogFilePath;
@@ -545,6 +500,21 @@ namespace TestApp
 
         private void Rec_OnFrameRecorded(object sender, FrameRecordedEventArgs e)
         {
+            FrameBitmapData args = e.BitmapData;
+            if (args != null)
+            {
+                byte[] bytes = new byte[args.Length];
+                Marshal.Copy(args.Data, bytes, 0, args.Length);
+                Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
+                {
+                    if (RecordingPreviewBitmap == null || RecordingPreviewBitmap.Width != args.Width || RecordingPreviewBitmap.Height != args.Height)
+                    {
+                        RecordingPreviewBitmap = new WriteableBitmap(args.Width, args.Height, 96, 96, PixelFormats.Bgra32, null);
+                    }
+                    RecordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, args.Width, args.Height), bytes, Math.Abs(args.Stride), 0);
+                }));
+            }
+
             Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
             {
                 CurrentFrameNumber = e.FrameNumber;
@@ -552,20 +522,21 @@ namespace TestApp
             }));
         }
 
-        private void onFrameDataRecorded(object sender, FrameDataRecordedEventArgs args)
+        private void onSourceFrameDataRecorded(object sender, FrameDataRecordedEventArgs args)
         {
-            byte[] bytes = new byte[args.Length];
-            Marshal.Copy(args.Data, bytes, 0, args.Length);
-            //  Debug.WriteLine($"Received preview frame with {args.Length} size, {args.Width} width and {args.Height} height");
+            var data = args.BitmapData;
+            byte[] bytes = new byte[data.Length];
+            Marshal.Copy(data.Data, bytes, 0, data.Length);
+            //  Debug.WriteLine($"Received preview frame with {bitmapData.Length} size, {bitmapData.Width} width and {bitmapData.Height} height");
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, (Action)(() =>
             {
                 ICheckableRecordingSource recordingSource = this.RecordingSources.FirstOrDefault(x => x.ID == ((RecordingSourceBase)sender).ID);
                 var recordingPreviewBitmap = recordingSource.PreviewBitmap;
-                if (recordingPreviewBitmap == null || recordingPreviewBitmap.Width != args.Width || recordingPreviewBitmap.Height != args.Height)
+                if (recordingPreviewBitmap == null || recordingPreviewBitmap.Width != data.Width || recordingPreviewBitmap.Height != data.Height)
                 {
-                    recordingSource.PreviewBitmap = recordingPreviewBitmap = new WriteableBitmap(args.Width, args.Height, 96, 96, PixelFormats.Bgra32, null);
+                    recordingSource.PreviewBitmap = recordingPreviewBitmap = new WriteableBitmap(data.Width, data.Height, 96, 96, PixelFormats.Bgra32, null);
                 }
-                recordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, args.Width, args.Height), bytes, Math.Abs(args.Stride), 0);
+                recordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, data.Width, data.Height), bytes, Math.Abs(data.Stride), 0);
             }));
         }
         private List<RecordingSourceBase> CreateSelectedRecordingSources()
@@ -591,7 +562,7 @@ namespace TestApp
                         Position = win.IsCustomPositionEnabled ? win.Position : null,
                         VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
-                    source.OnFrameRecorded += onFrameDataRecorded;
+                    source.OnFrameRecorded += onSourceFrameDataRecorded;
                     return source;
                 }
                 else if (x is CheckableRecordableDisplay disp)
@@ -603,7 +574,7 @@ namespace TestApp
                         Position = disp.IsCustomPositionEnabled ? disp.Position : null,
                         VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
-                    source.OnFrameRecorded += onFrameDataRecorded;
+                    source.OnFrameRecorded += onSourceFrameDataRecorded;
                     return source;
                 }
                 else if (x is CheckableRecordableCamera cam)
@@ -616,7 +587,7 @@ namespace TestApp
                         CaptureFormat = cam.CaptureFormat,
                         VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
-                    source.OnFrameRecorded += onFrameDataRecorded;
+                    source.OnFrameRecorded += onSourceFrameDataRecorded;
                     return source;
                 }
                 else if (x is CheckableRecordableImage img)
@@ -628,7 +599,7 @@ namespace TestApp
                         Position = img.IsCustomPositionEnabled ? img.Position : null,
                         VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
-                    source.OnFrameRecorded += onFrameDataRecorded;
+                    source.OnFrameRecorded += onSourceFrameDataRecorded;
                     return source;
                 }
                 else if (x is CheckableRecordableVideo vid)
@@ -640,7 +611,7 @@ namespace TestApp
                         Position = vid.IsCustomPositionEnabled ? vid.Position : null,
                         VideoFramePreviewSize = new ScreenSize(0, 150)
                     };
-                    source.OnFrameRecorded += onFrameDataRecorded;
+                    source.OnFrameRecorded += onSourceFrameDataRecorded;
                     return source;
                 }
                 else

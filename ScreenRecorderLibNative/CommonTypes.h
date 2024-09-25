@@ -14,6 +14,28 @@
 #include "util.h"
 
 typedef void(__stdcall *CallbackNewFrameDataFunction)(int, byte *, int, int, int);
+
+struct FRAME_BITMAP_DATA {
+	int Stride;
+	int Width;
+	int Height;
+	byte *Data;
+	int Length;
+	FRAME_BITMAP_DATA() :
+		Stride(0),
+		Width(0),
+		Height(0),
+		Data(nullptr),
+		Length(0) {}
+	FRAME_BITMAP_DATA(int stride, byte *data, int length, int width, int height) {
+		Stride = stride;
+		Data = data;
+		Length = length;
+		Width = width;
+		Height = height;
+	} 
+};
+
 struct REC_RESULT {
 	HRESULT RecordingResult;
 	HRESULT FinalizeResult;
@@ -493,6 +515,8 @@ protected:
 	TextureStretchMode m_Stretch = TextureStretchMode::Uniform;
 	RecorderModeInternal m_RecorderMode = RecorderModeInternal::Video;
 	bool m_IsVideoCaptureEnabled = true;
+	bool m_IsVideoFramePreviewEnabled = false;
+	std::optional<SIZE> m_VideoFramePreviewSize{};
 public:
 	SIZE GetFrameSize() { return m_FrameSize; }
 	void SetFrameSize(SIZE size) { m_FrameSize = size; }
@@ -504,7 +528,10 @@ public:
 	void SetRecorderMode(RecorderModeInternal recorderMode) { m_RecorderMode = recorderMode; }
 	bool IsVideoCaptureEnabled() { return m_IsVideoCaptureEnabled; }
 	void SetVideoCaptureEnabled(bool value) { m_IsVideoCaptureEnabled = value; }
-
+	void SetVideoFramePreviewEnabled(bool value) { m_IsVideoFramePreviewEnabled = value; }
+	void SetVideoFramePreviewSize(SIZE value) { m_VideoFramePreviewSize = value; }
+	bool IsVideoFramePreviewEnabled() { return m_IsVideoFramePreviewEnabled; }
+	std::optional<SIZE> GetVideoFramePreviewSize() { return m_VideoFramePreviewSize; }
 };
 
 struct ENCODER_OPTIONS abstract {

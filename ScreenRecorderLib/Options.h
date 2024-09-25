@@ -91,10 +91,14 @@ namespace ScreenRecorderLib {
 	private:
 		ScreenRect^ _sourceRect;
 		Nullable<bool> _isVideoCaptureEnabled;
+		Nullable<bool> _isVideoFramePreviewEnabled;
+		ScreenSize^ _videoFramePreviewSize;
 	public:
 		DynamicOutputOptions() {
 			SourceRect = ScreenRect::Empty;
 			IsVideoCaptureEnabled = true;
+			IsVideoFramePreviewEnabled = false;
+			VideoFramePreviewSize = ScreenSize::Empty;
 		}
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
 		void OnPropertyChanged(String^ info)
@@ -126,6 +130,35 @@ namespace ScreenRecorderLib {
 				OnPropertyChanged("IsVideoCaptureEnabled");
 			}
 		}
+		/// <summary>
+		/// Enables video frame bitmaps to be generated through the OnFrameRecorded event.
+		/// </summary>
+		property Nullable<bool> IsVideoFramePreviewEnabled {
+			Nullable<bool> get() {
+				return _isVideoFramePreviewEnabled;
+			}
+			void set(Nullable<bool> value) {
+				if (!Object::Equals(_isVideoFramePreviewEnabled, value)) {
+					_isVideoFramePreviewEnabled = value;
+					OnPropertyChanged("IsVideoFramePreviewEnabled");
+				}
+			}
+		}
+
+		/// <summary>
+		/// This option can be configured to set the dimensions of the bitmap in pixels.
+		/// </summary>
+		property ScreenSize^ VideoFramePreviewSize {
+			ScreenSize^ get() {
+				return _videoFramePreviewSize;
+			}
+			void set(ScreenSize^ size) {
+				if (_videoFramePreviewSize != size) {
+					_videoFramePreviewSize = size;
+					OnPropertyChanged("VideoFramePreviewSize");
+				}
+			}
+		}
 	};
 
 	public ref class OutputOptions :public DynamicOutputOptions {
@@ -134,7 +167,7 @@ namespace ScreenRecorderLib {
 		ScreenSize^ _outputFrameSize;
 		RecorderMode _recorderMode;
 	public:
-		OutputOptions():DynamicOutputOptions(){
+		OutputOptions() :DynamicOutputOptions() {
 			Stretch = StretchMode::Uniform;
 			OutputFrameSize = ScreenSize::Empty;
 			RecorderMode = ScreenRecorderLib::RecorderMode::Video;
@@ -789,21 +822,21 @@ namespace ScreenRecorderLib {
 		property List<RecordingOverlayBase^>^ RecordingOverlays;
 
 		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingSources.", false)]
-		property Dictionary<String^, bool>^ SourceVideoCaptures;
+			property Dictionary<String^, bool>^ SourceVideoCaptures;
 		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingSources.", false)]
-		property Dictionary<String^, ScreenRect^>^ SourceRects;
+			property Dictionary<String^, ScreenRect^>^ SourceRects;
 		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingSources.", false)]
-		property Dictionary<String^, bool>^ SourceCursorCaptures;
+			property Dictionary<String^, bool>^ SourceCursorCaptures;
 
 		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
-		property Dictionary<String^, bool>^ OverlayVideoCaptures;
+			property Dictionary<String^, bool>^ OverlayVideoCaptures;
 		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
-		property Dictionary<String^, bool>^ OverlayCursorCaptures;
+			property Dictionary<String^, bool>^ OverlayCursorCaptures;
 		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
-		property Dictionary<String^, ScreenSize^>^ OverlaySizes;
+			property Dictionary<String^, ScreenSize^>^ OverlaySizes;
 		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
-		property Dictionary<String^, ScreenSize^>^ OverlayOffsets;
+			property Dictionary<String^, ScreenSize^>^ OverlayOffsets;
 		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
-		property Dictionary<String^, Anchor>^ OverlayAnchors;
+			property Dictionary<String^, Anchor>^ OverlayAnchors;
 	};
 }

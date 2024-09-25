@@ -89,6 +89,12 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			}
 			outputOptions->SetRecorderMode(static_cast<RecorderModeInternal>(options->OutputOptions->RecorderMode));
 			outputOptions->SetStretch(static_cast<TextureStretchMode>(options->OutputOptions->Stretch));
+			if (options->OutputOptions->IsVideoFramePreviewEnabled.HasValue) {
+				outputOptions->SetVideoFramePreviewEnabled(options->OutputOptions->IsVideoFramePreviewEnabled.Value);
+			}
+			if (options->OutputOptions->VideoFramePreviewSize && !options->OutputOptions->VideoFramePreviewSize->Equals(ScreenSize::Empty)) {
+				outputOptions->SetVideoFramePreviewSize(SIZE{ (long)round(options->OutputOptions->VideoFramePreviewSize->Width),(long)round(options->OutputOptions->VideoFramePreviewSize->Height) });
+			}
 			m_Rec->SetOutputOptions(outputOptions);
 		}
 		if (options->AudioOptions) {
@@ -207,6 +213,12 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 		}
 		if (options->OutputOptions->IsVideoCaptureEnabled.HasValue) {
 			m_Rec->GetOutputOptions()->SetVideoCaptureEnabled(options->OutputOptions->IsVideoCaptureEnabled.Value);
+		}
+		if (options->OutputOptions->IsVideoFramePreviewEnabled.HasValue) {
+			m_Rec->GetOutputOptions()->SetVideoFramePreviewEnabled(options->OutputOptions->IsVideoFramePreviewEnabled.Value);
+		}
+		if (options->OutputOptions->VideoFramePreviewSize) {
+			m_Rec->GetOutputOptions()->SetVideoFramePreviewSize(options->OutputOptions->VideoFramePreviewSize->ToSIZE());
 		}
 	}
 	if (options->SourceRects) {
@@ -1071,8 +1083,12 @@ void ScreenRecorderLib::Recorder::EventSnapshotCreated(std::wstring str)
 	OnSnapshotSaved(this, gcnew SnapshotSavedEventArgs(gcnew String(str.c_str())));
 }
 
-void Recorder::FrameNumberChanged(int newFrameNumber, INT64 timestamp)
+void Recorder::FrameNumberChanged(int newFrameNumber, INT64 timestamp, FRAME_BITMAP_DATA* frameData)
 {
-	OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber, timestamp));
+	FrameBitmapData^ managedFrameData = nullptr;
+	if (frameData != nullptr) {
+		managedFrameData = gcnew FrameBitmapData(frameData->Stride, frameData->Data, frameData->Length, frameData->Width, frameData->Height);
+	}
+	OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber, timestamp, managedFrameData));
 	CurrentFrameNumber = newFrameNumber;
 }

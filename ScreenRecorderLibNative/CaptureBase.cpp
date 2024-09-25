@@ -61,8 +61,6 @@ HRESULT CaptureBase::SendBitmapCallback(_In_ ID3D11Texture2D *pTexture) {
 		D3D11_TEXTURE2D_DESC textureDesc;
 		pTexture->GetDesc(&textureDesc);
 		if (m_RecordingSource->VideoFramePreviewSize.has_value()) {
-
-			//RECT originalSourceRect = m_r
 			long cx = m_RecordingSource->VideoFramePreviewSize.value().cx;
 			long cy = m_RecordingSource->VideoFramePreviewSize.value().cy;
 			if (cx > 0 && cy == 0) {
@@ -71,10 +69,8 @@ HRESULT CaptureBase::SendBitmapCallback(_In_ ID3D11Texture2D *pTexture) {
 			else if (cx == 0 && cy > 0) {
 				cx = static_cast<long>(round((static_cast<double>(textureDesc.Width) / static_cast<double>(textureDesc.Height)) * cy));
 			}
-
 			ID3D11Texture2D *pResizedTexture;
 			RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pTexture, SIZE{ cx,cy }, TextureStretchMode::Uniform, &pResizedTexture));
-			//SafeRelease(&pTexture);
 			pProcessedTexture.Attach(pResizedTexture);
 			pResizedTexture->GetDesc(&textureDesc);
 		}
@@ -100,7 +96,7 @@ HRESULT CaptureBase::SendBitmapCallback(_In_ ID3D11Texture2D *pTexture) {
 		m_DeviceContext->Map(m_FrameDataCallbackTexture, 0, D3D11_MAP_READ, 0, &map);
 
 		int bytesPerPixel = map.RowPitch / width;
-		int len = map.DepthPitch;//bufferDesc.Width * bufferDesc.Height * bytesPerPixel;
+		int len = map.DepthPitch;
 		int stride = map.RowPitch;
 		BYTE *data = static_cast<BYTE *>(map.pData);
 		BYTE *frameBuffer = new BYTE[len];

@@ -83,7 +83,8 @@ RecordingManager::RecordingManager() :
 	m_OutputOptions(new OUTPUT_OPTIONS),
 	m_IsDestructing(false),
 	m_RecordingSources{},
-	m_DxResources{}
+	m_DxResources{},
+	m_FrameDataCallbackTexture(nullptr)
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	m_MfStartupResult = MFStartup(MF_VERSION, MFSTARTUP_LITE);
@@ -94,6 +95,7 @@ RecordingManager::RecordingManager() :
 		m_TimerResolution = min(max(tc.wPeriodMin, targetResolutionMs), tc.wPeriodMax);
 		timeBeginPeriod(m_TimerResolution);
 	}
+	RtlZeroMemory(&m_FrameDataCallbackTextureDesc, sizeof(m_FrameDataCallbackTextureDesc));
 }
 
 RecordingManager::~RecordingManager()
@@ -109,6 +111,7 @@ RecordingManager::~RecordingManager()
 	if (m_TimerResolution > 0) {
 		timeEndPeriod(m_TimerResolution);
 	}
+	SafeRelease(&m_FrameDataCallbackTexture);
 	ClearRecordingSources();
 	ClearOverlays();
 	CleanDx(&m_DxResources);
@@ -557,12 +560,16 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		frameNr++;
 		totalDiff += diff;
 		if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
-			INT64 timestamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-			RecordingFrameNumberChangedCallback(frameNr, timestamp);
+
+
+			SendNewFrameCallback(frameNr, pTextureToRender);
+
+
+
 		}
 		lastFrameStartPos100Nanos += duration100Nanos;
 		return renderHr;
-					});
+	});
 
 	auto RestartCapture([&](CAPTURE_RESULT result) {
 		//Stop existing capture
@@ -721,6 +728,82 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	}
 
 	return CAPTURE_RESULT(hr);
+}
+
+HRESULT RecordingManager::SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture) {
+	HRESULT hr = S_FALSE;
+	if (RecordingFrameNumberChangedCallback != nullptr) {
+		INT64 timestamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+		unique_ptr<FRAME_BITMAP_DATA> pFramePreviewData = nullptr;
+		CComPtr< ID3D11Texture2D> pProcessedTexture = nullptr;
+		if (m_OutputOptions->IsVideoFramePreviewEnabled()) {
+			D3D11_TEXTURE2D_DESC textureDesc;
+			pTexture->GetDesc(&textureDesc);
+			if (m_OutputOptions->GetVideoFramePreviewSize().has_value()) {
+				long cx = m_OutputOptions->GetVideoFramePreviewSize().value().cx;
+				long cy = m_OutputOptions->GetVideoFramePreviewSize().value().cy;
+				if (cx > 0 && cy == 0) {
+					cy = static_cast<long>(round((static_cast<double>(textureDesc.Height) / static_cast<double>(textureDesc.Width)) * cx));
+				}
+				else if (cx == 0 && cy > 0) {
+					cx = static_cast<long>(round((static_cast<double>(textureDesc.Width) / static_cast<double>(textureDesc.Height)) * cy));
+				}
+				ID3D11Texture2D *pResizedTexture;
+				RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pTexture, SIZE{ cx,cy }, TextureStretchMode::Uniform, &pResizedTexture));
+				pProcessedTexture.Attach(pResizedTexture);
+				pResizedTexture->GetDesc(&textureDesc);
+			}
+			else {
+				pProcessedTexture.Attach(pTexture);
+				pTexture->AddRef();
+			}
+			int width = textureDesc.Width;
+			int height = textureDesc.Height;
+
+			if (m_FrameDataCallbackTextureDesc.Width != width || m_FrameDataCallbackTextureDesc.Height != height) {
+				SafeRelease(&m_FrameDataCallbackTexture);
+				textureDesc.Usage = D3D11_USAGE_STAGING;
+				textureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+				textureDesc.MiscFlags = 0;
+				textureDesc.BindFlags = 0;
+				RETURN_ON_BAD_HR(m_DxResources.Device->CreateTexture2D(&textureDesc, nullptr, &m_FrameDataCallbackTexture));
+
+				m_FrameDataCallbackTextureDesc = textureDesc;
+			}
+
+			m_DxResources.Context->CopyResource(m_FrameDataCallbackTexture, pProcessedTexture);
+			D3D11_MAPPED_SUBRESOURCE map;
+			m_DxResources.Context->Map(m_FrameDataCallbackTexture, 0, D3D11_MAP_READ, 0, &map);
+
+			int bytesPerPixel = map.RowPitch / width;
+			int len = map.DepthPitch;
+			int stride = map.RowPitch;
+			BYTE *data = static_cast<BYTE *>(map.pData);
+			BYTE *frameBuffer = new BYTE[len];
+			//Copy the bitmap buffer, with handling of negative stride. https://docs.microsoft.com/en-us/windows/win32/medfound/image-stride
+			hr = MFCopyImage(
+			  frameBuffer,								 // Destination buffer.
+			  abs(stride),                    // Destination stride. We use the absolute value to flip bitmaps with negative stride. 
+			  stride > 0 ? data : data + (height - 1) * abs(stride), // First row in source image with positive stride, or the last row with negative stride.
+			  stride,								 // Source stride.
+			  bytesPerPixel * width,	 // Image width in bytes.
+			  height						 // Image height in pixels.
+			);
+
+			pFramePreviewData = make_unique<FRAME_BITMAP_DATA>();
+			pFramePreviewData->Data = frameBuffer;
+			pFramePreviewData->Stride = stride;
+			pFramePreviewData->Width = width;
+			pFramePreviewData->Height = height;
+			pFramePreviewData->Length = len;
+			m_DxResources.Context->Unmap(m_FrameDataCallbackTexture, 0);
+		}
+		RecordingFrameNumberChangedCallback(frameNumber, timestamp, pFramePreviewData.get());
+		if (pFramePreviewData) {
+			delete[] pFramePreviewData->Data;
+		}
+	}
+	return hr;
 }
 
 HRESULT RecordingManager::InitializeRects(_In_ SIZE captureFrameSize, _Out_opt_ RECT *pAdjustedSourceRect, _Out_opt_ SIZE *pAdjustedOutputFrameSize) {

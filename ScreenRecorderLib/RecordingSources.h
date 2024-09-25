@@ -19,7 +19,7 @@ namespace ScreenRecorderLib {
 	public ref class RecordingSourceBase abstract : public INotifyPropertyChanged {
 	private:
 		String^ _id;
-		ScreenSize^ _previewSize;
+		ScreenSize^ _videoFramePreviewSize;
 		ScreenSize^ _outputSize;
 		ScreenPoint^ _position;
 		Anchor _anchorPoint;
@@ -162,7 +162,7 @@ namespace ScreenRecorderLib {
 			}
 		}
 		/// <summary>
-		/// Enables video frames to be generated through the OnFrameRecorded event. Can have a severe performance impact.
+		/// Enables video frame bitmaps to be generated through the OnFrameRecorded event.
 		/// </summary>
 		property bool IsVideoFramePreviewEnabled {
 			bool get() {
@@ -177,15 +177,15 @@ namespace ScreenRecorderLib {
 		}
 
 		/// <summary>
-		/// This option can be configured to set the preview size of this source in pixels.
+		/// This option can be configured to set the dimensions of the bitmap in pixels.
 		/// </summary>
 		property ScreenSize^ VideoFramePreviewSize {
 			ScreenSize^ get() {
-				return _previewSize;
+				return _videoFramePreviewSize;
 			}
 			void set(ScreenSize^ size) {
-				if (_previewSize != size) {
-					_previewSize = size;
+				if (_videoFramePreviewSize != size) {
+					_videoFramePreviewSize = size;
 					OnPropertyChanged("VideoFramePreviewSize");
 				}
 			}

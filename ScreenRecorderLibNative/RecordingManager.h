@@ -6,11 +6,12 @@
 #include "ScreenCaptureManager.h"
 #include "Log.h"
 #include "fifo_map.h"
+#include "CommonTypes.h"
 typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_map<std::wstring, int>);
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
 typedef void(__stdcall *CallbackErrorFunction)(std::wstring, std::wstring);
 typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
-typedef void(__stdcall *CallbackFrameNumberChangedFunction)(int, INT64);
+typedef void(__stdcall *CallbackFrameNumberChangedFunction)(int, INT64, _In_opt_ FRAME_BITMAP_DATA *data);
 
 #define STATUS_IDLE 0
 #define STATUS_RECORDING 1
@@ -153,11 +154,14 @@ private:
 	std::shared_ptr<SNAPSHOT_OPTIONS> m_SnapshotOptions;
 	std::shared_ptr<OUTPUT_OPTIONS> m_OutputOptions;
 
+	ID3D11Texture2D *m_FrameDataCallbackTexture;
+	D3D11_TEXTURE2D_DESC m_FrameDataCallbackTextureDesc;
+
 	bool CheckDependencies(_Out_ std::wstring *error);
 	HRESULT ConfigureOutputDir(_In_ std::wstring path);
 	REC_RESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_opt_ IStream *pStream);
 
-
+	HRESULT SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture);
 	HRESULT TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStream *pStream, _In_opt_ ID3D11Texture2D *pTexture = nullptr);
 	HRESULT BeginRecording(_In_opt_ std::wstring path, _In_opt_ IStream *pStream);
 

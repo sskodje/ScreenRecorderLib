@@ -1089,6 +1089,11 @@
                               x:Name="CheckBoxExclude"
                               IsChecked="{Binding ElementName=MainWin,Path=IsExcludeWindowEnabled}"
                               Margin="0" />
+
+                    <CheckBox Content="Enable output frame preview"
+                              x:Name="CheckBoxShowOutputPreview"
+                              IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.IsVideoFramePreviewEnabled}"
+                              Margin="0" />
                     <CheckBox x:Name="CheckBoxEnableOverlays"
                               Content="Add overlays" />
                 </StackPanel>
@@ -1285,7 +1290,11 @@
                         <ColumnDefinition Width="0.33*" />
                         <ColumnDefinition Width="0.33*" />
                     </Grid.ColumnDefinitions>
-
+                    <StackPanel Grid.Column="0">
+                        <Image Source="{Binding ElementName=MainWin, Path=RecordingPreviewBitmap}"
+                               Height="150px"
+                               Margin="10px" />
+                    </StackPanel>
                     <StackPanel Orientation="Vertical"
                                 x:Name="ControlsPanel"
                                 Grid.Column="1">

@@ -21,7 +21,7 @@ delegate void InternalStatusCallbackDelegate(int status);
 delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fifo_map<std::wstring, int>);
 delegate void InternalErrorCallbackDelegate(std::wstring error, std::wstring path);
 delegate void InternalSnapshotCallbackDelegate(std::wstring path);
-delegate void InternalFrameNumberCallbackDelegate(int newFrameNumber, INT64 timestamp);
+delegate void InternalFrameNumberCallbackDelegate(int newFrameNumber, INT64 timestamp, FRAME_BITMAP_DATA* data);
 namespace ScreenRecorderLib {
 
 	ref class DynamicOptionsBuilder;
@@ -64,7 +64,7 @@ namespace ScreenRecorderLib {
 		void EventFailed(std::wstring error, std::wstring path);
 		void EventStatusChanged(int status);
 		void EventSnapshotCreated(std::wstring str);
-		void FrameNumberChanged(int newFrameNumber, INT64 timestamp);
+		void FrameNumberChanged(int newFrameNumber, INT64 timestamp, FRAME_BITMAP_DATA* data);
 		void SetupCallbacks();
 		void ReleaseCallbacks();
 		void ReleaseResources();
