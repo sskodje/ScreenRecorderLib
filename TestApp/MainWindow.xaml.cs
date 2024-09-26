@@ -715,7 +715,6 @@ namespace TestApp
                         this.MouseClickModePanel.IsEnabled = true;
                         break;
                     case RecorderStatus.Recording:
-                        _recordingStartTime = DateTimeOffset.Now;
                         PauseButton.Visibility = Visibility.Visible;
                         ManualSnapshotButton.Visibility = Visibility.Visible;
                         this.FrameNumberPanel.Visibility = Visibility.Visible;
@@ -723,6 +722,10 @@ namespace TestApp
                         {
                             _recordingStartTime = _recordingStartTime.Value.AddTicks((DateTimeOffset.Now.Subtract(_recordingPauseTime.Value)).Ticks);
                             _recordingPauseTime = null;
+                        }
+                        else
+                        {
+                            _recordingStartTime = DateTimeOffset.Now;
                         }
                         RecordButton.Content = "Stop";
                         PauseButton.Content = "Pause";
