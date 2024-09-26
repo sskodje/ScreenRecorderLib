@@ -76,7 +76,6 @@ namespace ScreenRecorderLib {
 		static Guid FromNativeGuid(_In_ const GUID& guid);
 
 		int _currentFrameNumber;
-		RecorderOptions^ _options;
 		RecorderStatus _status;
 		RecordingManager* m_Rec;
 		ManagedIStream* m_ManagedStream;
