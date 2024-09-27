@@ -58,7 +58,7 @@ public:
 			m_RecordingSources.push_back(new RECORDING_SOURCE(source));
 		}
 	}
-	inline std::vector<RECORDING_SOURCE *> GetRecordingSources() {
+	inline const std::vector<RECORDING_SOURCE *> &GetRecordingSources() const {
 		return m_RecordingSources;
 	}
 
