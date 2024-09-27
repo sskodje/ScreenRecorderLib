@@ -99,18 +99,8 @@ HRESULT CaptureBase::SendBitmapCallback(_In_ ID3D11Texture2D *pTexture) {
 		int len = map.DepthPitch;
 		int stride = map.RowPitch;
 		BYTE *data = static_cast<BYTE *>(map.pData);
-		BYTE *frameBuffer = new BYTE[len];
-		//Copy the bitmap buffer, with handling of negative stride. https://docs.microsoft.com/en-us/windows/win32/medfound/image-stride
-		hr = MFCopyImage(
-		  frameBuffer,								 // Destination buffer.
-		  abs(stride),                    // Destination stride. We use the absolute value to flip bitmaps with negative stride. 
-		  stride > 0 ? data : data + (height - 1) * abs(stride), // First row in source image with positive stride, or the last row with negative stride.
-		  stride,								 // Source stride.
-		  bytesPerPixel * width,	 // Image width in bytes.
-		  height						 // Image height in pixels.
-		);
-		m_RecordingSource->NotifyNewFrameDataCallbacks(abs(stride), frameBuffer, len, width, height);
-		delete[] frameBuffer;
+
+		m_RecordingSource->NotifyNewFrameDataCallbacks(abs(stride), data, len, width, height);
 		m_DeviceContext->Unmap(m_FrameDataCallbackTexture, 0);
 	}
 	return hr;

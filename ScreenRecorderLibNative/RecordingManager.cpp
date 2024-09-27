@@ -705,6 +705,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 
 		//If there are any source previews on paused status, the loop exits here. This allows the source previews to continu render.
 		if (m_IsPaused) {
+			wait(videoFrameDurationMillis);
 			continue;
 		}
 		if (SUCCEEDED(hr)) {
@@ -748,9 +749,9 @@ HRESULT RecordingManager::SendNewFrameCallback(_In_ const int frameNumber, _In_ 
 	HRESULT hr = S_FALSE;
 	if (RecordingFrameNumberChangedCallback != nullptr) {
 		INT64 timestamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-		unique_ptr<FRAME_BITMAP_DATA> pFramePreviewData = nullptr;
-		CComPtr< ID3D11Texture2D> pProcessedTexture = nullptr;
 		if (m_OutputOptions->IsVideoFramePreviewEnabled()) {
+			CComPtr< ID3D11Texture2D> pProcessedTexture = nullptr;
+			unique_ptr<FRAME_BITMAP_DATA> pFramePreviewData = nullptr;
 			D3D11_TEXTURE2D_DESC textureDesc;
 			pTexture->GetDesc(&textureDesc);
 			if (m_OutputOptions->GetVideoFramePreviewSize().has_value()) {
@@ -793,28 +794,17 @@ HRESULT RecordingManager::SendNewFrameCallback(_In_ const int frameNumber, _In_ 
 			int len = map.DepthPitch;
 			int stride = map.RowPitch;
 			BYTE *data = static_cast<BYTE *>(map.pData);
-			BYTE *frameBuffer = new BYTE[len];
-			//Copy the bitmap buffer, with handling of negative stride. https://docs.microsoft.com/en-us/windows/win32/medfound/image-stride
-			hr = MFCopyImage(
-			  frameBuffer,								 // Destination buffer.
-			  abs(stride),                    // Destination stride. We use the absolute value to flip bitmaps with negative stride. 
-			  stride > 0 ? data : data + (height - 1) * abs(stride), // First row in source image with positive stride, or the last row with negative stride.
-			  stride,								 // Source stride.
-			  bytesPerPixel * width,	 // Image width in bytes.
-			  height						 // Image height in pixels.
-			);
-
 			pFramePreviewData = make_unique<FRAME_BITMAP_DATA>();
-			pFramePreviewData->Data = frameBuffer;
+			pFramePreviewData->Data = data;
 			pFramePreviewData->Stride = stride;
 			pFramePreviewData->Width = width;
 			pFramePreviewData->Height = height;
 			pFramePreviewData->Length = len;
+			RecordingFrameNumberChangedCallback(frameNumber, timestamp, pFramePreviewData.get());
 			m_DxResources.Context->Unmap(m_FrameDataCallbackTexture, 0);
 		}
-		RecordingFrameNumberChangedCallback(frameNumber, timestamp, pFramePreviewData.get());
-		if (pFramePreviewData) {
-			delete[] pFramePreviewData->Data;
+		else {
+			RecordingFrameNumberChangedCallback(frameNumber, timestamp, nullptr);
 		}
 	}
 	return hr;
