@@ -2,8 +2,8 @@ name: Release
 
 on:
   workflow_dispatch:
-      inputs:
-        tags:
+    inputs:
+      tags:
         description: 'tag'  
   push:
     tags:
