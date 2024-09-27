@@ -17,7 +17,7 @@
     <Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'x64'">
       <HintPath>$(MSBuildThisFileDirectory)x64\ScreenRecorderLib.dll</HintPath>
     </Reference>
-    <Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'x64'">
+    <Reference Include="ScreenRecorderLib" Condition="'$(Platform)' == 'ARM64'">
       <HintPath>$(MSBuildThisFileDirectory)ARM64\ScreenRecorderLib.dll</HintPath>
     </Reference>
   </ItemGroup>

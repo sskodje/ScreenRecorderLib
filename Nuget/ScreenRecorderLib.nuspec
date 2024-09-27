@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
     <id>ScreenRecorderLib</id>
-    <version>6.2.0</version>
+    <version>6.3.0</version>
     <authors>Sverre Kristoffer Skodje</authors>
     <license type="expression">MIT</license>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
@@ -10,11 +10,10 @@
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to video or image files.</description>
     <summary />
     <releaseNotes>
-      - Fixed potential crash when no displays are available on the system.
-      - Fixed memory leak when updating stream sources.
-      - Fixed intermittent flickering when updating overlays.
-      - Added support for adding overlays on a recording in progress.
-      - Snapshots are no longer stale when calling TakeSnapshot() on a paused recorder instance.
+      - Added ARM64 build targets.
+      - Added new events to recording sources for getting bitmap previews of the source.
+      - Added bitmap preview of recording output to OnFrameRecorded event.
+      - Updated .net framework target to 4.8.
     </releaseNotes>
     <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
     <language>en-GB</language>
