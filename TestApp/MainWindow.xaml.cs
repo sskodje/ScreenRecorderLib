@@ -652,6 +652,7 @@ namespace TestApp
                 RecordButton.IsEnabled = true;
                 StatusTextBlock.Text = "Error:";
                 _recordingStartTime = null;
+                _recordingPauseTime = null;
                 ErrorTextBlock.Visibility = Visibility.Visible;
                 ErrorTextBlock.Text = e.Error;
                 IsRecording = false;
@@ -674,6 +675,7 @@ namespace TestApp
                 RecordButton.Content = "Record";
                 RecordButton.IsEnabled = true;
                 _recordingStartTime = null;
+                _recordingPauseTime = null;
                 this.StatusTextBlock.Text = "Completed";
                 IsRecording = false;
                 CleanupResources();
