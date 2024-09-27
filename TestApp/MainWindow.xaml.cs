@@ -500,23 +500,17 @@ namespace TestApp
 
         private void Rec_OnFrameRecorded(object sender, FrameRecordedEventArgs e)
         {
-            FrameBitmapData args = e.BitmapData;
-            if (args != null)
+            Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
             {
-                byte[] bytes = new byte[args.Length];
-                Marshal.Copy(args.Data, bytes, 0, args.Length);
-                Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
+                FrameBitmapData args = e.BitmapData;
+                if (args != null)
                 {
                     if (RecordingPreviewBitmap == null || RecordingPreviewBitmap.Width != args.Width || RecordingPreviewBitmap.Height != args.Height)
                     {
                         RecordingPreviewBitmap = new WriteableBitmap(args.Width, args.Height, 96, 96, PixelFormats.Bgra32, null);
                     }
-                    RecordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, args.Width, args.Height), bytes, Math.Abs(args.Stride), 0);
-                }));
-            }
-
-            Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
-            {
+                    RecordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, args.Width, args.Height), args.Data, args.Length, Math.Abs(args.Stride));
+                }
                 CurrentFrameNumber = e.FrameNumber;
                 _recordedFrameTimes.Add(e.Timestamp);
             }));
@@ -524,20 +518,19 @@ namespace TestApp
 
         private void Source_OnFrameRecorded(object sender, FrameDataRecordedEventArgs args)
         {
-            FrameBitmapData data = args.BitmapData;
-            byte[] bytes = new byte[data.Length];
-            Marshal.Copy(data.Data, bytes, 0, data.Length);
-            Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
+            Dispatcher.Invoke(DispatcherPriority.Render, (Action)(() =>
             {
+                FrameBitmapData data = args.BitmapData;
                 ICheckableRecordingSource recordingSource = this.RecordingSources.FirstOrDefault(x => x.ID == ((RecordingSourceBase)sender).ID);
                 var recordingPreviewBitmap = recordingSource.PreviewBitmap;
                 if (recordingPreviewBitmap == null || recordingPreviewBitmap.Width != data.Width || recordingPreviewBitmap.Height != data.Height)
                 {
                     recordingSource.PreviewBitmap = recordingPreviewBitmap = new WriteableBitmap(data.Width, data.Height, 96, 96, PixelFormats.Bgra32, null);
                 }
-                recordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, data.Width, data.Height), bytes, Math.Abs(data.Stride), 0);
+                recordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, data.Width, data.Height), data.Data, data.Length, Math.Abs(data.Stride));
             }));
         }
+
         private List<RecordingSourceBase> CreateSelectedRecordingSources()
         {
             var sourcesToRecord = RecordingSources.Where(x => x.IsSelected).ToList();
