@@ -32,7 +32,8 @@ ScreenCaptureManager::ScreenCaptureManager() :
 	m_OutputOptions(nullptr),
 	m_EncoderOptions(nullptr),
 	m_MouseOptions(nullptr),
-	m_FrameCopy(nullptr)
+	m_FrameCopy(nullptr),
+	m_IsInitialFrameWriteComplete(false)
 {
 	// Event to tell spawned threads to quit
 	m_TerminateThreadsEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
@@ -79,12 +80,11 @@ HRESULT ScreenCaptureManager::StartCapture(_In_ const std::vector<RECORDING_SOUR
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 	ResetEvent(m_TerminateThreadsEvent);
+	m_IsInitialFrameWriteComplete = false;
 
 	HRESULT hr = E_FAIL;
 	std::vector<RECORDING_SOURCE_DATA *> createdOutputs{};
 	RETURN_ON_BAD_HR(hr = CreateSharedSurf(sources, &createdOutputs, &m_OutputRect, &m_SharedSurf, &m_KeyMutex));
-
-
 	RETURN_ON_BAD_HR(hr = InitializeRecordingSources(createdOutputs, hErrorEvent));
 	RETURN_ON_BAD_HR(hr = InitializeOverlays(overlays, hErrorEvent));
 	m_IsCapturing = true;
@@ -484,6 +484,8 @@ bool ScreenCaptureManager::IsUpdatedFramesAvailable()
 
 bool ScreenCaptureManager::IsInitialFrameWriteComplete()
 {
+	if (m_IsInitialFrameWriteComplete)
+		return true;
 	for each (CAPTURE_THREAD * threadObject in m_CaptureThreads)
 	{
 		if (threadObject->ThreadData && threadObject->ThreadData->TotalUpdatedFrameCount == 0) {
@@ -491,6 +493,7 @@ bool ScreenCaptureManager::IsInitialFrameWriteComplete()
 			return false;
 		}
 	}
+	m_IsInitialFrameWriteComplete = true;
 	return true;
 }
 
