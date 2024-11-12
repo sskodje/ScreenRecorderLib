@@ -94,9 +94,18 @@ HRESULT OutputManager::BeginRecording(_In_ std::wstring outputPath, _In_ SIZE vi
 		if (m_FinalizeEvent) {
 			m_CallBack.Attach(new (std::nothrow)CMFSinkWriterCallback(m_FinalizeEvent, nullptr));
 		}
+		CComPtr<IStream> pStream = nullptr;
+		HRESULT hr = SHCreateStreamOnFileEx(
+			outputPath.c_str(),
+			STGM_READWRITE | STGM_SHARE_EXCLUSIVE,
+			FILE_ATTRIBUTE_NORMAL,
+			TRUE,
+			nullptr,
+			&pStream
+		);
 		RECT inputMediaFrameRect = RECT{ 0,0,videoOutputFrameSize.cx,videoOutputFrameSize.cy };
 		CComPtr<IMFByteStream> mfByteStream = nullptr;
-		RETURN_ON_BAD_HR(MFCreateFile(MF_ACCESSMODE_READWRITE, MF_OPENMODE_FAIL_IF_EXIST, MF_FILEFLAGS_NONE, outputPath.c_str(), &mfByteStream));
+		RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &mfByteStream));
 		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(mfByteStream, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, m_CallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
 	StartMediaClock();
