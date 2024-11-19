@@ -443,13 +443,13 @@ HRESULT WindowsGraphicsCapture::ProcessRecordingTimeout(_Inout_ GRAPHICS_FRAME_D
 			QueryPerformanceCounter(&pData->Timestamp);
 			return S_OK;
 		}
-	}
-	if (IsRecordingSessionStale()) {
-		//The session has stopped producing frames for a while, so it should be restarted.
-		RETURN_ON_BAD_HR(StopCapture());
-		RETURN_ON_BAD_HR(StartCapture(*m_RecordingSource));
-		LOG_INFO("Restarted Windows Graphics Capture");
-		QueryPerformanceCounter(&m_LastCaptureSessionRestart);
+		else if (IsRecordingSessionStale()) {
+			//The session has stopped producing frames for a while, so it should be restarted.
+			RETURN_ON_BAD_HR(StopCapture());
+			RETURN_ON_BAD_HR(StartCapture(*m_RecordingSource));
+			LOG_INFO("Restarted Windows Graphics Capture");
+			QueryPerformanceCounter(&m_LastCaptureSessionRestart);
+		}
 	}
 	return DXGI_ERROR_WAIT_TIMEOUT;
 }
