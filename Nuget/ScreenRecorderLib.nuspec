@@ -10,10 +10,9 @@
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to video or image files.</description>
     <summary />
     <releaseNotes>
-      - Added ARM64 build targets.
-      - Added new events to recording sources for getting bitmap previews of the source.
-      - Added bitmap preview of recording output to OnFrameRecorded event.
-      - Updated .net framework target to 4.8.
+      - File is now locked when recording to a path, to avoid potentially deleting the recording in progress.
+      - Fixed issue where display recordings using Windows Graphics Capture could get stuck in a restart loop.
+      - Fixed crash that could happen when compiled with .NET8 and executed on a system with outdated visual c++ runtime libraries.
     </releaseNotes>
     <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
     <language>en-GB</language>
