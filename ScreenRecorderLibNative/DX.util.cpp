@@ -199,7 +199,7 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 				VideoReader reader{};
 				HRESULT hr = reader.GetNativeSize(*source, &size);
 				if (SUCCEEDED(hr)) {
-					RECT sourceRect = GetOffsetSourceRect(RECT{ 0,0,size.cx,size.cx }, source);
+					RECT sourceRect = GetOffsetSourceRect(RECT{ 0,0,size.cx,size.cy }, source);
 					std::pair<RECORDING_SOURCE *, RECT> tuple(source, sourceRect);
 					validOutputs.push_back(tuple);
 				}
