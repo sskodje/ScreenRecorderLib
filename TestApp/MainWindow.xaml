@@ -325,30 +325,30 @@
                                            VerticalContentAlignment="Center" />
                                     <TextBox x:Name="RecordingSourceAreaLeftTextBox"
                                              VerticalContentAlignment="Center"
-                                             Text="{Binding SourceRect.Left, UpdateSourceTrigger=PropertyChanged}"
+                                             Text="{Binding SourceRect.Left, UpdateSourceTrigger=LostFocus}"
                                              GotFocus="TextBox_GotFocus"
-                                             PreviewTextInput="UserInput_TextInput"
+                                             LostFocus="UserInput_LostFocus"
                                              MinWidth="32" />
                                     <TextBox x:Name="RecordingSourceAreaTopTextBox"
                                              VerticalContentAlignment="Center"
                                              MinWidth="32"
-                                             Text="{Binding SourceRect.Top, UpdateSourceTrigger=PropertyChanged}"
+                                             Text="{Binding SourceRect.Top, UpdateSourceTrigger=LostFocus}"
                                              GotFocus="TextBox_GotFocus"
-                                             PreviewTextInput="UserInput_TextInput"
+                                             LostFocus="UserInput_LostFocus"
                                              Margin="5,0,0,0" />
                                     <TextBox x:Name="RecordingSourceAreaRightTextBox"
                                              VerticalContentAlignment="Center"
                                              MinWidth="32"
-                                             Text="{Binding SourceRect.Right, UpdateSourceTrigger=PropertyChanged}"
+                                             Text="{Binding SourceRect.Right, UpdateSourceTrigger=LostFocus}"
                                              GotFocus="TextBox_GotFocus"
-                                             PreviewTextInput="UserInput_TextInput"
+                                             LostFocus="UserInput_LostFocus"
                                              Margin="5,0,0,0" />
                                     <TextBox x:Name="RecordingSourceAreaBottomTextBox"
                                              VerticalContentAlignment="Center"
                                              MinWidth="32"
-                                             Text="{Binding SourceRect.Bottom, UpdateSourceTrigger=PropertyChanged}"
+                                             Text="{Binding SourceRect.Bottom, UpdateSourceTrigger=LostFocus}"
                                              GotFocus="TextBox_GotFocus"
-                                             PreviewTextInput="UserInput_TextInput"
+                                             LostFocus="UserInput_LostFocus"
                                              Margin="5,0,0,0" />
                                 </StackPanel>
                                 <CheckBox VerticalAlignment="Center"
@@ -362,17 +362,17 @@
                                            VerticalContentAlignment="Center" />
                                     <TextBox x:Name="RecordingOutputPositionLeftTextBox"
                                              VerticalContentAlignment="Center"
-                                             Text="{Binding Position.Left, UpdateSourceTrigger=PropertyChanged}"
+                                             Text="{Binding Position.Left, UpdateSourceTrigger=LostFocus}"
                                              GotFocus="TextBox_GotFocus"
                                              MinWidth="32"
-                                             PreviewTextInput="UserInput_TextInput" />
+                                             LostFocus="UserInput_LostFocus" />
                                     <TextBox x:Name="RecordingOutputPositionTopTextBox"
                                              VerticalContentAlignment="Center"
-                                             Text="{Binding Position.Top, UpdateSourceTrigger=PropertyChanged}"
+                                             Text="{Binding Position.Top, UpdateSourceTrigger=LostFocus}"
                                              GotFocus="TextBox_GotFocus"
                                              MinWidth="32"
                                              Margin="5,0,0,0"
-                                             PreviewTextInput="UserInput_TextInput" />
+                                             LostFocus="UserInput_LostFocus" />
                                 </StackPanel>
                                 <CheckBox VerticalAlignment="Center"
                                           Margin="5,0,0,0"
@@ -385,17 +385,17 @@
                                            VerticalContentAlignment="Center" />
                                     <TextBox x:Name="RecordingOutputWidthTextBox"
                                              VerticalContentAlignment="Center"
-                                             Text="{Binding OutputSize.Width, UpdateSourceTrigger=PropertyChanged}"
+                                             Text="{Binding OutputSize.Width, UpdateSourceTrigger=LostFocus}"
                                              GotFocus="TextBox_GotFocus"
                                              MinWidth="32"
-                                             PreviewTextInput="UserInput_TextInput" />
+                                             LostFocus="UserInput_LostFocus" />
                                     <TextBox x:Name="RecordingOutputHeightTextBox"
                                              VerticalContentAlignment="Center"
-                                             Text="{Binding OutputSize.Height, UpdateSourceTrigger=PropertyChanged}"
+                                             Text="{Binding OutputSize.Height, UpdateSourceTrigger=LostFocus}"
                                              GotFocus="TextBox_GotFocus"
                                              MinWidth="32"
                                              Margin="5,0,0,0"
-                                             PreviewTextInput="UserInput_TextInput" />
+                                             LostFocus="UserInput_LostFocus" />
                                 </StackPanel>
                             </StackPanel>
                         </Grid>
@@ -639,30 +639,30 @@
                                 <Label Content="Source rect:" />
                                 <TextBox x:Name="RecordingAreaLeftTextBox"
                                          VerticalContentAlignment="Center"
-                                         Text="{Binding ElementName=MainWin,Path=SourceRect.Left, UpdateSourceTrigger=PropertyChanged}"
+                                         Text="{Binding ElementName=MainWin,Path=SourceRect.Left, UpdateSourceTrigger=LostFocus}"
                                          GotFocus="TextBox_GotFocus"
-                                         PreviewTextInput="UserInput_TextInput"
+                                         LostFocus="UserInput_LostFocus"
                                          MinWidth="32" />
                                 <TextBox x:Name="RecordingAreaTopTextBox"
                                          VerticalContentAlignment="Center"
                                          MinWidth="32"
-                                         Text="{Binding ElementName=MainWin,Path=SourceRect.Top, UpdateSourceTrigger=PropertyChanged}"
+                                         Text="{Binding ElementName=MainWin,Path=SourceRect.Top, UpdateSourceTrigger=LostFocus}"
                                          GotFocus="TextBox_GotFocus"
-                                         PreviewTextInput="UserInput_TextInput"
+                                         LostFocus="UserInput_LostFocus"
                                          Margin="5,0,0,0" />
                                 <TextBox x:Name="RecordingAreaRightTextBox"
                                          VerticalContentAlignment="Center"
                                          MinWidth="32"
-                                         Text="{Binding ElementName=MainWin,Path=SourceRect.Right, UpdateSourceTrigger=PropertyChanged}"
+                                         Text="{Binding ElementName=MainWin,Path=SourceRect.Right, UpdateSourceTrigger=LostFocus}"
                                          GotFocus="TextBox_GotFocus"
-                                         PreviewTextInput="UserInput_TextInput"
+                                         LostFocus="UserInput_LostFocus"
                                          Margin="5,0,0,0" />
                                 <TextBox x:Name="RecordingAreaBottomTextBox"
                                          VerticalContentAlignment="Center"
                                          MinWidth="32"
-                                         Text="{Binding ElementName=MainWin,Path=SourceRect.Bottom, UpdateSourceTrigger=PropertyChanged}"
+                                         Text="{Binding ElementName=MainWin,Path=SourceRect.Bottom, UpdateSourceTrigger=LostFocus}"
                                          GotFocus="TextBox_GotFocus"
-                                         PreviewTextInput="UserInput_TextInput"
+                                         LostFocus="UserInput_LostFocus"
                                          Margin="5,0,0,0" />
                             </StackPanel>
                         </StackPanel>
@@ -678,15 +678,15 @@
                                 <Label Content="Size:" />
                                 <TextBox x:Name="FinalRecordingOutputWidthTextBox"
                                          VerticalContentAlignment="Center"
-                                         Text="{Binding ElementName=MainWin,Path=OutputFrameSize.Width, UpdateSourceTrigger=PropertyChanged}"
+                                         Text="{Binding ElementName=MainWin,Path=OutputFrameSize.Width, UpdateSourceTrigger=LostFocus}"
                                          GotFocus="TextBox_GotFocus"
-                                         PreviewTextInput="UserInput_TextInput"
+                                         LostFocus="UserInput_LostFocus"
                                          MinWidth="32" />
                                 <TextBox x:Name="FinalRecordingOutputHeightTextBox"
                                          VerticalContentAlignment="Center"
-                                         Text="{Binding ElementName=MainWin,Path=OutputFrameSize.Height, UpdateSourceTrigger=PropertyChanged}"
+                                         Text="{Binding ElementName=MainWin,Path=OutputFrameSize.Height, UpdateSourceTrigger=LostFocus}"
                                          GotFocus="TextBox_GotFocus"
-                                         PreviewTextInput="UserInput_TextInput"
+                                         LostFocus="UserInput_LostFocus"
                                          MinWidth="32"
                                          Margin="5,0,0,0" />
                             </StackPanel>

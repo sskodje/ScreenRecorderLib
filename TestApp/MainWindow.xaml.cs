@@ -265,7 +265,7 @@ namespace TestApp
         private void RecordingSource_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             _rec?.GetDynamicOptionsBuilder()
-                .SetUpdatedRecordingSource(sender as RecordingSourceBase)
+                .SetUpdatedRecordingSource(CreateRecordingSource(sender as ICheckableRecordingSource))
                 .Apply();
             if (e.PropertyName == nameof(RecordingSourceBase.IsVideoFramePreviewEnabled))
             {
@@ -543,76 +543,76 @@ namespace TestApp
 
             //We could pass in the sources directly, but since the models have been used for custom dimensions and positions, 
             //we create new ones to pass in, with null values for non-modified values.
-            return sourcesToRecord.Select(x =>
-            {
-                if (x is CheckableRecordableWindow win)
-                {
-                    var source = new WindowRecordingSource(win)
-                    {
-                        OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
-                        SourceRect = win.IsCustomOutputSourceRectEnabled ? win.SourceRect : null,
-                        Position = win.IsCustomPositionEnabled ? win.Position : null,
-                        VideoFramePreviewSize = new ScreenSize(0, 150)
-                    };
-                    source.OnFrameRecorded += Source_OnFrameRecorded;
-                    return source;
-                }
-                else if (x is CheckableRecordableDisplay disp)
-                {
-                    var source = new DisplayRecordingSource(disp)
-                    {
-                        OutputSize = disp.IsCustomOutputSizeEnabled ? disp.OutputSize : null,
-                        SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
-                        Position = disp.IsCustomPositionEnabled ? disp.Position : null,
-                        VideoFramePreviewSize = new ScreenSize(0, 150)
-                    };
-                    source.OnFrameRecorded += Source_OnFrameRecorded;
-                    return source;
-                }
-                else if (x is CheckableRecordableCamera cam)
-                {
-                    var source = new VideoCaptureRecordingSource(cam)
-                    {
-                        OutputSize = cam.IsCustomOutputSizeEnabled ? cam.OutputSize : null,
-                        SourceRect = cam.IsCustomOutputSourceRectEnabled ? cam.SourceRect : null,
-                        Position = cam.IsCustomPositionEnabled ? cam.Position : null,
-                        CaptureFormat = cam.CaptureFormat,
-                        VideoFramePreviewSize = new ScreenSize(0, 150)
-                    };
-                    source.OnFrameRecorded += Source_OnFrameRecorded;
-                    return source;
-                }
-                else if (x is CheckableRecordableImage img)
-                {
-                    var source = new ImageRecordingSource(img)
-                    {
-                        OutputSize = img.IsCustomOutputSizeEnabled ? img.OutputSize : null,
-                        SourceRect = img.IsCustomOutputSourceRectEnabled ? img.SourceRect : null,
-                        Position = img.IsCustomPositionEnabled ? img.Position : null,
-                        VideoFramePreviewSize = new ScreenSize(0, 150)
-                    };
-                    source.OnFrameRecorded += Source_OnFrameRecorded;
-                    return source;
-                }
-                else if (x is CheckableRecordableVideo vid)
-                {
-                    var source = new VideoRecordingSource(vid)
-                    {
-                        OutputSize = vid.IsCustomOutputSizeEnabled ? vid.OutputSize : null,
-                        SourceRect = vid.IsCustomOutputSourceRectEnabled ? vid.SourceRect : null,
-                        Position = vid.IsCustomPositionEnabled ? vid.Position : null,
-                        VideoFramePreviewSize = new ScreenSize(0, 150)
-                    };
-                    source.OnFrameRecorded += Source_OnFrameRecorded;
-                    return source;
-                }
-                else
-                {
-                    return null as RecordingSourceBase;
-                }
-            }).ToList();
+            return sourcesToRecord.Select(x => CreateRecordingSource(x)).ToList();
         }
-
+        private RecordingSourceBase CreateRecordingSource(ICheckableRecordingSource checkableSource)
+        {
+            if (checkableSource is CheckableRecordableWindow win)
+            {
+                var source = new WindowRecordingSource(win)
+                {
+                    OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
+                    SourceRect = win.IsCustomOutputSourceRectEnabled ? win.SourceRect : null,
+                    Position = win.IsCustomPositionEnabled ? win.Position : null,
+                    VideoFramePreviewSize = new ScreenSize(0, 150)
+                };
+                source.OnFrameRecorded += Source_OnFrameRecorded;
+                return source;
+            }
+            else if (checkableSource is CheckableRecordableDisplay disp)
+            {
+                var source = new DisplayRecordingSource(disp)
+                {
+                    OutputSize = disp.IsCustomOutputSizeEnabled ? disp.OutputSize : null,
+                    SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
+                    Position = disp.IsCustomPositionEnabled ? disp.Position : null,
+                    VideoFramePreviewSize = new ScreenSize(0, 150)
+                }; 
+                source.OnFrameRecorded += Source_OnFrameRecorded;
+                return source;
+            }
+            else if (checkableSource is CheckableRecordableCamera cam)
+            {
+                var source = new VideoCaptureRecordingSource(cam)
+                {
+                    OutputSize = cam.IsCustomOutputSizeEnabled ? cam.OutputSize : null,
+                    SourceRect = cam.IsCustomOutputSourceRectEnabled ? cam.SourceRect : null,
+                    Position = cam.IsCustomPositionEnabled ? cam.Position : null,
+                    CaptureFormat = cam.CaptureFormat,
+                    VideoFramePreviewSize = new ScreenSize(0, 150)
+                };
+                source.OnFrameRecorded += Source_OnFrameRecorded;
+                return source;
+            }
+            else if (checkableSource is CheckableRecordableImage img)
+            {
+                var source = new ImageRecordingSource(img)
+                {
+                    OutputSize = img.IsCustomOutputSizeEnabled ? img.OutputSize : null,
+                    SourceRect = img.IsCustomOutputSourceRectEnabled ? img.SourceRect : null,
+                    Position = img.IsCustomPositionEnabled ? img.Position : null,
+                    VideoFramePreviewSize = new ScreenSize(0, 150)
+                };
+                source.OnFrameRecorded += Source_OnFrameRecorded;
+                return source;
+            }
+            else if (checkableSource is CheckableRecordableVideo vid)
+            {
+                var source = new VideoRecordingSource(vid)
+                {
+                    OutputSize = vid.IsCustomOutputSizeEnabled ? vid.OutputSize : null,
+                    SourceRect = vid.IsCustomOutputSourceRectEnabled ? vid.SourceRect : null,
+                    Position = vid.IsCustomPositionEnabled ? vid.Position : null,
+                    VideoFramePreviewSize = new ScreenSize(0, 150)
+                };
+                source.OnFrameRecorded += Source_OnFrameRecorded;
+                return source;
+            }
+            else
+            {
+                return null as RecordingSourceBase;
+            }
+        }
         private string GetImageExtension()
         {
             switch (RecorderOptions.SnapshotOptions.SnapshotFormat)
@@ -1153,7 +1153,7 @@ namespace TestApp
             SetOutputDimensions();
         }
 
-        private void UserInput_TextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+        private void UserInput_LostFocus(object sender, RoutedEventArgs e)
         {
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, (Action)(() =>
             {
