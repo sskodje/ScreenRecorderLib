@@ -138,12 +138,17 @@ HRESULT GifReader::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_ ID3D1
 	return hr;
 }
 
-HRESULT GifReader::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect)
+HRESULT GifReader::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ ID3D11Texture2D *pTexture)
 {
 	CComPtr<ID3D11Texture2D> pProcessedTexture;
-	HRESULT hr = AcquireNextFrame(timeoutMillis, &pProcessedTexture);
-	if (FAILED(hr)) {
-		return hr;
+	HRESULT hr = E_FAIL;
+	if (pTexture) {
+		pProcessedTexture = pTexture;
+		hr = S_OK;
+	}
+	else {
+		hr = AcquireNextFrame(timeoutMillis, &pProcessedTexture);
+		RETURN_ON_BAD_HR(hr);
 	}
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveCriticalSection(&m_CriticalSection, L"WriteNextFrameToSharedSurface");

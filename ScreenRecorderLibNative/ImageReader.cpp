@@ -91,15 +91,24 @@ HRESULT ImageReader::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outptr_opt_resu
 	}
 }
 
-HRESULT ImageReader::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect)
+HRESULT ImageReader::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ ID3D11Texture2D *pTexture)
 {
-	CComPtr<ID3D11Texture2D> pProcessedTexture;
-	HRESULT hr = AcquireNextFrame(timeoutMillis, &pProcessedTexture);
-	RETURN_ON_BAD_HR(hr);
 	if (!m_RecordingSource) {
 		LOG_ERROR("No recording source found in ImageReader");
 		return E_FAIL;
 	}
+
+	CComPtr<ID3D11Texture2D> pProcessedTexture;
+	HRESULT hr = E_FAIL;
+	if (pTexture) {
+		pProcessedTexture = pTexture;
+		hr = S_OK;
+	}
+	else {
+		hr = AcquireNextFrame(timeoutMillis, &pProcessedTexture);
+		RETURN_ON_BAD_HR(hr);
+	}
+
 	D3D11_TEXTURE2D_DESC frameDesc;
 	pProcessedTexture->GetDesc(&frameDesc);
 	RECORDING_SOURCE *recordingSource = dynamic_cast<RECORDING_SOURCE *>(m_RecordingSource);

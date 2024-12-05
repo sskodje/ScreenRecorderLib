@@ -814,16 +814,16 @@ HRESULT RecordingManager::InitializeRects(_In_ SIZE captureFrameSize, _Out_opt_ 
 
 	RECT adjustedSourceRect = RECT{ 0,0, MakeEven(captureFrameSize.cx), MakeEven(captureFrameSize.cy) };
 	SIZE adjustedOutputFrameSize = SIZE{ MakeEven(captureFrameSize.cx), MakeEven(captureFrameSize.cy) };
-	if (IsValidRect(GetOutputOptions()->GetSourceRectangle()))
+	if (GetOutputOptions()->GetSourceRectangle().has_value() && IsValidRect(GetOutputOptions()->GetSourceRectangle().value()))
 	{
-		adjustedSourceRect = GetOutputOptions()->GetSourceRectangle();
+		adjustedSourceRect = GetOutputOptions()->GetSourceRectangle().value();
 		adjustedOutputFrameSize = SIZE{ MakeEven(RectWidth(adjustedSourceRect)), MakeEven(RectHeight(adjustedSourceRect)) };
 	}
 	if (pAdjustedSourceRect) {
 		*pAdjustedSourceRect = MakeRectEven(adjustedSourceRect);
 	}
 	if (pAdjustedOutputFrameSize) {
-		auto outputRect = GetOutputOptions()->GetFrameSize();
+		auto outputRect = GetOutputOptions()->GetFrameSize().value_or(SIZE{});
 		if (outputRect.cx > 0
 		&& outputRect.cy > 0)
 		{

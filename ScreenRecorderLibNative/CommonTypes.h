@@ -33,7 +33,7 @@ struct FRAME_BITMAP_DATA {
 		Length = length;
 		Width = width;
 		Height = height;
-	} 
+	}
 };
 
 struct REC_RESULT {
@@ -510,18 +510,18 @@ public:
 
 struct OUTPUT_OPTIONS {
 protected:
-	SIZE m_FrameSize{};
-	RECT m_SourceRect{};
+	std::optional<SIZE> m_FrameSize{};
+	std::optional<RECT> m_SourceRect{};
 	TextureStretchMode m_Stretch = TextureStretchMode::Uniform;
 	RecorderModeInternal m_RecorderMode = RecorderModeInternal::Video;
 	bool m_IsVideoCaptureEnabled = true;
 	bool m_IsVideoFramePreviewEnabled = false;
 	std::optional<SIZE> m_VideoFramePreviewSize{};
 public:
-	SIZE GetFrameSize() { return m_FrameSize; }
+	std::optional<SIZE> GetFrameSize() { return m_FrameSize; }
 	void SetFrameSize(SIZE size) { m_FrameSize = size; }
 	void SetSourceRectangle(RECT rect) { m_SourceRect = MakeRectEven(rect); }
-	RECT GetSourceRectangle() { return m_SourceRect; }
+	std::optional<RECT> GetSourceRectangle() { return m_SourceRect; }
 	void SetStretch(TextureStretchMode stretch) { m_Stretch = stretch; }
 	TextureStretchMode GetStretch() { return m_Stretch; }
 	RecorderModeInternal GetRecorderMode() { return m_RecorderMode; }

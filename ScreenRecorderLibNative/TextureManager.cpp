@@ -75,33 +75,41 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_  S
 	pOrgTexture->GetDesc(&frameDesc);
 	UINT targetWidth = targetSize.cx;
 	UINT targetHeight = targetSize.cy;
+	UINT originalWidth = frameDesc.Width;
+	UINT originalHeight = frameDesc.Height;
+	// Calculate aspect ratios
+	double originalAspect = static_cast<double>(originalWidth) / originalHeight;
+	double targetAspect = static_cast<double>(targetWidth) / targetHeight;
 
-	double widthRatio = (double)targetWidth / frameDesc.Width;
-	double heightRatio = (double)targetHeight / frameDesc.Height;
-
-	LONG resizedWidth = frameDesc.Width;
-	LONG resizedHeight = frameDesc.Height;
+	double widthRatio = static_cast<double>(targetWidth) / originalWidth;
+	double heightRatio = static_cast<double>(targetHeight) / originalHeight;
+	UINT widthDiff = originalWidth - targetWidth;
+	UINT heightDiff = originalHeight - targetHeight;
+	LONG resizedWidth = 0;
+	LONG resizedHeight = 0;
 	switch (stretch)
 	{
 		case TextureStretchMode::Fill: {
-			resizedWidth = MakeEven((LONG)round(frameDesc.Width * widthRatio));
-			resizedHeight = MakeEven((LONG)round(frameDesc.Height * heightRatio));
+			resizedWidth = MakeEven((LONG)round(targetWidth));
+			resizedHeight = MakeEven((LONG)round(targetHeight));
 			break;
 		}
 		case TextureStretchMode::UniformToFill: {
 			double resizeRatio = max(widthRatio, heightRatio);
-			resizedWidth = MakeEven((LONG)round(frameDesc.Width * resizeRatio));
-			resizedHeight = MakeEven((LONG)round(frameDesc.Height * resizeRatio));
+			resizedWidth = MakeEven((LONG)round(originalWidth * resizeRatio));
+			resizedHeight = MakeEven((LONG)round(originalHeight * resizeRatio));
 			break;
 		}
 		case TextureStretchMode::Uniform: {
 			double resizeRatio = min(widthRatio, heightRatio);
-			resizedWidth = MakeEven((LONG)round(frameDesc.Width * resizeRatio));
-			resizedHeight = MakeEven((LONG)round(frameDesc.Height * resizeRatio));
+			resizedWidth = MakeEven((LONG)round(originalWidth * resizeRatio));
+			resizedHeight = MakeEven((LONG)round(originalHeight * resizeRatio));
 			break;
 		}
 		case TextureStretchMode::None:
 		default:
+			resizedWidth = MakeEven((LONG)round(originalWidth));
+			resizedHeight = MakeEven((LONG)round(originalHeight));
 			break;
 	}
 	if (pContentRect) {
@@ -113,6 +121,7 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_  S
 	SDesc.Texture2D.MostDetailedMip = frameDesc.MipLevels - 1;
 	SDesc.Texture2D.MipLevels = frameDesc.MipLevels;
 	ID3D11ShaderResourceView *srcSRV;
+
 	hr = m_Device->CreateShaderResourceView(pOrgTexture, &SDesc, &srcSRV);
 	if (FAILED(hr))
 	{
@@ -121,7 +130,7 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_  S
 		return hr;
 	}
 	D3D11_TEXTURE2D_DESC targetDesc;
-	InitializeDesc(targetWidth, targetHeight, &targetDesc);
+	InitializeDesc(resizedWidth, resizedHeight, &targetDesc);
 	ID3D11Texture2D *pResizedFrame = nullptr;
 	RETURN_ON_BAD_HR(GetOrCreateTexture(targetDesc, &pResizedFrame));
 	*ppResizedTexture = pResizedFrame;

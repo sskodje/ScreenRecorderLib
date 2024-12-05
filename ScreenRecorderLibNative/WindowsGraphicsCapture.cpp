@@ -85,17 +85,24 @@ HRESULT WindowsGraphicsCapture::AcquireNextFrame(_In_ DWORD timeoutMillis, _Outp
 	return hr;
 }
 
-HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect)
+HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ ID3D11Texture2D *pTexture)
 {
 	HRESULT hr = S_OK;
-	if (m_LastSampleReceivedTimeStamp.QuadPart >= m_CurrentData.Timestamp.QuadPart) {
+	if (pTexture) {
+		m_CurrentData.Frame = pTexture;
+		QueryPerformanceCounter(&m_CurrentData.Timestamp);
+		D3D11_TEXTURE2D_DESC desc;
+		pTexture->GetDesc(&desc);
+		m_CurrentData.ContentSize = SIZE{ static_cast<long>(desc.Width),static_cast<long>(desc.Height) };
+		hr = S_OK;
+	}
+	else if (m_LastSampleReceivedTimeStamp.QuadPart >= m_CurrentData.Timestamp.QuadPart) {
 		hr = GetNextFrame(timeoutMillis, &m_CurrentData);
 	}
 	if (m_closed) {
 		return E_ABORT;
 	}
 	if (SUCCEEDED(hr)) {
-
 		CComPtr<ID3D11Texture2D> pProcessedTexture = m_CurrentData.Frame;
 		D3D11_TEXTURE2D_DESC frameDesc;
 		pProcessedTexture->GetDesc(&frameDesc);

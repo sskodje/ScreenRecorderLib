@@ -207,12 +207,18 @@ HRESULT SourceReaderBase::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _
 	RETURN_ON_BAD_HR(m_DeviceManager->ResetDevice(pDevice, m_ResetToken));
 	return S_OK;
 }
-HRESULT SourceReaderBase::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect)
+HRESULT SourceReaderBase::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ ID3D11Texture2D *pTexture)
 {
 	CComPtr<ID3D11Texture2D> pProcessedTexture;
-	HRESULT hr = AcquireNextFrame(timeoutMillis, &pProcessedTexture);
-	RETURN_ON_BAD_HR(hr);
-
+	HRESULT hr = E_FAIL;
+	if (pTexture) {
+		pProcessedTexture = pTexture;
+		hr = S_OK;
+	}
+	else {
+		hr = AcquireNextFrame(timeoutMillis, &pProcessedTexture);
+		RETURN_ON_BAD_HR(hr);
+	}
 	D3D11_TEXTURE2D_DESC frameDesc;
 	pProcessedTexture->GetDesc(&frameDesc);
 	RECORDING_SOURCE *recordingSource = dynamic_cast<RECORDING_SOURCE *>(m_RecordingSource);

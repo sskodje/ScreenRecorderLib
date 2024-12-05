@@ -677,7 +677,12 @@ HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ const std::vector<RECORDING_
 	std::vector<RECT> outputRects{};
 	for each (auto & pair in validOutputs)
 	{
-		outputRects.push_back(pair.second);
+		if (validOutputs.size() == 1 && m_OutputOptions->GetFrameSize().has_value()) {
+			outputRects.push_back(RECT{ 0,0,m_OutputOptions->GetFrameSize().value().cx,m_OutputOptions->GetFrameSize().value().cy });
+		}
+		else {
+			outputRects.push_back(pair.second);
+		}
 	}
 	std::vector<SIZE> outputOffsets{};
 	GetCombinedRects(outputRects, pDeskBounds, &outputOffsets);
@@ -686,8 +691,10 @@ HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ const std::vector<RECORDING_
 	{
 		RECORDING_SOURCE *source = validOutputs.at(i).first;
 		RECT sourceRect = validOutputs.at(i).second;
+		if (validOutputs.size() == 1 && m_OutputOptions->GetFrameSize().has_value()) {
+			sourceRect = RECT{ 0,0,m_OutputOptions->GetFrameSize().value().cx,m_OutputOptions->GetFrameSize().value().cy };
+		}
 		RECORDING_SOURCE_DATA *data = new RECORDING_SOURCE_DATA(source);
-
 		data->OffsetX -= pDeskBounds->left + outputOffsets.at(i).cx;
 		data->OffsetY -= pDeskBounds->top + outputOffsets.at(i).cy;
 		data->FrameCoordinates = sourceRect;
@@ -825,12 +832,18 @@ Start:
 				LOG_ERROR(L"Failed to initialize TextureManager");
 				goto Exit;
 			}
-
+			SIZE frameSize = SIZE{ RectWidth(pSourceData->FrameCoordinates),RectHeight(pSourceData->FrameCoordinates) };
+			SIZE sourceOutputSize = pSource->OutputSize.value_or(frameSize);
 			const IStream *sourceStream = pSource->SourceStream;
 			const std::wstring sourcePath = pSource->SourcePath;
 			const HWND sourceWindowHandle = pSource->SourceWindow;
 			auto IsSourceChanged([sourceStream, sourcePath, sourceWindowHandle](RECORDING_SOURCE *source) {
 				return source->SourcePath != sourcePath || source->SourceStream != sourceStream || source->SourceWindow != sourceWindowHandle;
+			});
+			auto IsSourceOutputSizeChanged([&sourceOutputSize, &pSourceData, &frameSize](RECORDING_SOURCE *source) {
+				auto currentSize = source->OutputSize.value_or(frameSize);
+				return sourceOutputSize.cx != currentSize.cx
+					|| sourceOutputSize.cy != currentSize.cy;
 			});
 
 			ExecuteFuncOnExit blankFrameOnExit([&]() {
@@ -858,6 +871,10 @@ Start:
 				if (IsSourceChanged(pSource)) {
 					isSourceDirty = true;
 					goto Start;
+				}
+				if (IsSourceOutputSizeChanged(pSource)) {
+					isSharedSurfaceDirty = true;
+					sourceOutputSize = pSource->OutputSize.value_or(frameSize);
 				}
 				if (isPreviewEnabled != pSource->IsVideoFramePreviewEnabled.value_or(false)) {
 					isPreviewEnabled = pSource->IsVideoFramePreviewEnabled.value_or(false);
@@ -941,18 +958,32 @@ Start:
 				}
 
 				if (pSource->IsVideoCaptureEnabled.value_or(true)) {
-					if (isSharedSurfaceDirty && pFrame) {
-						//The screen has been blacked out, so we restore a full frame to the shared surface before starting to apply updates.
-						RECT offsetFrameCoordinates = pSourceData->FrameCoordinates;
-						OffsetRect(&offsetFrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
-						hr = textureManager.DrawTexture(SharedSurf, pFrame, offsetFrameCoordinates);
-						isSharedSurfaceDirty = false;
+					RECT offsetFrameCoordinates = pSourceData->FrameCoordinates;
+					if (pSourceData->RecordingSource->OutputSize.has_value()) {
+						offsetFrameCoordinates = MakeRectEven(RECT
+							{
+								pSourceData->FrameCoordinates.left,
+								pSourceData->FrameCoordinates.top,
+								pSourceData->FrameCoordinates.left + pSourceData->RecordingSource->OutputSize.value().cx,
+								pSourceData->FrameCoordinates.top + pSourceData->RecordingSource->OutputSize.value().cy
+							});
 					}
+
+					SIZE contentOffset = pRecordingSourceCapture->GetContentOffset(pSource->Anchor, pSourceData->FrameCoordinates, offsetFrameCoordinates);
+					OffsetRect(&offsetFrameCoordinates, pSourceData->OffsetX + contentOffset.cx, pSourceData->OffsetY + contentOffset.cy);
 					if (isSourceDirty) {
 						textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
 						isSourceDirty = false;
 					}
-					hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, pSourceData->FrameCoordinates);
+					if (isSharedSurfaceDirty && pFrame) {
+						textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
+						//The screen has been blacked out, so we restore a full frame to the shared surface before starting to apply updates.
+						hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, offsetFrameCoordinates, pFrame);
+						isSharedSurfaceDirty = false;
+					}
+					else {
+						hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, offsetFrameCoordinates);
+					}
 				}
 				else {
 					hr = textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
@@ -971,15 +1002,15 @@ Start:
 				}
 				pData->TotalUpdatedFrameCount++;
 				QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
+				}
 			}
-		}
 		catch (const AccessViolationException &ex) {
 			hr = EXCEPTION_ACCESS_VIOLATION;
 		}
 		catch (...) {
 			hr = E_UNEXPECTED;
 		}
-	}
+		}
 Exit:
 	if (pData->ThreadResult) {
 		//E_ABORT is returned when the capture loop should be stopped, but the recording continue. On other errors, we check how to handle them.
@@ -1020,7 +1051,7 @@ Exit:
 	CoUninitialize();
 	LOG_DEBUG("Exiting CaptureThreadProc");
 	return 0;
-}
+	}
 
 
 DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {

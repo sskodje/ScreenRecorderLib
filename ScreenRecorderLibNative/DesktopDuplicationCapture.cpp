@@ -106,10 +106,16 @@ HRESULT DesktopDuplicationCapture::AcquireNextFrame(_In_ DWORD timeoutMillis, _O
 	return hr;
 }
 
-HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect)
+HRESULT DesktopDuplicationCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeoutMillis, _Inout_ ID3D11Texture2D *pSharedSurf, INT offsetX, INT offsetY, _In_ RECT destinationRect, _In_opt_ ID3D11Texture2D *pTexture)
 {
 	HRESULT hr = S_OK;
-	if (m_LastGrabTimeStamp.QuadPart >= m_LastSampleUpdatedTimeStamp.QuadPart) {
+	if (pTexture) {
+		m_CurrentData.Frame = pTexture;
+		m_CurrentData.Frame->AddRef();
+		m_CurrentData.FrameInfo.AccumulatedFrames = 1;
+		hr = S_OK;
+	}
+	else if (m_LastGrabTimeStamp.QuadPart >= m_LastSampleUpdatedTimeStamp.QuadPart) {
 		hr = GetNextFrame(timeoutMillis, &m_CurrentData);
 	}
 
