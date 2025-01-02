@@ -256,23 +256,20 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 	std::sort(validOutputs.begin(), validOutputs.end(), sortRect);
 
 	for (int i = 0; i < validOutputs.size(); i++) {
-		if (validOutputs.size() > i + 1) {
-			//Compare to the next source rect and offset this source rect if there is a gap in the coordinates
-			//not manually configured with Position property.
-			auto source = validOutputs[i].first;
-			RECT &curRect = validOutputs[i].second;
-			RECT nextRect = validOutputs[i + 1].second;
-			int xPosOffset = max(0, (nextRect.left - curRect.right) - abs((source->Position.value_or(POINT{ 0 })).x));
-			int yPosOffset = max(0, nextRect.top - curRect.bottom - abs((source->Position.value_or(POINT{ 0 })).y));
-			if (curRect.left >= 0) {
-				OffsetRect(&curRect, -xPosOffset, -yPosOffset);
-			}
-			else {
-				OffsetRect(&curRect, xPosOffset, yPosOffset);
-			}
+		//Compare to the previous source rect and offset this source rect if there is a gap in the coordinates
+		//not manually configured with Position property.
+		auto source = validOutputs[i].first;
+		RECT &curRect = validOutputs[i].second;
+		RECT prevRect = i > 0 ? validOutputs[i - 1].second : RECT{ 0 };
+		int xPosOffset = max(0, (curRect.left - prevRect.right) - abs((source->Position.value_or(POINT{ 0 })).x));
+		int yPosOffset = max(0, curRect.top - prevRect.bottom - abs((source->Position.value_or(POINT{ 0 })).y));
+		if (curRect.left >= 0) {
+			OffsetRect(&curRect, -xPosOffset, -yPosOffset);
+		}
+		else {
+			OffsetRect(&curRect, xPosOffset, yPosOffset);
 		}
 	}
-
 	*outputs = validOutputs;
 	return S_OK;
 }
