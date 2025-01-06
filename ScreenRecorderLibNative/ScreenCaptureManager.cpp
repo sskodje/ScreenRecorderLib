@@ -33,7 +33,8 @@ ScreenCaptureManager::ScreenCaptureManager() :
 	m_EncoderOptions(nullptr),
 	m_MouseOptions(nullptr),
 	m_FrameCopy(nullptr),
-	m_IsInitialFrameWriteComplete(false)
+	m_IsInitialFrameWriteComplete(false),
+	m_IsInitialOverlayWriteComplete(false)
 {
 	// Event to tell spawned threads to quit
 	m_TerminateThreadsEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
@@ -499,6 +500,8 @@ bool ScreenCaptureManager::IsInitialFrameWriteComplete()
 
 bool ScreenCaptureManager::IsInitialOverlayWriteComplete()
 {
+	if (m_IsInitialOverlayWriteComplete)
+		return true;
 	for each (OVERLAY_THREAD * threadObject in m_OverlayThreads)
 	{
 		if (threadObject->ThreadData && threadObject->ThreadData->RecordingOverlay) {
@@ -508,6 +511,7 @@ bool ScreenCaptureManager::IsInitialOverlayWriteComplete()
 			}
 		}
 	}
+	m_IsInitialOverlayWriteComplete = true;
 	return true;
 }
 
@@ -537,6 +541,18 @@ UINT ScreenCaptureManager::GetUpdatedOverlayCount()
 	return updatedFrameCount;
 }
 
+void ScreenCaptureManager::InvalidateCaptureSources()
+{
+	m_IsInitialFrameWriteComplete = false;
+	for each (CAPTURE_THREAD * threadObject in m_CaptureThreads)
+	{
+		threadObject->ThreadData->TotalUpdatedFrameCount = 0;
+		if (threadObject->ThreadData) {			
+			threadObject->ThreadData->LastUpdateTimeStamp.QuadPart == 0;
+		}
+		QueryPerformanceCounter(&m_LastAcquiredFrameTimeStamp);
+	}
+}
 std::vector<CAPTURE_RESULT *> ScreenCaptureManager::GetCaptureResults()
 {
 	std::vector<CAPTURE_RESULT *> results;
@@ -1002,15 +1018,15 @@ Start:
 				}
 				pData->TotalUpdatedFrameCount++;
 				QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
-				}
 			}
+		}
 		catch (const AccessViolationException &ex) {
 			hr = EXCEPTION_ACCESS_VIOLATION;
 		}
 		catch (...) {
 			hr = E_UNEXPECTED;
 		}
-		}
+	}
 Exit:
 	if (pData->ThreadResult) {
 		//E_ABORT is returned when the capture loop should be stopped, but the recording continue. On other errors, we check how to handle them.
@@ -1051,7 +1067,7 @@ Exit:
 	CoUninitialize();
 	LOG_DEBUG("Exiting CaptureThreadProc");
 	return 0;
-	}
+}
 
 
 DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param) {

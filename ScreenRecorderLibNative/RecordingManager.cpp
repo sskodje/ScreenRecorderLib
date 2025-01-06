@@ -366,6 +366,9 @@ void RecordingManager::ResumeRecording() {
 		if (m_OutputManager) {
 			m_OutputManager->ResumeMediaClock();
 		}
+		if (m_CaptureManager) {
+			m_CaptureManager->InvalidateCaptureSources();
+		}
 		m_IsPaused = false;
 		if (RecordingStatusChangedCallback != nullptr) {
 			RecordingStatusChangedCallback(STATUS_RECORDING);

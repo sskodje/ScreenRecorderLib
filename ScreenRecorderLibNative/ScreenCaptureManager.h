@@ -35,6 +35,7 @@ public:
 	virtual bool IsCapturing() { return m_IsCapturing; }
 	virtual UINT GetUpdatedSourceCount();
 	virtual UINT GetUpdatedOverlayCount();
+	virtual void InvalidateCaptureSources();
 	std::vector<CAPTURE_RESULT *> GetCaptureResults();
 	std::vector<CAPTURE_THREAD_DATA> GetCaptureThreadData();
 	std::vector<OVERLAY_THREAD_DATA> GetOverlayThreadData();
@@ -53,6 +54,7 @@ protected:
 	virtual HRESULT CreateSharedSurf(_In_ const std::vector<RECORDING_SOURCE *> &sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds, _Outptr_ ID3D11Texture2D **ppSharedTexture, _Outptr_ IDXGIKeyedMutex **ppKeyedMutex);
 private:
 	bool m_IsInitialFrameWriteComplete;
+	bool m_IsInitialOverlayWriteComplete;
 	bool m_IsCapturing;
 	HANDLE m_TerminateThreadsEvent;
 	CRITICAL_SECTION m_CriticalSection;
