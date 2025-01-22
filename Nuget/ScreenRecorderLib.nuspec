@@ -2,19 +2,21 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
     <id>ScreenRecorderLib</id>
-    <version>6.4.0</version>
+    <version>6.5.0</version>
     <authors>Sverre Kristoffer Skodje</authors>
     <license type="expression">MIT</license>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <description>A .NET library for screen recording in Windows, using Microsoft Media Foundation for realtime encoding to video or image files.</description>
     <summary />
+    <readme>README.md</readme>
     <releaseNotes>
-      - File is now locked when recording to a path, to avoid potentially deleting the recording in progress.
-      - Fixed issue where display recordings using Windows Graphics Capture could get stuck in a restart loop.
-      - Fixed crash that could happen when compiled with .NET8 and executed on a system with outdated visual c++ runtime libraries.
+• Fixed bug where wrong native dimensions for video sources were returned.
+• Fixed improper scaling when recording single sources with output video dimensions configured to be larger than the source.
+• Fix for bug in offset calculation when recording two screens and manually changing output size of the first.
+• Fix for incorrect first frame rendered when immediately paused after recording starts.
     </releaseNotes>
-    <copyright>Copyright © Sverre Kristoffer Skodje 2019</copyright>
+    <copyright>Copyright © Sverre Kristoffer Skodje 2025</copyright>
     <language>en-GB</language>
     <tags>Screen Recording Windows .NET</tags>
   </metadata>
