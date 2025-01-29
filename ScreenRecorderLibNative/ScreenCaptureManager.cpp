@@ -974,9 +974,9 @@ Start:
 				}
 
 				if (pSource->IsVideoCaptureEnabled.value_or(true)) {
-					RECT offsetFrameCoordinates = pSourceData->FrameCoordinates;
+					RECT adjustedFrameCoordinates = pSourceData->FrameCoordinates;
 					if (pSourceData->RecordingSource->OutputSize.has_value()) {
-						offsetFrameCoordinates = MakeRectEven(RECT
+						adjustedFrameCoordinates = MakeRectEven(RECT
 							{
 								pSourceData->FrameCoordinates.left,
 								pSourceData->FrameCoordinates.top,
@@ -985,8 +985,6 @@ Start:
 							});
 					}
 
-					SIZE contentOffset = pRecordingSourceCapture->GetContentOffset(pSource->Anchor, pSourceData->FrameCoordinates, offsetFrameCoordinates);
-					OffsetRect(&offsetFrameCoordinates, pSourceData->OffsetX + contentOffset.cx, pSourceData->OffsetY + contentOffset.cy);
 					if (isSourceDirty) {
 						textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
 						isSourceDirty = false;
@@ -994,11 +992,11 @@ Start:
 					if (isSharedSurfaceDirty && pFrame) {
 						textureManager.BlankTexture(SharedSurf, pSourceData->FrameCoordinates, pSourceData->OffsetX, pSourceData->OffsetY);
 						//The screen has been blacked out, so we restore a full frame to the shared surface before starting to apply updates.
-						hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, offsetFrameCoordinates, pFrame);
+						hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, adjustedFrameCoordinates, pFrame);
 						isSharedSurfaceDirty = false;
 					}
 					else {
-						hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, offsetFrameCoordinates);
+						hr = pRecordingSourceCapture->WriteNextFrameToSharedSurface(0, SharedSurf, pSourceData->OffsetX, pSourceData->OffsetY, adjustedFrameCoordinates);
 					}
 				}
 				else {
