@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
     <id>ScreenRecorderLib</id>
-    <version>6.5.0</version>
+    <version>6.5.1</version>
     <authors>Sverre Kristoffer Skodje</authors>
     <license type="expression">MIT</license>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
@@ -11,10 +11,7 @@
     <summary />
     <readme>README.md</readme>
     <releaseNotes>
-• Fixed bug where wrong native dimensions for video sources were returned.
-• Fixed improper scaling when recording single sources with output video dimensions configured to be larger than the source.
-• Fix for bug in offset calculation when recording two screens and manually changing output size of the first.
-• Fix for incorrect first frame rendered when immediately paused after recording starts.
+• Fixed bug where monitors with negative coordinates (to the left of main monitor) did not record properly.
     </releaseNotes>
     <copyright>Copyright © Sverre Kristoffer Skodje 2025</copyright>
     <language>en-GB</language>
