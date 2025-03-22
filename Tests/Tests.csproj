@@ -2,6 +2,7 @@
   <PropertyGroup>
     <RootNamespace>ScreenRecorderLib</RootNamespace>
     <TargetFramework>net48</TargetFramework>
+    <Platforms>x86;x64;ARM64</Platforms>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <OutputPath>bin\$(Platform)\$(Configuration)\</OutputPath>
     <CodeAnalysisRuleSet>MinimumRecommendedRules.ruleset</CodeAnalysisRuleSet>
