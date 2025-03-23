@@ -22,6 +22,23 @@
     "Microsoft.VisualStudio.Component.VC.CLI.Support",
 
     // Windows 10 SDK (10.0.20348.0)
-    "Microsoft.VisualStudio.Component.Windows10SDK.20348"
+    "Microsoft.VisualStudio.Component.Windows10SDK.20348",
+
+    // MSBuild
+    "Microsoft.Component.MSBuild",
+
+    // NuGet
+    "Microsoft.VisualStudio.Component.NuGet",
+
+    // Debugging Tools
+    "Microsoft.VisualStudio.Component.Debugger.JustInTime",
+    "Microsoft.VisualStudio.Component.Debugger.Core",
+
+    // Testing Tools
+    "Microsoft.VisualStudio.Component.TestTools.Core",
+
+    // C++ ATL
+    "Microsoft.VisualStudio.Component.VC.ATL",
+    "Microsoft.VisualStudio.Component.VC.ATL.ARM64"
   ]
 }
