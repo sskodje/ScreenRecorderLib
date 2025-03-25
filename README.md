@@ -41,7 +41,7 @@ This will start a video recording to a file, using the default settings:
         }
 ```
 
-For more info and examples, see the [quickstart guide](https://github.com/sskodje/ScreenRecorderLib/wiki/Quickstart-guide-v5.x.x), or check out the sample projects.
+For more info and examples, see the [quickstart guide](https://github.com/sskodje/ScreenRecorderLib/wiki/Quickstart-guide-v5.x.x-and-newer), or check out the sample projects.
 
 ## Donation
 If this project is useful to you, please consider supporting the development with a donation :) 
