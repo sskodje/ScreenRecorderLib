@@ -1,14 +1,9 @@
 ﻿using ScreenRecorderLib;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
 
 namespace TestApp.Sources
 {
-   public class CheckableRecordableVideo : VideoRecordingSource, ICheckableRecordingSource
+    public class CheckableRecordableVideo : VideoRecordingSource, ICheckableRecordingSource
     {
         private bool _isSelected;
         public bool IsSelected

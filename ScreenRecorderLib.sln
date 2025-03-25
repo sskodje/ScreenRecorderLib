@@ -9,6 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestApp", "TestApp\TestApp.
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3AF1081D-5971-4352-9FA1-CBA5D6EEC773}"
 	ProjectSection(SolutionItems) = preProject
+		.vsconfig = .vsconfig
 		Testmedia\alphatest.png = Testmedia\alphatest.png
 		Testmedia\cat.mp4 = Testmedia\cat.mp4
 		Testmedia\earth.gif = Testmedia\earth.gif
@@ -31,6 +32,14 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestAppWinforms", "TestAppWinforms\TestAppWinforms.csproj", "{551CBE22-2BB4-40A5-AF62-E5334CED17B7}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ScreenRecorderLibNative", "ScreenRecorderLibNative\ScreenRecorderLibNative.vcxproj", "{F2652FD6-EAF0-466D-B1CF-A7D19C1540EA}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{5C0F7380-CF0C-4C0F-82C0-7973EDBEA365}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{6E26FE2C-3387-4C95-8C88-4EA45A7D3A26}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\msbuild.yml = .github\workflows\msbuild.yml
+		.github\workflows\release.yml = .github\workflows\release.yml
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -141,6 +150,10 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{5C0F7380-CF0C-4C0F-82C0-7973EDBEA365} = {3AF1081D-5971-4352-9FA1-CBA5D6EEC773}
+		{6E26FE2C-3387-4C95-8C88-4EA45A7D3A26} = {5C0F7380-CF0C-4C0F-82C0-7973EDBEA365}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {193504EA-E90F-4C7F-88B0-60303951D5C9}

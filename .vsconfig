@@ -1,0 +1,44 @@
+﻿{
+  "version": "1.0",
+  "components": [
+    // .NET Framework 4.8
+    "Microsoft.Net.Component.4.8.SDK",
+    "Microsoft.Net.Component.4.8.TargetingPack",
+    "Microsoft.Net.ComponentGroup.DevelopmentPrerequisites",
+
+    // .NET 6.0
+    "Microsoft.NetCore.Component.SDK.6",
+    "Microsoft.NetCore.Component.Runtime.6",
+    "Microsoft.NetCore.Component.TargetingPack.6",
+
+    // C++ Core Features
+    "Microsoft.VisualStudio.Component.VC.CoreBuildTools",
+    "Microsoft.VisualStudio.Component.VC.Tools.x86.x64",
+    "Microsoft.VisualStudio.Component.VC.Tools.ARM64",
+    "Microsoft.VisualStudio.Component.VC.14.33.x86.x64", // v143 toolset
+    "Microsoft.VisualStudio.Component.VC.14.33.ARM64", // v143 toolset for ARM64
+
+    // C++/CLR Support
+    "Microsoft.VisualStudio.Component.VC.CLI.Support",
+
+    // Windows 10 SDK (10.0.20348.0)
+    "Microsoft.VisualStudio.Component.Windows10SDK.20348",
+
+    // MSBuild
+    "Microsoft.Component.MSBuild",
+
+    // NuGet
+    "Microsoft.VisualStudio.Component.NuGet",
+
+    // Debugging Tools
+    "Microsoft.VisualStudio.Component.Debugger.JustInTime",
+    "Microsoft.VisualStudio.Component.Debugger.Core",
+
+    // Testing Tools
+    "Microsoft.VisualStudio.Component.TestTools.Core",
+
+    // C++ ATL
+    "Microsoft.VisualStudio.Component.VC.ATL",
+    "Microsoft.VisualStudio.Component.VC.ATL.ARM64"
+  ]
+}
