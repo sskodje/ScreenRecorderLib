@@ -429,8 +429,13 @@
                                               ItemsSource="{Binding Source={StaticResource RecorderApiData}}"
                                               SelectedItem="{Binding RecorderApi, Mode=TwoWay}" />
                                     <CheckBox VerticalAlignment="Center"
+                                              x:Name="CheckBoxIsBorderRequiredForSource"
+                                              Content="Border"
+                                              IsChecked="{Binding IsBorderRequired,Mode=TwoWay}" />
+                                    <CheckBox VerticalAlignment="Center"
                                               x:Name="CheckBoxIsCursorCaptureEnabledForSource"
                                               Content="Cursor"
+                                              Margin="5,0,0,0"
                                               IsChecked="{Binding IsCursorCaptureEnabled,Mode=TwoWay}" />
                                     <CheckBox VerticalAlignment="Center"
                                               Content="Video"

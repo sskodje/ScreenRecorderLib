@@ -118,6 +118,20 @@ namespace TestApp.Sources
             }
         }
 
+        private bool _isBorderRequired = true;
+        public bool IsBorderRequired
+        {
+            get { return _isBorderRequired; }
+            set
+            {
+                if (_isBorderRequired != value)
+                {
+                    _isBorderRequired = value;
+                    OnPropertyChanged(nameof(IsBorderRequired));
+                }
+            }
+        }
+
         private WriteableBitmap _previewBitmap;
         public WriteableBitmap PreviewBitmap
         {
