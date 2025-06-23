@@ -554,7 +554,9 @@ namespace TestApp
                     OutputSize = win.IsCustomOutputSizeEnabled ? win.OutputSize : null,
                     SourceRect = win.IsCustomOutputSourceRectEnabled ? win.SourceRect : null,
                     Position = win.IsCustomPositionEnabled ? win.Position : null,
-                    VideoFramePreviewSize = new ScreenSize(0, 150)
+                    VideoFramePreviewSize = new ScreenSize(0, 150),
+                    IsBorderRequired = win.IsBorderRequired,
+                    IsCursorCaptureEnabled = win.IsCursorCaptureEnabled
                 };
                 source.OnFrameRecorded += Source_OnFrameRecorded;
                 return source;
@@ -566,7 +568,9 @@ namespace TestApp
                     OutputSize = disp.IsCustomOutputSizeEnabled ? disp.OutputSize : null,
                     SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
                     Position = disp.IsCustomPositionEnabled ? disp.Position : null,
-                    VideoFramePreviewSize = new ScreenSize(0, 150)
+                    VideoFramePreviewSize = new ScreenSize(0, 150),
+                    IsBorderRequired = disp.IsBorderRequired,
+                    IsCursorCaptureEnabled = disp.IsCursorCaptureEnabled
                 }; 
                 source.OnFrameRecorded += Source_OnFrameRecorded;
                 return source;
