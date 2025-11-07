@@ -243,6 +243,10 @@ namespace TestApp
             RecorderOptions.AudioOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.MouseOptions.PropertyChanged += RecorderOptions_PropertyChanged;
             RecorderOptions.OutputOptions.PropertyChanged += RecorderOptions_PropertyChanged;
+
+            _progressTimer = new DispatcherTimer(DispatcherPriority.Normal);
+            _progressTimer.Tick += ProgressTimer_Tick;
+            _progressTimer.Interval = TimeSpan.FromMilliseconds(100);
         }
 
         private void MainWindow_PropertyChanged(object sender, PropertyChangedEventArgs e)
@@ -420,7 +424,6 @@ namespace TestApp
             {
                 _rec.Stop();
                 _progressTimer?.Stop();
-                _progressTimer = null;
                 RecordButton.IsEnabled = false;
                 return;
             }
@@ -567,7 +570,7 @@ namespace TestApp
                     SourceRect = disp.IsCustomOutputSourceRectEnabled ? disp.SourceRect : null,
                     Position = disp.IsCustomPositionEnabled ? disp.Position : null,
                     VideoFramePreviewSize = new ScreenSize(0, 150)
-                }; 
+                };
                 source.OnFrameRecorded += Source_OnFrameRecorded;
                 return source;
             }
@@ -689,7 +692,6 @@ namespace TestApp
             _outputStream = null;
 
             _progressTimer?.Stop();
-            _progressTimer = null;
 
             _rec?.Dispose();
             _rec = null;
@@ -713,7 +715,7 @@ namespace TestApp
                         PauseButton.Visibility = Visibility.Visible;
                         ManualSnapshotButton.Visibility = Visibility.Visible;
                         this.FrameNumberPanel.Visibility = Visibility.Visible;
-                        if (_recordingPauseTime != null)
+                        if (_recordingPauseTime != null && _recordingStartTime != null)
                         {
                             _recordingStartTime = _recordingStartTime.Value.AddTicks((DateTimeOffset.Now.Subtract(_recordingPauseTime.Value)).Ticks);
                             _recordingPauseTime = null;
@@ -729,15 +731,15 @@ namespace TestApp
                         this.LoggingPanel.IsEnabled = false;
                         this.MouseClickModePanel.IsEnabled = false;
                         this.CheckBoxIsAudioEnabled.IsEnabled = false;
-                        _progressTimer = new DispatcherTimer(DispatcherPriority.Normal);
-                        _progressTimer.Tick += ProgressTimer_Tick;
-                        _progressTimer.Interval = TimeSpan.FromMilliseconds(100);
+
                         _progressTimer.Start();
                         break;
                     case RecorderStatus.Paused:
                         _progressTimer?.Stop();
                         _recordingPauseTime = DateTimeOffset.Now;
+                        PauseButton.Visibility = Visibility.Visible;
                         PauseButton.Content = "Resume";
+                        RecordButton.Content = "Stop";
                         this.StatusTextBlock.Text = "Paused";
                         break;
                     case RecorderStatus.Finishing:
