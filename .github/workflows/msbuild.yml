@@ -20,7 +20,7 @@ jobs:
     - run: nuget restore ${{ env.SOLUTION_NAME }}.sln
     - run: msbuild /m /p:Configuration=Release /p:Platform="${{ matrix.platform }}" ${{ env.SOLUTION_NAME }}.sln
     - name: Upload artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ env.SOLUTION_NAME }}-${{ matrix.platform }}-${{ github.sha }}
         path: ${{ env.PROJECT_NAME }}\bin\${{ matrix.platform }}\Release
