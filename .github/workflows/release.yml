@@ -19,10 +19,13 @@ jobs:
     runs-on: windows-2022
     strategy:
       matrix:
-        platform: [x64, x86]
+        platform: [x64, x86, ARM64]
 
     steps:
     - uses: actions/checkout@v4
+    - uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 6.0.x
     - uses: microsoft/setup-msbuild@v1.1
     - run: nuget restore ${{ env.SOLUTION_NAME }}.sln
     - run: msbuild /m /p:Configuration=Release /p:Platform="${{ matrix.platform }}" ${{ env.SOLUTION_NAME }}.sln
@@ -30,27 +33,29 @@ jobs:
     - uses: actions/upload-artifact@v4
       with:
         name: ScreenRecorderLib.${{matrix.platform}}
-        path: ${{ env.PROJECT_NAME }}\bin\${{ matrix.platform }}\Release\ScreenRecorderLib.dll
+        path: |
+          ${{ env.PROJECT_NAME }}\bin\${{ matrix.platform }}\Release\ScreenRecorderLib.dll
+          ${{ env.PROJECT_NAME }}\bin\${{ matrix.platform }}\Release\ScreenRecorderLib.xml
+          ${{ env.PROJECT_NAME }}\bin\${{ matrix.platform }}\Release\ScreenRecorderLib.pdb
         
   release:
       name: Upload Release
-      runs-on: windows-2022
+      runs-on: ubuntu-latest
       needs : build
       steps:
         - uses: actions/download-artifact@v4
           with:
-            name: ScreenRecorderLib.x86
-            path: ScreenRecorderLib.x86.zip
-        - uses: actions/download-artifact@v4
-          with:
-            name: ScreenRecorderLib.x64
-            path: ScreenRecorderLib.x64.zip
+            path: artifacts/
+        - name: Zip binaries
+          run: |
+            cd artifacts
+            for d in ScreenRecorderLib-*; do
+              zip -j "${d}.zip" "$d"/*
+            done
         - name: Display structure of downloaded files
           run: ls -R
         - uses: marvinpinto/action-automatic-releases@latest
           with:
             repo_token: "${{ secrets.GITHUB_TOKEN }}"
             prerelease: false
-            files: |
-              ScreenRecorderLib.x86.zip
-              ScreenRecorderLib.x64.zip
+            files: artifacts/*.zip
