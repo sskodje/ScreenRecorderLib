@@ -432,8 +432,11 @@ namespace ScreenRecorderLib {
 	private:
 		Nullable<float> _inputVolume;
 		Nullable<float> _outputVolume;
+		Nullable<int> _inputMasterChannel;
+		Nullable<bool> _forceInputDeviceMono;
 		Nullable<bool> _isInputDeviceEnabled;
 		Nullable<bool> _isOutputDeviceEnabled;
+		Nullable<bool> _isInputDeviceDownmixEnabled;
 	public:
 		DynamicAudioOptions() {
 
@@ -496,6 +499,36 @@ namespace ScreenRecorderLib {
 				OnPropertyChanged("OutputVolume");
 			}
 		}
+
+		/// <summary>
+		/// The channel to use as source when downmixing audio input to mono.
+		/// 0 (default) is the left channel, 2 is the right, etc.
+		/// This is used in conjunction with the ForceInputDeviceMono property.
+		/// </summary>
+		property Nullable<int> InputDeviceMasterChannel {
+			Nullable<int> get() {
+				return _inputMasterChannel;
+			}
+			void set(Nullable<int> value) {
+				_inputMasterChannel = value;
+				OnPropertyChanged("InputDeviceMasterChannel");
+			}
+		}
+
+		/// <summary>
+		/// Uses only the source audio channel selected with the InputDeviceMasterChannel property,
+		/// and copies that to all channels when encoding. 
+		/// Used to fix issues with some microphones outputing a stereo signal, but only having sound on one of the channels.
+		/// </summary>
+		property Nullable<bool> ForceInputDeviceMono {
+			Nullable<bool> get() {
+				return _forceInputDeviceMono;
+			}
+			void set(Nullable<bool> value) {
+				_forceInputDeviceMono = value;
+				OnPropertyChanged("ForceInputDeviceMono");
+			}
+		}
 	};
 
 	public ref class AudioOptions :DynamicAudioOptions {
@@ -513,6 +546,8 @@ namespace ScreenRecorderLib {
 			IsAudioEnabled = false;
 			IsOutputDeviceEnabled = true;
 			IsInputDeviceEnabled = false;
+			ForceInputDeviceMono = false;
+			InputDeviceMasterChannel = 0;
 			InputVolume = 1.0f;
 			OutputVolume = 1.0f;
 		}

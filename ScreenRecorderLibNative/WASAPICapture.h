@@ -37,6 +37,7 @@ public:
 	inline std::wstring GetTag() { return m_Tag; }
 	inline std::wstring GetDeviceName() { return m_DeviceName; }
 	inline std::wstring GetDeviceId() { return m_DeviceId; }
+	inline WWMFPcmFormat GetInputFormat() { return m_InputFormat; }
 
 private:
 	const long AUDIO_CLIENT_BUFFER_100_NS = 200 * 10000;

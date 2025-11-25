@@ -1042,6 +1042,25 @@
                                       SelectedValue="{Binding ElementName=MainWin,Path=RecorderOptions.AudioOptions.AudioInputDevice}"
                                       SelectedIndex="0"
                                       VerticalAlignment="Top" />
+                            <CheckBox Content="Force mono"
+                                      x:Name="CheckBoxDownmixInput"
+                                      IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.AudioOptions.ForceInputDeviceMono,Mode=TwoWay}"
+                                      ToolTip="Pick one of the channels of the input device, and copy it to all audio channels on the video."
+                                      Margin="0,0,5,0"
+                                      VerticalAlignment="Center" />
+                            <StackPanel VerticalAlignment="Center"
+                                        Orientation="Horizontal"
+                                        Visibility="{Binding ElementName=CheckBoxDownmixInput, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Label Content="Channel"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,3,0"
+                                       Padding="0" />
+                                <TextBox x:Name="MonoChannelTextBox"
+                                         MinWidth="20"
+                                         Text="{Binding ElementName=MainWin,Path=RecorderOptions.AudioOptions.InputDeviceMasterChannel,Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         HorizontalAlignment="Left"
+                                         VerticalAlignment="Center" />
+                            </StackPanel>
                         </StackPanel>
                         <Grid Grid.Column="1"
                               Grid.Row="1">
@@ -1058,6 +1077,7 @@
                                     Foreground="Blue"
                                     Margin="0,5,5,5"
                                     Maximum="1"
+                                    MinWidth="60"
                                     TickPlacement="BottomRight"
                                     Value="{Binding ElementName=MainWin, Path=RecorderOptions.AudioOptions.OutputVolume}"
                                     TickFrequency="0.1" />
@@ -1078,6 +1098,7 @@
                                     Foreground="Blue"
                                     Margin="0,5,5,5"
                                     Maximum="1"
+                                    MinWidth="60"
                                     TickPlacement="BottomRight"
                                     Value="{Binding ElementName=MainWin, Path=RecorderOptions.AudioOptions.InputVolume}"
                                     TickFrequency="0.1" />
@@ -1087,14 +1108,17 @@
                     </Grid>
                     <CheckBox Content="Exclude this window from capture"
                               x:Name="CheckBoxExclude"
+                              HorizontalAlignment="Left"
                               IsChecked="{Binding ElementName=MainWin,Path=IsExcludeWindowEnabled}"
                               Margin="0" />
 
                     <CheckBox Content="Enable output frame preview"
                               x:Name="CheckBoxShowOutputPreview"
+                              HorizontalAlignment="Left"
                               IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.IsVideoFramePreviewEnabled}"
                               Margin="0" />
                     <CheckBox x:Name="CheckBoxEnableOverlays"
+                              HorizontalAlignment="Left"
                               Content="Add overlays" />
                 </StackPanel>
                 <StackPanel Visibility="{Binding ElementName=CheckBoxEnableOverlays, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">

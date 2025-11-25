@@ -254,7 +254,8 @@ HRESULT WASAPICapture::GetWaveFormat(
 				else {
 					LOG_ERROR(L"%s", L"Don't know how to coerce mix format to int-16");
 					return E_UNEXPECTED;
-				}}
+				}
+			}
 			break;
 
 			default:
@@ -464,11 +465,12 @@ std::vector<BYTE> WASAPICapture::PeakRecordedBytes()
 std::vector<BYTE> WASAPICapture::GetRecordedBytes(UINT64 duration100Nanos)
 {
 	int frameCount = int(ceil(m_InputFormat.sampleRate * HundredNanosToSeconds(duration100Nanos)));
+	int frameByteCount = frameCount * m_InputFormat.FrameBytes();
 	std::vector<BYTE> newvector;
 	size_t byteCount;
 	{
 		const std::lock_guard<std::mutex> lock(m_TaskWrapperImpl->m_Mutex);
-		byteCount = min((frameCount * m_InputFormat.FrameBytes()), m_RecordedBytes.size());
+		byteCount = min(frameByteCount, m_RecordedBytes.size());
 		newvector = std::vector<BYTE>(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
 		m_RecordedBytes.erase(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
 		LOG_TRACE(L"Got %d bytes from WASAPICapture %ls. %d bytes remaining", newvector.size(), m_Tag.c_str(), m_RecordedBytes.size());

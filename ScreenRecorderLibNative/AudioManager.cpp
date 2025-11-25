@@ -161,6 +161,9 @@ std::vector<BYTE> AudioManager::GrabAudioFrame(_In_ UINT64 durationHundredNanos)
 {
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
+
+	std::vector<BYTE> outputDeviceData = m_AudioOutputCapture ? m_AudioOutputCapture->GetRecordedBytes(durationHundredNanos) : std::vector<BYTE>();
+	std::vector<BYTE> inputDeviceData = m_AudioInputCapture ? m_AudioInputCapture->GetRecordedBytes(durationHundredNanos) : std::vector<BYTE>();
 	if (m_AudioOutputCapture && m_AudioInputCapture) {
 		auto returnAudioOverflowToBuffer = [&](auto &outputDeviceData, auto &inputDeviceData) {
 			if (outputDeviceData.size() > 0 && inputDeviceData.size() > 0) {
@@ -177,34 +180,45 @@ std::vector<BYTE> AudioManager::GrabAudioFrame(_In_ UINT64 durationHundredNanos)
 					m_AudioInputCapture->ReturnAudioBytesToBuffer(overflow);
 				}
 			}
-		};
+			};
 
-		std::vector<BYTE> outputDeviceData = m_AudioOutputCapture->GetRecordedBytes(durationHundredNanos);
-		std::vector<BYTE> inputDeviceData = m_AudioInputCapture->GetRecordedBytes(durationHundredNanos);
 		returnAudioOverflowToBuffer(outputDeviceData, inputDeviceData);
 		if (inputDeviceData.size() > 0 && outputDeviceData.size() && inputDeviceData.size() != outputDeviceData.size()) {
 			LOG_ERROR(L"Mixing audio byte arrays with differing sizes");
 		}
-
-		return std::move(MixAudio(outputDeviceData, inputDeviceData, GetAudioOptions()->GetOutputVolume(), GetAudioOptions()->GetInputVolume()));
+		return std::move(MixAudioSamples(outputDeviceData, inputDeviceData, GetAudioOptions()->GetOutputVolume(), GetAudioOptions()->GetInputVolume()));
 	}
 	else if (m_AudioOutputCapture)
-		return std::move(MixAudio(m_AudioOutputCapture->GetRecordedBytes(durationHundredNanos), std::vector<BYTE>(), GetAudioOptions()->GetOutputVolume(), 1.0));
+		return std::move(MixAudioSamples(outputDeviceData, inputDeviceData, GetAudioOptions()->GetOutputVolume(), 1.0));
 	else if (m_AudioInputCapture)
-		return std::move(MixAudio(std::vector<BYTE>(), m_AudioInputCapture->GetRecordedBytes(durationHundredNanos), 1.0, GetAudioOptions()->GetInputVolume()));
+		return std::move(MixAudioSamples(outputDeviceData, inputDeviceData, 1.0, GetAudioOptions()->GetInputVolume()));
 	else
 		return std::vector<BYTE>();
 }
 
-std::vector<BYTE> AudioManager::MixAudio(_In_ std::vector<BYTE> const &first, _In_ std::vector<BYTE> const &second, _In_ float firstVolume, _In_ float secondVolume)
+
+std::vector<BYTE> AudioManager::MixAudioSamples(_In_ std::vector<BYTE> &outputDeviceData, _In_ std::vector<BYTE> &inputDeviceData, _In_ float outputDeviceVolume, _In_ float inputDeviceVolume)
 {
-	std::vector<BYTE> newvector(max(first.size(), second.size()));
+	if (m_AudioOptions && m_AudioOptions->GetAudioChannels() > 1 && m_AudioOptions->IsInputDeviceDownmixingEnabled() && inputDeviceData.size() > 0) {
+		try
+		{
+			// This will copy the selected channel from the input device over all the output channels.
+			// Useful when i.e. the input device is stereo but only outputs audio on one channel.
+			inputDeviceData = std::move(DownmixToMono(inputDeviceData, m_AudioInputCapture->GetInputFormat().nChannels, m_AudioOptions->GetAudioChannels(), m_AudioOptions->getInputMasterChannel()));
+			LOG_TRACE("Downmixed input audio");
+		}
+		catch (const std::runtime_error &e) {
+			LOG_ERROR("Error downmixing audio input device: %s.", s2ws(e.what()).c_str());
+		}
+	}
+
+	std::vector<BYTE> newvector(max(outputDeviceData.size(), inputDeviceData.size()));
 	bool clipped = false;
 	for (size_t i = 0; i < newvector.size(); i += 2) {
-		short firstSample = first.size() > i + 1 ? static_cast<short>(first[i] | first[i + 1] << 8) : 0;
-		short secondSample = second.size() > i + 1 ? static_cast<short>(second[i] | second[i + 1] << 8) : 0;
+		short firstSample = outputDeviceData.size() > i + 1 ? static_cast<short>(outputDeviceData[i] | outputDeviceData[i + 1] << 8) : 0;
+		short secondSample = inputDeviceData.size() > i + 1 ? static_cast<short>(inputDeviceData[i] | inputDeviceData[i + 1] << 8) : 0;
 		auto out = reinterpret_cast<short *>(&newvector[i]);
-		int mixedSample = int(round((firstSample)*firstVolume + (secondSample)*secondVolume));
+		int mixedSample = int(round((firstSample)*outputDeviceVolume + (secondSample)*inputDeviceVolume));
 		if (mixedSample > MAXSHORT) {
 			clipped = true;
 			mixedSample = MAXSHORT;
@@ -219,4 +233,67 @@ std::vector<BYTE> AudioManager::MixAudio(_In_ std::vector<BYTE> const &first, _I
 		LOG_WARN("Audio clipped during mixing");
 	}
 	return newvector;
+}
+
+std::vector<BYTE> AudioManager::DownmixToMono(
+	_In_ const std::vector<BYTE> &data,
+	_In_ int inputChannels,
+	_In_ int outputChannels,
+	_In_ int channelToCopy
+)
+{
+	const int bytesPerSample = 2; // PCM16
+	const int inputBytesPerFrame = inputChannels * bytesPerSample;
+	const int outputBytesPerFrame = outputChannels * bytesPerSample;
+
+	if (data.size() % inputBytesPerFrame != 0) {
+		throw std::runtime_error("Input not aligned to frame size");
+	}
+	const int frameCount = static_cast<int>(data.size() / inputBytesPerFrame);
+
+	std::vector<BYTE> out(frameCount * outputBytesPerFrame);
+
+	// Media Foundation introduces artifacts to the audio somewhere in the pipeline if all audio channels are bit-identical.
+	// The solution found is to add a small amplitude change so they are no longer bit-identical, but it should not be audible.
+	const double delta = 1.0;
+
+	for (int frame = 0; frame < frameCount; ++frame)
+	{
+		const int inByteIndex = frame * inputBytesPerFrame;
+
+		std::vector<short> inFrame(inputChannels);
+		for (int c = 0; c < inputChannels; ++c)
+		{
+			int offset = inByteIndex + c * bytesPerSample;
+			inFrame[c] = static_cast<short>(
+				data[offset] | (data[offset + 1] << 8)
+			);
+		}
+		if (channelToCopy >= inFrame.size()) {
+			throw std::runtime_error("Invalid channel selected when downmixing to mono.");
+		}
+		short masterSample = inFrame[channelToCopy];
+
+		// Write to all output channels
+		const int outByteIndex = frame * outputBytesPerFrame;
+		for (int c = 0; c < outputChannels; ++c)
+		{
+			short s = masterSample;
+
+			// Channel > 0 gets slight decorrelation
+			if (c > 0)
+			{
+				int v = static_cast<int>(s) + (int)delta;
+				if (v > INT16_MAX) v = INT16_MAX;
+				if (v < INT16_MIN) v = INT16_MIN;
+				s = static_cast<short>(v);
+			}
+
+			int offset = outByteIndex + c * bytesPerSample;
+			out[offset] = static_cast<BYTE>(s & 0xFF);
+			out[offset + 1] = static_cast<BYTE>((s >> 8) & 0xFF);
+		}
+	}
+
+	return out;
 }

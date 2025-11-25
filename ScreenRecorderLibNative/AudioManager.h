@@ -2,7 +2,7 @@
 #include <vector>
 #include "WASAPICapture.h"
 #include "CommonTypes.h"
-class AudioManager 
+class AudioManager
 {
 public:
 	AudioManager();
@@ -33,5 +33,6 @@ private:
 	void OnOptionsChanged();
 	HRESULT StopOptionsChangeListenerThread();
 
-	std::vector<BYTE> MixAudio(_In_ std::vector<BYTE> const &first, _In_ std::vector<BYTE> const &second, _In_ float firstVolume, _In_ float secondVolume);
+	std::vector<BYTE> DownmixToMono(_In_ const std::vector<BYTE> &data, _In_ int inputChannels, _In_ int outputChannels, _In_ int channelToCopy);
+	std::vector<BYTE> MixAudioSamples(_In_ std::vector<BYTE> &outputDeviceData, _In_ std::vector<BYTE> &inputDeviceData, _In_ float outputDeviceVolume, _In_ float inputDeviceVolume);
 };

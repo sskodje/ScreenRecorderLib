@@ -26,7 +26,8 @@ struct FRAME_BITMAP_DATA {
 		Width(0),
 		Height(0),
 		Data(nullptr),
-		Length(0) {}
+		Length(0) {
+	}
 	FRAME_BITMAP_DATA(int stride, byte *data, int length, int width, int height) {
 		Stride = stride;
 		Data = data;
@@ -468,10 +469,12 @@ protected:
 	bool m_IsAudioEnabled = false;
 	bool m_IsOutputDeviceEnabled = true;
 	bool m_IsInputDeviceEnabled = true;
+	bool m_IsInputDeviceDownmixingEnabled = true;
 	UINT32 m_AudioBitrate = (96 / 8) * 1000; //Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
 	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
 	float m_OutputVolumeModifier = 1;
 	float m_InputVolumeModifier = 1;
+	UINT32 m_InputMasterChannel = 0;
 
 	void Notify(HANDLE h) {
 		SetEvent(h);
@@ -493,6 +496,8 @@ public:
 	void SetAudioEnabled(bool value) { m_IsAudioEnabled = value; Notify(OnPropertyChangedEvent); }
 	void SetOutputDeviceEnabled(bool value) { m_IsOutputDeviceEnabled = value; Notify(OnPropertyChangedEvent); }
 	void SetInputDeviceEnabled(bool value) { m_IsInputDeviceEnabled = value; Notify(OnPropertyChangedEvent); }
+	void SetInputDeviceDownmixingEnabled(bool value) { m_IsInputDeviceDownmixingEnabled = value; Notify(OnPropertyChangedEvent); }
+	void SetInputDeviceMasterChannel(int value) { m_InputMasterChannel = value; Notify(OnPropertyChangedEvent); }
 
 	std::wstring GetAudioOutputDevice() { return m_AudioOutputDevice; }
 	std::wstring GetAudioInputDevice() { return m_AudioInputDevice; }
@@ -503,9 +508,11 @@ public:
 	float GetInputVolume() { return m_InputVolumeModifier; }
 	bool IsOutputDeviceEnabled() { return m_IsOutputDeviceEnabled; }
 	bool IsInputDeviceEnabled() { return m_IsInputDeviceEnabled; }
+	bool IsInputDeviceDownmixingEnabled() { return m_IsInputDeviceDownmixingEnabled; }
 	GUID GetAudioEncoderFormat() { return AUDIO_ENCODING_FORMAT; }
 	UINT32 GetAudioBitsPerSample() { return AUDIO_BITS_PER_SAMPLE; }
 	UINT32 GetAudioSamplesPerSecond() { return AUDIO_SAMPLES_PER_SECOND; }
+	UINT32 getInputMasterChannel() { return m_InputMasterChannel; }
 };
 
 struct OUTPUT_OPTIONS {

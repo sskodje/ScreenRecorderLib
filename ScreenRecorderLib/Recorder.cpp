@@ -109,6 +109,12 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			if (options->AudioOptions->IsInputDeviceEnabled.HasValue) {
 				audioOptions->SetInputDeviceEnabled(options->AudioOptions->IsInputDeviceEnabled.Value);
 			}
+			if (options->AudioOptions->ForceInputDeviceMono.HasValue) {
+				audioOptions->SetInputDeviceDownmixingEnabled(options->AudioOptions->ForceInputDeviceMono.Value);
+			}
+			if (options->AudioOptions->InputDeviceMasterChannel.HasValue) {
+				audioOptions->SetInputDeviceMasterChannel(options->AudioOptions->InputDeviceMasterChannel.Value);
+			}
 			if (options->AudioOptions->Bitrate.HasValue) {
 				audioOptions->SetAudioBitrate((UINT32)options->AudioOptions->Bitrate.Value);
 			}
@@ -185,6 +191,12 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 		}
 		if (options->AudioOptions->OutputVolume.HasValue) {
 			m_Rec->GetAudioOptions()->SetOutputVolume(options->AudioOptions->OutputVolume.Value);
+		}
+		if (options->AudioOptions->ForceInputDeviceMono.HasValue) {
+			m_Rec->GetAudioOptions()->SetInputDeviceDownmixingEnabled(options->AudioOptions->ForceInputDeviceMono.Value);
+		}
+		if (options->AudioOptions->InputDeviceMasterChannel.HasValue) {
+			m_Rec->GetAudioOptions()->SetInputDeviceMasterChannel(options->AudioOptions->InputDeviceMasterChannel.Value);
 		}
 	}
 	if (options->MouseOptions) {
