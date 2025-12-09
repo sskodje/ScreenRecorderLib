@@ -548,7 +548,7 @@ void ScreenCaptureManager::InvalidateCaptureSources()
 	{
 		threadObject->ThreadData->TotalUpdatedFrameCount = 0;
 		if (threadObject->ThreadData) {			
-			threadObject->ThreadData->LastUpdateTimeStamp.QuadPart == 0;
+			threadObject->ThreadData->LastUpdateTimeStamp.QuadPart = 0;
 		}
 		QueryPerformanceCounter(&m_LastAcquiredFrameTimeStamp);
 	}
