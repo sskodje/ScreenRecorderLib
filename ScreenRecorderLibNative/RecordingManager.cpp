@@ -61,6 +61,7 @@ D3D_FEATURE_LEVEL m_FeatureLevels[] =
 };
 
 struct RecordingManager::TaskWrapper {
+	std::atomic<bool> m_RecordTaskActive{ false };
 	Concurrency::task<void> m_RecordTask = concurrency::task_from_result();
 	Concurrency::cancellation_token_source m_RecordTaskCts;
 };
@@ -100,7 +101,7 @@ RecordingManager::RecordingManager() :
 
 RecordingManager::~RecordingManager()
 {
-	if (!m_TaskWrapperImpl->m_RecordTask.is_done()) {
+	if (m_TaskWrapperImpl->m_RecordTaskActive) {
 		m_IsDestructing = true;
 		LOG_WARN("Recording is in progress while destructing, cancelling recording task and waiting for completion.");
 		m_TaskWrapperImpl->m_RecordTaskCts.cancel();
@@ -261,7 +262,7 @@ HRESULT RecordingManager::BeginRecording(_In_ std::wstring path) {
 }
 
 HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IStream *stream) {
-	if (m_IsRecording) {
+	if (m_IsRecording.exchange(true)) {
 		if (m_IsPaused) {
 			ResumeRecording();
 		}
@@ -290,7 +291,12 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 			RecordingFailedCallback(error, L"");
 		return S_FALSE;
 	}
-	m_IsRecording = true;
+	bool expected = false;
+	if (m_TaskWrapperImpl->m_RecordTaskActive.exchange(true))
+	{
+		// Recording task is already running, so abort gracefully.
+		return S_FALSE;
+	}
 	m_TaskWrapperImpl->m_RecordTaskCts = cancellation_token_source();
 	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, stream]() {
 		LOG_INFO(L"Starting recording task");
@@ -339,19 +345,19 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 						}
 						SetRecordingCompleteStatus(result, delays);
 					}
+					m_TaskWrapperImpl->m_RecordTaskActive = false;
 				});
 		return S_OK;
 }
 
 void RecordingManager::EndRecording() {
-	if (m_IsRecording) {
+	if (m_IsRecording.exchange(false)) {
 		m_TaskWrapperImpl->m_RecordTaskCts.cancel();
 		LOG_DEBUG(L"Stopped recording task");
 	}
 }
 void RecordingManager::PauseRecording() {
-	if (m_IsRecording && !m_IsPaused) {
-		m_IsPaused = true;
+	if (m_IsRecording && !m_IsPaused.exchange(true)) {
 		if (m_OutputManager) {
 			m_OutputManager->PauseMediaClock();
 		}
@@ -362,14 +368,13 @@ void RecordingManager::PauseRecording() {
 	}
 }
 void RecordingManager::ResumeRecording() {
-	if (m_IsRecording && m_IsPaused) {
+	if (m_IsRecording && m_IsPaused.exchange(false)) {
 		if (m_OutputManager) {
 			m_OutputManager->ResumeMediaClock();
 		}
 		if (m_CaptureManager) {
 			m_CaptureManager->InvalidateCaptureSources();
 		}
-		m_IsPaused = false;
 		if (RecordingStatusChangedCallback != nullptr) {
 			RecordingStatusChangedCallback(STATUS_RECORDING);
 			LOG_DEBUG("Changed Recording Status to Recording");
@@ -894,7 +899,7 @@ bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
 		result = false;
 	}
 	else {
-		for each (auto * source in m_RecordingSources)
+		for each (auto *source in m_RecordingSources)
 		{
 			if (source->SourceApi.has_value() && source->SourceApi == RecordingSourceApi::DesktopDuplication && !IsWindows8OrGreater()) {
 				errorText = L"Desktop Duplication requires Windows 8 or greater.";
