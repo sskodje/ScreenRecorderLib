@@ -11,3 +11,4 @@ HRESULT GetAudioDevice(_In_ LPCWSTR szDeviceId, _Outptr_ IMMDevice **ppMMDevice)
 HRESULT GetAudioDeviceFlow(_In_ IMMDevice *pMMDevice, _Out_ EDataFlow *pFlow);
 HRESULT GetAudioDeviceFriendlyName(_In_ IMMDevice *pDevice, _Out_ std::wstring *deviceName);
 HRESULT GetAudioDeviceFriendlyName(_In_ LPCWSTR pwstrId, _Out_ std::wstring *deviceName);
+bool IsAudioClientActivationParamsAvailable();

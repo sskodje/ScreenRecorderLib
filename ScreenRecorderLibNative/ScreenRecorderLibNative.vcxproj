@@ -27,6 +27,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AudioActivationHandler.h" />
     <ClInclude Include="AudioManager.h" />
     <ClInclude Include="CMFSinkWriterCallback.h" />
     <ClInclude Include="CoreAudio.util.h" />
@@ -63,6 +64,7 @@
     <ClInclude Include="WWMFResampler.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="AudioActivationHandler.cpp" />
     <ClCompile Include="AudioManager.cpp" />
     <ClCompile Include="CaptureBase.cpp" />
     <ClCompile Include="CoreAudio.util.cpp" />

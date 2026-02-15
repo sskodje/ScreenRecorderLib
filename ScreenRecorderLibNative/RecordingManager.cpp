@@ -25,6 +25,7 @@
 #pragma comment(lib, "Mf.lib")
 #pragma comment(lib, "wmcodecdspuuid.lib")
 #pragma comment(lib, "dwmapi.lib")
+#pragma comment(lib, "windowsapp.lib")
 
 using namespace std;
 using namespace std::chrono;

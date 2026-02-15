@@ -253,3 +253,17 @@ HRESULT GetAudioDeviceFriendlyName(_In_ LPCWSTR pwstrId, _Out_ std::wstring *dev
 	RETURN_ON_BAD_HR(hr = pMMDeviceEnumerator->GetDevice(pwstrId, &pDevice));
 	return GetAudioDeviceFriendlyName(pDevice, deviceName);
 }
+
+bool IsAudioClientActivationParamsAvailable()
+{
+	HMODULE hMmdevapi = LoadLibraryW(L"mmdevapi.dll");
+	if (!hMmdevapi)
+		return false;
+
+	auto pActivateAudioInterfaceAsync =
+		GetProcAddress(hMmdevapi, "ActivateAudioInterfaceAsync");
+
+	FreeLibrary(hMmdevapi);
+
+	return pActivateAudioInterfaceAsync != nullptr;
+}

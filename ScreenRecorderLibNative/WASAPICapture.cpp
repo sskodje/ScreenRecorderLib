@@ -7,7 +7,9 @@
 #include "DynamicWait.h"
 #include "WASAPINotify.h"
 #include "Exception.h"
-
+#include <audioclientactivationparams.h>
+#include "AudioActivationHandler.cpp"
+#include <Mmdeviceapi.h>
 using namespace std;
 
 struct WASAPICapture::TaskWrapper {
@@ -89,7 +91,7 @@ HRESULT WASAPICapture::Initialize(_In_ std::wstring deviceId, _In_ EDataFlow flo
 		return E_FAIL;
 	}
 
-	hr = InitializeAudioClient(pDevice, &m_AudioClient);
+	hr = InitializeAudioClient(pDevice, GetCurrentProcessId(), &m_AudioClient);
 	if (SUCCEEDED(hr)) {
 		WWMFResampler *pResampler;
 		hr = InitializeResampler(m_AudioOptions->GetAudioSamplesPerSecond(), m_AudioOptions->GetAudioChannels(), m_AudioClient, &m_InputFormat, &m_OutputFormat, &pResampler);
@@ -100,8 +102,55 @@ HRESULT WASAPICapture::Initialize(_In_ std::wstring deviceId, _In_ EDataFlow flo
 	return hr;
 }
 
+HRESULT ActivateAudioClientSync(
+	const wchar_t *deviceId,
+	const AUDIOCLIENT_ACTIVATION_PARAMS &params,
+	IAudioClient **ppAudioClient)
+{
+	if (!ppAudioClient)
+		return E_POINTER;
+
+	*ppAudioClient = nullptr;
+
+	// Package params into PROPVARIANT
+	PROPVARIANT activateParams = {};
+	activateParams.vt = VT_BLOB;
+	activateParams.blob.cbSize = sizeof(params);
+	activateParams.blob.pBlobData = (BYTE *)&params;
+
+	//auto handler = new (std::nothrow) AudioActivationHandler();
+	//if (!handler)
+	//	return E_OUTOFMEMORY;
+
+	AudioActivationHandler *handler;
+	HRESULT hr = Microsoft::WRL::MakeAndInitialize<AudioActivationHandler>(&handler);
+	if (FAILED(hr)) {
+		return hr;
+	}
+	IActivateAudioInterfaceAsyncOperation *asyncOp;
+
+	hr = ActivateAudioInterfaceAsync(
+	   VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
+	   __uuidof(IAudioClient),
+	   &activateParams,
+	   handler,
+	   &asyncOp);
+
+	if (FAILED(hr))
+	{
+		//handler->Release();
+		return hr;
+	}
+
+	hr = handler->WaitAndGetResult(__uuidof(IAudioClient),
+								   reinterpret_cast<void **>(ppAudioClient));
+	//handler->Release();
+	return hr;
+}
+
 HRESULT WASAPICapture::InitializeAudioClient(
 	_In_ IMMDevice *pMMDevice,
+	_In_opt_ std::optional<DWORD> processId,
 	_Outptr_ IAudioClient **ppAudioClient)
 {
 	*ppAudioClient = nullptr;
@@ -109,13 +158,30 @@ HRESULT WASAPICapture::InitializeAudioClient(
 		LOG_ERROR(L"IMMDevice is NULL");
 		return E_FAIL;
 	}
+
 	// activate an IAudioClient
 	CComPtr<IAudioClient> pAudioClient = nullptr;
-	HRESULT hr = pMMDevice->Activate(
-		__uuidof(IAudioClient),
-		CLSCTX_ALL, NULL,
-		(void **)&pAudioClient
-	);
+	HRESULT hr = E_FAIL;
+	if (IsAudioClientActivationParamsAvailable()) {
+
+		AUDIOCLIENT_ACTIVATION_PARAMS audioclientActivationParams = {};
+		audioclientActivationParams.ActivationType = AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK;
+		audioclientActivationParams.ProcessLoopbackParams.ProcessLoopbackMode = PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE;
+		audioclientActivationParams.ProcessLoopbackParams.TargetProcessId = processId.value();
+
+		LPWSTR deviceId;
+		pMMDevice->GetId(&deviceId);
+		hr = ActivateAudioClientSync(deviceId, audioclientActivationParams, &pAudioClient);
+	}
+	else {
+		HRESULT hr = pMMDevice->Activate(
+	__uuidof(IAudioClient),
+	CLSCTX_ALL, NULL,
+	(void **)&pAudioClient
+		);
+	}
+
+
 	if (FAILED(hr)) {
 		LOG_ERROR(L"IMMDevice::Activate(IAudioClient) failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
 		return hr;
