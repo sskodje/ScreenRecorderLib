@@ -131,11 +131,11 @@ namespace TestApp.Sources
             }
         }
 
-        public CheckableRecordableWindow(string title, IntPtr handle) : base(title, handle)
+        public CheckableRecordableWindow(string title, IntPtr handle) : base(title, handle, null)
         {
 
         }
-        public CheckableRecordableWindow(RecordableWindow window) : base(window.Title, window.Handle)
+        public CheckableRecordableWindow(RecordableWindow window) : base(window.Title, window.Handle, window.Pid)
         {
 
         }

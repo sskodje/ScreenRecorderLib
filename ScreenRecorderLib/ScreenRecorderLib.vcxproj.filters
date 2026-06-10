@@ -48,10 +48,10 @@
     <ClInclude Include="Callback.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="AudioDevice.h">
+    <ClInclude Include="VideoCaptureFormat.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="VideoCaptureFormat.h">
+    <ClInclude Include="AudioSources.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

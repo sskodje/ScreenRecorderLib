@@ -31,7 +31,7 @@ namespace ScreenRecorderLib {
 		[DebuggerBrowsable(DebuggerBrowsableState::Never)]
 			CallbackNewFrameDataFunction _cb;
 		void RecordingSourceBase::FrameRecorded(int frameNumber, byte* data, int length, int width, int height) {
-				OnFrameRecorded(this, gcnew FrameDataRecordedEventArgs(frameNumber, data, length, width, height));
+			OnFrameRecorded(this, gcnew FrameDataRecordedEventArgs(frameNumber, data, length, width, height));
 		}
 
 	internal:
@@ -453,11 +453,13 @@ namespace ScreenRecorderLib {
 	public ref class RecordableWindow : WindowRecordingSource {
 	public:
 		RecordableWindow() {}
-		RecordableWindow(String^ title, IntPtr handle) :WindowRecordingSource(handle)
+		RecordableWindow(String^ title, IntPtr handle, Nullable<int> pid) :WindowRecordingSource(handle)
 		{
 			Title = title;
+			Pid = pid;
 		}
 		property String^ Title;
+		property Nullable<int> Pid;
 
 		bool IsMinmimized() {
 			return IsIconic(((HWND)Handle.ToPointer()));

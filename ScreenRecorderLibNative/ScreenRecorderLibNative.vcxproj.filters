@@ -168,6 +168,12 @@
     <ClInclude Include="AudioActivationHandler.h">
       <Filter>Header Files\Audio Capture</Filter>
     </ClInclude>
+    <ClInclude Include="AudioClientContext.h">
+      <Filter>Header Files\Audio Capture</Filter>
+    </ClInclude>
+    <ClInclude Include="AudioSample.h">
+      <Filter>Header Files\Audio Capture</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RecordingManager.cpp">

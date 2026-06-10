@@ -1,85 +1,30 @@
-#include <mmdeviceapi.h>
-#include <audioclient.h>
-#include <wrl.h>
-#include <atomic>
-#include <atlbase.h>
+#include "AudioActivationHandler.h"
 
-class AudioActivationHandler final
-	: public Microsoft::WRL::RuntimeClass<
-	Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,
-	Microsoft::WRL::FtmBase,
-	IAgileObject,
-	IActivateAudioInterfaceCompletionHandler >
+
+
+
+// Called by MakeAndInitialize (or manually)
+HRESULT AudioActivationHandler::RuntimeClassInitialize()
 {
-public:
-	AudioActivationHandler()
-		//: _event(CreateEvent(nullptr, FALSE, FALSE, nullptr))
-	{
-	}
+	_event.reset(CreateEvent(nullptr, FALSE, FALSE, nullptr));
+	return _event.get() ? S_OK : HRESULT_FROM_WIN32(GetLastError());
+}
 
-	void FinalRelease()
-	{
-		if (_event)
-		{
-			CloseHandle(_event);
-			_event = nullptr;
-		}
-	}
+STDMETHODIMP AudioActivationHandler::ActivateCompleted(
+	IActivateAudioInterfaceAsyncOperation *operation)
+{
+	HRESULT hr = operation->GetActivateResult(&_hr, &_activatedInterface);
+	SetEvent(_event.get());
+	return S_OK;
+}
 
-	// Called by MakeAndInitialize (or manually)
-	HRESULT RuntimeClassInitialize()
-	{
-		_event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-		return _event ? S_OK : HRESULT_FROM_WIN32(GetLastError());
-	}
+HRESULT AudioActivationHandler::WaitAndGetResult(REFIID iid, void **ppv)
+{
+	WaitForSingleObject(_event.get(), INFINITE);
 
-	STDMETHODIMP ActivateCompleted(
-		IActivateAudioInterfaceAsyncOperation *operation) override
-	{
-		HRESULT hr = operation->GetActivateResult(&_hr, &_activatedInterface);
-		SetEvent(_event);
-		return S_OK;
-	}
+	if (FAILED(_hr))
+		return _hr;
 
-	HRESULT WaitAndGetResult(REFIID iid, void **ppv)
-	{
-		WaitForSingleObject(_event, INFINITE);
+	return _activatedInterface->QueryInterface(iid, ppv);
+}
 
-		if (FAILED(_hr))
-			return _hr;
-
-		return _activatedInterface->QueryInterface(iid, ppv);
-	}
-
-	// IUnknown
-	STDMETHODIMP QueryInterface(REFIID riid, void **ppv) override
-	{
-		if (riid == __uuidof(IUnknown) ||
-			riid == __uuidof(IActivateAudioInterfaceCompletionHandler))
-		{
-			*ppv = static_cast<IActivateAudioInterfaceCompletionHandler *>(this);
-			AddRef();
-			return S_OK;
-		}
-		*ppv = nullptr;
-		return E_NOINTERFACE;
-	}
-
-	STDMETHODIMP_(ULONG) AddRef() override
-	{
-		return InterlockedIncrement(&_refCount);
-	}
-
-	STDMETHODIMP_(ULONG) Release() override
-	{
-		ULONG r = InterlockedDecrement(&_refCount);
-		if (r == 0) delete this;
-		return r;
-	}
-
-private:
-	LONG _refCount{ 1 };
-	HANDLE _event = nullptr;
-	HRESULT _hr = E_FAIL;
-	CComPtr<IUnknown> _activatedInterface;
-};

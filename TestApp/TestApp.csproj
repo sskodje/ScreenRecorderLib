@@ -124,7 +124,9 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="AudioRecordingSourceTemplateSelector.cs" />
     <Compile Include="BytesToKilobytesConverter.cs" />
+    <Compile Include="IsDefaultDeviceToFontWeightConverter.cs" />
     <Compile Include="RecordingSourceTemplateSelector.cs" />
     <Page Include="MainWindow.xaml">
       <Generator>MSBuild:Compile</Generator>
@@ -134,12 +136,16 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Sources\CheckableRecordableCamera.cs" />
-    <Compile Include="Sources\CheckableRecordableImage.cs" />
-    <Compile Include="Sources\CheckableRecordableVideo.cs" />
-    <Compile Include="Sources\CheckableRecordableWindow.cs" />
-    <Compile Include="Sources\CheckableRecordableDisplay.cs" />
-    <Compile Include="Sources\ICheckableRecordingSource.cs" />
+    <Compile Include="Sources\Audio\CheckableAudioProcessDevice.cs" />
+    <Compile Include="Sources\Audio\CheckableAudioLoopbackDevice.cs" />
+    <Compile Include="Sources\Audio\CheckableAudioCaptureDevice.cs" />
+    <Compile Include="Sources\Audio\ICheckableAudioRecordingSource.cs" />
+    <Compile Include="Sources\Video\CheckableRecordableCamera.cs" />
+    <Compile Include="Sources\Video\CheckableRecordableImage.cs" />
+    <Compile Include="Sources\Video\CheckableRecordableVideo.cs" />
+    <Compile Include="Sources\Video\CheckableRecordableWindow.cs" />
+    <Compile Include="Sources\Video\CheckableRecordableDisplay.cs" />
+    <Compile Include="Sources\Video\ICheckableRecordingSource.cs" />
     <Compile Include="MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
       <SubType>Code</SubType>
@@ -210,6 +216,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

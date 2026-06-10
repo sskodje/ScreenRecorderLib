@@ -86,52 +86,12 @@ std::wstring string_format(const std::wstring &format, Args ... args)
     } \
 }
 
-inline std::wstring s2ws(const std::string &str)
-{
-	if (str.empty()) return std::wstring();
-	int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), NULL, 0);
-	std::wstring wstrTo(size_needed, 0);
-	MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
-	return wstrTo;
-}
-inline std::string ws2s(const std::wstring &wstr)
-{
-	if (wstr.empty()) return std::string();
-	int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), NULL, 0, NULL, NULL);
-	std::string r(size_needed, 0);
-	WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int)wstr.size(), &r[0], size_needed, NULL, NULL);
-	return r;
-}
+std::wstring s2ws(const std::string &str);
 
+std::string ws2s(const std::wstring &wstr);
 
 // Create a string with last error message
-inline std::string GetLastErrorStdStr()
-{
-	DWORD error = GetLastError();
-	if (error)
-	{
-		LPVOID lpMsgBuf;
-		DWORD bufLen = FormatMessage(
-			FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			FORMAT_MESSAGE_FROM_SYSTEM |
-			FORMAT_MESSAGE_IGNORE_INSERTS,
-			nullptr,
-			error,
-			MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-			(LPTSTR)&lpMsgBuf,
-			0, nullptr);
-		if (bufLen)
-		{
-			LPCSTR lpMsgStr = (LPCSTR)lpMsgBuf;
-			std::string result(lpMsgStr, lpMsgStr + bufLen);
-
-			LocalFree(lpMsgBuf);
-
-			return result;
-		}
-	}
-	return std::string();
-}
+std::string GetLastErrorStdStr();
 
 // Create a string with last error message
 inline std::wstring GetLastErrorStdWstr() {
@@ -199,144 +159,18 @@ enum class ImageFileType
 	IMAGE_FILE_ICO,      // Microsoft icon format
 	IMAGE_FILE_INVALID,  // unidentified image types.
 };
-inline ImageFileType getImageTypeByMagic(const char *data)
-{
-	//if (len < 16) return IMAGE_FILE_INVALID;
+ImageFileType getImageTypeByMagic(const char *data);
 
-	// .jpg:  FF D8 FF
-	// .png:  89 50 4E 47 0D 0A 1A 0A
-	// .gif:  GIF87a      
-	//        GIF89a
-	// .tiff: 49 49 2A 00
-	//        4D 4D 00 2A
-	// .bmp:  BM 
-	// .webp: RIFF ???? WEBP 
-	// .ico   00 00 01 00
-	//        00 00 02 00 ( cursor files )
+std::string ReadFileSignature(std::wstring filePath);
 
-	switch (data[0])
-	{
-		case '\xFF':
-			return (!strncmp((const char *)data, "\xFF\xD8\xFF", 3)) ?
-				ImageFileType::IMAGE_FILE_JPG : ImageFileType::IMAGE_FILE_INVALID;
+std::string ReadFileSignature(IStream *pStream);
 
-		case '\x89':
-			return (!strncmp((const char *)data,
-				"\x89\x50\x4E\x47\x0D\x0A\x1A\x0A", 8)) ?
-				ImageFileType::IMAGE_FILE_PNG : ImageFileType::IMAGE_FILE_INVALID;
+bool IsFileAvailableForReading(std::wstring filePath);
 
-		case 'G':
-			return (!strncmp((const char *)data, "GIF87a", 6) ||
-				!strncmp((const char *)data, "GIF89a", 6)) ?
-				ImageFileType::IMAGE_FILE_GIF : ImageFileType::IMAGE_FILE_INVALID;
-
-		case 'I':
-			return (!strncmp((const char *)data, "\x49\x49\x2A\x00", 4)) ?
-				ImageFileType::IMAGE_FILE_TIFF : ImageFileType::IMAGE_FILE_INVALID;
-
-		case 'M':
-			return (!strncmp((const char *)data, "\x4D\x4D\x00\x2A", 4)) ?
-				ImageFileType::IMAGE_FILE_TIFF : ImageFileType::IMAGE_FILE_INVALID;
-
-		case 'B':
-			return ((data[1] == 'M')) ?
-				ImageFileType::IMAGE_FILE_BMP : ImageFileType::IMAGE_FILE_INVALID;
-
-		case 'R':
-			if (strncmp((const char *)data, "RIFF", 4))
-				return ImageFileType::IMAGE_FILE_INVALID;
-			if (strncmp((const char *)(data + 8), "WEBP", 4))
-				return ImageFileType::IMAGE_FILE_INVALID;
-			return ImageFileType::IMAGE_FILE_WEBP;
-
-		case '\0':
-			if (!strncmp((const char *)data, "\x00\x00\x01\x00", 4))
-				return ImageFileType::IMAGE_FILE_ICO;
-			if (!strncmp((const char *)data, "\x00\x00\x02\x00", 4))
-				return ImageFileType::IMAGE_FILE_ICO;
-			return ImageFileType::IMAGE_FILE_INVALID;
-
-		default:
-			return ImageFileType::IMAGE_FILE_INVALID;
-	}
-}
-
-inline std::string ReadFileSignature(std::wstring filePath) {
-	FILE *stream;
-	std::string signature = "";
-	_wfopen_s(&stream, filePath.c_str(), L"r");
-	if (stream) {
-		char buffer[16]{ 0 }; // Buffer to store data
-		int charNum = 16;
-		size_t count = fread(&buffer, sizeof(char), charNum, stream);
-		if (count == charNum) {
-			signature = std::string(buffer);
-		}
-		fclose(stream);
-	}
-	return signature;
-}
-
-inline std::string ReadFileSignature(IStream *pStream) {
-	std::string signature = "";
-	if (pStream) {
-		LARGE_INTEGER li = { 0 };
-		HRESULT hr = pStream->Seek(li, STREAM_SEEK_SET, 0);
-		if (FAILED(hr)) {
-			LOG_ERROR("Could not seek in source stream while reading source signature");
-			return "";
-		}
-		char buffer[16]{ 0 }; // Buffer to store data
-		int charNum = 16;
-		ULONG count;
-		hr = pStream->Read(&buffer, charNum, &count);
-		if (FAILED(hr)) {
-			LOG_ERROR("Could not read from source stream while reading source signature");
-			return "";
-		}
-		if (count == charNum) {
-			signature = std::string(buffer);
-		}
-		pStream->Seek(li, STREAM_SEEK_SET, 0);
-	}
-	return signature;
-}
-
-inline bool IsFileAvailableForReading(std::wstring filePath) {
-	FILE *stream;
-	_wfopen_s(&stream, filePath.c_str(), L"r");
-	if (stream) {
-		fclose(stream);
-		return true;
-	}
-	return false;
-}
-
-inline std::string CurrentTimeToFormattedString(bool withMilliseconds = false) {
-	SYSTEMTIME systemTime;
-	GetSystemTime(&systemTime);
-
-	FILETIME fileTime;
-	SystemTimeToFileTime(&systemTime, &fileTime);
-
-	// Convert the FILETIME to 100-nanosecond intervals since January 1, 1601
-	ULARGE_INTEGER largeInteger;
-	largeInteger.LowPart = fileTime.dwLowDateTime;
-	largeInteger.HighPart = fileTime.dwHighDateTime;
-	unsigned long long fileTime100ns = largeInteger.QuadPart;
-
-	// Convert 100-nanosecond intervals to milliseconds (divide by 10,000)
-	unsigned long long milliseconds = fileTime100ns / 10000;
-
-	// Format the time as a string with three decimal places for milliseconds
-	std::ostringstream timeStream;
-	timeStream << std::setfill('0') << std::setw(2) << systemTime.wHour << "-"
-		<< std::setfill('0') << std::setw(2) << systemTime.wMinute << "-"
-		<< std::setfill('0') << std::setw(2) << systemTime.wSecond << ".";
-	if (withMilliseconds) {
-		timeStream << std::setfill('0') << std::setw(3) << (milliseconds % 1000);
-	}
-	return timeStream.str();
-}
+std::string CurrentTimeToFormattedString(bool withMilliseconds);
 
 UINT GetSystemDpi();
+
+bool TryParseDWORD(const std::wstring &input, DWORD &result);
+
+std::wstring GetProcessNameFromPID(DWORD processID);

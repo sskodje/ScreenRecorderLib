@@ -1,4 +1,6 @@
 //https://github.com/mvaneerde/blog/tree/master/loopback-capture
+#pragma comment(lib, "Mmdevapi.lib")
+
 #include "Cleanup.h"
 #include "WASAPICapture.h"
 #include <mutex>
@@ -8,8 +10,9 @@
 #include "WASAPINotify.h"
 #include "Exception.h"
 #include <audioclientactivationparams.h>
-#include "AudioActivationHandler.cpp"
-#include <Mmdeviceapi.h>
+#include "AudioActivationHandler.h"
+
+
 using namespace std;
 
 struct WASAPICapture::TaskWrapper {
@@ -19,17 +22,19 @@ struct WASAPICapture::TaskWrapper {
 	std::thread m_ReconnectThread;
 };
 
-WASAPICapture::WASAPICapture(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptions, _In_opt_ std::wstring tag) :
-	m_DeviceId(L""),
+WASAPICapture::WASAPICapture(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptions, _In_ AUDIO_SOURCE *source) :
 	m_DeviceName(L""),
-	m_DefaultDeviceId(L""),
+	m_DeviceFriendlyName(L""),
+	m_DefaultDeviceName(L""),
 	m_Resampler(nullptr),
 	m_pEnumerator(nullptr),
 	m_Flow(eRender),
-	m_IsDefaultDevice(false)
+	m_Kind(AudioClientKind::Endpoint),
+	m_IsDefaultDevice(false),
+	m_AudioCaptureSource(nullptr)
 {
-	m_Tag = tag;
-	m_AudioOptions = audioOptions;
+	m_AudioCaptureSource = source;
+	m_AudioOptions = audioOptions.get();
 	m_TaskWrapperImpl = make_unique<TaskWrapper>();
 	m_TaskWrapperImpl->m_Notify = new WASAPINotify(this);
 	m_CaptureStartedEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
@@ -60,42 +65,19 @@ WASAPICapture::~WASAPICapture()
 	CloseHandle(m_CaptureRestartEvent);
 	CloseHandle(m_CaptureReconnectEvent);
 	CloseHandle(m_ReconnectThreadStopEvent);
+	LOG_DEBUG(L"Finalized WASAPICapture");
 }
 
-HRESULT WASAPICapture::Initialize(_In_ std::wstring deviceId, _In_ EDataFlow flow) {
-	m_Flow = flow;
-	CComPtr<IMMDevice> pDevice = nullptr;
-	if (deviceId.empty() || m_IsDefaultDevice) {
-		m_IsDefaultDevice = true;
-		RETURN_ON_BAD_HR(GetDefaultAudioDevice(flow, &pDevice));
-	}
-	else {
-		RETURN_ON_BAD_HR(GetActiveAudioDevice(deviceId.c_str(), flow, &pDevice));
-	}
-	HRESULT hr = E_FAIL;
-	if (pDevice) {
-		LPWSTR deviceId;
-		pDevice->GetId(&deviceId);
-		m_DeviceId = std::wstring(deviceId);
-		if (m_IsDefaultDevice) {
-			m_DefaultDeviceId = m_DeviceId;
-		}
-		hr = GetAudioDeviceFriendlyName(deviceId, &m_DeviceName);
-		if (FAILED(hr)) {
-			m_DeviceName = L"Unknown Device";
-		}
-		CoTaskMemFree(deviceId);
-	}
-	else {
-		LOG_ERROR("IMMDevice cannot be NULL");
-		return E_FAIL;
-	}
-
-	hr = InitializeAudioClient(pDevice, GetCurrentProcessId(), &m_AudioClient);
+HRESULT WASAPICapture::Initialize(_In_ std::wstring deviceId, _In_ AudioClientKind kind) {
+	m_Kind = kind;
+	m_Flow = AudioClientKindToDeviceFlow(kind);
+	AudioClientContext *pAudioClientContext = nullptr;
+	HRESULT hr = InitializeAudioClient(deviceId, kind, &pAudioClientContext);
 	if (SUCCEEDED(hr)) {
+		m_AudioClientContext.reset(pAudioClientContext);
 		WWMFResampler *pResampler;
-		hr = InitializeResampler(m_AudioOptions->GetAudioSamplesPerSecond(), m_AudioOptions->GetAudioChannels(), m_AudioClient, &m_InputFormat, &m_OutputFormat, &pResampler);
-		if (SUCCEEDED(hr)) {
+		HRESULT resampleHr = InitializeResampler(m_AudioOptions->GetAudioSamplesPerSecond(), m_AudioOptions->GetAudioChannels(), pAudioClientContext, &m_InputFormat, &m_OutputFormat, &pResampler);
+		if (SUCCEEDED(resampleHr)) {
 			m_Resampler.reset(pResampler);
 		}
 	}
@@ -109,7 +91,6 @@ HRESULT ActivateAudioClientSync(
 {
 	if (!ppAudioClient)
 		return E_POINTER;
-
 	*ppAudioClient = nullptr;
 
 	// Package params into PROPVARIANT
@@ -118,105 +99,151 @@ HRESULT ActivateAudioClientSync(
 	activateParams.blob.cbSize = sizeof(params);
 	activateParams.blob.pBlobData = (BYTE *)&params;
 
-	//auto handler = new (std::nothrow) AudioActivationHandler();
-	//if (!handler)
-	//	return E_OUTOFMEMORY;
-
-	AudioActivationHandler *handler;
-	HRESULT hr = Microsoft::WRL::MakeAndInitialize<AudioActivationHandler>(&handler);
+	Microsoft::WRL::ComPtr<AudioActivationHandler> audioActivationHandler;
+	HRESULT hr = Microsoft::WRL::MakeAndInitialize<AudioActivationHandler>(&audioActivationHandler);
 	if (FAILED(hr)) {
 		return hr;
 	}
-	IActivateAudioInterfaceAsyncOperation *asyncOp;
+	Microsoft::WRL::ComPtr<IActivateAudioInterfaceAsyncOperation> asyncOp;
 
 	hr = ActivateAudioInterfaceAsync(
-	   VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
+		VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
 	   __uuidof(IAudioClient),
 	   &activateParams,
-	   handler,
+	   audioActivationHandler.Get(),
 	   &asyncOp);
 
 	if (FAILED(hr))
 	{
-		//handler->Release();
+		asyncOp.Reset();
+		audioActivationHandler.Reset();
 		return hr;
 	}
+	hr = audioActivationHandler->WaitAndGetResult(__uuidof(IAudioClient), reinterpret_cast<void **>(ppAudioClient));
 
-	hr = handler->WaitAndGetResult(__uuidof(IAudioClient),
-								   reinterpret_cast<void **>(ppAudioClient));
-	//handler->Release();
+	asyncOp.Reset();
+	audioActivationHandler.Reset();
 	return hr;
 }
 
 HRESULT WASAPICapture::InitializeAudioClient(
-	_In_ IMMDevice *pMMDevice,
-	_In_opt_ std::optional<DWORD> processId,
-	_Outptr_ IAudioClient **ppAudioClient)
+	_In_ std::wstring endpointID,
+	_In_ AudioClientKind kind,
+	_Outptr_ AudioClientContext **ppAudioClient)
 {
 	*ppAudioClient = nullptr;
-	if (pMMDevice == nullptr) {
-		LOG_ERROR(L"IMMDevice is NULL");
-		return E_FAIL;
-	}
-
+	WAVEFORMATEX *pwfx;
 	// activate an IAudioClient
 	CComPtr<IAudioClient> pAudioClient = nullptr;
 	HRESULT hr = E_FAIL;
-	if (IsAudioClientActivationParamsAvailable()) {
+	if (kind == AudioClientKind::ProcessLoopback) {
+		if (!IsAudioClientActivationParamsAvailable()) {
+			LOG_ERROR("Process loopback audio capture is not supported on this version of Windows");
+			return E_FAIL;
+		}
+		DWORD processID;
+		if (!TryParseDWORD(endpointID, processID)) {
+			LOG_ERROR("Failed to parse process ID. It must be a valid number.");
+			return E_FAIL;
+		}
+		m_DeviceFriendlyName = GetProcessNameFromPID(processID);
 
 		AUDIOCLIENT_ACTIVATION_PARAMS audioclientActivationParams = {};
 		audioclientActivationParams.ActivationType = AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK;
 		audioclientActivationParams.ProcessLoopbackParams.ProcessLoopbackMode = PROCESS_LOOPBACK_MODE_INCLUDE_TARGET_PROCESS_TREE;
-		audioclientActivationParams.ProcessLoopbackParams.TargetProcessId = processId.value();
+		audioclientActivationParams.ProcessLoopbackParams.TargetProcessId = processID;
 
-		LPWSTR deviceId;
-		pMMDevice->GetId(&deviceId);
-		hr = ActivateAudioClientSync(deviceId, audioclientActivationParams, &pAudioClient);
+		hr = ActivateAudioClientSync(L"", audioclientActivationParams, &pAudioClient);
+
+		if (FAILED(hr)) {
+			LOG_ERROR(L"ActivateAudioClientSync failed on %ls: hr = 0x%08x", GetDeviceFriendlyName().c_str(), hr);
+			return hr;
+		}
+		RETURN_ON_BAD_HR(GetWaveFormat(kind, pAudioClient, true, &pwfx));
+		CoTaskMemFreeOnExit freeMixFormat(pwfx);
+		// Initialize the AudioClient in Shared Mode with the user specified buffer
+		RETURN_ON_BAD_HR(hr = pAudioClient->Initialize(
+			AUDCLNT_SHAREMODE_SHARED,
+			AUDCLNT_STREAMFLAGS_LOOPBACK,
+			AUDIO_CLIENT_BUFFER_100_NS,
+			0,
+			pwfx,
+			nullptr));
 	}
 	else {
-		HRESULT hr = pMMDevice->Activate(
-	__uuidof(IAudioClient),
-	CLSCTX_ALL, NULL,
-	(void **)&pAudioClient
-		);
-	}
+		CComPtr<IMMDevice> pDevice = nullptr;
+		if (endpointID.empty() || m_IsDefaultDevice) {
+			m_IsDefaultDevice = true;
+			RETURN_ON_BAD_HR(GetDefaultAudioDevice(m_Flow, &pDevice));
+		}
+		else {
+			RETURN_ON_BAD_HR(GetActiveAudioDevice(endpointID.c_str(), m_Flow, &pDevice));
+		}
+
+		if (pDevice) {
+			LPWSTR deviceId;
+			pDevice->GetId(&deviceId);
+			m_DeviceName = std::wstring(deviceId);
+			if (m_IsDefaultDevice) {
+				m_DefaultDeviceName = m_DeviceName;
+			}
+			hr = GetAudioDeviceFriendlyName(deviceId, &m_DeviceFriendlyName);
+			if (FAILED(hr)) {
+				m_DeviceFriendlyName = L"Unknown Device";
+			}
+			CoTaskMemFree(deviceId);
+		}
+		else {
+			LOG_ERROR("IMMDevice cannot be NULL");
+			return E_FAIL;
+		}
+		if (pDevice == nullptr) {
+			LOG_ERROR(L"IMMDevice is NULL");
+			return E_FAIL;
+		}
+		hr = pDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, (void **)&pAudioClient);
+		if (FAILED(hr)) {
+			LOG_ERROR(L"IMMDevice::Activate(IAudioClient) failed on %ls: hr = 0x%08x", GetDeviceFriendlyName().c_str(), hr);
+			return hr;
+		}
 
 
-	if (FAILED(hr)) {
-		LOG_ERROR(L"IMMDevice::Activate(IAudioClient) failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
-		return hr;
+		DWORD streamFlags = 0;
+		EDataFlow flow;
+		GetAudioDeviceFlow(pDevice, &flow);
+		switch (flow)
+		{
+			case eRender:
+			{
+				streamFlags = AUDCLNT_STREAMFLAGS_LOOPBACK;
+				break;
+			}
+			case eCapture: {
+				streamFlags = 0;
+				break;
+			}
+			default: {
+				streamFlags = AUDCLNT_STREAMFLAGS_LOOPBACK;
+				break;
+			}
+		}
+		RETURN_ON_BAD_HR(GetWaveFormat(kind, pAudioClient, true, &pwfx));
+		CoTaskMemFreeOnExit freeMixFormat(pwfx);
+		hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, streamFlags, AUDIO_CLIENT_BUFFER_100_NS, 0, pwfx, 0);
+		if (FAILED(hr)) {
+			LOG_ERROR(L"IAudioClient::Initialize failed on %ls: hr = 0x%08x", GetDeviceFriendlyName().c_str(), hr);
+			return hr;
+		}
 	}
-	WAVEFORMATEX *pwfx;
-	RETURN_ON_BAD_HR(GetWaveFormat(pAudioClient, true, &pwfx));
-	CoTaskMemFreeOnExit freeMixFormat(pwfx);
-
-	EDataFlow flow;
-	GetAudioDeviceFlow(pMMDevice, &flow);
-	switch (flow)
-	{
-		case eRender:
-			hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, AUDIO_CLIENT_BUFFER_100_NS, 0, pwfx, 0);
-			break;
-		case eCapture:
-			hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, AUDIO_CLIENT_BUFFER_100_NS, 0, pwfx, 0);
-			break;
-		default:
-			hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK, AUDIO_CLIENT_BUFFER_100_NS, 0, pwfx, 0);
-			break;
-	}
-	if (FAILED(hr)) {
-		LOG_ERROR(L"IAudioClient::Initialize failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
-		return hr;
-	}
-	*ppAudioClient = pAudioClient;
-	(*ppAudioClient)->AddRef();
+	AudioClientContext *audioClientContext = new AudioClientContext(pAudioClient, kind);
+	*ppAudioClient = audioClientContext;
 	return hr;
 }
 
 HRESULT WASAPICapture::InitializeResampler(
 	_In_ UINT32 samplerate,
 	_In_ UINT32 nChannels,
-	_In_ IAudioClient *pAudioClient,
+	_In_ AudioClientContext *pAudioClientContext,
 	_Out_ WWMFPcmFormat *audioInputFormat,
 	_Out_ WWMFPcmFormat *audioOutputFormat,
 	_Outptr_result_maybenull_ WWMFResampler **ppResampler)
@@ -227,7 +254,7 @@ HRESULT WASAPICapture::InitializeResampler(
 	UINT32 outputSampleRate;
 
 	WAVEFORMATEX *pwfx;
-	RETURN_ON_BAD_HR(GetWaveFormat(pAudioClient, true, &pwfx));
+	RETURN_ON_BAD_HR(GetWaveFormat(pAudioClientContext->kind, pAudioClientContext->client, true, &pwfx));
 	CoTaskMemFreeOnExit freeMixFormat(pwfx);
 
 	// set resampler options
@@ -265,7 +292,7 @@ HRESULT WASAPICapture::InitializeResampler(
 		|| inputFormat.nChannels != outputFormat.nChannels;
 	// initialize resampler if input sample rate or channels are different from output.
 	if (requiresResampling) {
-		LOG_DEBUG("Resampler created for %ls", m_Tag.c_str());
+		LOG_DEBUG("Resampler created for %ls", GetDeviceFriendlyName().c_str());
 		LOG_DEBUG("Resampler (bits): %u -> %u", inputFormat.bits, outputFormat.bits);
 		LOG_DEBUG("Resampler (channels): %u -> %u", inputFormat.nChannels, outputFormat.nChannels);
 		LOG_DEBUG("Resampler (sampleFormat): %i -> %i", inputFormat.sampleFormat, outputFormat.sampleFormat);
@@ -283,50 +310,71 @@ HRESULT WASAPICapture::InitializeResampler(
 }
 
 HRESULT WASAPICapture::GetWaveFormat(
-	_In_ IAudioClient *pAudioClient,
+	_In_ AudioClientKind kind,
+	_In_ CComPtr<IAudioClient> client,
 	_In_ bool bInt16,
 	_Out_ WAVEFORMATEX **pWaveFormat) {
 	// get the default device format
-	WAVEFORMATEX *pwfx;
-	HRESULT hr = pAudioClient->GetMixFormat(&pwfx);
-	if (FAILED(hr)) {
-		LOG_ERROR(L"IAudioClient::GetMixFormat failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
-		return hr;
+	HRESULT hr = E_FAIL;
+	WAVEFORMATEX *pwfx = nullptr;
+	if (kind == AudioClientKind::ProcessLoopback) {
+
+		pwfx = (WAVEFORMATEX *)CoTaskMemAlloc((sizeof(WAVEFORMATEX)));
+		if (pwfx == nullptr) {
+			return E_FAIL;
+		}
+		*pwfx = {};
+		pwfx->wFormatTag = WAVE_FORMAT_PCM;
+		pwfx->nChannels = 2;
+		pwfx->nSamplesPerSec = 44100;
+		pwfx->wBitsPerSample = 16;
+		pwfx->nBlockAlign = pwfx->nChannels * pwfx->wBitsPerSample / 8;
+		pwfx->nAvgBytesPerSec = pwfx->nBlockAlign * pwfx->nSamplesPerSec;
+		//pwfx = &wfx;
+		hr = S_OK;
 	}
+	else {
+		hr = client->GetMixFormat(&pwfx);
+		if (FAILED(hr)) {
+			LOG_ERROR(L"IAudioClient::GetMixFormat failed on %ls: hr = 0x%08x", GetDeviceFriendlyName().c_str(), hr);
+			return hr;
+		}
 
-	if (bInt16) {
-		// coerce int-16 wave format
-		// can do this in-place since we're not changing the size of the format
-		// also, the engine will auto-convert from float to int for us
-		switch (pwfx->wFormatTag) {
-			case WAVE_FORMAT_IEEE_FLOAT:
-				pwfx->wFormatTag = WAVE_FORMAT_PCM;
-				pwfx->wBitsPerSample = 16;
-				pwfx->nBlockAlign = pwfx->nChannels * pwfx->wBitsPerSample / 8;
-				pwfx->nAvgBytesPerSec = pwfx->nBlockAlign * pwfx->nSamplesPerSec;
-				break;
-
-			case WAVE_FORMAT_EXTENSIBLE:
-			{
-				// naked scope for case-local variable
-				PWAVEFORMATEXTENSIBLE pEx = reinterpret_cast<PWAVEFORMATEXTENSIBLE>(pwfx);
-				if (IsEqualGUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, pEx->SubFormat)) {
-					pEx->SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
-					pEx->Samples.wValidBitsPerSample = 16;
+		if (bInt16) {
+			// coerce int-16 wave format
+			// can do this in-place since we're not changing the size of the format
+			// also, the engine will auto-convert from float to int for us
+			switch (pwfx->wFormatTag) {
+				case WAVE_FORMAT_PCM:
+				case WAVE_FORMAT_IEEE_FLOAT: {
+					pwfx->wFormatTag = WAVE_FORMAT_PCM;
 					pwfx->wBitsPerSample = 16;
 					pwfx->nBlockAlign = pwfx->nChannels * pwfx->wBitsPerSample / 8;
 					pwfx->nAvgBytesPerSec = pwfx->nBlockAlign * pwfx->nSamplesPerSec;
+					break;
 				}
-				else {
-					LOG_ERROR(L"%s", L"Don't know how to coerce mix format to int-16");
+				case WAVE_FORMAT_EXTENSIBLE:
+				{
+					// naked scope for case-local variable
+					PWAVEFORMATEXTENSIBLE pEx = reinterpret_cast<PWAVEFORMATEXTENSIBLE>(pwfx);
+					if (IsEqualGUID(KSDATAFORMAT_SUBTYPE_IEEE_FLOAT, pEx->SubFormat)) {
+						pEx->SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+						pEx->Samples.wValidBitsPerSample = 16;
+						pwfx->wBitsPerSample = 16;
+						pwfx->nBlockAlign = pwfx->nChannels * pwfx->wBitsPerSample / 8;
+						pwfx->nAvgBytesPerSec = pwfx->nBlockAlign * pwfx->nSamplesPerSec;
+					}
+					else {
+						LOG_ERROR(L"%s", L"Don't know how to coerce mix format to int-16");
+						return E_UNEXPECTED;
+					}
+					break;
+				}
+				default: {
+					LOG_ERROR(L"Don't know how to coerce WAVEFORMATEX with wFormatTag = 0x%08x to int-16", pwfx->wFormatTag);
 					return E_UNEXPECTED;
 				}
 			}
-			break;
-
-			default:
-				LOG_ERROR(L"Don't know how to coerce WAVEFORMATEX with wFormatTag = 0x%08x to int-16", pwfx->wFormatTag);
-				return E_UNEXPECTED;
 		}
 	}
 	*pWaveFormat = pwfx;
@@ -334,19 +382,19 @@ HRESULT WASAPICapture::GetWaveFormat(
 }
 
 HRESULT WASAPICapture::StartCaptureLoop(
-		_In_ IAudioClient *pAudioClient,
+		_In_ AudioClientContext *pAudioClientContext,
 		_In_ HANDLE hStartedEvent,
 		_In_ HANDLE hStopEvent,
 		_In_ HANDLE hRestartEvent
 ) {
-	HRESULT hr = S_OK;
-	WAVEFORMATEX *pwfx;
-	RETURN_ON_BAD_HR(hr = GetWaveFormat(pAudioClient, true, &pwfx));
-	CoTaskMemFreeOnExit freeMixFormat(pwfx);
-	UINT32 nBlockAlign = pwfx->nChannels * pwfx->wBitsPerSample / 8;
+	HRESULT hr = E_FAIL;
+
+	IAudioClient *pAudioClient = pAudioClientContext->client;
+
+	UINT32 nBlockAlign = m_InputFormat.FrameBytes();
 	UINT32 nFrames = 0;
 
-	int bufferFrameCount = int(ceil(pwfx->nSamplesPerSec * HundredNanosToSeconds(AUDIO_CLIENT_BUFFER_100_NS)));
+	int bufferFrameCount = int(ceil(m_InputFormat.sampleRate * HundredNanosToSeconds(AUDIO_CLIENT_BUFFER_100_NS)));
 	int bufferByteCount = bufferFrameCount * nBlockAlign;
 	BYTE *bufferData = new BYTE[bufferByteCount]{ 0 };
 	DeleteArrayOnExit deleteBufferData(bufferData);
@@ -358,16 +406,23 @@ HRESULT WASAPICapture::StartCaptureLoop(
 			(void **)&pAudioCaptureClient
 		);
 		if (FAILED(hr)) {
-			LOG_ERROR(L"IAudioClient::GetService(IAudioCaptureClient) failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
+			LOG_ERROR(L"IAudioClient::GetService(IAudioCaptureClient) failed on %ls: hr = 0x%08x", GetDeviceFriendlyName().c_str(), hr);
 			return hr;
 		}
+		LONG lTimeBetweenFiresMillis = 0;
 
-		// get the default device periodicity
-		REFERENCE_TIME hnsDefaultDevicePeriod;
-		hr = pAudioClient->GetDevicePeriod(&hnsDefaultDevicePeriod, NULL);
-		if (FAILED(hr)) {
-			LOG_ERROR(L"IAudioClient::GetDevicePeriod failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
-			return hr;
+		if (pAudioClientContext->kind == AudioClientKind::ProcessLoopback) {
+			lTimeBetweenFiresMillis = 5;
+		}
+		else {
+			// get the default device periodicity
+			REFERENCE_TIME hnsDefaultDevicePeriod;
+			hr = pAudioClient->GetDevicePeriod(&hnsDefaultDevicePeriod, NULL);
+			if (FAILED(hr)) {
+				LOG_ERROR(L"IAudioClient::GetDevicePeriod failed on %ls: hr = 0x%08x", GetDeviceFriendlyName().c_str(), hr);
+				return hr;
+			}
+			lTimeBetweenFiresMillis = HundredNanosToMillis((LONG)hnsDefaultDevicePeriod / 2);
 		}
 
 		// create a periodic waitable timer
@@ -381,17 +436,16 @@ HRESULT WASAPICapture::StartCaptureLoop(
 
 		// set the waitable timer
 		LARGE_INTEGER liFirstFire{};
-		liFirstFire.QuadPart = -hnsDefaultDevicePeriod / 2; // negative means relative time
-		LONG lTimeBetweenFires = (LONG)hnsDefaultDevicePeriod / 2 / (10 * 1000); // convert to milliseconds
+		liFirstFire.QuadPart = -MillisToHundredNanos(lTimeBetweenFiresMillis); // negative means relative time
 		BOOL bOK = SetWaitableTimer(
 			hWakeUp,
 			&liFirstFire,
-			lTimeBetweenFires,
+			lTimeBetweenFiresMillis,
 			NULL, NULL, FALSE
 		);
 		if (!bOK) {
 			DWORD dwErr = GetLastError();
-			LOG_ERROR(L"SetWaitableTimer failed on %ls: last error = %u", m_Tag.c_str(), dwErr);
+			LOG_ERROR(L"SetWaitableTimer failed on %ls: last error = %u", GetDeviceFriendlyName().c_str(), dwErr);
 			return HRESULT_FROM_WIN32(dwErr);
 		}
 		CancelWaitableTimerOnExit cancelWakeUp(hWakeUp);
@@ -399,7 +453,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 		// call IAudioClient::Start
 		hr = pAudioClient->Start();
 		if (FAILED(hr)) {
-			LOG_ERROR(L"IAudioClient::Start failed on %ls: hr = 0x%08x", m_Tag.c_str(), hr);
+			LOG_ERROR(L"IAudioClient::Start failed on %ls: hr = 0x%08x", GetDeviceFriendlyName().c_str(), hr);
 			return hr;
 		}
 		AudioClientStopOnExit stopAudioClient(pAudioClient);
@@ -434,31 +488,31 @@ HRESULT WASAPICapture::StartCaptureLoop(
 					NULL
 				);
 				if (FAILED(hr)) {
-					LOG_ERROR(L"IAudioCaptureClient::GetBuffer failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, m_Tag.c_str(), hr);
+					LOG_ERROR(L"IAudioCaptureClient::GetBuffer failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, GetDeviceFriendlyName().c_str(), hr);
 					bDone = true;
 					continue; // exits loop
 				}
 				bool isDiscontinuity = false;
 				if ((dwFlags & (AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY)) != 0) {
 					if (bFirstPacket) {
-						LOG_DEBUG(L"Probably spurious glitch reported on first packet on %ls", m_Tag.c_str());
+						LOG_DEBUG(L"Probably spurious glitch reported on first packet on %ls", GetDeviceFriendlyName().c_str());
 					}
 					else {
-						LOG_DEBUG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames on %ls", dwFlags, nPasses, nFrames, m_Tag.c_str());
+						LOG_DEBUG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames on %ls", dwFlags, nPasses, nFrames, GetDeviceFriendlyName().c_str());
 						isDiscontinuity = true;
 					}
 				}
 				else if ((dwFlags & AUDCLNT_BUFFERFLAGS_SILENT) != 0) {
 					//Captured data should be replaced with silence as according to https://docs.microsoft.com/en-us/windows/win32/coreaudio/capturing-a-stream
-					LOG_DEBUG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames on %ls", dwFlags, nPasses, nFrames, m_Tag.c_str());
+					LOG_DEBUG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames on %ls", dwFlags, nPasses, nFrames, GetDeviceFriendlyName().c_str());
 					memset(pData, 0, sizeof(pData));
 				}
 				else if (0 != dwFlags) {
-					LOG_DEBUG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames on %ls", dwFlags, nPasses, nFrames, m_Tag.c_str());
+					LOG_DEBUG(L"IAudioCaptureClient::GetBuffer set flags to 0x%08x on pass %u after %u frames on %ls", dwFlags, nPasses, nFrames, GetDeviceFriendlyName().c_str());
 				}
 
 				if (0 == nNumFramesToRead) {
-					LOG_ERROR(L"IAudioCaptureClient::GetBuffer said to read 0 frames on pass %u after %u frames on %ls", nPasses, nFrames, m_Tag.c_str());
+					LOG_ERROR(L"IAudioCaptureClient::GetBuffer said to read 0 frames on pass %u after %u frames on %ls", nPasses, nFrames, GetDeviceFriendlyName().c_str());
 					hr = E_UNEXPECTED;
 					bDone = true;
 					continue; // exits loop
@@ -469,12 +523,13 @@ HRESULT WASAPICapture::StartCaptureLoop(
 
 				hr = pAudioCaptureClient->ReleaseBuffer(nNumFramesToRead);
 				if (FAILED(hr)) {
-					LOG_ERROR(L"IAudioCaptureClient::ReleaseBuffer failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, m_Tag.c_str(), hr);
+					LOG_ERROR(L"IAudioCaptureClient::ReleaseBuffer failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, GetDeviceFriendlyName().c_str(), hr);
 					bDone = true;
 					continue; // exits loop
 				}
 #pragma warning(disable: 26110)
-				const std::lock_guard<std::mutex> lock(m_TaskWrapperImpl->m_Mutex);
+
+				const std::scoped_lock lock(m_TaskWrapperImpl->m_Mutex, StaticMutex);
 #pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
 				if (m_RecordedBytes.size() == 0)
 					m_RecordedBytes.reserve(size);
@@ -484,7 +539,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 					UINT64 frameDiff = nDevicePosition - nLastDevicePosition;
 					if (frameDiff != nNumFramesToRead) {
 						m_RecordedBytes.insert(m_RecordedBytes.begin(), (size_t)(frameDiff * nBlockAlign), 0);
-						LOG_DEBUG(L"Discontinuity detected, padded audio bytes with %d bytes of silence on %ls", frameDiff, m_Tag.c_str());
+						LOG_DEBUG(L"Discontinuity detected, padded audio bytes with %d bytes of silence on %ls", frameDiff, GetDeviceFriendlyName().c_str());
 					}
 				}
 				nFrames += nNumFramesToRead;
@@ -493,7 +548,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 			}
 
 			if (FAILED(hr)) {
-				LOG_ERROR(L"IAudioCaptureClient::GetNextPacketSize failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, m_Tag.c_str(), hr);
+				LOG_ERROR(L"IAudioCaptureClient::GetNextPacketSize failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, GetDeviceFriendlyName().c_str(), hr);
 				bDone = true;
 				continue; // exits loop
 			}
@@ -501,20 +556,20 @@ HRESULT WASAPICapture::StartCaptureLoop(
 			dwWaitResult = WaitForMultipleObjects(ARRAYSIZE(waitArray), waitArray, FALSE, 5000);
 
 			if (WAIT_OBJECT_0 == dwWaitResult) {
-				LOG_DEBUG(L"Received stop event after %u passes and %u frames on %ls", nPasses, nFrames, m_Tag.c_str());
+				LOG_DEBUG(L"Received stop event after %u passes and %u frames on %ls", nPasses, nFrames, GetDeviceFriendlyName().c_str());
 				bDone = true;
 			}
 			else if (WAIT_OBJECT_0 + 1 == dwWaitResult) {
-				LOG_DEBUG(L"Received restart event after %u passes and %u frames on %ls", nPasses, nFrames, m_Tag.c_str());
+				LOG_DEBUG(L"Received restart event after %u passes and %u frames on %ls", nPasses, nFrames, GetDeviceFriendlyName().c_str());
 				bDone = true;
 			}
 			else if (WAIT_TIMEOUT == dwWaitResult) {
-				LOG_ERROR(L"WaitForMultipleObjects timeout on pass %u after %u frames on %ls", dwWaitResult, nPasses, nFrames, m_Tag.c_str());
+				LOG_ERROR(L"WaitForMultipleObjects timeout on pass %u after %u frames on %ls", dwWaitResult, nPasses, nFrames, GetDeviceFriendlyName().c_str());
 				hr = E_UNEXPECTED;
 				bDone = true;
 			}
 			else if (WAIT_OBJECT_0 + 2 != dwWaitResult) {
-				LOG_ERROR(L"Unexpected WaitForMultipleObjects return value %u on pass %u after %u frames on %ls", dwWaitResult, nPasses, nFrames, m_Tag.c_str());
+				LOG_ERROR(L"Unexpected WaitForMultipleObjects return value %u on pass %u after %u frames on %ls", dwWaitResult, nPasses, nFrames, GetDeviceFriendlyName().c_str());
 				hr = E_UNEXPECTED;
 				bDone = true;
 			}
@@ -527,10 +582,18 @@ std::vector<BYTE> WASAPICapture::PeakRecordedBytes()
 {
 	return m_RecordedBytes;
 }
-
-std::vector<BYTE> WASAPICapture::GetRecordedBytes(UINT64 duration100Nanos)
+int WASAPICapture::GetNextFrameCount(UINT64 duration100Nanos)
+{
+	int availableFrameCount = m_RecordedBytes.size() / m_InputFormat.FrameBytes();
+	return availableFrameCount;
+}
+std::vector<BYTE> WASAPICapture::GetRecordedBytesByDuration(UINT64 duration100Nanos)
 {
 	int frameCount = int(ceil(m_InputFormat.sampleRate * HundredNanosToSeconds(duration100Nanos)));
+	return GetRecordedBytesByFrameCount(frameCount);
+}
+std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(UINT64 frameCount)
+{
 	int frameByteCount = frameCount * m_InputFormat.FrameBytes();
 	std::vector<BYTE> newvector;
 	size_t byteCount;
@@ -539,7 +602,7 @@ std::vector<BYTE> WASAPICapture::GetRecordedBytes(UINT64 duration100Nanos)
 		byteCount = min(frameByteCount, m_RecordedBytes.size());
 		newvector = std::vector<BYTE>(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
 		m_RecordedBytes.erase(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
-		LOG_TRACE(L"Got %d bytes from WASAPICapture %ls. %d bytes remaining", newvector.size(), m_Tag.c_str(), m_RecordedBytes.size());
+		LOG_TRACE(L"Got %d bytes from WASAPICapture %ls. %d bytes remaining", newvector.size(), GetDeviceFriendlyName().c_str(), m_RecordedBytes.size());
 
 		// convert audio
 		if (m_Resampler && byteCount > 0) {
@@ -556,10 +619,6 @@ std::vector<BYTE> WASAPICapture::GetRecordedBytes(UINT64 duration100Nanos)
 			sampleData.Release();
 		}
 	}
-	if (m_OverflowBytes.size() > 0) {
-		newvector.insert(newvector.begin(), m_OverflowBytes.begin(), m_OverflowBytes.end());
-		m_OverflowBytes.clear();
-	}
 
 	return newvector;
 }
@@ -574,8 +633,8 @@ HRESULT WASAPICapture::StartCapture()
 	if (m_IsOffline.load()) {
 		return E_ABORT;
 	}
-	if (!m_AudioClient) {
-		HRESULT hr = Initialize(m_DeviceId, m_Flow);
+	if (!m_AudioClientContext) {
+		HRESULT hr = Initialize(m_DeviceName, m_Kind);
 		if (FAILED(hr)) {
 			if (hr == E_NOTFOUND) {
 				SetOffline(true);
@@ -595,19 +654,23 @@ HRESULT WASAPICapture::StartCapture()
 	m_TaskWrapperImpl->m_CaptureThread = std::thread([&]() {
 		LOG_TRACE("WASAPICapture thread started");
 		HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+		CoUninitializeOnExit coUninitialize;
 		_set_se_translator(ExceptionTranslator);
 		// register with MMCSS
 		DWORD nTaskIndex = 0;
 		HANDLE hTask = AvSetMmThreadCharacteristics(L"Audio", &nTaskIndex);
+		if (hTask != NULL) {
+			AvSetMmThreadPriority(hTask, AVRT_PRIORITY_HIGH);
+		}
 		if (NULL == hTask) {
 			DWORD dwErr = GetLastError();
-			LOG_ERROR(L"AvSetMmThreadCharacteristics failed on %ls: last error = %u", m_Tag.c_str(), dwErr);
+			LOG_ERROR(L"AvSetMmThreadCharacteristics failed on %ls: last error = %u", GetDeviceFriendlyName().c_str(), dwErr);
 			return HRESULT_FROM_WIN32(dwErr);
 		}
 		AvRevertMmThreadCharacteristicsOnExit unregisterMmcss(hTask);
 		try {
 			if (SUCCEEDED(hr)) {
-				hr = StartCaptureLoop(m_AudioClient, m_CaptureStartedEvent, m_CaptureStopEvent, m_CaptureRestartEvent);
+				hr = StartCaptureLoop(m_AudioClientContext.get(), m_CaptureStartedEvent, m_CaptureStopEvent, m_CaptureRestartEvent);
 			}
 			if (FAILED(hr)) {
 				LOG_ERROR(L"Audio capture loop failed to start: hr = 0x%08x", hr);
@@ -622,8 +685,6 @@ HRESULT WASAPICapture::StartCapture()
 			LOG_ERROR(L"Exception in WASAPICapture");
 		}
 		m_IsCapturing.store(false);
-		CoUninitialize();
-		m_AudioClient.Release();
 		bool isStop = WaitForSingleObjectEx(m_CaptureStopEvent, 0, FALSE) == WAIT_OBJECT_0;
 		bool isRestart = WaitForSingleObjectEx(m_CaptureRestartEvent, 0, FALSE) == WAIT_OBJECT_0;
 
@@ -716,11 +777,6 @@ bool WASAPICapture::StopListeners() {
 	return true;
 }
 
-void WASAPICapture::ReturnAudioBytesToBuffer(std::vector<BYTE> bytes)
-{
-	m_OverflowBytes.swap(bytes);
-	LOG_TRACE(L"Returned %d bytes to buffer in WASAPICapture %ls", m_OverflowBytes.size(), m_Tag.c_str());
-}
 
 void WASAPICapture::SetDefaultDevice(EDataFlow flow, ERole role, LPCWSTR id)
 {
@@ -733,17 +789,17 @@ void WASAPICapture::SetDefaultDevice(EDataFlow flow, ERole role, LPCWSTR id)
 		return;
 
 	if (id) {
-		if (m_DefaultDeviceId.compare(id) == 0)
+		if (m_DefaultDeviceName.compare(id) == 0)
 			return;
-		m_DefaultDeviceId = id;
+		m_DefaultDeviceName = id;
 	}
 	else {
-		if (m_DefaultDeviceId.empty())
+		if (m_DefaultDeviceName.empty())
 			return;
-		m_DefaultDeviceId.clear();
+		m_DefaultDeviceName.clear();
 	}
 	SetOffline(false);
-	LOG_INFO("WASAPI: Default %s device changed", m_Tag.c_str());
+	LOG_INFO("WASAPI: Default %s device changed", GetDeviceFriendlyName().c_str());
 	SetEvent(m_CaptureRestartEvent);
 }
 

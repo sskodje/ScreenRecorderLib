@@ -213,6 +213,13 @@ enum class RecordingSourceApi {
 	WindowsGraphicsCapture
 };
 
+enum class AudioClientKind
+{
+	Endpoint,
+	EndpointLoopback,
+	ProcessLoopback
+};
+
 struct RECORDING_SOURCE_BASE abstract {
 private:
 	std::vector<CallbackNewFrameDataFunction> m_NewFrameDataCallbacks;
@@ -426,6 +433,38 @@ struct OVERLAY_THREAD {
 	OVERLAY_THREAD_DATA *ThreadData{ nullptr };
 };
 
+struct AUDIO_SOURCE {
+	std::wstring ID;
+	std::wstring DeviceName;
+	AudioClientKind Kind;
+	bool IsEnabled;
+	float OutputVolumeModifier;
+	bool ForceMono;
+	int MasterChannel;
+
+	AUDIO_SOURCE() :
+		Kind(AudioClientKind::EndpointLoopback),
+		DeviceName(L""),
+		IsEnabled(true),
+		OutputVolumeModifier(1.0),
+		ForceMono(false),
+		MasterChannel(0) {
+
+	}
+
+	AUDIO_SOURCE(std::wstring id, AudioClientKind kind) :AUDIO_SOURCE() {
+		ID = id;
+		Kind = kind;
+	}
+
+	friend bool operator== (const AUDIO_SOURCE &a, const AUDIO_SOURCE &b) {
+		return a.ID == b.ID;
+	}
+	friend bool operator!= (const AUDIO_SOURCE &a, const AUDIO_SOURCE &b) {
+		return !(a.ID == b.ID);
+	}
+};
+
 struct MOUSE_OPTIONS {
 protected:
 	bool m_IsMouseClicksDetected = false;
@@ -464,20 +503,23 @@ protected:
 	const UINT32 AUDIO_SAMPLES_PER_SECOND = 48000;//Audio samples per seconds must be 44100 or 48000.
 #pragma endregion
 
-	std::wstring m_AudioOutputDevice = L"";
-	std::wstring m_AudioInputDevice = L"";
+	std::vector<AUDIO_SOURCE *> m_AudioSources;
 	bool m_IsAudioEnabled = false;
-	bool m_IsOutputDeviceEnabled = true;
-	bool m_IsInputDeviceEnabled = true;
 	bool m_IsInputDeviceDownmixingEnabled = true;
-	UINT32 m_AudioBitrate = (96 / 8) * 1000; //Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
-	UINT32 m_AudioChannels = 2; //Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
-	float m_OutputVolumeModifier = 1;
-	float m_InputVolumeModifier = 1;
+	UINT32 m_AudioBitrate = (96 / 8) * 1000;	//Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
+	UINT32 m_AudioChannels = 2;					//Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
+	float m_MasterVolumeModifier = 1;
 	UINT32 m_InputMasterChannel = 0;
 
 	void Notify(HANDLE h) {
 		SetEvent(h);
+	}
+	inline void ClearAudioSources() {
+		for each (AUDIO_SOURCE * source in m_AudioSources)
+		{
+			delete source;
+		}
+		m_AudioSources.clear();
 	}
 public:
 	HANDLE OnPropertyChangedEvent;
@@ -485,34 +527,53 @@ public:
 		OnPropertyChangedEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 	}
 	~AUDIO_OPTIONS() {
+		ClearAudioSources();
 		CloseHandle(OnPropertyChangedEvent);
 	}
-	void SetInputVolume(float volume) { m_InputVolumeModifier = volume; Notify(OnPropertyChangedEvent); }
-	void SetOutputVolume(float volume) { m_OutputVolumeModifier = volume; Notify(OnPropertyChangedEvent); }
+	void Notify() { Notify(OnPropertyChangedEvent); }
+	void SetMasterVolume(float volume) { m_MasterVolumeModifier = volume; }
 	void SetAudioBitrate(UINT32 bitrate) { m_AudioBitrate = bitrate; Notify(OnPropertyChangedEvent); }
 	void SetAudioChannels(UINT32 channels) { m_AudioChannels = channels; Notify(OnPropertyChangedEvent); }
-	void SetOutputDevice(std::wstring string) { m_AudioOutputDevice = string; Notify(OnPropertyChangedEvent); }
-	void SetInputDevice(std::wstring string) { m_AudioInputDevice = string; Notify(OnPropertyChangedEvent); }
 	void SetAudioEnabled(bool value) { m_IsAudioEnabled = value; Notify(OnPropertyChangedEvent); }
-	void SetOutputDeviceEnabled(bool value) { m_IsOutputDeviceEnabled = value; Notify(OnPropertyChangedEvent); }
-	void SetInputDeviceEnabled(bool value) { m_IsInputDeviceEnabled = value; Notify(OnPropertyChangedEvent); }
 	void SetInputDeviceDownmixingEnabled(bool value) { m_IsInputDeviceDownmixingEnabled = value; Notify(OnPropertyChangedEvent); }
 	void SetInputDeviceMasterChannel(int value) { m_InputMasterChannel = value; Notify(OnPropertyChangedEvent); }
+	void SetAudioSources(std::vector<AUDIO_SOURCE> sources, std::optional<bool> notify = true) {
 
-	std::wstring GetAudioOutputDevice() { return m_AudioOutputDevice; }
-	std::wstring GetAudioInputDevice() { return m_AudioInputDevice; }
+		bool itemsChanged = false;
+		if (sources.size() != m_AudioSources.size()) {
+			itemsChanged = true;
+		}
+		else {
+			for each (AUDIO_SOURCE * source in m_AudioSources)
+			{
+				for (int i = 0; i < sources.size(); i++)
+					if (*m_AudioSources[i] != sources[i])
+					{
+						itemsChanged = true;
+						break;
+					}
+			}
+		}
+		ClearAudioSources();
+		for each (AUDIO_SOURCE source in sources)
+		{
+			m_AudioSources.push_back(new AUDIO_SOURCE(source));
+		}
+		if (notify.value_or(true) && itemsChanged) {
+			Notify(OnPropertyChangedEvent);
+		}
+	}
+
 	bool IsAudioEnabled() { return m_IsAudioEnabled; }
 	UINT32 GetAudioBitrate() { return m_AudioBitrate; }
 	UINT32 GetAudioChannels() { return m_AudioChannels; }
-	float GetOutputVolume() { return m_OutputVolumeModifier; }
-	float GetInputVolume() { return m_InputVolumeModifier; }
-	bool IsOutputDeviceEnabled() { return m_IsOutputDeviceEnabled; }
-	bool IsInputDeviceEnabled() { return m_IsInputDeviceEnabled; }
+	float GetMasterVolume() { return m_MasterVolumeModifier; }
 	bool IsInputDeviceDownmixingEnabled() { return m_IsInputDeviceDownmixingEnabled; }
 	GUID GetAudioEncoderFormat() { return AUDIO_ENCODING_FORMAT; }
 	UINT32 GetAudioBitsPerSample() { return AUDIO_BITS_PER_SAMPLE; }
 	UINT32 GetAudioSamplesPerSecond() { return AUDIO_SAMPLES_PER_SECOND; }
-	UINT32 getInputMasterChannel() { return m_InputMasterChannel; }
+	UINT32 GetInputMasterChannel() { return m_InputMasterChannel; }
+	std::vector<AUDIO_SOURCE *> &GetAudioSources() { return m_AudioSources; }
 };
 
 struct OUTPUT_OPTIONS {

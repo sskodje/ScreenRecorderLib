@@ -635,7 +635,7 @@ namespace ScreenRecorderLib
                 using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                 {
                     RecorderOptions options = new RecorderOptions();
-                    options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled = true };
+                    options.AudioOptions = new AudioOptions { IsAudioEnabled = true, AudioSources = new List<AudioSourceBase> { CaptureAudioSource.Default } };
                     using (var rec = Recorder.CreateRecorder(options))
                     {
                         string error = "";
@@ -690,7 +690,11 @@ namespace ScreenRecorderLib
                 using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                 {
                     RecorderOptions options = new RecorderOptions();
-                    options.AudioOptions = new AudioOptions { IsAudioEnabled = true, IsInputDeviceEnabled = true, IsOutputDeviceEnabled = true };
+                    options.AudioOptions = new AudioOptions
+                    {
+                        IsAudioEnabled = true,
+                        AudioSources = new List<AudioSourceBase> { LoopbackAudioSource.Default, CaptureAudioSource.Default }
+                    };
                     using (var rec = Recorder.CreateRecorder(options))
                     {
                         string error = "";
@@ -1898,7 +1902,6 @@ namespace ScreenRecorderLib
                             SourceRect = new ScreenRect(0, 0, 500, 500)
                         })
                         .SetDynamicOutputOptions(new DynamicOutputOptions { IsVideoCaptureEnabled = false })
-                        .SetDynamicAudioOptions(new DynamicAudioOptions { IsOutputDeviceEnabled = false })
                         .SetDynamicMouseOptions(new DynamicMouseOptions { IsMousePointerEnabled = false })
                         .Apply();
                     recordingResetEvent.WaitOne(500);

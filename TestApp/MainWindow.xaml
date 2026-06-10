@@ -16,10 +16,12 @@
         WindowStartupLocation="CenterScreen"
         Activated="MainWin_Activated">
     <Window.Resources>
+        <local:AudioRecordingSourceTemplateSelector x:Key="AudioRecordingSourceTemplateSelector" />
         <local:RecordingSourceTemplateSelector x:Key="RecordingSourceTemplateSelector" />
         <local:OverlayTemplateSelector x:Key="OverlayTemplateSelector" />
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <local:BytesToKilobytesConverter x:Key="BytesToKilobytesConverter" />
+        <local:IsDefaultDeviceToFontWeightConverter x:Key="IsDefaultDeviceToFontWeightConverter" />
         <sources:MediaDeviceToDeviceIdConverter x:Key="MediaDeviceToDeviceIdConverter" />
         <sources:RecordableDisplayToDeviceIdConverter x:Key="RecordableDisplayToDeviceIdConverter" />
         <sources:RecordableWindowToHandleConverter x:Key="RecordableWindowToHandleConverter" />
@@ -108,6 +110,11 @@
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
 
+
+        <CollectionViewSource x:Key="AudioRecordingSourcesViewSource"
+                              Source="{Binding ElementName=MainWin,Path=AudioRecordingSources }"
+                              IsLiveSortingRequested="True">
+        </CollectionViewSource>
         <CollectionViewSource x:Key="RecordingSourcesViewSource"
                               Source="{Binding ElementName=MainWin,Path=RecordingSources }"
                               IsLiveSortingRequested="True">
@@ -115,6 +122,11 @@
         <CollectionViewSource x:Key="SelectedRecordingSourcesViewSource"
                               Source="{Binding ElementName=MainWin,Path=RecordingSources }"
                               Filter="SelectedRecordingSourcesViewSource_Filter"
+                              IsLiveSortingRequested="True">
+        </CollectionViewSource>
+        <CollectionViewSource x:Key="SelectedAudioRecordingSourcesViewSource"
+                              Source="{Binding ElementName=MainWin,Path=AudioRecordingSources }"
+                              Filter="SelectedAudioRecordingSourcesViewSource_Filter"
                               IsLiveSortingRequested="True">
         </CollectionViewSource>
         <CollectionViewSource x:Key="SelectedPreviewRecordingSourcesViewSource"
@@ -169,7 +181,7 @@
                                               Width="20" />
                                     <TextBlock FontFamily="Arial">
                                         <TextBlock.Text>
-                                            <MultiBinding StringFormat="{}[Display ]  {0} [{1},{2}] ({3} x {4})]">
+                                            <MultiBinding StringFormat="{}[Display]  {0} [{1},{2}] ({3} x {4})]">
                                                 <Binding />
                                                 <Binding  Path="Position.Left"
                                                           UpdateSourceTrigger="PropertyChanged" />
@@ -303,7 +315,8 @@
                          x:Name="RecordingSourceListBox"
                          HorizontalContentAlignment="Stretch"
                          ItemTemplateSelector="{StaticResource RecordingSourceTemplateSelector}"
-                         Visibility="{Binding Source={StaticResource SelectedRecordingSourcesViewSource}}">
+                         Visibility="{Binding Source={StaticResource SelectedRecordingSourcesViewSource}}"
+                         d:ItemsSource="{d:SampleData ItemCount=5}">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="{x:Type ListBoxItem}">
                             <Setter Property="Focusable"
@@ -839,7 +852,8 @@
                                     <CheckBox Content="Take snapshots with Video"
                                               x:Name="CheckBoxSnapshotsWithVideo"
                                               IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.SnapshotOptions.SnapshotsWithVideo}"
-                                              Margin="0,10,0,0" />
+                                              Margin="0,10,0,0"
+                                              FontWeight="SemiBold" />
                                 </StackPanel>
                             </StackPanel>
                             <StackPanel x:Name="SnapshotOptionsPanel">
@@ -875,6 +889,17 @@
                                       x:Name="CheckBoxRecordToStream"
                                       IsChecked="{Binding ElementName=MainWin,Path=RecordToStream}"
                                       Margin="0,10,0,0" />
+                            <CheckBox Content="Exclude this window from capture"
+                                      x:Name="CheckBoxExclude"
+                                      HorizontalAlignment="Left"
+                                      IsChecked="{Binding ElementName=MainWin,Path=IsExcludeWindowEnabled}"
+                                      Margin="0" />
+
+                            <CheckBox Content="Enable output frame preview"
+                                      x:Name="CheckBoxShowOutputPreview"
+                                      HorizontalAlignment="Left"
+                                      IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.IsVideoFramePreviewEnabled}"
+                                      Margin="0" />
                         </StackPanel>
                         <Grid Margin="25,0,0,0"
                               Grid.Column="1">
@@ -991,137 +1016,250 @@
                                     VerticalAlignment="Top" />
                         </Grid>
                     </Grid>
-
-                    <Grid Margin="0,10"
-                          x:Name="AudioPanel">
+                </StackPanel>
+                <StackPanel HorizontalAlignment="Center">
+                    <CheckBox IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.AudioOptions.IsAudioEnabled}"
+                              x:Name="CheckBoxIsAudioEnabled"
+                              VerticalAlignment="Center"
+                              Content="Record audio"
+                              Margin="0,10"
+                              FontWeight="Bold" />
+                    <Grid x:Name="AudioPanel"
+                          d:Visibility="Visible"
+                          Visibility="{Binding ElementName=CheckBoxIsAudioEnabled, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="0.5*" />
-                            <ColumnDefinition Width="0.5*" />
-                        </Grid.ColumnDefinitions>
-                        <CheckBox IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.AudioOptions.IsAudioEnabled}"
-                                  x:Name="CheckBoxIsAudioEnabled"
-                                  VerticalAlignment="Center"
-                                  Content="Record audio" />
-                        <StackPanel Orientation="Horizontal"
-                                    x:Name="AudioOutPanel"
-                                    Grid.Row="1">
-                            <CheckBox Content="Audio out"
-                                      Width="85"
-                                      IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.AudioOptions.IsOutputDeviceEnabled,Mode=TwoWay}"
-                                      VerticalAlignment="Center" />
-                            <ComboBox x:Name="AudioOutputsComboBox"
-                                      MinWidth="100"
-                                      MaxWidth="155"
-                                      Margin="0,5,5,5"
-                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioOutputsList}"
-                                      DisplayMemberPath="FriendlyName"
-                                      SelectedValuePath="DeviceName"
-                                      SelectedValue="{Binding ElementName=MainWin, Path=RecorderOptions.AudioOptions.AudioOutputDevice}"
-                                      SelectedIndex="0"
-                                      VerticalAlignment="Top" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal"
-                                    Grid.Row="2"
-                                    x:Name="AudioInPanel">
-                            <CheckBox Content="Audio in"
-                                      IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.AudioOptions.IsInputDeviceEnabled,Mode=TwoWay}"
-                                      Width="85"
-                                      VerticalAlignment="Center" />
-                            <ComboBox x:Name="AudioInputsComboBox"
-                                      MinWidth="100"
-                                      MaxWidth="155"
-                                      Margin="0,5,5,5"
-                                      ItemsSource="{Binding ElementName=MainWin,Path=AudioInputsList}"
-                                      DisplayMemberPath="FriendlyName"
-                                      SelectedValuePath="DeviceName"
-                                      SelectedValue="{Binding ElementName=MainWin,Path=RecorderOptions.AudioOptions.AudioInputDevice}"
-                                      SelectedIndex="0"
-                                      VerticalAlignment="Top" />
-                            <CheckBox Content="Force mono"
-                                      x:Name="CheckBoxDownmixInput"
-                                      IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.AudioOptions.ForceInputDeviceMono,Mode=TwoWay}"
-                                      ToolTip="Pick one of the channels of the input device, and copy it to all audio channels on the video."
-                                      Margin="0,0,5,0"
-                                      VerticalAlignment="Center" />
-                            <StackPanel VerticalAlignment="Center"
-                                        Orientation="Horizontal"
-                                        Visibility="{Binding ElementName=CheckBoxDownmixInput, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <Label Content="Channel"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,3,0"
-                                       Padding="0" />
-                                <TextBox x:Name="MonoChannelTextBox"
-                                         MinWidth="20"
-                                         Text="{Binding ElementName=MainWin,Path=RecorderOptions.AudioOptions.InputDeviceMasterChannel,Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         HorizontalAlignment="Left"
-                                         VerticalAlignment="Center" />
-                            </StackPanel>
-                        </StackPanel>
-                        <Grid Grid.Column="1"
-                              Grid.Row="1">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Label Content="0%" />
 
-                            <Slider Name="OutputVolumeSlider"
-                                    Orientation="Horizontal"
+
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center">
+                            <ComboBox x:Name="AudioSourceComboBox"
+                                      Margin="5"
+                                      Width="350"
+                                      IsEditable="True"
+                                      IsReadOnly="True"
+                                      SelectedItem="{Binding ElementName=MainWin,Path=SelectedAudioRecordingSource}"
+                                      ItemsSource="{Binding Source={StaticResource AudioRecordingSourcesViewSource}}"
+                                      SelectionChanged="AudioSourceComboBox_SelectionChanged"
+                                      ItemTemplateSelector="{StaticResource AudioRecordingSourceTemplateSelector}">
+                                <ComboBox.Resources>
+                                    <DataTemplate x:Key="LoopbackAudioSourceTemplate">
+                                        <StackPanel Orientation="Horizontal">
+
+                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                      Checked="AudioCaptureSourceCheckBox_CheckedChanged"
+                                                      Unchecked="AudioCaptureSourceCheckBox_CheckedChanged"
+                                                      IsEnabled="{Binding IsCheckable}"
+                                                      Width="20" />
+                                            <TextBlock FontFamily="Arial" FontWeight="{Binding IsDefaultDevice,Converter={StaticResource IsDefaultDeviceToFontWeightConverter}}">
+                                                <TextBlock.Text>
+                                                    <MultiBinding StringFormat="{}[Loopback]  {0}]">
+                                                        <Binding />
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                    <DataTemplate x:Key="CaptureAudioSourceTemplate">
+                                        <StackPanel Orientation="Horizontal">
+                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                      Checked="AudioCaptureSourceCheckBox_CheckedChanged"
+                                                      Unchecked="AudioCaptureSourceCheckBox_CheckedChanged"
+                                                      IsEnabled="{Binding IsCheckable}"
+                                                      Width="20" />
+
+                                            <TextBlock FontFamily="Arial"
+                                                       FontWeight="{Binding IsDefaultDevice,Converter={StaticResource IsDefaultDeviceToFontWeightConverter}}">
+                                                <TextBlock.Text>
+                                                    <MultiBinding StringFormat="{}[Capture]  {0}]">
+                                                        <Binding />
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                    <DataTemplate x:Key="ProcessAudioSourceTemplate">
+                                        <StackPanel Orientation="Horizontal">
+                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                      Checked="AudioCaptureSourceCheckBox_CheckedChanged"
+                                                      Unchecked="AudioCaptureSourceCheckBox_CheckedChanged"
+                                                      IsEnabled="{Binding IsCheckable}"
+                                                      Width="20" />
+
+                                            <TextBlock FontFamily="Arial">
+                                                <TextBlock.Text>
+                                                    <MultiBinding StringFormat="{}[Process]  {0}]">
+                                                        <Binding />
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </DataTemplate>
+
+                                </ComboBox.Resources>
+                            </ComboBox>
+                            <Button HorizontalAlignment="Left"
+                                    Margin="5,5"
+                                    MinWidth="90"
                                     Grid.Column="1"
-                                    Foreground="Blue"
-                                    Margin="0,5,5,5"
-                                    Maximum="1"
-                                    MinWidth="60"
-                                    TickPlacement="BottomRight"
-                                    Value="{Binding ElementName=MainWin, Path=RecorderOptions.AudioOptions.OutputVolume}"
-                                    TickFrequency="0.1" />
-                            <Label Content="100%"
-                                   Grid.Column="2" />
-                        </Grid>
-                        <Grid Grid.Column="1"
-                              Grid.Row="2">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Label Content="0%" />
-                            <Slider Name="InputVolumeSlider"
-                                    Orientation="Horizontal"
-                                    Grid.Column="1"
-                                    Foreground="Blue"
-                                    Margin="0,5,5,5"
-                                    Maximum="1"
-                                    MinWidth="60"
-                                    TickPlacement="BottomRight"
-                                    Value="{Binding ElementName=MainWin, Path=RecorderOptions.AudioOptions.InputVolume}"
-                                    TickFrequency="0.1" />
-                            <Label Content="100%"
-                                   Grid.Column="2" />
-                        </Grid>
+                                    Content="Refresh targets"
+                                    Click="RefreshAudioSourcesButton_Click" />
+                        </StackPanel>
+
+                        <ListBox ItemsSource="{Binding Source={StaticResource SelectedAudioRecordingSourcesViewSource}}"
+                                 MaxHeight="140"
+                                 MinHeight="2"
+                                 Grid.Row="2"
+                                 x:Name="AudioRecordingSourceListBox"
+                                 HorizontalContentAlignment="Stretch"
+                                 ItemTemplateSelector="{StaticResource AudioRecordingSourceTemplateSelector}"
+                                 Visibility="{Binding Source={StaticResource SelectedAudioRecordingSourcesViewSource}}"
+                                 d:ItemsSource="{d:SampleData ItemCount=5}">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="{x:Type ListBoxItem}">
+                                    <Setter Property="Focusable"
+                                            Value="False" />
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.Resources>
+                                <DataTemplate x:Key="LoopbackAudioSourceTemplate">
+                                    <StackPanel Orientation="Horizontal">
+
+                                        <TextBlock Text="{Binding}"
+                                                   Width="200"
+                                                   FontWeight="{Binding IsDefaultDevice,Converter={StaticResource IsDefaultDeviceToFontWeightConverter}}"
+                                                   ToolTip="{Binding}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <CheckBox Content="Enabled"
+                                                  Margin="10,0,5,0"
+                                                  IsChecked="{Binding IsAudioCaptureEnabled,Mode=TwoWay}"
+                                                  VerticalAlignment="Center" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Label Content="0%" />
+
+                                            <Slider Name="OutputVolumeSlider"
+                                                    Orientation="Horizontal"
+                                                    Grid.Column="1"
+                                                    Foreground="Blue"
+                                                    Margin="0,5,5,5"
+                                                    Maximum="1"
+                                                    Width="100"
+                                                    TickPlacement="BottomRight"
+                                                    Value="{Binding Volume,Mode=TwoWay}"
+                                                    TickFrequency="0.1" />
+                                            <Label Content="100%"
+                                                   Grid.Column="2" />
+                                        </Grid>
+                                    </StackPanel>
+                                </DataTemplate>
+                                <DataTemplate x:Key="CaptureAudioSourceTemplate">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding}"
+                                                   Width="200"
+                                                   ToolTip="{Binding}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <CheckBox Content="Enabled"
+                                                  IsChecked="{Binding IsAudioCaptureEnabled,Mode=TwoWay}"
+                                                  Margin="10,0,5,0"
+                                                  VerticalAlignment="Center" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Label Content="0%" />
+
+                                            <Slider Name="OutputVolumeSlider"
+                                                    Orientation="Horizontal"
+                                                    Grid.Column="1"
+                                                    Foreground="Blue"
+                                                    Margin="0,5,5,5"
+                                                    Maximum="1"
+                                                    Width="100"
+                                                    TickPlacement="BottomRight"
+                                                    Value="{Binding Volume,Mode=TwoWay}"
+                                                    TickFrequency="0.1" />
+                                            <Label Content="100%"
+                                                   Grid.Column="2" />
+                                        </Grid>
+                                        <CheckBox Content="Force mono"
+                                                  x:Name="CheckBoxDownmixInput"
+                                                  IsChecked="{Binding ForceMono,Mode=TwoWay}"
+                                                  ToolTip="Pick one of the channels of the input device, and copy it to all audio channels on the video."
+                                                  Margin="0,0,5,0"
+                                                  VerticalAlignment="Center" />
+                                        <StackPanel VerticalAlignment="Center"
+                                                    Orientation="Horizontal"
+                                                    Visibility="{Binding ElementName=CheckBoxDownmixInput, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Label Content="Channel"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,3,0"
+                                                   Padding="0" />
+                                            <TextBox x:Name="MonoChannelTextBox"
+                                                     MinWidth="20"
+                                                     Text="{Binding InputDeviceMasterChannel,Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     HorizontalAlignment="Left"
+                                                     VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </DataTemplate>
+                                <DataTemplate x:Key="ProcessAudioSourceTemplate">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding}"
+                                                   Width="200"
+                                                   ToolTip="{Binding}"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <CheckBox Content="Enabled"
+                                                  Margin="10,0,5,0"
+                                                  IsChecked="{Binding IsAudioCaptureEnabled,Mode=TwoWay}"
+                                                  VerticalAlignment="Center" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <Label Content="0%" />
+
+                                            <Slider Name="OutputVolumeSlider"
+                                                    Orientation="Horizontal"
+                                                    Grid.Column="1"
+                                                    Foreground="Blue"
+                                                    Margin="0,5,5,5"
+                                                    Maximum="1"
+                                                    Width="100"
+                                                    TickPlacement="BottomRight"
+                                                    Value="{Binding Volume,Mode=TwoWay}"
+                                                    TickFrequency="0.1" />
+                                            <Label Content="100%"
+                                                   Grid.Column="2" />
+                                        </Grid>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.Resources>
+                        </ListBox>
                     </Grid>
-                    <CheckBox Content="Exclude this window from capture"
-                              x:Name="CheckBoxExclude"
-                              HorizontalAlignment="Left"
-                              IsChecked="{Binding ElementName=MainWin,Path=IsExcludeWindowEnabled}"
-                              Margin="0" />
 
-                    <CheckBox Content="Enable output frame preview"
-                              x:Name="CheckBoxShowOutputPreview"
-                              HorizontalAlignment="Left"
-                              IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.OutputOptions.IsVideoFramePreviewEnabled}"
-                              Margin="0" />
                     <CheckBox x:Name="CheckBoxEnableOverlays"
                               HorizontalAlignment="Left"
-                              Content="Add overlays" />
+                              Content="Add overlays"
+                              FontWeight="Bold"
+                              Margin="0,10" />
                 </StackPanel>
-                <StackPanel Visibility="{Binding ElementName=CheckBoxEnableOverlays, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel Visibility="{Binding ElementName=CheckBoxEnableOverlays, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            d:Visibility="Visible">
                     <ListView ItemsSource="{Binding ElementName=MainWin,Path=Overlays}"
                               x:Name="OverlaysListView"
                               HorizontalContentAlignment="Stretch"

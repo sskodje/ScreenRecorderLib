@@ -1,10 +1,11 @@
 ﻿using ScreenRecorderLib;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Linq;
 
 
 class Program
@@ -19,7 +20,7 @@ class Program
             {
                 RecordingSources = { { source } }
             },
-            AudioOptions = new AudioOptions { IsInputDeviceEnabled = true, IsOutputDeviceEnabled = true, IsAudioEnabled=true }
+            AudioOptions = new AudioOptions { IsAudioEnabled = true, AudioSources = new List<AudioSourceBase> { LoopbackAudioSource.Default, CaptureAudioSource.Default } }
         };
         Recorder rec = Recorder.CreateRecorder(opts);
         Recorder rec2 = Recorder.CreateRecorder(opts);

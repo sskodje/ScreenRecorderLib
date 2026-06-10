@@ -19,6 +19,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Media.Media3D;
 using System.Windows.Threading;
 using TestApp.Sources;
+using TestApp.Sources.Audio;
 
 namespace TestApp
 {
@@ -36,14 +37,42 @@ namespace TestApp
 
         public bool IsRecording { get; set; }
         public RecorderOptions RecorderOptions { get; } = RecorderOptions.Default;
-        public ICheckableRecordingSource SelectedRecordingSource { get; set; }
         public ObservableCollection<ICheckableRecordingSource> RecordingSources { get; } = new ObservableCollection<ICheckableRecordingSource>();
+        public ObservableCollection<ICheckableAudioRecordingSource> AudioRecordingSources { get; } = new ObservableCollection<ICheckableAudioRecordingSource>();
         public List<OverlayModel> Overlays { get; } = new List<OverlayModel>();
-        public ObservableCollection<AudioDevice> AudioInputsList { get; set; } = new ObservableCollection<AudioDevice>();
-        public ObservableCollection<AudioDevice> AudioOutputsList { get; set; } = new ObservableCollection<AudioDevice>();
         public ObservableCollection<RecordableCamera> VideoCaptureDevices { get; set; } = new ObservableCollection<RecordableCamera>();
         public bool IsLogToFileEnabled { get; set; }
         public string LogFilePath { get; set; } = "Log.txt";
+
+        private ICheckableAudioRecordingSource _selectedAudioRecordingSource;
+        public ICheckableAudioRecordingSource SelectedAudioRecordingSource
+        {
+            get { return _selectedAudioRecordingSource; }
+            set
+            {
+                if (_selectedAudioRecordingSource != value)
+                {
+                    _selectedAudioRecordingSource = value;
+                    RaisePropertyChanged(nameof(SelectedAudioRecordingSource));
+                }
+            }
+        }
+
+
+        private ICheckableRecordingSource _selectedRecordingSource;
+        public ICheckableRecordingSource SelectedRecordingSource
+        {
+            get { return _selectedRecordingSource; }
+            set
+            {
+                if (_selectedRecordingSource != value)
+                {
+                    _selectedRecordingSource = value;
+                    RaisePropertyChanged("SelectedRecordingSource");
+                }
+            }
+        }
+
 
         private bool _recordToStream;
         public bool RecordToStream
@@ -461,6 +490,7 @@ namespace TestApp
             }
             RecorderOptions.SourceOptions.RecordingSources = CreateSelectedRecordingSources();
             RecorderOptions.OverlayOptions.Overlays = this.Overlays.Where(x => x.IsEnabled && this.CheckBoxEnableOverlays.IsChecked.GetValueOrDefault(false)).Select(x => x.Overlay).ToList();
+            RecorderOptions.AudioOptions.AudioSources = CreateSelectedAudioSources();
             RecorderOptions.VideoEncoderOptions.Encoder = videoEncoder;
             if (IsCustomOutputFrameSizeEnabled)
             {
@@ -533,7 +563,17 @@ namespace TestApp
                 recordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, data.Width, data.Height), data.Data, data.Length, Math.Abs(data.Stride));
             }));
         }
-
+        private List<AudioSourceBase> CreateSelectedAudioSources()
+        {
+            var sourcesToRecord = this.AudioRecordingSources.Where(x => x.IsSelected && this.CheckBoxIsAudioEnabled.IsChecked.GetValueOrDefault(false)).ToList();
+            if (sourcesToRecord.Count == 0
+                && SelectedRecordingSource != null
+                && SelectedRecordingSource.IsCheckable)
+            {
+                sourcesToRecord.Add(SelectedAudioRecordingSource);
+            }
+            return sourcesToRecord.Cast<AudioSourceBase>().ToList();
+        }
         private List<RecordingSourceBase> CreateSelectedRecordingSources()
         {
             var sourcesToRecord = RecordingSources.Where(x => x.IsSelected).ToList();
@@ -938,7 +978,7 @@ namespace TestApp
         {
             RefreshVideoCaptureItems();
             RefreshSourceComboBox();
-            RefreshAudioComboBoxes();
+            RefreshAudioSourceComboBoxes();
         }
 
         private void RefreshVideoCaptureItems()
@@ -1006,7 +1046,7 @@ namespace TestApp
             }
             RefreshWindowSizeAndAvailability();
 
-            SourceComboBox.SelectedIndex = 0;
+            SelectedRecordingSource = RecordingSources.First();
         }
 
         private void RefreshWindowSizeAndAvailability()
@@ -1032,24 +1072,38 @@ namespace TestApp
 
         }
 
-        private void RefreshAudioComboBoxes()
+        private void RefreshAudioSourceComboBoxes()
         {
-            AudioOutputsList.Clear();
-            AudioInputsList.Clear();
+            AudioRecordingSources.Clear();
 
-            AudioOutputsList.Add(new AudioDevice("", "Default playback device"));
-            AudioInputsList.Add(new AudioDevice("", "Default recording device"));
-            foreach (var outputDevice in Recorder.GetSystemAudioDevices(AudioDeviceSource.OutputDevices))
+            foreach (var outputDevice in Recorder.GetSystemAudioLoopbackDevices().OrderByDescending(x => x.IsDefaultDevice))
             {
-                AudioOutputsList.Add(outputDevice);
+                AudioRecordingSources.Add(new CheckableAudioLoopbackDevice(outputDevice) { IsCheckable = true });
             }
-            foreach (var inputDevice in Recorder.GetSystemAudioDevices(AudioDeviceSource.InputDevices))
+            foreach (var inputDevice in Recorder.GetSystemAudioCaptureDevices().OrderByDescending(x => x.IsDefaultDevice))
             {
-                AudioInputsList.Add(inputDevice);
+                AudioRecordingSources.Add(new CheckableAudioCaptureDevice(inputDevice) { IsCheckable = true });
             }
 
-            AudioOutputsComboBox.SelectedIndex = 0;
-            AudioInputsComboBox.SelectedIndex = 0;
+            foreach (var window in Recorder.GetWindows())
+            {
+                if (window.Pid.HasValue)
+                {
+                    AudioRecordingSources.Add(new CheckableAudioProcessDevice(window.Title, window.Pid.Value) { IsCheckable = true });
+                }
+            }
+            foreach (var source in AudioRecordingSources)
+            {
+                source.PropertyChanged += AudioSource_PropertyChanged;
+            }
+            SelectedAudioRecordingSource = AudioRecordingSources.First();
+        }
+
+        private void AudioSource_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            _rec?.GetDynamicOptionsBuilder()
+                  .SetUpdatedAudioSource(sender as AudioSourceBase)
+                  .Apply();
         }
 
         private void ScreenCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
@@ -1125,6 +1179,20 @@ namespace TestApp
                     && ((ICheckableRecordingSource)e.Item).IsCheckable;
             }
         }
+
+        private void SelectedAudioRecordingSourcesViewSource_Filter(object sender, FilterEventArgs e)
+        {
+            if (!AudioRecordingSources.Any(x => x.IsSelected))
+            {
+                e.Accepted = e.Item == SelectedAudioRecordingSource
+                    && SelectedAudioRecordingSource.IsCheckable;
+            }
+            else
+            {
+                e.Accepted = ((ICheckableAudioRecordingSource)e.Item).IsSelected
+                    && ((ICheckableAudioRecordingSource)e.Item).IsCheckable;
+            }
+        }
         private void DisplaysViewSource_Filter(object sender, FilterEventArgs e)
         {
             e.Accepted = e.Item is DisplayRecordingSource;
@@ -1190,6 +1258,36 @@ namespace TestApp
         private void ManualSnapshotButton_Click(object sender, RoutedEventArgs e)
         {
             _rec?.TakeSnapshot();
+        }
+
+        private void AudioSourceComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (e.AddedItems.Count == 0)
+                return;
+            SetAudioSourceComboBoxTitle();
+            ((CollectionViewSource)Resources["SelectedAudioRecordingSourcesViewSource"]).View.Refresh();
+        }
+
+        private void AudioCaptureSourceCheckBox_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            SetAudioSourceComboBoxTitle();
+            ((CollectionViewSource)Resources["SelectedAudioRecordingSourcesViewSource"]).View.Refresh();
+        }
+        private void SetAudioSourceComboBoxTitle()
+        {
+            this.Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
+            {
+                if (AudioRecordingSources.Any(x => x.IsSelected))
+                {
+                    var sources = AudioRecordingSources.Where(x => x.IsSelected).Select(x => x.ToString());
+                    this.AudioSourceComboBox.Text = string.Join(", ", sources);
+                }
+            }));
+        }
+
+        private void RefreshAudioSourcesButton_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshAudioSourceComboBoxes();
         }
     }
 }

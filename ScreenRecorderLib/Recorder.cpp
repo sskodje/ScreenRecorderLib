@@ -103,36 +103,18 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			if (options->AudioOptions->IsAudioEnabled.HasValue) {
 				audioOptions->SetAudioEnabled(options->AudioOptions->IsAudioEnabled.Value);
 			}
-			if (options->AudioOptions->IsOutputDeviceEnabled.HasValue) {
-				audioOptions->SetOutputDeviceEnabled(options->AudioOptions->IsOutputDeviceEnabled.Value);
-			}
-			if (options->AudioOptions->IsInputDeviceEnabled.HasValue) {
-				audioOptions->SetInputDeviceEnabled(options->AudioOptions->IsInputDeviceEnabled.Value);
-			}
-			if (options->AudioOptions->ForceInputDeviceMono.HasValue) {
-				audioOptions->SetInputDeviceDownmixingEnabled(options->AudioOptions->ForceInputDeviceMono.Value);
-			}
-			if (options->AudioOptions->InputDeviceMasterChannel.HasValue) {
-				audioOptions->SetInputDeviceMasterChannel(options->AudioOptions->InputDeviceMasterChannel.Value);
-			}
+
 			if (options->AudioOptions->Bitrate.HasValue) {
 				audioOptions->SetAudioBitrate((UINT32)options->AudioOptions->Bitrate.Value);
 			}
 			if (options->AudioOptions->Channels.HasValue) {
 				audioOptions->SetAudioChannels((UINT32)options->AudioOptions->Channels.Value);
 			}
-			if (options->AudioOptions->AudioOutputDevice != nullptr) {
-				audioOptions->SetOutputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioOutputDevice));
+
+			if (options->AudioOptions->MasterVolume.HasValue) {
+				audioOptions->SetMasterVolume(options->AudioOptions->MasterVolume.Value);
 			}
-			if (options->AudioOptions->AudioInputDevice != nullptr) {
-				audioOptions->SetInputDevice(msclr::interop::marshal_as<std::wstring>(options->AudioOptions->AudioInputDevice));
-			}
-			if (options->AudioOptions->InputVolume.HasValue) {
-				audioOptions->SetInputVolume(options->AudioOptions->InputVolume.Value);
-			}
-			if (options->AudioOptions->OutputVolume.HasValue) {
-				audioOptions->SetOutputVolume(options->AudioOptions->OutputVolume.Value);
-			}
+			audioOptions->SetAudioSources(CreateAudioSourceList(options->AudioOptions->AudioSources), false);
 			m_Rec->SetAudioOptions(audioOptions);
 		}
 		if (options->MouseOptions) {
@@ -180,23 +162,24 @@ DynamicOptionsBuilder^ ScreenRecorderLib::Recorder::GetDynamicOptionsBuilder()
 void Recorder::SetDynamicOptions(DynamicOptions^ options)
 {
 	if (options->AudioOptions) {
-		if (options->AudioOptions->IsOutputDeviceEnabled.HasValue) {
-			m_Rec->GetAudioOptions()->SetOutputDeviceEnabled(options->AudioOptions->IsOutputDeviceEnabled.Value);
+		if (options->AudioOptions->MasterVolume.HasValue) {
+			m_Rec->GetAudioOptions()->SetMasterVolume(options->AudioOptions->MasterVolume.Value);
 		}
-		if (options->AudioOptions->IsInputDeviceEnabled.HasValue) {
-			m_Rec->GetAudioOptions()->SetInputDeviceEnabled(options->AudioOptions->IsInputDeviceEnabled.Value);
-		}
-		if (options->AudioOptions->InputVolume.HasValue) {
-			m_Rec->GetAudioOptions()->SetInputVolume(options->AudioOptions->InputVolume.Value);
-		}
-		if (options->AudioOptions->OutputVolume.HasValue) {
-			m_Rec->GetAudioOptions()->SetOutputVolume(options->AudioOptions->OutputVolume.Value);
-		}
-		if (options->AudioOptions->ForceInputDeviceMono.HasValue) {
-			m_Rec->GetAudioOptions()->SetInputDeviceDownmixingEnabled(options->AudioOptions->ForceInputDeviceMono.Value);
-		}
-		if (options->AudioOptions->InputDeviceMasterChannel.HasValue) {
-			m_Rec->GetAudioOptions()->SetInputDeviceMasterChannel(options->AudioOptions->InputDeviceMasterChannel.Value);
+		if (options->AudioOptions->AudioSources) {
+			for each (AudioSourceBase ^ managedSource in options->AudioOptions->AudioSources)
+			{
+				std::wstring id = msclr::interop::marshal_as<std::wstring>(managedSource->ID);
+				for each (AUDIO_SOURCE * nativeSource in m_Rec->GetAudioOptions()->GetAudioSources())
+				{
+					if (nativeSource->ID == id) {
+						HRESULT hr = CreateOrUpdateNativeAudioSource(managedSource, nativeSource);
+						if (FAILED(hr)) {
+							LOG_ERROR("Failed to update recording source properties with ID %ls", id.c_str());
+						}
+					}
+				}
+			}
+			m_Rec->GetAudioOptions()->Notify();
 		}
 	}
 	if (options->MouseOptions) {
@@ -233,113 +216,7 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 			m_Rec->GetOutputOptions()->SetVideoFramePreviewSize(options->OutputOptions->VideoFramePreviewSize->ToSIZE());
 		}
 	}
-	if (options->SourceRects) {
-		for each (KeyValuePair<String^, ScreenRect^> ^ kvp in options->SourceRects)
-		{
-			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
-			for each (RECORDING_SOURCE * nativeSource in m_Rec->GetRecordingSources())
-			{
-				if (nativeSource->ID == id) {
-					if (kvp->Value) {
-						nativeSource->SourceRect = kvp->Value->ToRECT();
-					}
-					else {
-						nativeSource->SourceRect = std::nullopt;
-					}
-					break;
-				}
-			}
-		}
-	}
-	if (options->SourceCursorCaptures) {
-		for each (KeyValuePair<String^, bool> ^ kvp in options->SourceCursorCaptures)
-		{
-			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
-			for each (RECORDING_SOURCE * nativeSource in m_Rec->GetRecordingSources())
-			{
-				if (nativeSource->ID == id) {
-					nativeSource->IsCursorCaptureEnabled = kvp->Value;
-					break;
-				}
-			}
-		}
-	}
-	if (options->OverlayCursorCaptures) {
-		for each (KeyValuePair<String^, bool> ^ kvp in options->OverlayCursorCaptures)
-		{
-			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
-			for each (RECORDING_OVERLAY * nativeOverlay in m_Rec->GetRecordingOverlays())
-			{
-				if (nativeOverlay->ID == id) {
-					nativeOverlay->IsCursorCaptureEnabled = kvp->Value;
-					break;
-				}
-			}
-		}
-	}
-	if (options->OverlayAnchors) {
-		for each (KeyValuePair<String^, Anchor> ^ kvp in options->OverlayAnchors)
-		{
-			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
-			for each (RECORDING_OVERLAY * nativeOverlay in m_Rec->GetRecordingOverlays())
-			{
-				if (nativeOverlay->ID == id) {
-					nativeOverlay->Anchor = static_cast<ContentAnchor>(kvp->Value);
-					break;
-				}
-			}
-		}
-	}
-	if (options->OverlayOffsets) {
-		for each (KeyValuePair<String^, ScreenSize^> ^ kvp in options->OverlayOffsets)
-		{
-			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
-			for each (RECORDING_OVERLAY * nativeOverlay in m_Rec->GetRecordingOverlays())
-			{
-				if (nativeOverlay->ID == id) {
-					nativeOverlay->Offset = kvp->Value->ToSIZE();
-					break;
-				}
-			}
-		}
-	}
-	if (options->OverlaySizes) {
-		for each (KeyValuePair<String^, ScreenSize^> ^ kvp in options->OverlaySizes)
-		{
-			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
-			for each (RECORDING_OVERLAY * nativeOverlay in m_Rec->GetRecordingOverlays())
-			{
-				if (nativeOverlay->ID == id) {
-					nativeOverlay->OutputSize = kvp->Value->ToSIZE();
-					break;
-				}
-			}
-		}
-	}
-	if (options->SourceVideoCaptures) {
-		for each (KeyValuePair<String^, bool> ^ kvp in options->SourceVideoCaptures)
-		{
-			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
-			for each (RECORDING_SOURCE * nativeSource in m_Rec->GetRecordingSources())
-			{
-				if (nativeSource->ID == id) {
-					nativeSource->IsVideoCaptureEnabled = kvp->Value;
-				}
-			}
-		}
-	}
-	if (options->OverlayVideoCaptures) {
-		for each (KeyValuePair<String^, bool> ^ kvp in options->OverlayVideoCaptures)
-		{
-			std::wstring id = msclr::interop::marshal_as<std::wstring>(kvp->Key);
-			for each (RECORDING_OVERLAY * nativeOverlay in m_Rec->GetRecordingOverlays())
-			{
-				if (nativeOverlay->ID == id) {
-					nativeOverlay->IsVideoCaptureEnabled = kvp->Value;
-				}
-			}
-		}
-	}
+
 
 	if (options->RecordingOverlays) {
 		for each (RecordingOverlayBase ^ managedOverlay in options->RecordingOverlays)
@@ -387,35 +264,35 @@ bool Recorder::SetExcludeFromCapture(System::IntPtr hwnd, bool isExcluded)
 	return RecordingManager::SetExcludeFromCapture((HWND)hwnd.ToPointer(), isExcluded);
 }
 
-List<AudioDevice^>^ Recorder::GetSystemAudioDevices(AudioDeviceSource source)
+List<RecordableAudioCaptureDevice^>^ Recorder::GetSystemAudioCaptureDevices()
 {
-	std::map<std::wstring, std::wstring> map;
-	EDataFlow dFlow;
-
-	switch (source)
+	auto devices = gcnew List<RecordableAudioCaptureDevice^>();
+	std::vector<AUDIO_DEVICE> deviceVector;
+	HRESULT hr = ListAudioDevices(eCapture, &deviceVector);
+	if (SUCCEEDED(hr))
 	{
-		default:
-		case  AudioDeviceSource::OutputDevices:
-			dFlow = eRender;
-			break;
-		case AudioDeviceSource::InputDevices:
-			dFlow = eCapture;
-			break;
-		case AudioDeviceSource::All:
-			dFlow = eAll;
-			break;
+		if (deviceVector.size() != 0)
+		{
+			for (auto const& element : deviceVector) {
+				devices->Add(gcnew RecordableAudioCaptureDevice(gcnew String(element.FriendlyName.c_str()), gcnew String(element.DeviceId.c_str()), element.IsDefaultDevice));
+			}
+		}
 	}
+	return devices;
+}
+List<RecordableAudioLoopbackDevice^>^ Recorder::GetSystemAudioLoopbackDevices()
+{
+	auto devices = gcnew List<RecordableAudioLoopbackDevice^>();
 
-	auto devices = gcnew List<AudioDevice^>();
-
-	HRESULT hr = ListAudioDevices(dFlow, &map);
+	std::vector<AUDIO_DEVICE> deviceVector;
+	HRESULT hr = ListAudioDevices(eRender, &deviceVector);
 
 	if (SUCCEEDED(hr))
 	{
-		if (map.size() != 0)
+		if (deviceVector.size() != 0)
 		{
-			for (auto const& element : map) {
-				devices->Add(gcnew AudioDevice(gcnew String(element.first.c_str()), gcnew String(element.second.c_str())));
+			for (auto const& element : deviceVector) {
+				devices->Add(gcnew RecordableAudioLoopbackDevice(gcnew String(element.FriendlyName.c_str()), gcnew String(element.DeviceId.c_str()), element.IsDefaultDevice));
 			}
 		}
 	}
@@ -483,7 +360,7 @@ List<RecordableWindow^>^ Recorder::GetWindows()
 	List<RecordableWindow^>^ windows = gcnew List<RecordableWindow^>();
 	for each (const Window & win in EnumerateWindows())
 	{
-		RecordableWindow^ recordableWin = gcnew RecordableWindow(gcnew String(win.Title().c_str()), IntPtr(win.Hwnd()));
+		RecordableWindow^ recordableWin = gcnew RecordableWindow(gcnew String(win.Title().c_str()), IntPtr(win.Hwnd()), win.Pid());
 		windows->Add(recordableWin);
 	}
 	return windows;
@@ -723,6 +600,32 @@ void Recorder::ReleaseResources() {
 			SafeRelease(&var->SourceStream);
 		}
 	}
+}
+
+HRESULT Recorder::CreateOrUpdateNativeAudioSource(_In_ AudioSourceBase^ managedSource, _Inout_ AUDIO_SOURCE* pNativeSource)
+{
+	HRESULT hr = S_OK;
+	pNativeSource->ID = msclr::interop::marshal_as<std::wstring>(managedSource->ID);
+	pNativeSource->IsEnabled = managedSource->IsAudioCaptureEnabled;
+	pNativeSource->OutputVolumeModifier = managedSource->Volume;
+	if (isinst<LoopbackAudioSource^>(managedSource)) {
+		LoopbackAudioSource^ loopbackSource = (LoopbackAudioSource^)managedSource;
+		pNativeSource->DeviceName = msclr::interop::marshal_as<std::wstring>(loopbackSource->DeviceName);
+		pNativeSource->Kind = AudioClientKind::EndpointLoopback;
+	}
+	else if (isinst<CaptureAudioSource^>(managedSource)) {
+		CaptureAudioSource^ captureSource = (CaptureAudioSource^)managedSource;
+		pNativeSource->DeviceName = msclr::interop::marshal_as<std::wstring>(captureSource->DeviceName);
+		pNativeSource->Kind = AudioClientKind::Endpoint;
+		pNativeSource->ForceMono = captureSource->ForceMono;
+		pNativeSource->MasterChannel = captureSource->InputDeviceMasterChannel;
+	}
+	else if (isinst<ProcessAudioSource^>(managedSource)) {
+		ProcessAudioSource^ processSource = (ProcessAudioSource^)managedSource;
+		pNativeSource->DeviceName = std::to_wstring(processSource->ProcessId);
+		pNativeSource->Kind = AudioClientKind::ProcessLoopback;
+	}
+	return hr;
 }
 
 HRESULT Recorder::CreateOrUpdateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Inout_ RECORDING_SOURCE* pNativeSource)
@@ -991,18 +894,18 @@ std::vector<RECORDING_SOURCE> Recorder::CreateRecordingSourceList(_In_ IEnumerab
 	if (managedSources) {
 		for each (RecordingSourceBase ^ source in managedSources)
 		{
-			RECORDING_SOURCE nativeSource{};
-			HRESULT hr = CreateOrUpdateNativeRecordingSource(source, &nativeSource);
-			if (SUCCEEDED(hr)) {
-				if (std::find(sources.begin(), sources.end(), nativeSource) == sources.end()) {
-					sources.insert(sources.end(), nativeSource);
+			if (source != nullptr) {
+				RECORDING_SOURCE nativeSource{};
+				HRESULT hr = CreateOrUpdateNativeRecordingSource(source, &nativeSource);
+				if (SUCCEEDED(hr)) {
+					if (std::find(sources.begin(), sources.end(), nativeSource) == sources.end()) {
+						sources.insert(sources.end(), nativeSource);
+					}
 				}
 			}
 		}
-
-		return sources;
 	}
-	return std::vector<RECORDING_SOURCE>();
+	return sources;
 }
 
 std::vector<RECORDING_OVERLAY> Recorder::CreateOverlayList(_In_ IEnumerable<RecordingOverlayBase^>^ managedOverlays) {
@@ -1010,16 +913,38 @@ std::vector<RECORDING_OVERLAY> Recorder::CreateOverlayList(_In_ IEnumerable<Reco
 	if (managedOverlays) {
 		for each (RecordingOverlayBase ^ overlay in managedOverlays)
 		{
-			RECORDING_OVERLAY nativeOverlay{};
-			HRESULT hr = CreateOrUpdateNativeRecordingOverlay(overlay, &nativeOverlay);
-			if (SUCCEEDED(hr)) {
-				if (std::find(overlays.begin(), overlays.end(), nativeOverlay) == overlays.end()) {
-					overlays.insert(overlays.end(), nativeOverlay);
+			if (overlay != nullptr) {
+				RECORDING_OVERLAY nativeOverlay{};
+				HRESULT hr = CreateOrUpdateNativeRecordingOverlay(overlay, &nativeOverlay);
+				if (SUCCEEDED(hr)) {
+					if (std::find(overlays.begin(), overlays.end(), nativeOverlay) == overlays.end()) {
+						overlays.insert(overlays.end(), nativeOverlay);
+					}
 				}
 			}
 		}
 	}
 	return overlays;
+}
+
+std::vector<AUDIO_SOURCE> ScreenRecorderLib::Recorder::CreateAudioSourceList(_In_ IEnumerable<AudioSourceBase^>^ managedSources)
+{
+	std::vector<AUDIO_SOURCE> sources{};
+	if (managedSources) {
+		for each (AudioSourceBase ^ source in managedSources)
+		{
+			if (source != nullptr) {
+				AUDIO_SOURCE nativeSource{};
+				HRESULT hr = CreateOrUpdateNativeAudioSource(source, &nativeSource);
+				if (SUCCEEDED(hr)) {
+					if (std::find(sources.begin(), sources.end(), nativeSource) == sources.end()) {
+						sources.insert(sources.end(), nativeSource);
+					}
+				}
+			}
+		}
+	}
+	return sources;
 }
 
 Guid ScreenRecorderLib::Recorder::FromNativeGuid(_In_ const GUID& guid)
@@ -1069,7 +994,7 @@ void Recorder::EventComplete(std::wstring path, fifo_map<std::wstring, int> dela
 
 	List<FrameData^>^ frameInfos = gcnew List<FrameData^>();
 
-	for (auto x : delays) {
+	for (auto& x : delays) {
 		frameInfos->Add(gcnew FrameData(gcnew String(x.first.c_str()), x.second));
 	}
 	RecordingCompleteEventArgs^ args = gcnew RecordingCompleteEventArgs(gcnew String(path.c_str()), frameInfos);

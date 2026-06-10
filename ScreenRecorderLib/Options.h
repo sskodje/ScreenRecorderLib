@@ -3,6 +3,7 @@
 #include "RecordingSources.h"
 #include "RecordingOverlays.h"
 #include "VideoEncoders.h"
+#include "AudioSources.h"
 
 using namespace System;
 using namespace System::Collections::Generic;
@@ -430,105 +431,43 @@ namespace ScreenRecorderLib {
 
 	public ref class DynamicAudioOptions : public INotifyPropertyChanged {
 	private:
-		Nullable<float> _inputVolume;
-		Nullable<float> _outputVolume;
-		Nullable<int> _inputMasterChannel;
-		Nullable<bool> _forceInputDeviceMono;
-		Nullable<bool> _isInputDeviceEnabled;
-		Nullable<bool> _isOutputDeviceEnabled;
-		Nullable<bool> _isInputDeviceDownmixEnabled;
+		Nullable<float> _masterVolume;
+		List<AudioSourceBase^>^ _audioSources;
 	public:
 		DynamicAudioOptions() {
-
+			MasterVolume = 1.0f;
+			AudioSources = gcnew List<AudioSourceBase^>();
 		}
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
 		void OnPropertyChanged(String^ info)
 		{
 			PropertyChanged(this, gcnew PropertyChangedEventArgs(info));
 		}
-		/// <summary>
-		///Enable to record system audio output.
-		/// </summary>
-		property Nullable<bool> IsOutputDeviceEnabled {
-			Nullable<bool> get() {
-				return _isOutputDeviceEnabled;
+
+		property List<AudioSourceBase^>^ AudioSources {
+			List<AudioSourceBase^>^ get() {
+				return _audioSources;
 			}
-			void set(Nullable<bool> value) {
-				_isOutputDeviceEnabled = value;
-				OnPropertyChanged("IsOutputDeviceEnabled");
+			void set(List<AudioSourceBase^>^ value) {
+				_audioSources = value;
+				OnPropertyChanged("AudioSources");
 			}
 		}
+
 		/// <summary>
-		///Enable to record system audio input (e.g. microphone)
-		/// </summary>
-		property Nullable<bool> IsInputDeviceEnabled {
-			Nullable<bool> get() {
-				return _isInputDeviceEnabled;
-			}
-			void set(Nullable<bool> value) {
-				_isInputDeviceEnabled = value;
-				OnPropertyChanged("IsInputDeviceEnabled");
-			}
-		}
-		/// <summary>
-		/// Volume of the input stream. Recommended values are between 0 and 1.
+		/// Volume of the master stream. Recommended values are between 0 and 1.
 		/// Value of 0 mutes the stream and value of 1 makes it original volume.
-		/// This value can be changed after the recording is started with SetInputVolume() method.
 		/// </summary>
-		property Nullable<float> InputVolume {
+		property Nullable<float> MasterVolume {
 			Nullable<float> get() {
-				return _inputVolume;
+				return _masterVolume;
 			}
 			void set(Nullable<float> value) {
-				_inputVolume = value;
-				OnPropertyChanged("InputVolume");
+				_masterVolume = value;
+				OnPropertyChanged("MasterVolume");
 			}
 		}
 
-		/// <summary>
-		/// Volume of the output stream. Recommended values are between 0 and 1.
-		/// Value of 0 mutes the stream and value of 1 makes it original volume.
-		/// This value can be changed after the recording is started with SetOutputVolume() method.
-		/// </summary>
-		property Nullable<float> OutputVolume {
-			Nullable<float> get() {
-				return _outputVolume;
-			}
-			void set(Nullable<float> value) {
-				_outputVolume = value;
-				OnPropertyChanged("OutputVolume");
-			}
-		}
-
-		/// <summary>
-		/// The channel to use as source when downmixing audio input to mono.
-		/// 0 (default) is the left channel, 2 is the right, etc.
-		/// This is used in conjunction with the ForceInputDeviceMono property.
-		/// </summary>
-		property Nullable<int> InputDeviceMasterChannel {
-			Nullable<int> get() {
-				return _inputMasterChannel;
-			}
-			void set(Nullable<int> value) {
-				_inputMasterChannel = value;
-				OnPropertyChanged("InputDeviceMasterChannel");
-			}
-		}
-
-		/// <summary>
-		/// Uses only the source audio channel selected with the InputDeviceMasterChannel property,
-		/// and copies that to all channels when encoding. 
-		/// Used to fix issues with some microphones outputing a stereo signal, but only having sound on one of the channels.
-		/// </summary>
-		property Nullable<bool> ForceInputDeviceMono {
-			Nullable<bool> get() {
-				return _forceInputDeviceMono;
-			}
-			void set(Nullable<bool> value) {
-				_forceInputDeviceMono = value;
-				OnPropertyChanged("ForceInputDeviceMono");
-			}
-		}
 	};
 
 	public ref class AudioOptions :DynamicAudioOptions {
@@ -536,21 +475,14 @@ namespace ScreenRecorderLib {
 		Nullable<bool> _isAudioEnabled;
 		Nullable<AudioBitrate> _bitrate;
 		Nullable<AudioChannels> _channels;
-		String^ _audioInputDevice;
-		String^ _audioOutputDevice;
 
 	public:
 		AudioOptions() :DynamicAudioOptions() {
 			Bitrate = AudioBitrate::bitrate_96kbps;
 			Channels = AudioChannels::Stereo;
 			IsAudioEnabled = false;
-			IsOutputDeviceEnabled = true;
-			IsInputDeviceEnabled = false;
-			ForceInputDeviceMono = false;
-			InputDeviceMasterChannel = 0;
-			InputVolume = 1.0f;
-			OutputVolume = 1.0f;
 		}
+
 		/// <summary>
 		/// Enable or disable the writing of an audio track for the recording.
 		/// </summary>
@@ -579,30 +511,6 @@ namespace ScreenRecorderLib {
 			void set(Nullable<AudioChannels> value) {
 				_channels = value;
 				OnPropertyChanged("Channels");
-			}
-		}
-		/// <summary>
-		///Audio device to capture system audio from via loopback capture. Pass null or empty string to select system default.
-		/// </summary>
-		property String^ AudioOutputDevice {
-			String^ get() {
-				return _audioOutputDevice;
-			}
-			void set(String^ value) {
-				_audioOutputDevice = value;
-				OnPropertyChanged("AudioOutputDevice");
-			}
-		}
-		/// <summary>
-		///Audio input device (e.g. microphone) to capture audio from. Pass null or empty string to select system default.
-		/// </summary>
-		property String^ AudioInputDevice {
-			String^ get() {
-				return _audioInputDevice;
-			}
-			void set(String^ value) {
-				_audioInputDevice = value;
-				OnPropertyChanged("AudioInputDevice");
 			}
 		}
 
@@ -856,22 +764,6 @@ namespace ScreenRecorderLib {
 		property List<RecordingSourceBase^>^ RecordingSources;
 		property List<RecordingOverlayBase^>^ RecordingOverlays;
 
-		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingSources.", false)]
-			property Dictionary<String^, bool>^ SourceVideoCaptures;
-		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingSources.", false)]
-			property Dictionary<String^, ScreenRect^>^ SourceRects;
-		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingSources.", false)]
-			property Dictionary<String^, bool>^ SourceCursorCaptures;
 
-		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
-			property Dictionary<String^, bool>^ OverlayVideoCaptures;
-		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
-			property Dictionary<String^, bool>^ OverlayCursorCaptures;
-		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
-			property Dictionary<String^, ScreenSize^>^ OverlaySizes;
-		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
-			property Dictionary<String^, ScreenSize^>^ OverlayOffsets;
-		[ObsoleteAttribute("This property is obsolete. Replaced by RecordingOverlays.", false)]
-			property Dictionary<String^, Anchor>^ OverlayAnchors;
 	};
 }

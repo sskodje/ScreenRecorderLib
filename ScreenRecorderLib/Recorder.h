@@ -10,7 +10,6 @@
 #include "Coordinates.h"
 #include "Options.h"
 #include "Callback.h"
-#include "AudioDevice.h"
 
 using namespace System;
 using namespace System::Runtime::InteropServices;
@@ -28,7 +27,7 @@ namespace ScreenRecorderLib {
 
 	public ref class SourceCoordinates {
 	public:
-		SourceCoordinates() { };
+		SourceCoordinates() {};
 		SourceCoordinates(RecordingSourceBase^ source, ScreenRect^ coordinates) {
 			Coordinates = coordinates;
 			Source = source;
@@ -43,12 +42,6 @@ namespace ScreenRecorderLib {
 		property List<SourceCoordinates^>^ OutputCoordinates;
 	};
 
-	public enum class AudioDeviceSource
-	{
-		OutputDevices,
-		InputDevices,
-		All
-	};
 
 	public ref class Recorder {
 	private:
@@ -68,11 +61,13 @@ namespace ScreenRecorderLib {
 		void SetupCallbacks();
 		void ReleaseCallbacks();
 		void ReleaseResources();
+		static HRESULT CreateOrUpdateNativeAudioSource(_In_ AudioSourceBase^ managedSource, _Inout_ AUDIO_SOURCE* pNativeSource);
 		static HRESULT CreateOrUpdateNativeRecordingSource(_In_ RecordingSourceBase^ managedSource, _Inout_ RECORDING_SOURCE* pNativeSource);
 		static HRESULT CreateOrUpdateNativeRecordingOverlay(_In_ RecordingOverlayBase^ managedOverlay, _Inout_ RECORDING_OVERLAY* pNativeOverlay);
 		static List<VideoCaptureFormat^>^ CreateVideoCaptureFormatList(_In_ std::vector< IMFMediaType*> mediaTypes);
-		static std::vector<RECORDING_SOURCE> CreateRecordingSourceList(_In_ IEnumerable<RecordingSourceBase^>^ options);
+		static std::vector<RECORDING_SOURCE> CreateRecordingSourceList(_In_ IEnumerable<RecordingSourceBase^>^ managedSources);
 		static std::vector<RECORDING_OVERLAY> CreateOverlayList(_In_ IEnumerable<RecordingOverlayBase^>^ managedOverlays);
+		static std::vector<AUDIO_SOURCE> CreateAudioSourceList(_In_ IEnumerable<AudioSourceBase^>^ managedSources);
 		static Guid FromNativeGuid(_In_ const GUID& guid);
 
 		int _currentFrameNumber;
@@ -128,7 +123,8 @@ namespace ScreenRecorderLib {
 		static Recorder^ CreateRecorder();
 		static Recorder^ CreateRecorder(RecorderOptions^ options);
 		static List<RecordableWindow^>^ GetWindows();
-		static List<AudioDevice^>^ GetSystemAudioDevices(AudioDeviceSource source);
+		static List<RecordableAudioCaptureDevice^>^ Recorder::GetSystemAudioCaptureDevices();
+		static List<RecordableAudioLoopbackDevice^>^ Recorder::GetSystemAudioLoopbackDevices();
 		static List<RecordableCamera^>^ GetSystemVideoCaptureDevices();
 		static List<RecordableDisplay^>^ GetDisplays();
 		static OutputDimensions^ GetOutputDimensionsForRecordingSources(IEnumerable<RecordingSourceBase^>^ recordingSources);
@@ -153,118 +149,6 @@ namespace ScreenRecorderLib {
 		}
 		DynamicOptionsBuilder^ SetDynamicOutputOptions(DynamicOutputOptions^ options) {
 			_options->OutputOptions = options;
-			return this;
-		}
-		/// <summary>
-		/// Set the source rect (crop) for a recording source with the given ID.
-		/// </summary>
-		/// <param name="recordingSourceID">ID for a recording source in progress</param>
-		/// <param name="sourceRect"></param>
-		/// <returns></returns>
-		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedRecordingSource.", false)]
-		DynamicOptionsBuilder^ SetSourceRectForRecordingSource(String^ recordingSourceID, ScreenRect^ sourceRect) {
-			if (!_options->SourceRects) {
-				_options->SourceRects = gcnew Dictionary<String^, ScreenRect^>();
-			}
-			_options->SourceRects[recordingSourceID] = sourceRect;
-			return this;
-		}
-		/// <summary>
-		/// Enable or disable mouse cursor capture for the recording source with the given ID.
-		/// </summary>
-		/// <param name="recordingSourceID">ID for a recording source in progress</param>
-		/// <param name="isCursorCaptureEnabled"></param>
-		/// <returns></returns>
-		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedRecordingSource.", false)]
-		DynamicOptionsBuilder^ SetCursorCaptureForRecordingSource(String^ recordingSourceID, bool isCursorCaptureEnabled) {
-			if (!_options->SourceCursorCaptures) {
-				_options->SourceCursorCaptures = gcnew Dictionary<String^, bool>();
-			}
-			_options->SourceCursorCaptures[recordingSourceID] = isCursorCaptureEnabled;
-			return this;
-		}
-		/// <summary>
-		/// Enable or disable mouse cursor capture for the recording overlay with the given ID.
-		/// </summary>
-		/// <param name="recordingSourceID">ID for a recording source in progress</param>
-		/// <param name="isCursorCaptureEnabled"></param>
-		/// <returns></returns>
-		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedOverlay.", false)]
-		DynamicOptionsBuilder^ SetCursorCaptureForOverlay(String^ recordingSourceID, bool isCursorCaptureEnabled) {
-			if (!_options->OverlayCursorCaptures) {
-				_options->OverlayCursorCaptures = gcnew Dictionary<String^, bool>();
-			}
-			_options->OverlayCursorCaptures[recordingSourceID] = isCursorCaptureEnabled;
-			return this;
-		}
-		/// <summary>
-		/// Set the size of the overlay with the given ID.
-		/// </summary>
-		/// <param name="overlayID">ID for a recording source in progress</param>
-		/// <param name="size">The size of the overlay in pixels</param>
-		/// <returns></returns>
-		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedOverlay.", false)]
-		DynamicOptionsBuilder^ SetSizeForOverlay(String^ overlayID, ScreenSize^ size) {
-			if (!_options->OverlaySizes) {
-				_options->OverlaySizes = gcnew Dictionary<String^, ScreenSize^>();
-			}
-			_options->OverlaySizes[overlayID] = size;
-			return this;
-		}
-		/// <summary>
-		/// Set the position offset of the overlay with the given ID.
-		/// </summary>
-		/// <param name="overlayID">ID for an overlay in progress</param>
-		/// <param name="offset">The offset for the overlay, relative to the configured Anchor.</param>
-		/// <returns></returns>
-		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedOverlay.", false)]
-		DynamicOptionsBuilder^ SetOffsetForOverlay(String^ overlayID, ScreenSize^ offset) {
-			if (!_options->OverlayOffsets) {
-				_options->OverlayOffsets = gcnew Dictionary<String^, ScreenSize^>();
-			}
-			_options->OverlayOffsets[overlayID] = offset;
-			return this;
-		}
-		/// <summary>
-		/// Set the position anchor for the overlay with the given ID.
-		/// </summary>
-		/// <param name="overlayID">ID for an overlay in progress</param>
-		/// <param name="anchor">Where to anchor the overlay</param>
-		/// <returns></returns>
-		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedOverlay.", false)]
-		DynamicOptionsBuilder^ SetAnchorForOverlay(String^ overlayID, Anchor anchor) {
-			if (!_options->OverlayAnchors) {
-				_options->OverlayAnchors = gcnew Dictionary<String^, Anchor>();
-			}
-			_options->OverlayAnchors[overlayID] = anchor;
-			return this;
-		}
-		/// <summary>
-		/// Configure if video capture is enabled for the recording source with the given ID.
-		/// </summary>
-		/// <param name="recordingSourceID">ID for a recording source in progress</param>
-		/// <param name="isCaptureEnabled">If false, the source will be blacked out for the duration.</param>
-		/// <returns></returns>
-		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedRecordingSource.", false)]
-		DynamicOptionsBuilder^ SetVideoCaptureEnabledForRecordingSource(String^ recordingSourceID, bool isCaptureEnabled) {
-			if (!_options->SourceVideoCaptures) {
-				_options->SourceVideoCaptures = gcnew Dictionary<String^, bool>();
-			}
-			_options->SourceVideoCaptures[recordingSourceID] = isCaptureEnabled;
-			return this;
-		}
-		/// <summary>
-		/// Configure if video capture is enabled for the overlay with the given ID.
-		/// </summary>
-		/// <param name="overlayID">ID for an overlay in progress</param>
-		/// <param name="isCaptureEnabled">If false, the overlay will be blacked out for the duration.</param>
-		/// <returns></returns>
-		[ObsoleteAttribute("This method is obsolete. Replaced by SetUpdatedOverlay.", false)]
-		DynamicOptionsBuilder^ SetVideoCaptureEnabledForOverlay(String^ overlayID, bool isCaptureEnabled) {
-			if (!_options->OverlayVideoCaptures) {
-				_options->OverlayVideoCaptures = gcnew Dictionary<String^, bool>();
-			}
-			_options->OverlayVideoCaptures[overlayID] = isCaptureEnabled;
 			return this;
 		}
 
@@ -299,6 +183,26 @@ namespace ScreenRecorderLib {
 				_options->RecordingSources->Remove(source);
 			}
 			_options->RecordingSources->Add(source);
+
+			return this;
+		}
+
+		/// <summary>
+		/// Update properties for the given audio source
+		/// </summary>
+		/// <param name="source">The audio source to update. It must have the same ID as an existing source</param>
+		/// <returns></returns>
+		DynamicOptionsBuilder^ SetUpdatedAudioSource(AudioSourceBase^ source) {
+			if (!_options->AudioOptions) {
+				_options->AudioOptions = gcnew DynamicAudioOptions();
+			}
+			if (!_options->AudioOptions->AudioSources) {
+				_options->AudioOptions->AudioSources = gcnew List<AudioSourceBase^>();
+			}
+			else if (_options->AudioOptions->AudioSources->Contains(source)) {
+				_options->AudioOptions->AudioSources->Remove(source);
+			}
+			_options->AudioOptions->AudioSources->Add(source);
 
 			return this;
 		}

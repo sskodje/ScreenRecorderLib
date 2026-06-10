@@ -131,13 +131,14 @@ private:
 
 	DX_RESOURCES m_DxResources;
 
+	std::unique_ptr<AudioManager> m_AudioManager;
 	std::unique_ptr<TextureManager> m_TextureManager;
 	std::unique_ptr<OutputManager> m_OutputManager;
 	std::unique_ptr<ScreenCaptureManager> m_CaptureManager;
 	std::unique_ptr<MouseManager> m_MouseManager;
 
-	HRESULT m_EncoderResult = E_FAIL;
-	HRESULT m_MfStartupResult = E_FAIL;
+	HRESULT m_EncoderResult = S_FALSE;
+	HRESULT m_MfStartupResult = S_FALSE;
 	std::wstring m_OutputFolder = L"";
 	std::wstring m_OutputFullPath = L"";
 	double m_MaxFrameLengthMillis = 500;
@@ -158,7 +159,7 @@ private:
 	D3D11_TEXTURE2D_DESC m_FrameDataCallbackTextureDesc;
 
 	bool CheckDependencies(_Out_ std::wstring *error);
-	HRESULT ConfigureOutputDir(_In_ std::wstring path);
+	HRESULT ConfigureOutputDir(_In_ std::wstring path, _Out_ std::wstring *error);
 	REC_RESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_opt_ IStream *pStream);
 
 	HRESULT SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture);
@@ -227,5 +228,5 @@ private:
 	/// </summary>
 	/// <param name="result">The recording result.</param>
 	/// <param name="frameDelays">A map of paths to saved frames with corresponding delay between them. Only used for Slideshow mode.</param>
-	void SetRecordingCompleteStatus(_In_ REC_RESULT result, nlohmann::fifo_map<std::wstring, int> frameDelays);
+	void SetRecordingCompleteStatus(_In_ REC_RESULT result, _In_ std::optional<nlohmann::fifo_map<std::wstring, int>> frameDelays = std::nullopt);
 };

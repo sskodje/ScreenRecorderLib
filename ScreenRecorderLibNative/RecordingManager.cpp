@@ -78,6 +78,7 @@ RecordingManager::RecordingManager() :
 	m_OutputManager(nullptr),
 	m_CaptureManager(nullptr),
 	m_MouseManager(nullptr),
+	m_AudioManager(nullptr),
 	m_EncoderOptions(new H264_ENCODER_OPTIONS()),
 	m_AudioOptions(new AUDIO_OPTIONS),
 	m_MouseOptions(new MOUSE_OPTIONS),
@@ -86,7 +87,8 @@ RecordingManager::RecordingManager() :
 	m_IsDestructing(false),
 	m_RecordingSources{},
 	m_DxResources{},
-	m_FrameDataCallbackTexture(nullptr)
+	m_FrameDataCallbackTexture(nullptr),
+	m_TimerResolution(0)
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	m_MfStartupResult = MFStartup(MF_VERSION, MFSTARTUP_LITE);
@@ -132,8 +134,9 @@ void RecordingManager::SetLogSeverityLevel(int value) {
 }
 
 
-HRESULT RecordingManager::ConfigureOutputDir(_In_ std::wstring path) {
+HRESULT RecordingManager::ConfigureOutputDir(_In_ std::wstring path, _Out_ std::wstring *error) {
 	m_OutputFullPath = path;
+	*error = L"";
 	auto recorderMode = GetOutputOptions()->GetRecorderMode();
 	if (!path.empty()) {
 		wstring dir = path;
@@ -153,8 +156,7 @@ HRESULT RecordingManager::ConfigureOutputDir(_In_ std::wstring path) {
 		{
 			// Failed to create directory.
 			LOG_ERROR(L"failed to create output folder");
-			if (RecordingFailedCallback != nullptr)
-				RecordingFailedCallback(L"Failed to create output folder: " + s2ws(ec.message()), L"");
+			*error = s2ws(ec.message());
 			return E_FAIL;
 		}
 
@@ -270,40 +272,48 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		else {
 			std::wstring error = L"Recording is already in progress, aborting";
 			LOG_WARN("%ls", error.c_str());
-			if (RecordingFailedCallback != nullptr)
-				RecordingFailedCallback(error, L"");
+			SetRecordingCompleteStatus(REC_RESULT(E_FAIL, error));
 		}
 		return S_FALSE;
 	}
-	wstring errorText;
-	if (!CheckDependencies(&errorText)) {
-		LOG_ERROR(L"%ls", errorText);
-		if (RecordingFailedCallback != nullptr)
-			RecordingFailedCallback(errorText, L"");
-		return S_FALSE;
-	}
-	m_EncoderResult = S_FALSE;
-	RETURN_ON_BAD_HR(ConfigureOutputDir(path));
-
-	if (m_RecordingSources.size() == 0) {
-		std::wstring error = L"No valid recording sources found in recorder parameters.";
-		LOG_ERROR("%ls", error.c_str());
-		if (RecordingFailedCallback != nullptr)
-			RecordingFailedCallback(error, L"");
-		return S_FALSE;
-	}
-	bool expected = false;
 	if (m_TaskWrapperImpl->m_RecordTaskActive.exchange(true))
 	{
 		// Recording task is already running, so abort gracefully.
 		return S_FALSE;
 	}
+
+	HRESULT hr;
+	wstring errorText;
+	if (!CheckDependencies(&errorText)) {
+		LOG_ERROR(L"%ls", errorText);
+		SetRecordingCompleteStatus(REC_RESULT(E_FAIL, errorText));
+		return E_FAIL;
+	}
+	if (FAILED(hr = ConfigureOutputDir(path, &errorText))) {
+		if (RecordingFailedCallback != nullptr)
+			SetRecordingCompleteStatus(REC_RESULT(E_FAIL, errorText));
+	}
+
+	if (m_RecordingSources.size() == 0) {
+		std::wstring error = L"No valid recording sources found in recorder parameters.";
+		LOG_ERROR("%ls", error.c_str());
+		SetRecordingCompleteStatus(REC_RESULT(E_FAIL, error));
+		return E_FAIL;
+	}
+	m_AudioManager = make_unique<AudioManager>();
+	if (FAILED(hr = m_AudioManager->Initialize(GetAudioOptions()))) {
+		SetRecordingCompleteStatus(REC_RESULT(hr, L"Failed to initialize AudioManager"));
+		return hr;
+	}
+
+	m_EncoderResult = S_FALSE;
 	m_TaskWrapperImpl->m_RecordTaskCts = cancellation_token_source();
 	m_TaskWrapperImpl->m_RecordTask = concurrency::create_task([this, stream]() {
 		LOG_INFO(L"Starting recording task");
 		REC_RESULT result{};
 		HRESULT hr = CoInitializeEx(nullptr, COINITBASE_MULTITHREADED | COINIT_DISABLE_OLE1DDE);
 		RETURN_RESULT_ON_BAD_HR(hr, L"CoInitializeEx failed");
+		CoUninitializeOnExit coUninitialize;
 		RETURN_RESULT_ON_BAD_HR(hr = InitializeDx(nullptr, &m_DxResources), L"Failed to initialize DirectX");
 
 		m_TextureManager = make_unique<TextureManager>();
@@ -320,7 +330,6 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 			RecordingStatusChangedCallback(STATUS_FINALIZING);
 		}
 		result.FinalizeResult = m_OutputManager->FinalizeRecording();
-		CoUninitialize();
 
 		LOG_INFO("Exiting recording task");
 		return result;
@@ -328,6 +337,8 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 				{
 					m_CaptureManager.reset(nullptr);
 					m_MouseManager.reset(nullptr);
+					m_AudioManager.reset(nullptr);
+					m_TextureManager.reset(nullptr);
 					m_IsRecording = false;
 					m_IsPaused = false;
 					REC_RESULT result{ };
@@ -404,7 +415,7 @@ void RecordingManager::CleanupDxResources()
 #endif
 }
 
-void RecordingManager::SetRecordingCompleteStatus(_In_ REC_RESULT result, nlohmann::fifo_map<std::wstring, int> frameDelays)
+void RecordingManager::SetRecordingCompleteStatus(_In_ REC_RESULT result, _In_ std::optional<nlohmann::fifo_map<std::wstring, int>> frameDelays)
 {
 	std::wstring errMsg = L"";
 	bool isSuccess = SUCCEEDED(result.RecordingResult) && SUCCEEDED(result.FinalizeResult);
@@ -428,7 +439,7 @@ void RecordingManager::SetRecordingCompleteStatus(_In_ REC_RESULT result, nlohma
 	}
 	if (isSuccess) {
 		if (RecordingCompleteCallback)
-			RecordingCompleteCallback(m_OutputFullPath, frameDelays);
+			RecordingCompleteCallback(m_OutputFullPath, frameDelays.value_or(nlohmann::fifo_map<std::wstring, int>()));
 		LOG_DEBUG("Sent Recording Complete callback");
 	}
 	else {
@@ -483,17 +494,11 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 
 	SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
 
-	std::unique_ptr<AudioManager> pAudioManager = make_unique<AudioManager>();
+
 
 
 	if (recorderMode == RecorderModeInternal::Video) {
-		hr = pAudioManager->Initialize(GetAudioOptions());
-		if (SUCCEEDED(hr)) {
-			pAudioManager->StartCapture();
-		}
-		else {
-			LOG_ERROR(L"Audio capture failed to start: hr = 0x%08x", hr);
-		}
+		m_AudioManager->StartCapture();
 	}
 	if (pStream) {
 		RETURN_RESULT_ON_BAD_HR(hr = m_OutputManager->BeginRecording(pStream, videoOutputFrameSize), L"Failed to initialize video sink writer");
@@ -501,7 +506,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	else {
 		RETURN_RESULT_ON_BAD_HR(hr = m_OutputManager->BeginRecording(m_OutputFullPath, videoOutputFrameSize), L"Failed to initialize video sink writer");
 	}
-	pAudioManager->ClearRecordedBytes();
+	m_AudioManager->ClearRecordedBytes();
 
 	std::chrono::steady_clock::time_point previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
 	double videoFrameDurationMillis = 0;
@@ -564,7 +569,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 
 		INT64 diff = 0;
-		auto audioBytes = pAudioManager->GrabAudioFrame(duration100Nanos);
+		auto audioBytes = m_AudioManager->GrabAudioSamples(duration100Nanos);
 		if (audioBytes.size() > 0) {
 			INT64 frameCount = audioBytes.size() / (INT64)((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
 			INT64 newDuration = (frameCount * 10 * 1000 * 1000) / GetAudioOptions()->GetAudioSamplesPerSecond();
@@ -700,8 +705,8 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			}
 			ExecuteFuncOnExit clearDataOnExit([&]() {
 				previousSnapshotTaken = steady_clock::now();
-				if (pAudioManager)
-					pAudioManager->ClearRecordedBytes();
+				if (m_AudioManager)
+					m_AudioManager->ClearRecordedBytes();
 			});
 			if (!IsAnySourcePreviewsActive()) {
 				wait(10);

@@ -7,21 +7,24 @@ struct Window
 {
 public:
 	Window(nullptr_t) {}
-	Window(HWND hwnd, std::wstring const& title, std::wstring& className)
+	Window(HWND hwnd, std::wstring const& title, std::wstring& className, DWORD pid)
 	{
 		m_hwnd = hwnd;
 		m_title = title;
 		m_className = className;
+		m_Pid = pid;
 	}
 
 	HWND Hwnd() const noexcept { return m_hwnd; }
 	std::wstring Title() const noexcept { return m_title; }
 	std::wstring ClassName() const noexcept { return m_className; }
+	DWORD Pid() const noexcept { return m_Pid; }
 
 private:
 	HWND m_hwnd;
 	std::wstring m_title;
 	std::wstring m_className;
+	DWORD m_Pid;
 };
 
 std::wstring GetClassName(HWND hwnd)
@@ -94,7 +97,10 @@ BOOL CALLBACK EnumWindowsProc(HWND hwnd, LPARAM lParam)
 	auto class_name = GetClassName(hwnd);
 	auto title = GetWindowText(hwnd);
 
-	auto window = Window(hwnd, title, class_name);
+	DWORD pid = 0;
+	GetWindowThreadProcessId(hwnd, &pid);
+
+	auto window = Window(hwnd, title, class_name, pid);
 
 	if (IsRecordableWindow(window))
 	{

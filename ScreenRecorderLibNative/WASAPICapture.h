@@ -4,125 +4,73 @@
 #include "Log.h"
 #include "CommonTypes.h"
 #include "DynamicWait.h"
+#include "AudioClientContext.h"
 #include <windows.h>
 #include <avrt.h>
-#include <mmdeviceapi.h>
 #include <thread>
 #include <stdio.h>
 #include <audioclient.h>
 #include <vector>
 #include <functional>
 #include <atlbase.h>
+#include <initguid.h>
+#include <mmdeviceapi.h>
+#include <mutex>
 
 #pragma comment(lib, "avrt.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "winmm.lib")
-#pragma comment(lib, "Mmdevapi.lib")
-
-#ifndef METHODASYNCCALLBACK
-#define METHODASYNCCALLBACK(Parent, AsyncCallback, pfnCallback) \
-class Callback##AsyncCallback :\
-    public IMFAsyncCallback \
-{ \
-public: \
-    Callback##AsyncCallback() : \
-        _parent(((Parent*)((BYTE*)this - offsetof(Parent, m_x##AsyncCallback)))), \
-        _dwQueueID( MFASYNC_CALLBACK_QUEUE_MULTITHREADED ) \
-    { \
-    } \
-\
-    STDMETHOD_( ULONG, AddRef )() \
-    { \
-        return _parent->AddRef(); \
-    } \
-    STDMETHOD_( ULONG, Release )() \
-    { \
-        return _parent->Release(); \
-    } \
-    STDMETHOD( QueryInterface )( REFIID riid, void **ppvObject ) \
-    { \
-        if (riid == IID_IMFAsyncCallback || riid == IID_IUnknown) \
-        { \
-            (*ppvObject) = this; \
-            AddRef(); \
-            return S_OK; \
-        } \
-        *ppvObject = NULL; \
-        return E_NOINTERFACE; \
-    } \
-    STDMETHOD( GetParameters )( \
-        /* [out] */ __RPC__out DWORD *pdwFlags, \
-        /* [out] */ __RPC__out DWORD *pdwQueue) \
-    { \
-        *pdwFlags = 0; \
-        *pdwQueue = _dwQueueID; \
-        return S_OK; \
-    } \
-    STDMETHOD( Invoke )( /* [out] */ __RPC__out IMFAsyncResult * pResult ) \
-    { \
-        _parent->pfnCallback( pResult ); \
-        return S_OK; \
-    } \
-    void SetQueueID( DWORD dwQueueID ) { _dwQueueID = dwQueueID; } \
-\
-protected: \
-    Parent* _parent; \
-    DWORD   _dwQueueID; \
-           \
-} m_x##AsyncCallback;
-#endif
 
 class WASAPICapture
 {
 public:
-	WASAPICapture(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptions, _In_opt_ std::wstring tag = L"");
+	WASAPICapture(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptions, _In_ AUDIO_SOURCE *source);
 	~WASAPICapture();
 	void ClearRecordedBytes();
 	bool IsCapturing();
+	inline bool IsDefaultDevice() { return m_IsDefaultDevice; }
+	int GetNextFrameCount(UINT64 duration100Nanos);
 	std::vector<BYTE> PeakRecordedBytes();
-	std::vector<BYTE> GetRecordedBytes(UINT64 duration100Nanos);
-	HRESULT Initialize(_In_ std::wstring deviceId, _In_ EDataFlow flow);
+	std::vector<BYTE> GetRecordedBytesByDuration(UINT64 duration100Nanos);
+	std::vector<BYTE> GetRecordedBytesByFrameCount(UINT64 frameCount);
+	HRESULT Initialize(_In_ std::wstring endpointID, _In_ AudioClientKind kind);
 	HRESULT StartCapture();
 	HRESULT StopCapture();
-	void ReturnAudioBytesToBuffer(std::vector<BYTE> bytes);
 	void SetDefaultDevice(EDataFlow flow, ERole role, LPCWSTR id);
 	void SetOffline(bool isOffline);
 	inline EDataFlow GetFlow() { return m_Flow; }
-	inline std::wstring GetTag() { return m_Tag; }
+	inline std::wstring GetDeviceFriendlyName() { return m_DeviceFriendlyName; }
 	inline std::wstring GetDeviceName() { return m_DeviceName; }
-	inline std::wstring GetDeviceId() { return m_DeviceId; }
 	inline WWMFPcmFormat GetInputFormat() { return m_InputFormat; }
+	inline AUDIO_SOURCE *GetAudioCaptureSource() { return m_AudioCaptureSource; }
+	inline static std::mutex StaticMutex{};
 
 private:
 	const long AUDIO_CLIENT_BUFFER_100_NS = 200 * 10000;
 	HRESULT GetWaveFormat(
-		_In_ IAudioClient *pAudioClient,
+		_In_ AudioClientKind kind,
+		_In_ CComPtr<IAudioClient> client,
 		_In_ bool bInt16,
 		_Out_ WAVEFORMATEX **ppWaveFormat);
 	HRESULT InitializeAudioClient(
-		_In_ IMMDevice *pMMDevice,
-		_In_opt_ std::optional<DWORD> processId,
-		_Outptr_ IAudioClient **ppAudioClient);
+		_In_ std::wstring deviceId,
+		_In_ AudioClientKind kind,
+		_Outptr_ AudioClientContext **ppAudioClient);
 
 	HRESULT InitializeResampler(
 		_In_ UINT32 samplerate,
 		_In_ UINT32 nChannels,
-		_In_ IAudioClient *pAudioClient,
+		_In_ AudioClientContext *pAudioClientContext,
 		_Out_ WWMFPcmFormat *pInputFormat,
 		_Out_ WWMFPcmFormat *pOutputFormat,
 		_Outptr_result_maybenull_ WWMFResampler **ppResampler);
 
 	HRESULT StartCaptureLoop(
-		_In_ IAudioClient *pAudioClient,
+		_In_ AudioClientContext *pAudioClientContext,
 		_In_ HANDLE hStartedEvent,
 		_In_ HANDLE hStopEvent,
 		_In_ HANDLE hRestartEvent
 	);
-
-	//HRESULT WASAPICapture::ActivateAudioClientSync(
-	//const wchar_t *deviceId,
-	//const AUDIOCLIENT_ACTIVATION_PARAMS &params,
-	//IAudioClient **ppAudioClient)
 
 	bool StartListeners();
 	bool StopListeners();
@@ -131,18 +79,17 @@ private:
 
 	struct TaskWrapper;
 	std::unique_ptr<TaskWrapper> m_TaskWrapperImpl;
-	std::wstring m_DefaultDeviceId;
-	std::wstring m_DeviceId;
+	std::wstring m_DefaultDeviceName;
 	std::wstring m_DeviceName;
-	std::wstring m_Tag;
+	std::wstring m_DeviceFriendlyName;
 	EDataFlow m_Flow;
+	AudioClientKind m_Kind;
 	DynamicWait m_RetryWait;
 
 	bool m_IsRegisteredForEndpointNotifications = false;
 	bool m_IsDefaultDevice = false;
 	std::atomic<bool> m_IsCapturing = false;
 	std::atomic<bool> m_IsOffline = false;
-	std::vector<BYTE> m_OverflowBytes = {};
 	std::vector<BYTE> m_RecordedBytes = {};
 	HANDLE m_CaptureStartedEvent = nullptr;
 	HANDLE m_CaptureStopEvent = nullptr;
@@ -153,11 +100,12 @@ private:
 	HRESULT ReconnectThreadLoop();
 
 	CComPtr<IMMDeviceEnumerator> m_pEnumerator;
-	CComPtr<IAudioClient> m_AudioClient;
+	std::unique_ptr<AudioClientContext> m_AudioClientContext;
 	std::unique_ptr<WWMFResampler> m_Resampler;
 	WWMFPcmFormat m_InputFormat;
 	WWMFPcmFormat m_OutputFormat;
 
-	std::shared_ptr<AUDIO_OPTIONS> m_AudioOptions;
+	AUDIO_OPTIONS *m_AudioOptions;
+	AUDIO_SOURCE *m_AudioCaptureSource;
 };
 

@@ -3,25 +3,27 @@
 #include <wrl.h>
 #include <atomic>
 #include <atlbase.h>
+#include <memory>
+using unique_handle =
+std::unique_ptr<std::remove_pointer<HANDLE>::type, decltype(&CloseHandle)>;
 
 class AudioActivationHandler final
-	: public IActivateAudioInterfaceCompletionHandler
+	: public Microsoft::WRL::RuntimeClass<
+	Microsoft::WRL::RuntimeClassFlags<Microsoft::WRL::ClassicCom>,
+	Microsoft::WRL::FtmBase,
+	IAgileObject,
+	IActivateAudioInterfaceCompletionHandler>
 {
 public:
-	AudioActivationHandler();
-
-	~AudioActivationHandler();
-
-
-	STDMETHODIMP ActivateCompleted(
-		IActivateAudioInterfaceAsyncOperation *operation);
-
+	HRESULT RuntimeClassInitialize();
 	HRESULT WaitAndGetResult(REFIID iid, void **ppv);
-
+	void FinalRelease();
 
 private:
-	LONG _refCount{ 1 };
-	HANDLE _event = nullptr;
+	unique_handle _event = unique_handle(nullptr, &CloseHandle);
 	HRESULT _hr = E_FAIL;
-	CComPtr<IUnknown> _activatedInterface;
+	Microsoft::WRL::ComPtr<IUnknown> _activatedInterface;
+	STDMETHODIMP ActivateCompleted(
+	IActivateAudioInterfaceAsyncOperation *operation);
+
 };

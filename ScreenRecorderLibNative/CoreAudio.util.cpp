@@ -29,9 +29,9 @@ HRESULT GetDefaultAudioDevice(_In_ EDataFlow flow, _Outptr_ IMMDevice **ppMMDevi
 	return S_OK;
 }
 
-HRESULT ListAudioDevices(_In_ EDataFlow flow, _Out_ std::map<std::wstring, std::wstring> *devices) {
+HRESULT ListAudioDevices(_In_ EDataFlow flow, _Out_ std::vector<AUDIO_DEVICE> *devices) {
 	HRESULT hr = S_OK;
-	*devices = std::map<std::wstring, std::wstring>();
+	*devices = std::vector<AUDIO_DEVICE>();
 	// get an enumerator
 	CComPtr<IMMDeviceEnumerator> pMMDeviceEnumerator;
 
@@ -62,6 +62,13 @@ HRESULT ListAudioDevices(_In_ EDataFlow flow, _Out_ std::map<std::wstring, std::
 		return hr;
 	}
 	LOG_INFO(L"Active render endpoints found: %u", count);
+
+	CComPtr<IMMDevice> defaultDevice;
+	GetDefaultAudioDevice(flow, &defaultDevice);
+	LPWSTR defaultDeviceId = NULL;
+	defaultDevice->GetId(&defaultDeviceId);
+	CoTaskMemFreeOnExit releasePwszID(defaultDeviceId);
+
 
 	for (UINT i = 0; i < count; i++) {
 		CComPtr<IMMDevice> pMMDevice;
@@ -102,9 +109,9 @@ HRESULT ListAudioDevices(_In_ EDataFlow flow, _Out_ std::map<std::wstring, std::
 			return E_UNEXPECTED;
 		}
 
-		LOG_INFO(L"    %ls", pv.pwszVal);
-
-		devices->insert(std::pair<std::wstring, std::wstring>(deviceID, pv.pwszVal));
+		LOG_DEBUG(L"    %ls", pv.pwszVal);
+		bool isDefaultDevice = std::wstring(deviceID) == std::wstring(defaultDeviceId);
+		devices->push_back(AUDIO_DEVICE(deviceID, pv.pwszVal, isDefaultDevice));
 	}
 	return S_OK;
 }
@@ -266,4 +273,18 @@ bool IsAudioClientActivationParamsAvailable()
 	FreeLibrary(hMmdevapi);
 
 	return pActivateAudioInterfaceAsync != nullptr;
+}
+
+EDataFlow AudioClientKindToDeviceFlow(AudioClientKind kind)
+{
+	switch (kind)
+	{
+		case AudioClientKind::Endpoint:
+			return EDataFlow::eCapture;
+		case AudioClientKind::EndpointLoopback:
+		case AudioClientKind::ProcessLoopback:
+			return EDataFlow::eRender;
+		default:
+			throw std::runtime_error("Unknown AudioClientKind");
+	}
 }

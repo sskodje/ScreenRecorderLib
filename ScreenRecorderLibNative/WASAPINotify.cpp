@@ -105,7 +105,7 @@ HRESULT STDMETHODCALLTYPE WASAPINotify::OnDeviceRemoved(LPCWSTR pwstrDeviceId)
 	GetAudioDeviceFriendlyName(pMMDevice, &deviceName);
 	GetAudioDeviceFlow(pMMDevice, &flow);
 	if (flow == m_CaptureClient->GetFlow()) {
-		if (pwstrDeviceId == m_CaptureClient->GetDeviceId()) {
+		if (pwstrDeviceId == m_CaptureClient->GetDeviceName()) {
 			m_CaptureClient->SetOffline(true);
 		}
 
@@ -128,26 +128,26 @@ HRESULT STDMETHODCALLTYPE WASAPINotify::OnDeviceStateChanged(LPCWSTR pwstrDevice
 		{
 			case DEVICE_STATE_ACTIVE:
 				state = L"ACTIVE";
-				if (pwstrDeviceId == m_CaptureClient->GetDeviceId()) {
+				if (pwstrDeviceId == m_CaptureClient->GetDeviceName()) {
 					m_CaptureClient->SetOffline(false);
 					m_CaptureClient->StartCapture();
 				}
 				break;
 			case DEVICE_STATE_DISABLED:
 				state = L"DISABLED";
-				if (pwstrDeviceId == m_CaptureClient->GetDeviceId()) {
+				if (pwstrDeviceId == m_CaptureClient->GetDeviceName()) {
 					m_CaptureClient->SetOffline(true);
 				}
 				break;
 			case DEVICE_STATE_NOTPRESENT:
 				state = L"NOTPRESENT";
-				if (pwstrDeviceId == m_CaptureClient->GetDeviceId()) {
+				if (pwstrDeviceId == m_CaptureClient->GetDeviceName()) {
 					m_CaptureClient->SetOffline(true);
 				}
 				break;
 			case DEVICE_STATE_UNPLUGGED:
 				state = L"UNPLUGGED";
-				if (pwstrDeviceId == m_CaptureClient->GetDeviceId()) {
+				if (pwstrDeviceId == m_CaptureClient->GetDeviceName()) {
 					m_CaptureClient->SetOffline(true);
 				}
 				break;

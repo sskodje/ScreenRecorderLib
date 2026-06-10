@@ -2,11 +2,13 @@
 #include "cleanup.h"
 #include <Functiondiscoverykeys_devpkey.h>
 #include "CoreAudio.util.h"
+#include <mutex>
 using namespace std;
 
 AudioManager::AudioManager() :
 	m_AudioOptions(nullptr),
-	m_IsCaptureEnabled(false)
+	m_IsCaptureEnabled(false),
+	m_AudioCaptures{}
 {
 	InitializeCriticalSection(&m_CriticalSection);
 	m_OptionsListenerStopEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
@@ -17,6 +19,10 @@ AudioManager::~AudioManager()
 	StopOptionsChangeListenerThread();
 	CloseHandle(m_OptionsListenerStopEvent);
 	DeleteCriticalSection(&m_CriticalSection);
+	for each (WASAPICapture * capture in m_AudioCaptures) {
+		delete capture;
+	}
+	m_AudioCaptures = {};
 }
 
 void AudioManager::OnOptionsChanged() {
@@ -38,7 +44,7 @@ void AudioManager::OnOptionsChanged() {
 				case WAIT_OBJECT_0 + 1: {
 					EnterCriticalSection(&m_CriticalSection);
 					LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
-					ConfigureAudioCapture();
+					ConfigureAudioCapture(true);
 					break;
 				}
 			}
@@ -59,22 +65,21 @@ HRESULT AudioManager::Initialize(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptio
 	StopOptionsChangeListenerThread();
 	ResetEvent(m_OptionsListenerStopEvent);
 	m_OptionsListenerThread = std::thread([this] {OnOptionsChanged(); });
-	return hr;
+	return ConfigureAudioCapture(false);
 }
 
 void AudioManager::ClearRecordedBytes()
 {
-	if (m_AudioOutputCapture)
-		m_AudioOutputCapture->ClearRecordedBytes();
-	if (m_AudioInputCapture)
-		m_AudioInputCapture->ClearRecordedBytes();
+	for each (WASAPICapture * capture in m_AudioCaptures) {
+		capture->ClearRecordedBytes();
+	}
 }
 
 HRESULT AudioManager::StartCapture() {
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 	m_IsCaptureEnabled = true;
-	return ConfigureAudioCapture();
+	return ConfigureAudioCapture(true);
 }
 
 HRESULT AudioManager::StopCapture()
@@ -82,7 +87,7 @@ HRESULT AudioManager::StopCapture()
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 	m_IsCaptureEnabled = false;
-	return ConfigureAudioCapture();
+	return ConfigureAudioCapture(true);
 }
 
 HRESULT AudioManager::StopOptionsChangeListenerThread()
@@ -104,135 +109,155 @@ HRESULT AudioManager::StopOptionsChangeListenerThread()
 	return S_OK;
 }
 
-HRESULT AudioManager::StartDeviceCapture(WASAPICapture *pCapture, std::wstring deviceId, EDataFlow flow) {
+HRESULT AudioManager::StartDeviceCapture(WASAPICapture *pCapture) {
 	HRESULT hr = pCapture->StartCapture();
 	if (hr == S_OK) {
-		LOG_INFO(L"Started audio capture on %s: %s", pCapture->GetTag().c_str(), pCapture->GetDeviceName().c_str());
+		LOG_INFO(L"Started audio capture on %s", pCapture->GetDeviceFriendlyName().c_str());
 	}
 	else if (hr == S_FALSE) {
-		LOG_DEBUG(L"Audio capture on %s: %s is already running", pCapture->GetTag().c_str(), pCapture->GetDeviceName().c_str());
+		LOG_DEBUG(L"Audio capture on %s is already running", pCapture->GetDeviceFriendlyName().c_str());
 	}
 	return hr;
 }
 
 HRESULT AudioManager::StopDeviceCapture(WASAPICapture *pCapture) {
-	if (pCapture && pCapture->IsCapturing()) {
+	if (pCapture->IsCapturing()) {
 		RETURN_ON_BAD_HR(pCapture->StopCapture());
-		LOG_DEBUG(L"Stopped audio capture on %s: %s", pCapture->GetTag().c_str(), pCapture->GetDeviceName().c_str());
+		LOG_DEBUG(L"Stopped audio capture on %s", pCapture->GetDeviceFriendlyName().c_str());
 	}
 	return S_OK;
 }
 
-HRESULT AudioManager::ConfigureAudioCapture() {
+HRESULT AudioManager::ConfigureAudioCapture(bool startDeviceCapture) {
 	HRESULT hr = S_FALSE;
-	if (GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsOutputDeviceEnabled() && m_IsCaptureEnabled)
-	{
-		if (!m_AudioOutputCapture) {
-			m_AudioOutputCapture = make_unique<WASAPICapture>(m_AudioOptions, L"AudioOutputDevice");
-			hr = m_AudioOutputCapture->Initialize(GetAudioOptions()->GetAudioOutputDevice(), eRender);
-			LOG_DEBUG("Created WASAPI capture on %s", m_AudioOutputCapture->GetTag().c_str());
-		}
-		if (!m_AudioOutputCapture->IsCapturing()) {
-			hr = StartDeviceCapture(m_AudioOutputCapture.get(), GetAudioOptions()->GetAudioOutputDevice(), eRender);
-		}
-	}
-	else {
-		hr = StopDeviceCapture(m_AudioOutputCapture.get());
-	}
+	const std::lock_guard<std::mutex> lock(WASAPICapture::StaticMutex);
+	std::vector<AUDIO_SOURCE *> &captureSources = GetAudioOptions()->GetAudioSources();
 
-	if (GetAudioOptions()->IsAudioEnabled() && GetAudioOptions()->IsInputDeviceEnabled() && m_IsCaptureEnabled)
+	for each (AUDIO_SOURCE * captureSource in captureSources)
 	{
-		if (!m_AudioInputCapture) {
-			m_AudioInputCapture = make_unique<WASAPICapture>(m_AudioOptions, L"AudioInputDevice");
-			m_AudioInputCapture->Initialize(GetAudioOptions()->GetAudioInputDevice(), eCapture);
-			LOG_DEBUG("Created WASAPI capture on %s", m_AudioInputCapture->GetTag().c_str());
+		WASAPICapture *wasapiCapture = nullptr;
+		auto it = std::find_if(m_AudioCaptures.begin(), m_AudioCaptures.end(), [&](WASAPICapture *obj) {
+			if (obj->GetAudioCaptureSource()->ID == captureSource->ID) {
+				return true;
+			}
+			return false;
+			});
+		if (it == m_AudioCaptures.end()) {
+			auto capture = new WASAPICapture(m_AudioOptions, captureSource);
+			hr = capture->Initialize(captureSource->DeviceName, captureSource->Kind);
+			if (SUCCEEDED(hr)) {
+				m_AudioCaptures.insert(m_AudioCaptures.end(), capture);
+				wasapiCapture = capture;
+				LOG_DEBUG("Created WASAPI capture on %s with unique ID %s", wasapiCapture->GetDeviceFriendlyName().c_str(), captureSource->ID.c_str());
+			}
 		}
-		if (!m_AudioInputCapture->IsCapturing()) {
-			hr = StartDeviceCapture(m_AudioInputCapture.get(), GetAudioOptions()->GetAudioInputDevice(), eCapture);
+		else {
+			wasapiCapture = *it;
 		}
-	}
-	else {
-		hr = StopDeviceCapture(m_AudioInputCapture.get());
+
+		if (wasapiCapture) {
+			if (!wasapiCapture->IsCapturing() && startDeviceCapture && m_IsCaptureEnabled) {
+				hr = StartDeviceCapture(wasapiCapture);
+			}
+			else {
+				hr = StopDeviceCapture(wasapiCapture);
+			}
+		}
 	}
 	return hr;
 }
 
-std::vector<BYTE> AudioManager::GrabAudioFrame(_In_ UINT64 durationHundredNanos)
+std::vector<BYTE> AudioManager::GrabAudioSamples(_In_ UINT64 durationHundredNanos)
 {
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 
-	std::vector<BYTE> outputDeviceData = m_AudioOutputCapture ? m_AudioOutputCapture->GetRecordedBytes(durationHundredNanos) : std::vector<BYTE>();
-	std::vector<BYTE> inputDeviceData = m_AudioInputCapture ? m_AudioInputCapture->GetRecordedBytes(durationHundredNanos) : std::vector<BYTE>();
-	if (m_AudioOutputCapture && m_AudioInputCapture) {
-		auto returnAudioOverflowToBuffer = [&](auto &outputDeviceData, auto &inputDeviceData) {
-			if (outputDeviceData.size() > 0 && inputDeviceData.size() > 0) {
-				if (outputDeviceData.size() > inputDeviceData.size()) {
-					auto diff = outputDeviceData.size() - inputDeviceData.size();
-					std::vector<BYTE> overflow(outputDeviceData.end() - diff, outputDeviceData.end());
-					outputDeviceData.resize(outputDeviceData.size() - diff);
-					m_AudioOutputCapture->ReturnAudioBytesToBuffer(overflow);
-				}
-				else if (inputDeviceData.size() > outputDeviceData.size()) {
-					auto diff = inputDeviceData.size() - outputDeviceData.size();
-					std::vector<BYTE> overflow(inputDeviceData.end() - diff, inputDeviceData.end());
-					inputDeviceData.resize(inputDeviceData.size() - diff);
-					m_AudioInputCapture->ReturnAudioBytesToBuffer(overflow);
-				}
-			}
-			};
+	std::map<WASAPICapture *, std::vector<BYTE>> audioSamples;
 
-		returnAudioOverflowToBuffer(outputDeviceData, inputDeviceData);
-		if (inputDeviceData.size() > 0 && outputDeviceData.size() && inputDeviceData.size() != outputDeviceData.size()) {
-			LOG_ERROR(L"Mixing audio byte arrays with differing sizes");
+	int lowestFrameCount = 0;
+	{
+		const std::lock_guard<std::mutex> lock(WASAPICapture::StaticMutex);
+		for each (WASAPICapture * capture in m_AudioCaptures)
+		{
+			int frameCount = capture->GetNextFrameCount(durationHundredNanos);
+			if (lowestFrameCount == 0 || frameCount < lowestFrameCount) {
+				lowestFrameCount = frameCount;
+			}
 		}
-		return std::move(MixAudioSamples(outputDeviceData, inputDeviceData, GetAudioOptions()->GetOutputVolume(), GetAudioOptions()->GetInputVolume()));
+
+		for each (WASAPICapture * capture in m_AudioCaptures)
+		{
+			audioSamples.emplace(capture, capture->GetRecordedBytesByFrameCount(lowestFrameCount));
+		}
 	}
-	else if (m_AudioOutputCapture)
-		return std::move(MixAudioSamples(outputDeviceData, inputDeviceData, GetAudioOptions()->GetOutputVolume(), 1.0));
-	else if (m_AudioInputCapture)
-		return std::move(MixAudioSamples(outputDeviceData, inputDeviceData, 1.0, GetAudioOptions()->GetInputVolume()));
-	else
-		return std::vector<BYTE>();
+
+	return MixAudioSamples(audioSamples);
 }
 
 
-std::vector<BYTE> AudioManager::MixAudioSamples(_In_ std::vector<BYTE> &outputDeviceData, _In_ std::vector<BYTE> &inputDeviceData, _In_ float outputDeviceVolume, _In_ float inputDeviceVolume)
+std::vector<BYTE> AudioManager::MixAudioSamples(std::map<WASAPICapture *, std::vector<BYTE>> &audioSamples)
 {
-	if (m_AudioOptions && m_AudioOptions->GetAudioChannels() > 1 && m_AudioOptions->IsInputDeviceDownmixingEnabled() && inputDeviceData.size() > 0) {
-		try
-		{
-			// This will copy the selected channel from the input device over all the output channels.
-			// Useful when i.e. the input device is stereo but only outputs audio on one channel.
-			inputDeviceData = std::move(DownmixToMono(inputDeviceData, m_AudioInputCapture->GetInputFormat().nChannels, m_AudioOptions->GetAudioChannels(), m_AudioOptions->getInputMasterChannel()));
-			LOG_TRACE("Downmixed input audio");
+	if (audioSamples.empty()) {
+		return {};
+	}
+	std::vector<StreamData> streams;
+	streams.reserve(audioSamples.size());
+	size_t maxSize = 0;
+	for (auto &pair : audioSamples) {
+		maxSize = max(maxSize, pair.second.size());
+
+		if (pair.first->GetFlow() == eCapture
+		&& m_AudioOptions
+		&& m_AudioOptions->GetAudioChannels() > 1
+		&& m_AudioOptions->IsInputDeviceDownmixingEnabled()) {
+			try
+			{
+				// This will copy the selected channel from the input device over all the output channels.
+				// Useful when i.e. the input device is stereo but only outputs audio on one channel.
+				pair.second = DownmixToMono(pair.second, pair.first->GetInputFormat().nChannels, m_AudioOptions->GetAudioChannels(), m_AudioOptions->GetInputMasterChannel());
+				LOG_TRACE("Downmixed input audio");
+			}
+			catch (const std::runtime_error &e) {
+				LOG_ERROR("Error downmixing audio input device: %s.", s2ws(e.what()).c_str());
+			}
 		}
-		catch (const std::runtime_error &e) {
-			LOG_ERROR("Error downmixing audio input device: %s.", s2ws(e.what()).c_str());
-		}
+		streams.push_back({
+			reinterpret_cast<const short *>(pair.second.data()),
+			pair.second.size() / 2,
+			pair.first->GetAudioCaptureSource()->OutputVolumeModifier
+		});
 	}
 
-	std::vector<BYTE> newvector(max(outputDeviceData.size(), inputDeviceData.size()));
+	std::vector<BYTE> output(maxSize);
+	const size_t maxSamples = maxSize / 2;
+	short *outputSamples = reinterpret_cast<short *>(output.data());
 	bool clipped = false;
-	for (size_t i = 0; i < newvector.size(); i += 2) {
-		short firstSample = outputDeviceData.size() > i + 1 ? static_cast<short>(outputDeviceData[i] | outputDeviceData[i + 1] << 8) : 0;
-		short secondSample = inputDeviceData.size() > i + 1 ? static_cast<short>(inputDeviceData[i] | inputDeviceData[i + 1] << 8) : 0;
-		auto out = reinterpret_cast<short *>(&newvector[i]);
-		int mixedSample = int(round((firstSample)*outputDeviceVolume + (secondSample)*inputDeviceVolume));
-		if (mixedSample > MAXSHORT) {
-			clipped = true;
-			mixedSample = MAXSHORT;
+
+	for (size_t i = 0; i < maxSamples; i += 1) {
+		int mixed = 0;
+		for (auto &s : streams) {
+			if (i < s.sampleCount) {
+				short sample = s.samples[i];
+				mixed += static_cast<int>(sample * s.volume);
+			}
 		}
-		else if (mixedSample < -MAXSHORT) {
+		mixed = static_cast<int>(mixed * GetAudioOptions()->GetMasterVolume());
+		if (mixed > 32767) {
+			mixed = 32767 - (mixed - 32767) / 2;
 			clipped = true;
-			mixedSample = -MAXSHORT;
 		}
-		*out = (short)mixedSample;
+		else if (mixed < -32768) {
+			mixed = -32768 - (mixed + 32768) / 2;
+			clipped = true;
+		}
+
+		outputSamples[i] = static_cast<short>(mixed);
 	}
+
 	if (clipped) {
 		LOG_WARN("Audio clipped during mixing");
 	}
-	return newvector;
+	return output;
 }
 
 std::vector<BYTE> AudioManager::DownmixToMono(

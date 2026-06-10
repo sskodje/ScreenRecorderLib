@@ -28,7 +28,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AudioActivationHandler.h" />
+    <ClInclude Include="AudioClientContext.h" />
     <ClInclude Include="AudioManager.h" />
+    <ClInclude Include="AudioSample.h" />
     <ClInclude Include="CMFSinkWriterCallback.h" />
     <ClInclude Include="CoreAudio.util.h" />
     <ClInclude Include="DynamicWait.h" />
