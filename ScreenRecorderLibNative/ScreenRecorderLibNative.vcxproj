@@ -29,6 +29,7 @@
   <ItemGroup>
     <ClInclude Include="AudioActivationHandler.h" />
     <ClInclude Include="AudioClientContext.h" />
+    <ClInclude Include="AudioDriftCorrector.h" />
     <ClInclude Include="AudioManager.h" />
     <ClInclude Include="AudioSample.h" />
     <ClInclude Include="CMFSinkWriterCallback.h" />
@@ -67,6 +68,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="AudioActivationHandler.cpp" />
+    <ClCompile Include="AudioDriftCorrector.cpp" />
     <ClCompile Include="AudioManager.cpp" />
     <ClCompile Include="CaptureBase.cpp" />
     <ClCompile Include="CoreAudio.util.cpp" />

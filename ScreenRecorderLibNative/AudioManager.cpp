@@ -90,6 +90,22 @@ HRESULT AudioManager::StopCapture()
 	return ConfigureAudioCapture(true);
 }
 
+HRESULT AudioManager::PauseCapture()
+{
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
+	m_IsCapturePaused = true;
+	return ConfigureAudioCapture(true);
+}
+
+HRESULT AudioManager::ResumeCapture()
+{
+	EnterCriticalSection(&m_CriticalSection);
+	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
+	m_IsCapturePaused = false;
+	return ConfigureAudioCapture(true);
+}
+
 HRESULT AudioManager::StopOptionsChangeListenerThread()
 {
 	SetEvent(m_OptionsListenerStopEvent);
@@ -125,7 +141,25 @@ HRESULT AudioManager::StopDeviceCapture(WASAPICapture *pCapture) {
 		RETURN_ON_BAD_HR(pCapture->StopCapture());
 		LOG_DEBUG(L"Stopped audio capture on %s", pCapture->GetDeviceFriendlyName().c_str());
 	}
-	return S_OK;
+	return S_FALSE;
+}
+
+HRESULT AudioManager::PauseDeviceCapture(WASAPICapture *pCapture)
+{
+	if (pCapture->IsCapturing()) {
+		RETURN_ON_BAD_HR(pCapture->PauseCapture());
+		LOG_DEBUG(L"Paused audio capture on %s", pCapture->GetDeviceFriendlyName().c_str());
+	}
+	return S_FALSE;
+}
+
+HRESULT AudioManager::ResumeDeviceCapture(WASAPICapture *pCapture)
+{
+	if (pCapture->IsCapturing() && pCapture->IsPaused()) {
+		RETURN_ON_BAD_HR(pCapture->ResumeCapture());
+		LOG_DEBUG(L"Resumed audio capture on %s", pCapture->GetDeviceFriendlyName().c_str());
+	}
+	return S_FALSE;
 }
 
 HRESULT AudioManager::ConfigureAudioCapture(bool startDeviceCapture) {
@@ -155,31 +189,37 @@ HRESULT AudioManager::ConfigureAudioCapture(bool startDeviceCapture) {
 			wasapiCapture = *it;
 		}
 
-		if (wasapiCapture) {
-			if (!wasapiCapture->IsCapturing() && startDeviceCapture && m_IsCaptureEnabled) {
+		if (wasapiCapture && startDeviceCapture) {
+			if (!wasapiCapture->IsCapturing() && m_IsCaptureEnabled) {
 				hr = StartDeviceCapture(wasapiCapture);
 			}
-			else {
+			else if (wasapiCapture->IsCapturing() && !m_IsCaptureEnabled) {
 				hr = StopDeviceCapture(wasapiCapture);
+			}
+			else if (wasapiCapture->IsCapturing() && m_IsCapturePaused) {
+				hr = PauseDeviceCapture(wasapiCapture);
+			}
+			else if (wasapiCapture->IsCapturing() && !m_IsCapturePaused) {
+				hr = ResumeDeviceCapture(wasapiCapture);
 			}
 		}
 	}
 	return hr;
 }
 
-std::vector<BYTE> AudioManager::GrabAudioSamples(_In_ UINT64 durationHundredNanos)
+std::vector<BYTE> AudioManager::GrabAudioSamples(_Out_ UINT64 *qpcTimestamp)
 {
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 
 	std::map<WASAPICapture *, std::vector<BYTE>> audioSamples;
-
+	*qpcTimestamp = 0;
 	int lowestFrameCount = 0;
 	{
 		const std::lock_guard<std::mutex> lock(WASAPICapture::StaticMutex);
 		for each (WASAPICapture * capture in m_AudioCaptures)
 		{
-			int frameCount = capture->GetNextFrameCount(durationHundredNanos);
+			int frameCount = capture->GetNextFrameCount();
 			if (lowestFrameCount == 0 || frameCount < lowestFrameCount) {
 				lowestFrameCount = frameCount;
 			}
@@ -187,7 +227,11 @@ std::vector<BYTE> AudioManager::GrabAudioSamples(_In_ UINT64 durationHundredNano
 
 		for each (WASAPICapture * capture in m_AudioCaptures)
 		{
-			audioSamples.emplace(capture, capture->GetRecordedBytesByFrameCount(lowestFrameCount));
+			UINT64 qpcPos;
+			audioSamples.emplace(capture, capture->GetRecordedBytesByFrameCount(lowestFrameCount, &qpcPos));
+			if (*qpcTimestamp == 0 || *qpcTimestamp > qpcPos) {
+				*qpcTimestamp = qpcPos;
+			}
 		}
 	}
 

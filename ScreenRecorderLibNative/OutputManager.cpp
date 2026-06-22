@@ -195,37 +195,21 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 	MeasureExecutionTime measure(L"RenderFrame");
 	auto recorderMode = GetOutputOptions()->GetRecorderMode();
 	if (recorderMode == RecorderModeInternal::Video) {
-		hr = WriteFrameToVideo(model.StartPos, model.Duration, m_VideoStreamIndex, model.Frame);
+		hr = WriteFrameToVideo(model.VideoStartPos, model.VideoDuration, m_VideoStreamIndex, model.Frame);
 		bool wroteAudioSample = false;
 		if (FAILED(hr)) {
 			_com_error err(hr);
-			LOG_ERROR(L"Writing of video frame with start pos %lld ms failed: %s", (HundredNanosToMillis(model.StartPos)), err.ErrorMessage());
+			LOG_ERROR(L"Writing of video frame with start pos %lld ms failed: %s", (HundredNanosToMillis(model.VideoStartPos)), err.ErrorMessage());
 			return hr;//Stop recording if we fail
 		}
 		bool paddedAudio = false;
 
-		/* If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
-		 * If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
-		 * We ignore every instance where the last frame had audio, due to sometimes very short frame durations due to mouse cursor changes have zero audio length,
-		 * and inserting silence between two frames that has audio leads to glitching. */
-		if (GetAudioOptions()->IsAudioEnabled() && model.Audio.size() == 0 && model.Duration > 0) {
-			if (!m_LastFrameHadAudio) {
-				int frameCount = int(ceil(GetAudioOptions()->GetAudioSamplesPerSecond() * HundredNanosToMillis(model.Duration) / 1000));
-				int byteCount = frameCount * (GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels();
-				model.Audio.insert(model.Audio.end(), byteCount, 0);
-				paddedAudio = true;
-			}
-			m_LastFrameHadAudio = false;
-		}
-		else {
-			m_LastFrameHadAudio = true;
-		}
 
 		if (model.Audio.size() > 0) {
-			hr = WriteAudioSamplesToVideo(model.StartPos, model.Duration, m_AudioStreamIndex, &(model.Audio)[0], (DWORD)model.Audio.size());
+			hr = WriteAudioSamplesToVideo(model.AudioStartPos, model.AudioDuration, m_AudioStreamIndex, &(model.Audio)[0], (DWORD)model.Audio.size());
 			if (FAILED(hr)) {
 				_com_error err(hr);
-				LOG_ERROR(L"Writing of audio sample with start pos %lld ms failed: %s", (HundredNanosToMillis(model.StartPos)), err.ErrorMessage());
+				LOG_ERROR(L"Writing of audio sample with start pos %lld ms failed: %s", (HundredNanosToMillis(model.AudioStartPos)), err.ErrorMessage());
 				return hr;//Stop recording if we fail
 			}
 			else {
@@ -233,13 +217,13 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 			}
 		}
 		auto frameInfoStr = wroteAudioSample ? (paddedAudio ? L"video sample and audio padding" : L"video and audio sample") : L"video sample";
-		LOG_TRACE(L"Wrote %s with duration %.2f ms", frameInfoStr, HundredNanosToMillisDouble(model.Duration));
+		LOG_TRACE(L"Wrote %s with vid start %lld ms, vid duration %.2f ms, audio start %lld ms, audio duration %.2f ms", frameInfoStr, HundredNanosToMillis(model.VideoStartPos), HundredNanosToMillisDouble(model.VideoDuration), HundredNanosToMillis(model.AudioStartPos), HundredNanosToMillisDouble(model.AudioDuration));
 	}
 	else if (recorderMode == RecorderModeInternal::Slideshow) {
 		wstring	path = m_OutputFolder + L"\\" + to_wstring(m_RenderedFrameCount) + GetSnapshotOptions()->GetImageExtension();
 		hr = WriteFrameToImage(model.Frame, path);
-		INT64 startposMs = HundredNanosToMillis(model.StartPos);
-		INT64 durationMs = HundredNanosToMillis(model.Duration);
+		INT64 startposMs = HundredNanosToMillis(model.VideoStartPos);
+		INT64 durationMs = HundredNanosToMillis(model.VideoDuration);
 		if (FAILED(hr)) {
 			_com_error err(hr);
 			LOG_ERROR(L"Writing of slideshow frame with start pos %lld ms failed: %s", startposMs, err.ErrorMessage());

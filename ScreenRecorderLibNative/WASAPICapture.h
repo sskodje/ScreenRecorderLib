@@ -16,10 +16,27 @@
 #include <initguid.h>
 #include <mmdeviceapi.h>
 #include <mutex>
+#include <deque>
 
 #pragma comment(lib, "avrt.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "winmm.lib")
+
+struct AudioPacket
+{
+	std::vector<BYTE> data;
+	UINT32 frameCount;
+	LONGLONG timestamp100ns;
+
+
+	AudioPacket() = default;
+
+	AudioPacket(const std::vector<BYTE> &data, const UINT32 &frameCount, const LONGLONG &timestamp100ns)
+		: data(data), frameCount(frameCount), timestamp100ns(timestamp100ns)
+	{
+
+	}
+};
 
 class WASAPICapture
 {
@@ -28,14 +45,17 @@ public:
 	~WASAPICapture();
 	void ClearRecordedBytes();
 	bool IsCapturing();
+	bool IsPaused();
 	inline bool IsDefaultDevice() { return m_IsDefaultDevice; }
-	int GetNextFrameCount(UINT64 duration100Nanos);
+	int GetNextFrameCount();
 	std::vector<BYTE> PeakRecordedBytes();
-	std::vector<BYTE> GetRecordedBytesByDuration(UINT64 duration100Nanos);
-	std::vector<BYTE> GetRecordedBytesByFrameCount(UINT64 frameCount);
+	std::vector<BYTE> GetRecordedBytesByDuration(UINT64 duration100Nanos, _Out_ UINT64 *qpcTimestamp);
+	std::vector<BYTE> GetRecordedBytesByFrameCount(UINT64 frameCount, _Out_ UINT64 *qpcTimestamp);
 	HRESULT Initialize(_In_ std::wstring endpointID, _In_ AudioClientKind kind);
 	HRESULT StartCapture();
 	HRESULT StopCapture();
+	HRESULT PauseCapture();
+	HRESULT ResumeCapture();
 	void SetDefaultDevice(EDataFlow flow, ERole role, LPCWSTR id);
 	void SetOffline(bool isOffline);
 	inline EDataFlow GetFlow() { return m_Flow; }
@@ -88,9 +108,10 @@ private:
 
 	bool m_IsRegisteredForEndpointNotifications = false;
 	bool m_IsDefaultDevice = false;
+	std::atomic<bool> m_IsPaused = false;
 	std::atomic<bool> m_IsCapturing = false;
 	std::atomic<bool> m_IsOffline = false;
-	std::vector<BYTE> m_RecordedBytes = {};
+	std::deque<AudioPacket> m_RecordedAudioPackets = {};
 	HANDLE m_CaptureStartedEvent = nullptr;
 	HANDLE m_CaptureStopEvent = nullptr;
 	HANDLE m_CaptureRestartEvent = nullptr;

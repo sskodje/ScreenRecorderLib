@@ -11,6 +11,7 @@
 #include "Exception.h"
 #include <audioclientactivationparams.h>
 #include "AudioActivationHandler.h"
+#include<numeric>
 
 
 using namespace std;
@@ -479,14 +480,24 @@ HRESULT WASAPICapture::StartCaptureLoop(
 				UINT32 nNumFramesToRead;
 				DWORD dwFlags;
 				UINT64 nDevicePosition;
-
+				UINT64 nQpcPosition;
 				hr = pAudioCaptureClient->GetBuffer(
 					&pData,
 					&nNumFramesToRead,
 					&dwFlags,
 					&nDevicePosition,
-					NULL
+					&nQpcPosition
 				);
+
+				if (m_IsPaused.load()) {
+					hr = pAudioCaptureClient->ReleaseBuffer(nNumFramesToRead);
+					if (FAILED(hr)) {
+						LOG_ERROR(L"IAudioCaptureClient::ReleaseBuffer failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, GetDeviceFriendlyName().c_str(), hr);
+						bDone = true;
+					}
+					continue;
+				}
+
 				if (FAILED(hr)) {
 					LOG_ERROR(L"IAudioCaptureClient::GetBuffer failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, GetDeviceFriendlyName().c_str(), hr);
 					bDone = true;
@@ -531,17 +542,20 @@ HRESULT WASAPICapture::StartCaptureLoop(
 
 				const std::scoped_lock lock(m_TaskWrapperImpl->m_Mutex, StaticMutex);
 #pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
-				if (m_RecordedBytes.size() == 0)
-					m_RecordedBytes.reserve(size);
-				m_RecordedBytes.insert(m_RecordedBytes.end(), &bufferData[0], &bufferData[size]);
+
+				std::vector<BYTE> recordedBytes(&bufferData[0], &bufferData[size]);
 				//This should reduce glitching if there is discontinuity in the audio stream.
 				if (isDiscontinuity) {
-					UINT64 frameDiff = nDevicePosition - nLastDevicePosition;
-					if (frameDiff != nNumFramesToRead) {
-						m_RecordedBytes.insert(m_RecordedBytes.begin(), (size_t)(frameDiff * nBlockAlign), 0);
+					UINT64 expectedPosition = nLastDevicePosition + nNumFramesToRead;
+					if (nDevicePosition > expectedPosition)
+					{
+						UINT64 frameDiff = nDevicePosition - expectedPosition;
+						recordedBytes.insert(recordedBytes.begin(), (size_t)(frameDiff * nBlockAlign), 0);
 						LOG_DEBUG(L"Discontinuity detected, padded audio bytes with %d bytes of silence on %ls", frameDiff, GetDeviceFriendlyName().c_str());
 					}
 				}
+				AudioPacket packet = AudioPacket(recordedBytes, nNumFramesToRead, nQpcPosition);
+				m_RecordedAudioPackets.push_back(packet);
 				nFrames += nNumFramesToRead;
 				bFirstPacket = false;
 				nLastDevicePosition = nDevicePosition;
@@ -580,32 +594,49 @@ HRESULT WASAPICapture::StartCaptureLoop(
 }
 std::vector<BYTE> WASAPICapture::PeakRecordedBytes()
 {
-	return m_RecordedBytes;
+	return vector < BYTE>();
 }
-int WASAPICapture::GetNextFrameCount(UINT64 duration100Nanos)
+int WASAPICapture::GetNextFrameCount()
 {
-	int availableFrameCount = m_RecordedBytes.size() / m_InputFormat.FrameBytes();
+	int availableFrameCount = std::accumulate(m_RecordedAudioPackets.begin(), m_RecordedAudioPackets.end(), 0, [this](int a, AudioPacket b) {
+		return (a + b.data.size() / m_InputFormat.FrameBytes());
+	});
 	return availableFrameCount;
 }
-std::vector<BYTE> WASAPICapture::GetRecordedBytesByDuration(UINT64 duration100Nanos)
+std::vector<BYTE> WASAPICapture::GetRecordedBytesByDuration(UINT64 duration100Nanos, _Out_ UINT64 *qpcTimestamp)
 {
 	int frameCount = int(ceil(m_InputFormat.sampleRate * HundredNanosToSeconds(duration100Nanos)));
-	return GetRecordedBytesByFrameCount(frameCount);
+	return GetRecordedBytesByFrameCount(frameCount, qpcTimestamp);
 }
-std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(UINT64 frameCount)
+std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(UINT64 frameCount, _Out_ UINT64 *qpcTimestamp)
 {
-	int frameByteCount = frameCount * m_InputFormat.FrameBytes();
 	std::vector<BYTE> newvector;
-	size_t byteCount;
+	*qpcTimestamp = 0;
+	size_t recordedFrameCount{};
+	if (m_RecordedAudioPackets.size() > 0)
 	{
 		const std::lock_guard<std::mutex> lock(m_TaskWrapperImpl->m_Mutex);
-		byteCount = min(frameByteCount, m_RecordedBytes.size());
-		newvector = std::vector<BYTE>(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
-		m_RecordedBytes.erase(m_RecordedBytes.begin(), m_RecordedBytes.begin() + byteCount);
-		LOG_TRACE(L"Got %d bytes from WASAPICapture %ls. %d bytes remaining", newvector.size(), GetDeviceFriendlyName().c_str(), m_RecordedBytes.size());
+		int remainingBytes = 0;
+		int readPacketCount = 0;
+		for each (AudioPacket recordedPacket in m_RecordedAudioPackets)
+		{
+			if (recordedFrameCount < frameCount) {
+				newvector.insert(newvector.end(), recordedPacket.data.begin(), recordedPacket.data.end());
+				recordedFrameCount += recordedPacket.frameCount;
+				if (readPacketCount == 0) {
+					*qpcTimestamp = recordedPacket.timestamp100ns;
+				}
+				readPacketCount++;
+			}
+			else {
+				remainingBytes += recordedPacket.data.size();
+			}
+		}
+		m_RecordedAudioPackets.erase(m_RecordedAudioPackets.begin(), m_RecordedAudioPackets.begin() + readPacketCount);
+		LOG_TRACE(L"Got %d bytes from WASAPICapture %ls. %d bytes remaining", newvector.size(), GetDeviceFriendlyName().c_str(), remainingBytes);
 
 		// convert audio
-		if (m_Resampler && byteCount > 0) {
+		if (m_Resampler && newvector.size() > 0) {
 			WWMFSampleData sampleData;
 			HRESULT hr = m_Resampler->Resample(newvector.data(), (DWORD)newvector.size(), &sampleData);
 			if (SUCCEEDED(hr)) {
@@ -619,7 +650,6 @@ std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(UINT64 frameCount)
 			sampleData.Release();
 		}
 	}
-
 	return newvector;
 }
 
@@ -641,7 +671,7 @@ HRESULT WASAPICapture::StartCapture()
 			}
 			return hr;
 		}
-		m_RecordedBytes.clear();
+		m_RecordedAudioPackets.clear();
 	}
 	if (m_TaskWrapperImpl->m_CaptureThread.joinable()) {
 		SetEvent(m_CaptureStopEvent);
@@ -730,6 +760,16 @@ HRESULT WASAPICapture::StopCapture()
 	return S_OK;
 }
 
+HRESULT WASAPICapture::PauseCapture()
+{
+	m_IsPaused.store(true);
+	return S_OK;
+}
+HRESULT WASAPICapture::ResumeCapture()
+{
+	m_IsPaused.store(false);
+	return S_OK;
+}
 HRESULT WASAPICapture::StopReconnectThread()
 {
 	SetEvent(m_ReconnectThreadStopEvent);
@@ -811,10 +851,14 @@ bool WASAPICapture::IsCapturing() {
 	return m_IsCapturing.load();
 }
 
+bool WASAPICapture::IsPaused() {
+	return m_IsPaused.load();
+}
+
 void WASAPICapture::ClearRecordedBytes()
 {
 	const std::lock_guard<std::mutex> lock(m_TaskWrapperImpl->m_Mutex);
-	m_RecordedBytes.clear();
+	m_RecordedAudioPackets.clear();
 }
 
 HRESULT WASAPICapture::ReconnectThreadLoop() {

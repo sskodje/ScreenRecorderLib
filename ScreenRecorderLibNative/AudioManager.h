@@ -12,7 +12,9 @@ public:
 	void ClearRecordedBytes();
 	HRESULT StartCapture();
 	HRESULT StopCapture();
-	std::vector<BYTE> GrabAudioSamples(_In_ UINT64 durationHundredNanos);
+	HRESULT PauseCapture();
+	HRESULT ResumeCapture();
+	std::vector<BYTE> GrabAudioSamples(_Out_ UINT64 *qpcTimestamp);
 private:
 	struct StreamData {
 		const short *samples;
@@ -24,11 +26,13 @@ private:
 	std::shared_ptr<AUDIO_OPTIONS> m_AudioOptions;
 	std::vector<WASAPICapture*> m_AudioCaptures;
 	bool m_IsCaptureEnabled;
-
+	bool m_IsCapturePaused;
 	AUDIO_OPTIONS *GetAudioOptions() { return m_AudioOptions.get(); }
 
 	HRESULT StartDeviceCapture(WASAPICapture *pCapture);
 	HRESULT StopDeviceCapture(WASAPICapture *pCapture);
+	HRESULT PauseDeviceCapture(WASAPICapture *pCapture);
+	HRESULT ResumeDeviceCapture(WASAPICapture *pCapture);
 	HRESULT ConfigureAudioCapture(bool startDeviceCapture);
 
 	std::thread m_OptionsListenerThread;
