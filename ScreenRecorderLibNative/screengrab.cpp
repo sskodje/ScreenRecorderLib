@@ -4,6 +4,7 @@
 #include "Log.h"
 #include <atlbase.h>
 #include "Cleanup.h"
+#include "util.h"
 namespace {
 	bool g_WIC2 = false;
 

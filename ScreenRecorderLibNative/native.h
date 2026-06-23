@@ -5,3 +5,5 @@
 #include "MF.util.h"
 #include "CoreAudio.util.h"
 #include "CommonTypes.h"
+#include "LogMediaType.h"
+#include "log.h"

@@ -177,6 +177,9 @@
     <ClInclude Include="AudioDriftCorrector.h">
       <Filter>Header Files\Audio Capture</Filter>
     </ClInclude>
+    <ClInclude Include="TimelineManager.h">
+      <Filter>Header Files\Output</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RecordingManager.cpp">
@@ -265,6 +268,9 @@
     </ClCompile>
     <ClCompile Include="AudioDriftCorrector.cpp">
       <Filter>Source Files\Audio Capture</Filter>
+    </ClCompile>
+    <ClCompile Include="TimelineManager.cpp">
+      <Filter>Source Files\Output</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

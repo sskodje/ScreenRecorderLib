@@ -23,6 +23,32 @@ struct WASAPICapture::TaskWrapper {
 	std::thread m_ReconnectThread;
 };
 
+class AudioClientStopOnExit {
+public:
+	AudioClientStopOnExit(IAudioClient *p) : m_p(p) {}
+	~AudioClientStopOnExit() {
+		HRESULT hr = m_p->Stop();
+		if (FAILED(hr)) {
+			LOG_ERROR(L"IAudioClient::Stop failed: hr = 0x%08x", hr);
+		}
+	}
+
+private:
+	IAudioClient *m_p;
+};
+
+class AvRevertMmThreadCharacteristicsOnExit {
+public:
+	AvRevertMmThreadCharacteristicsOnExit(HANDLE hTask) : m_hTask(hTask) {}
+	~AvRevertMmThreadCharacteristicsOnExit() {
+		if (!AvRevertMmThreadCharacteristics(m_hTask)) {
+			LOG_ERROR(L"AvRevertMmThreadCharacteristics failed: last error is %d", GetLastError());
+		}
+	}
+private:
+	HANDLE m_hTask;
+};
+
 WASAPICapture::WASAPICapture(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptions, _In_ AUDIO_SOURCE *source) :
 	m_DeviceName(L""),
 	m_DeviceFriendlyName(L""),

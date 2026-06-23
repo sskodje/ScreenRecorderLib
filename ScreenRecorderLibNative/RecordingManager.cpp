@@ -14,7 +14,7 @@
 #include "Screengrab.h"
 #include "DynamicWait.h"
 #include "HighresTimer.h"
-#include "AudioDriftCorrector.h"
+#include "TimelineManager.h"
 
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "D3D11.lib")
@@ -89,7 +89,8 @@ RecordingManager::RecordingManager() :
 	m_RecordingSources{},
 	m_DxResources{},
 	m_FrameDataCallbackTexture(nullptr),
-	m_TimerResolution(0)
+	m_TimerResolution(0),
+	m_DynamicWait(nullptr)
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	m_MfStartupResult = MFStartup(MF_VERSION, MFSTARTUP_LITE);
@@ -162,15 +163,15 @@ HRESULT RecordingManager::ConfigureOutputDir(_In_ std::wstring path, _Out_ std::
 		}
 
 		if (recorderMode == RecorderModeInternal::Video || recorderMode == RecorderModeInternal::Screenshot) {
-			wstring ext = recorderMode == RecorderModeInternal::Video ? m_EncoderOptions->GetVideoExtension() : m_SnapshotOptions->GetImageExtension();
+			wstring ext = recorderMode == RecorderModeInternal::Video ? GetEncoderOptions()->GetVideoExtension() : GetSnapshotOptions()->GetImageExtension();
 			LPWSTR pStrExtension = PathFindExtension(path.c_str());
 			if (pStrExtension == nullptr || pStrExtension[0] == 0)
 			{
 				m_OutputFullPath = m_OutputFolder + L"\\" + s2ws(CurrentTimeToFormattedString(true)) + ext;
 			}
-			if (m_SnapshotOptions->GetSnapshotsDirectory().empty()) {
+			if (GetSnapshotOptions()->GetSnapshotsDirectory().empty()) {
 				// Snapshots will be saved in a folder named as video file name without extension. 
-				m_SnapshotOptions->SetSnapshotDirectory(m_OutputFullPath.substr(0, m_OutputFullPath.find_last_of(L".")));
+				GetSnapshotOptions()->SetSnapshotDirectory(m_OutputFullPath.substr(0, m_OutputFullPath.find_last_of(L".")));
 			}
 		}
 	}
@@ -253,7 +254,7 @@ HRESULT RecordingManager::TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStr
 		LOG_ERROR("Snapshot failed: No valid stream or path provided.");
 		hr = E_INVALIDARG;
 	}
-
+	m_TimelineManager->UpdateLastSnapshotTime();
 	return hr;
 }
 
@@ -317,14 +318,26 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		CoUninitializeOnExit coUninitialize;
 		RETURN_RESULT_ON_BAD_HR(hr = InitializeDx(nullptr, &m_DxResources), L"Failed to initialize DirectX");
 
+		RecorderModeInternal recorderMode = GetOutputOptions()->GetRecorderMode();
+		double targetVideoFrameDurationMillis = 0;
+		if (recorderMode == RecorderModeInternal::Video) {
+			targetVideoFrameDurationMillis = (double)1000 / GetEncoderOptions()->GetVideoFps();
+		}
+		else if (recorderMode == RecorderModeInternal::Slideshow) {
+			targetVideoFrameDurationMillis = (double)GetSnapshotOptions()->GetSnapshotsInterval();
+		}
+
 		m_TextureManager = make_unique<TextureManager>();
 		RETURN_RESULT_ON_BAD_HR(hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device), L"Failed to initialize TextureManager");
+		m_TimelineManager = make_unique<TimelineManager>();
+		RETURN_RESULT_ON_BAD_HR(m_TimelineManager->Initialize(targetVideoFrameDurationMillis, GetSnapshotOptions()->GetSnapshotsInterval()), L"Failed to initialize TimelineManager");
 		m_OutputManager = make_unique<OutputManager>();
-		RETURN_RESULT_ON_BAD_HR(hr = m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetEncoderOptions(), GetAudioOptions(), GetSnapshotOptions(), GetOutputOptions()), L"Failed to initialize OutputManager");
+		RETURN_RESULT_ON_BAD_HR(hr = m_OutputManager->Initialize(m_DxResources.Context, m_DxResources.Device, m_TimelineManager.get(), GetEncoderOptions(), GetAudioOptions(), GetSnapshotOptions(), GetOutputOptions()), L"Failed to initialize OutputManager");
 		m_CaptureManager = make_unique<ScreenCaptureManager>();
 		RETURN_RESULT_ON_BAD_HR(m_CaptureManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetOutputOptions(), GetEncoderOptions(), GetMouseOptions()), L"Failed to initialize ScreenCaptureManager");
 		m_MouseManager = make_unique<MouseManager>();
 		RETURN_RESULT_ON_BAD_HR(hr = m_MouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions()), L"Failed to initialize mouse manager");
+		m_DynamicWait = make_unique<DynamicWait>();
 
 		result = StartRecorderLoop(m_RecordingSources, m_Overlays, stream);
 		if (RecordingStatusChangedCallback != nullptr && !m_IsDestructing) {
@@ -371,8 +384,8 @@ void RecordingManager::EndRecording() {
 }
 void RecordingManager::PauseRecording() {
 	if (m_IsRecording && !m_IsPaused.exchange(true)) {
-		if (m_OutputManager) {
-			m_OutputManager->PauseMediaClock();
+		if (m_TimelineManager) {
+			m_TimelineManager->PauseMediaClock();
 		}
 		m_AudioManager->PauseCapture();
 		if (RecordingStatusChangedCallback != nullptr) {
@@ -384,8 +397,8 @@ void RecordingManager::PauseRecording() {
 void RecordingManager::ResumeRecording() {
 	if (m_IsRecording && m_IsPaused.exchange(false)) {
 		m_AudioManager->ResumeCapture();
-		if (m_OutputManager) {
-			m_OutputManager->ResumeMediaClock();
+		if (m_TimelineManager) {
+			m_TimelineManager->ResumeMediaClock();
 		}
 		if (m_CaptureManager) {
 			m_CaptureManager->InvalidateCaptureSources();
@@ -487,7 +500,6 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 
 	RETURN_RESULT_ON_BAD_HR(hr = m_CaptureManager->StartCapture(sources, overlays, ErrorEvent), L"Failed to start capture");
 
-
 	RECT videoInputFrameRect{};
 	SIZE videoOutputFrameSize{};
 	RETURN_RESULT_ON_BAD_HR(hr = InitializeRects(
@@ -496,10 +508,6 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		&videoOutputFrameSize), L"Failed to initialize frame rects");
 
 	SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
-
-
-	std::unique_ptr<AudioDriftCorrector> pAudioCorrector = make_unique< AudioDriftCorrector>();
-	RETURN_RESULT_ON_BAD_HR(pAudioCorrector->Initialize(), L"Failed to initialize audio drift corrector");
 
 	if (recorderMode == RecorderModeInternal::Video) {
 		m_AudioManager->StartCapture();
@@ -513,157 +521,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	}
 	m_AudioManager->ResumeCapture();
 
-	std::chrono::steady_clock::time_point previousSnapshotTaken = (std::chrono::steady_clock::time_point::min)();
-	double targetVideoFrameDurationMillis = 0;
-	if (recorderMode == RecorderModeInternal::Video) {
-		targetVideoFrameDurationMillis = (double)1000 / GetEncoderOptions()->GetVideoFps();
-	}
-	else if (recorderMode == RecorderModeInternal::Slideshow) {
-		targetVideoFrameDurationMillis = (double)GetSnapshotOptions()->GetSnapshotsInterval().count();
-	}
-	INT64 targetVideoFrameDuration100Nanos = MillisToHundredNanos(targetVideoFrameDurationMillis);
-
-	int frameNum = 0;
-	INT64 nextAudioPacketStartPos100Nanos = 0;
-	INT64 nextVideoFrameStartPos100Nanos = 0;
-	INT64 lastPresentationClockTime = 0;
 	cancellation_token token = m_TaskWrapperImpl->m_RecordTaskCts.get_token();
-	DynamicWait retryWait{};
-
-	auto IsAnySourcePreviewsActive([&]()
-		{
-			for each (RECORDING_SOURCE * source in GetRecordingSources())
-			{
-				if (source->IsVideoFramePreviewEnabled.value_or(false) && source->HasRegisteredCallbacks()) {
-					return true;
-				}
-			}
-			return false;
-		});
-
-	auto GetTimeUntilNextFrameMillis([&]() {
-		INT64 currentPresentationClockTime;
-		m_OutputManager->GetMediaTimeStamp(&currentPresentationClockTime);
-		INT64 durationSinceLastFrame100Nanos = currentPresentationClockTime - lastPresentationClockTime;
-		INT64 nanosRemaining = max(0, targetVideoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
-		return HundredNanosToMillisDouble(nanosRemaining);
-		});
-
-	auto IsTimeToTakeSnapshot([&]()
-	{
-		// The first condition is needed since (now - min) yields negative value because of overflow...
-		return previousSnapshotTaken == (std::chrono::steady_clock::time_point::min)() ||
-			(std::chrono::steady_clock::now() - previousSnapshotTaken) > GetSnapshotOptions()->GetSnapshotsInterval();
-	});
-
-	auto PrepareAndRenderFrame([&](CComPtr<ID3D11Texture2D> pTextureToRender)->HRESULT {
-		CComPtr<ID3D11Texture2D> processedTexture;
-		HRESULT renderHr = ProcessTexture(pTextureToRender, &processedTexture, pPtrInfo);
-		if (renderHr == S_OK) {
-			pTextureToRender.Release();
-			pTextureToRender.Attach(processedTexture);
-			(*pTextureToRender).AddRef();
-		}
-		if (recorderMode == RecorderModeInternal::Video) {
-			if (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && IsTimeToTakeSnapshot()) {
-				if (GetSnapshotOptions()->GetSnapshotsDirectory().empty())
-					return S_FALSE;
-				wstring snapshotPath = GetSnapshotOptions()->GetSnapshotsDirectory() + L"\\" + s2ws(CurrentTimeToFormattedString(true)) + GetSnapshotOptions()->GetImageExtension();
-				TakeSnapshot(snapshotPath, nullptr, pTextureToRender);
-				previousSnapshotTaken = steady_clock::now();
-			}
-		}
-
-		INT64 currentPresentationClockTime;
-		RETURN_ON_BAD_HR(m_OutputManager->GetMediaTimeStamp(&currentPresentationClockTime));
-		INT64 frameDuration100Nanos = currentPresentationClockTime - lastPresentationClockTime;
-		lastPresentationClockTime = currentPresentationClockTime;
-
-		UINT64 audioQpcPosition;
-		auto audioPacket = m_AudioManager->GrabAudioSamples(&audioQpcPosition);
-		INT64 frameCount = audioPacket.size() / (INT64)((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
-		INT64 audioDuration100Nanos = (frameCount * 10 * 1000 * 1000) / GetAudioOptions()->GetAudioSamplesPerSecond();
-
-		INT64 audioDriftCorrection = pAudioCorrector->GetDriftCorrection(
-		frameNum,
-		nextAudioPacketStartPos100Nanos,
-		nextVideoFrameStartPos100Nanos,
-		audioQpcPosition);
-
-		FrameWriteModel model{};
-		model.Frame = pTextureToRender;
-		model.VideoDuration = frameDuration100Nanos;
-		model.AudioDuration = audioDuration100Nanos + audioDriftCorrection;
-		model.VideoStartPos = nextVideoFrameStartPos100Nanos;
-		model.AudioStartPos = nextAudioPacketStartPos100Nanos;
-		model.Audio = audioPacket;
-		RETURN_ON_BAD_HR(renderHr = m_EncoderResult = m_OutputManager->RenderFrame(model));
-		frameNum++;
-		if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
-			SendNewFrameCallback(frameNum, pTextureToRender);
-		}
-		nextVideoFrameStartPos100Nanos += model.VideoDuration;
-		nextAudioPacketStartPos100Nanos += model.AudioDuration;
-		return renderHr;
-	});
-
-	auto RestartCapture([&](CAPTURE_RESULT result) {
-		//Stop existing capture
-		hr = m_CaptureManager->StopCapture();
-
-		// As we have encountered an error due to a system transition we wait before trying again, using this dynamic wait
-		// the wait periods will get progressively long to avoid wasting too much system resource if this state lasts a long time
-		retryWait.Wait();
-
-		//Recreate D3D resources if needed
-		if (SUCCEEDED(hr) && result.IsDeviceError) {
-			CleanDx(&m_DxResources);
-			hr = InitializeDx(nullptr, &m_DxResources);
-			SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
-			if (SUCCEEDED(hr)) {
-				hr = m_MouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
-			}
-			if (SUCCEEDED(hr)) {
-				hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
-			}
-			if (SUCCEEDED(hr)) {
-				hr = m_OutputManager->Initialize(
-					m_DxResources.Context,
-					m_DxResources.Device,
-					GetEncoderOptions(),
-					GetAudioOptions(),
-					GetSnapshotOptions(),
-					GetOutputOptions());
-			}
-		}
-		//Recreate capture manager and restart capture
-		if (SUCCEEDED(hr)) {
-			m_CaptureManager.reset(new ScreenCaptureManager());
-		}
-		if (SUCCEEDED(hr)) {
-			hr = m_CaptureManager->Initialize(
-				m_DxResources.Context,
-				m_DxResources.Device,
-				GetOutputOptions(),
-				GetEncoderOptions(),
-				GetMouseOptions());
-		}
-		if (SUCCEEDED(hr)) {
-			if (result.NumberOfRetries > 0) {
-				m_RestartCaptureCount++;
-			}
-			ResetEvent(ErrorEvent);
-			hr = m_CaptureManager->StartCapture(sources, overlays, ErrorEvent);
-		}
-		if (SUCCEEDED(hr)) {
-			//The source dimensions may have changed
-			hr = InitializeRects(m_CaptureManager->GetOutputSize(), &videoInputFrameRect, nullptr);
-			LOG_TRACE(L"Reinitialized input frame rect: [%d,%d,%d,%d]", videoInputFrameRect.left, videoInputFrameRect.top, videoInputFrameRect.right, videoInputFrameRect.bottom);
-		}
-		pPtrInfo.reset();
-
-		return hr;
-	});
 
 	while (true)
 	{
@@ -694,7 +552,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 				if (captureResult->NumberOfRetries >= 0 && m_RestartCaptureCount >= captureResult->NumberOfRetries) {
 					RETURN_RESULT_ON_BAD_HR(captureResult->RecordingResult, L"Retry count was exceeded, exiting");
 				}
-				hr = RestartCapture(*captureResult);
+				hr = RestartCapture(*captureResult, sources, overlays, ErrorEvent, &videoInputFrameRect);
 			}
 			else if (FAILED(hr)) {
 				CAPTURE_RESULT captureResult{};
@@ -703,24 +561,29 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 					if (captureResult.NumberOfRetries >= 0 && m_RestartCaptureCount >= captureResult.NumberOfRetries) {
 						RETURN_RESULT_ON_BAD_HR(hr, L"Retry count was exceeded, exiting");
 					}
-					hr = RestartCapture(captureResult);
+					hr = RestartCapture(captureResult, sources, overlays, ErrorEvent, &videoInputFrameRect);
 				}
 				else {
 					LOG_ERROR("Fatal error while reinitializing capture, exiting.");
 					return captureResult;
 				}
 			}
-			if (FAILED(hr)) {
+			pPtrInfo.reset();
+			if (SUCCEEDED(hr)) {
+				SetViewPort(m_DxResources.Context, static_cast<float>(videoOutputFrameSize.cx), static_cast<float>(videoOutputFrameSize.cy));
+				ResetEvent(ErrorEvent);
+			}
+			else {
 				SetEvent(ErrorEvent);
 				continue;
 			}
 		}
 		if (m_IsPaused) {
-			if (m_OutputManager->isMediaClockRunning()) {
-				m_OutputManager->PauseMediaClock();
+			if (m_TimelineManager->isMediaClockRunning()) {
+				m_TimelineManager->PauseMediaClock();
 			}
 			ExecuteFuncOnExit clearDataOnExit([&]() {
-				previousSnapshotTaken = steady_clock::now();
+				m_TimelineManager->UpdateLastSnapshotTime();
 				if (m_AudioManager)
 					m_AudioManager->ClearRecordedBytes();
 			});
@@ -731,11 +594,11 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 		CAPTURED_FRAME capturedFrame{};
 		// Get new frame
-		hr = m_CaptureManager->AcquireNextFrame(GetTimeUntilNextFrameMillis(), m_MaxFrameLengthMillis, &capturedFrame);
+		hr = m_CaptureManager->AcquireNextFrame(m_TimelineManager->GetTimeUntilNextFrameMillis(), m_MaxFrameLengthMillis, &capturedFrame);
 
 		//If there are any source previews on paused status, the loop exits here. This allows the source previews to continu render.
 		if (m_IsPaused) {
-			wait(targetVideoFrameDurationMillis);
+			wait(m_TimelineManager->GetTargetVideoFrameDurationMillis());
 			continue;
 		}
 		if (SUCCEEDED(hr)) {
@@ -755,14 +618,14 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			hr = S_OK;
 			break;
 		}
-		if (frameNum == 0) {
+		if (m_TimelineManager->GetRenderedFrameCount() == 0) {
 			if (RecordingStatusChangedCallback != nullptr) {
 				RecordingStatusChangedCallback(STATUS_RECORDING);
 				LOG_DEBUG("Changed Recording Status to Recording");
 			}
 		}
 
-		RETURN_RESULT_ON_BAD_HR(hr = PrepareAndRenderFrame(capturedFrame.Frame), L"Failed to render frame");
+		RETURN_RESULT_ON_BAD_HR(hr = PrepareAndRenderFrame(capturedFrame.Frame, pPtrInfo), L"Failed to render frame");
 		if (recorderMode == RecorderModeInternal::Screenshot) {
 			break;
 		}
@@ -771,18 +634,120 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	return CAPTURE_RESULT(hr);
 }
 
+HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pTextureToRender, _In_opt_ std::optional<PTR_INFO> pointerInfo)
+{
+	CComPtr<ID3D11Texture2D> processedTexture;
+	HRESULT hr = ProcessTexture(pTextureToRender, &processedTexture, pointerInfo);
+	if (hr == S_OK) {
+		pTextureToRender.Release();
+		pTextureToRender.Attach(processedTexture);
+		(*pTextureToRender).AddRef();
+	}
+	if (GetOutputOptions()->GetRecorderMode() == RecorderModeInternal::Video) {
+		if (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && m_TimelineManager->GetTimeUntilNextShapshot100Nanos() <= 0) {
+			if (GetSnapshotOptions()->GetSnapshotsDirectory().empty())
+				return S_FALSE;
+			wstring snapshotPath = GetSnapshotOptions()->GetSnapshotsDirectory() + L"\\" + s2ws(CurrentTimeToFormattedString(true)) + GetSnapshotOptions()->GetImageExtension();
+			TakeSnapshot(snapshotPath, nullptr, pTextureToRender);
+		}
+	}
+
+	UINT64 audioQpcPosition;
+	auto audioPacket = m_AudioManager->GrabAudioSamples(&audioQpcPosition);
+
+	FrameWriteModel model{};
+	model.Frame = pTextureToRender;
+	model.AudioQpcPosition = audioQpcPosition;
+	model.Audio = audioPacket;
+	RETURN_ON_BAD_HR(hr = m_EncoderResult = m_OutputManager->RenderFrame(model));
+	if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
+		SendNewFrameCallback(m_TimelineManager->GetRenderedFrameCount(), pTextureToRender);
+	}
+	return hr;
+}
+
+HRESULT RecordingManager::RestartCapture(_In_ CAPTURE_RESULT &result, _In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hErrorEvent, _Out_opt_ RECT *videoInputFrameRect) {
+	HRESULT hr = m_CaptureManager->StopCapture();
+
+	// As we have encountered an error due to a system transition we wait before trying again, using this dynamic wait
+	// the wait periods will get progressively long to avoid wasting too much system resource if this state lasts a long time
+	m_DynamicWait->Wait();
+
+	//Recreate D3D resources if needed
+	if (SUCCEEDED(hr) && result.IsDeviceError) {
+		CleanDx(&m_DxResources);
+		hr = InitializeDx(nullptr, &m_DxResources);
+
+		if (SUCCEEDED(hr)) {
+			hr = m_MouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions());
+		}
+		if (SUCCEEDED(hr)) {
+			hr = m_TextureManager->Initialize(m_DxResources.Context, m_DxResources.Device);
+		}
+		if (SUCCEEDED(hr)) {
+			hr = m_OutputManager->Initialize(
+				m_DxResources.Context,
+				m_DxResources.Device,
+				m_TimelineManager.get(),
+				GetEncoderOptions(),
+				GetAudioOptions(),
+				GetSnapshotOptions(),
+				GetOutputOptions());
+		}
+	}
+	//Recreate capture manager and restart capture
+	if (SUCCEEDED(hr)) {
+		m_CaptureManager.reset(new ScreenCaptureManager());
+	}
+	if (SUCCEEDED(hr)) {
+		hr = m_CaptureManager->Initialize(
+			m_DxResources.Context,
+			m_DxResources.Device,
+			GetOutputOptions(),
+			GetEncoderOptions(),
+			GetMouseOptions());
+	}
+	if (SUCCEEDED(hr)) {
+		if (result.NumberOfRetries > 0) {
+			m_RestartCaptureCount++;
+		}
+		ResetEvent(hErrorEvent);
+		hr = m_CaptureManager->StartCapture(sources, overlays, hErrorEvent);
+	}
+	if (SUCCEEDED(hr)) {
+		//The source dimensions may have changed
+		hr = InitializeRects(m_CaptureManager->GetOutputSize(), videoInputFrameRect, nullptr);
+		if (SUCCEEDED(hr)) {
+			LOG_TRACE(L"Reinitialized input frame rect: [%d,%d,%d,%d]", videoInputFrameRect->left, videoInputFrameRect->top, videoInputFrameRect->right, videoInputFrameRect->bottom);
+		}
+	}
+
+	return hr;
+}
+
+bool RecordingManager::IsAnySourcePreviewsActive()
+{
+	for each (RECORDING_SOURCE * source in GetRecordingSources())
+	{
+		if (source->IsVideoFramePreviewEnabled.value_or(false) && source->HasRegisteredCallbacks()) {
+			return true;
+		}
+	}
+	return false;
+}
+
 HRESULT RecordingManager::SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture) {
 	HRESULT hr = S_FALSE;
 	if (RecordingFrameNumberChangedCallback != nullptr) {
 		INT64 timestamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-		if (m_OutputOptions->IsVideoFramePreviewEnabled()) {
+		if (GetOutputOptions()->IsVideoFramePreviewEnabled()) {
 			CComPtr< ID3D11Texture2D> pProcessedTexture = nullptr;
 			unique_ptr<FRAME_BITMAP_DATA> pFramePreviewData = nullptr;
 			D3D11_TEXTURE2D_DESC textureDesc;
 			pTexture->GetDesc(&textureDesc);
-			if (m_OutputOptions->GetVideoFramePreviewSize().has_value()) {
-				long cx = m_OutputOptions->GetVideoFramePreviewSize().value().cx;
-				long cy = m_OutputOptions->GetVideoFramePreviewSize().value().cy;
+			if (GetOutputOptions()->GetVideoFramePreviewSize().has_value()) {
+				long cx = GetOutputOptions()->GetVideoFramePreviewSize().value().cx;
+				long cy = GetOutputOptions()->GetVideoFramePreviewSize().value().cy;
 				if (cx > 0 && cy == 0) {
 					cy = static_cast<long>(round((static_cast<double>(textureDesc.Height) / static_cast<double>(textureDesc.Width)) * cx));
 				}

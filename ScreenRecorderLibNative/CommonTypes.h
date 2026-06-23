@@ -10,7 +10,6 @@
 #include <mfapi.h>
 #include <optional>
 #include <wincodec.h>
-#include <chrono>
 #include "util.h"
 
 typedef void(__stdcall *CallbackNewFrameDataFunction)(int, byte *, int, int, int);
@@ -667,19 +666,19 @@ public:
 struct SNAPSHOT_OPTIONS {
 protected:
 	std::wstring m_OutputSnapshotsFolderPath = L"";
-	std::chrono::milliseconds m_SnapshotsInterval = std::chrono::milliseconds(10000);
+	UINT32 m_SnapshotsInterval = 10000;
 	bool m_TakesSnapshotsWithVideo = false;
 	GUID m_ImageEncoderFormat = GUID_ContainerFormatPng;
 public:
 	void SetTakeSnapshotsWithVideo(bool isEnabled) { m_TakesSnapshotsWithVideo = isEnabled; }
-	void SetSnapshotsWithVideoInterval(UINT32 value) { m_SnapshotsInterval = std::chrono::milliseconds(value); }
+	void SetSnapshotsWithVideoInterval(UINT32 intervalMillis) { m_SnapshotsInterval = intervalMillis; }
 	void SetSnapshotDirectory(std::wstring string) { m_OutputSnapshotsFolderPath = string; }
 	void SetSnapshotSaveFormat(GUID value) { m_ImageEncoderFormat = value; }
 
 	bool IsSnapshotWithVideoEnabled() {
 		return m_TakesSnapshotsWithVideo;
 	}
-	std::chrono::milliseconds GetSnapshotsInterval() {
+	UINT32 GetSnapshotsInterval() {
 		return m_SnapshotsInterval;
 	}
 	std::wstring GetSnapshotsDirectory() {

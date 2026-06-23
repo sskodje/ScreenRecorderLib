@@ -52,6 +52,7 @@
     <ClInclude Include="DX.util.h" />
     <ClInclude Include="CaptureBase.h" />
     <ClInclude Include="Screengrab.h" />
+    <ClInclude Include="TimelineManager.h" />
     <ClInclude Include="WASAPINotify.h" />
     <ClInclude Include="WindowsGraphicsCapture.h" />
     <ClInclude Include="WindowsGraphicsCapture.util.h" />
@@ -87,6 +88,7 @@
     <ClCompile Include="DesktopDuplicationCapture.cpp" />
     <ClCompile Include="DX.util.cpp" />
     <ClCompile Include="Screengrab.cpp" />
+    <ClCompile Include="TimelineManager.cpp" />
     <ClCompile Include="Util.cpp" />
     <ClCompile Include="WASAPINotify.cpp" />
     <ClCompile Include="WindowsGraphicsCapture.cpp" />

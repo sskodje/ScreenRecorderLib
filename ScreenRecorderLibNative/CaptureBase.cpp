@@ -56,7 +56,7 @@ SIZE CaptureBase::GetContentOffset(_In_ ContentAnchor anchor, _In_ RECT parentRe
 
 HRESULT CaptureBase::SendBitmapCallback(_In_ ID3D11Texture2D *pTexture) {
 	HRESULT hr = S_FALSE;
-	CComPtr< ID3D11Texture2D> pProcessedTexture = nullptr;
+	ID3D11Texture2D *pProcessedTexture = nullptr;
 	if (m_RecordingSource->IsVideoFramePreviewEnabled.value_or(false) && m_RecordingSource->HasRegisteredCallbacks()) {
 		D3D11_TEXTURE2D_DESC textureDesc;
 		pTexture->GetDesc(&textureDesc);
@@ -69,15 +69,14 @@ HRESULT CaptureBase::SendBitmapCallback(_In_ ID3D11Texture2D *pTexture) {
 			else if (cx == 0 && cy > 0) {
 				cx = static_cast<long>(round((static_cast<double>(textureDesc.Width) / static_cast<double>(textureDesc.Height)) * cy));
 			}
-			ID3D11Texture2D *pResizedTexture;
-			RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pTexture, SIZE{ cx,cy }, TextureStretchMode::Uniform, &pResizedTexture));
-			pProcessedTexture.Attach(pResizedTexture);
-			pResizedTexture->GetDesc(&textureDesc);
+			RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pTexture, SIZE{ cx,cy }, TextureStretchMode::Uniform, &pProcessedTexture));
+			pProcessedTexture->GetDesc(&textureDesc);
 		}
 		else {
-			pProcessedTexture.Attach(pTexture);
-			pTexture->AddRef();
+			pProcessedTexture = pTexture;
+			pProcessedTexture->AddRef();
 		}
+		ReleaseOnExit releaseProcessedTexture(pProcessedTexture);
 		int width = textureDesc.Width;
 		int height = textureDesc.Height;
 

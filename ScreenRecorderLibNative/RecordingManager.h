@@ -136,6 +136,8 @@ private:
 	std::unique_ptr<OutputManager> m_OutputManager;
 	std::unique_ptr<ScreenCaptureManager> m_CaptureManager;
 	std::unique_ptr<MouseManager> m_MouseManager;
+	std::unique_ptr<TimelineManager> m_TimelineManager;
+	std::unique_ptr<DynamicWait> m_DynamicWait;
 
 	HRESULT m_EncoderResult = S_FALSE;
 	HRESULT m_MfStartupResult = S_FALSE;
@@ -165,7 +167,9 @@ private:
 	HRESULT SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture);
 	HRESULT TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStream *pStream, _In_opt_ ID3D11Texture2D *pTexture = nullptr);
 	HRESULT BeginRecording(_In_opt_ std::wstring path, _In_opt_ IStream *pStream);
-
+	HRESULT PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pTextureToRender, _In_opt_ std::optional<PTR_INFO> pointerInfo);
+	HRESULT RestartCapture(_In_ CAPTURE_RESULT &result, _In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hErrorEvent, _Out_opt_ RECT *videoInputFrameRect);
+	bool IsAnySourcePreviewsActive();
 	/// <summary>
 	/// Creates adjusted source and output rects from a recording frame rect. The source rect is normalized to start on [0,0], and the output is adjusted for any cropping.
 	/// </summary>

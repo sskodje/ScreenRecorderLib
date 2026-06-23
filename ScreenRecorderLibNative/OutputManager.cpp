@@ -3,14 +3,13 @@
 #include <ppltasks.h> 
 #include <concrt.h>
 #include <filesystem>
+#include "LogMediaType.h"
 using namespace std;
 using namespace concurrency;
 
 OutputManager::OutputManager() :
 	m_Device(nullptr),
 	m_DeviceContext(nullptr),
-	m_PresentationClock(nullptr),
-	m_TimeSrc(nullptr),
 	m_CallBack(nullptr),
 	m_FinalizeEvent(nullptr),
 	m_SinkWriter(nullptr),
@@ -23,8 +22,7 @@ OutputManager::OutputManager() :
 	m_AudioStreamIndex(0),
 	m_OutputFolder(L""),
 	m_OutputFullPath(L""),
-	m_LastFrameHadAudio(false),
-	m_RenderedFrameCount(0),
+	m_TimelineManager(nullptr),
 	m_MediaTransform(nullptr),
 	m_DeviceManager(nullptr),
 	m_ResetToken(0),
@@ -44,6 +42,7 @@ OutputManager::~OutputManager()
 HRESULT OutputManager::Initialize(
 	_In_ ID3D11DeviceContext *pDeviceContext,
 	_In_ ID3D11Device *pDevice,
+	_In_ TimelineManager *pTimelineManager,
 	_In_ std::shared_ptr<ENCODER_OPTIONS> &pEncoderOptions,
 	_In_ std::shared_ptr<AUDIO_OPTIONS> pAudioOptions,
 	_In_ std::shared_ptr<SNAPSHOT_OPTIONS> pSnapshotOptions,
@@ -58,6 +57,8 @@ HRESULT OutputManager::Initialize(
 	m_AudioOptions = pAudioOptions;
 	m_SnapshotOptions = pSnapshotOptions;
 	m_OutputOptions = pOutputOptions;
+	m_TimelineManager = pTimelineManager;
+
 	if (!m_DeviceManager) {
 		RETURN_ON_BAD_HR(MFCreateDXGIDeviceManager(&m_ResetToken, &m_DeviceManager));
 	}
@@ -67,13 +68,7 @@ HRESULT OutputManager::Initialize(
 	if (m_MediaTransform) {
 		m_MediaTransform->ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
 	}
-	if (!m_TimeSrc) {
-		RETURN_ON_BAD_HR(MFCreateSystemTimeSource(&m_TimeSrc));
-	}
-	if (!m_PresentationClock) {
-		RETURN_ON_BAD_HR(MFCreatePresentationClock(&m_PresentationClock));
-		RETURN_ON_BAD_HR(m_PresentationClock->SetTimeSource(m_TimeSrc));
-	}
+
 	RETURN_ON_BAD_HR(m_DeviceManager->ResetDevice(pDevice, m_ResetToken));
 	return S_OK;
 }
@@ -108,7 +103,7 @@ HRESULT OutputManager::BeginRecording(_In_ std::wstring outputPath, _In_ SIZE vi
 		RETURN_ON_BAD_HR(hr = MFCreateMFByteStreamOnStream(pStream, &mfByteStream));
 		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(mfByteStream, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, m_CallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
-	StartMediaClock();
+	GetTimelineManager()->StartMediaClock();
 	LOG_DEBUG("Sink Writer initialized");
 	return hr;
 }
@@ -132,7 +127,7 @@ HRESULT OutputManager::BeginRecording(_In_ IStream *pStream, _In_ SIZE videoOutp
 		RECT inputMediaFrameRect = RECT{ 0,0,videoOutputFrameSize.cx,videoOutputFrameSize.cy };
 		RETURN_ON_BAD_HR(hr = InitializeVideoSinkWriter(mfByteStream, inputMediaFrameRect, videoOutputFrameSize, DXGI_MODE_ROTATION_UNSPECIFIED, m_CallBack, &m_SinkWriter, &m_VideoStreamIndex, &m_AudioStreamIndex));
 	}
-	StartMediaClock();
+	GetTimelineManager()->StartMediaClock();
 	LOG_DEBUG("Sink Writer initialized");
 	return hr;
 }
@@ -184,32 +179,42 @@ HRESULT OutputManager::FinalizeRecording()
 			}
 		}
 	}
-	StopMediaClock();
+	GetTimelineManager()->StopMediaClock();
 	return finalizeResult;
 }
 
-HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
+HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel model) {
 	HRESULT hr(S_OK);
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 	MeasureExecutionTime measure(L"RenderFrame");
 	auto recorderMode = GetOutputOptions()->GetRecorderMode();
+
+	const INT64 renderedFrameCount = m_TimelineManager->GetRenderedFrameCount();
+	const INT64 nextVideoFrameStartPos100Nanos = m_TimelineManager->GetNextVideoFrameStartPosition();
+	const INT64 nextVideoFrameDuration100Nanos = m_TimelineManager->OnVideoFrame();
+
 	if (recorderMode == RecorderModeInternal::Video) {
-		hr = WriteFrameToVideo(model.VideoStartPos, model.VideoDuration, m_VideoStreamIndex, model.Frame);
+
+
+		const INT64 nextAudioPacketStartPos100Nanos = m_TimelineManager->GetNextAudioFrameStartPosition();
+		const INT64 audioFrameCount = model.Audio.size() / (INT64)((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
+		const INT64 audioDuration100Nanos = m_TimelineManager->OnAudioPacket(audioFrameCount, GetAudioOptions()->GetAudioSamplesPerSecond(), model.AudioQpcPosition);
+
+		hr = WriteFrameToVideo(nextVideoFrameStartPos100Nanos, nextVideoFrameDuration100Nanos, m_VideoStreamIndex, model.Frame);
 		bool wroteAudioSample = false;
 		if (FAILED(hr)) {
 			_com_error err(hr);
-			LOG_ERROR(L"Writing of video frame with start pos %lld ms failed: %s", (HundredNanosToMillis(model.VideoStartPos)), err.ErrorMessage());
+			LOG_ERROR(L"Writing of video frame with start pos %lld ms failed: %s", (HundredNanosToMillis(nextVideoFrameStartPos100Nanos)), err.ErrorMessage());
 			return hr;//Stop recording if we fail
 		}
 		bool paddedAudio = false;
 
-
 		if (model.Audio.size() > 0) {
-			hr = WriteAudioSamplesToVideo(model.AudioStartPos, model.AudioDuration, m_AudioStreamIndex, &(model.Audio)[0], (DWORD)model.Audio.size());
+			hr = WriteAudioSamplesToVideo(nextAudioPacketStartPos100Nanos, audioDuration100Nanos, m_AudioStreamIndex, &(model.Audio)[0], (DWORD)model.Audio.size());
 			if (FAILED(hr)) {
 				_com_error err(hr);
-				LOG_ERROR(L"Writing of audio sample with start pos %lld ms failed: %s", (HundredNanosToMillis(model.AudioStartPos)), err.ErrorMessage());
+				LOG_ERROR(L"Writing of audio sample with start pos %lld ms failed: %s", (HundredNanosToMillis(nextAudioPacketStartPos100Nanos)), err.ErrorMessage());
 				return hr;//Stop recording if we fail
 			}
 			else {
@@ -217,13 +222,13 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 			}
 		}
 		auto frameInfoStr = wroteAudioSample ? (paddedAudio ? L"video sample and audio padding" : L"video and audio sample") : L"video sample";
-		LOG_TRACE(L"Wrote %s with vid start %lld ms, vid duration %.2f ms, audio start %lld ms, audio duration %.2f ms", frameInfoStr, HundredNanosToMillis(model.VideoStartPos), HundredNanosToMillisDouble(model.VideoDuration), HundredNanosToMillis(model.AudioStartPos), HundredNanosToMillisDouble(model.AudioDuration));
+		LOG_TRACE(L"Wrote %s with vid start %lld ms, vid duration %.2f ms, audio start %lld ms, audio duration %.2f ms", frameInfoStr, HundredNanosToMillis(nextVideoFrameStartPos100Nanos), HundredNanosToMillisDouble(nextVideoFrameDuration100Nanos), HundredNanosToMillis(nextAudioPacketStartPos100Nanos), HundredNanosToMillisDouble(audioDuration100Nanos));
 	}
 	else if (recorderMode == RecorderModeInternal::Slideshow) {
-		wstring	path = m_OutputFolder + L"\\" + to_wstring(m_RenderedFrameCount) + GetSnapshotOptions()->GetImageExtension();
+		wstring	path = m_OutputFolder + L"\\" + to_wstring(renderedFrameCount) + GetSnapshotOptions()->GetImageExtension();
 		hr = WriteFrameToImage(model.Frame, path);
-		INT64 startposMs = HundredNanosToMillis(model.VideoStartPos);
-		INT64 durationMs = HundredNanosToMillis(model.VideoDuration);
+		INT64 startposMs = HundredNanosToMillis(nextVideoFrameStartPos100Nanos);
+		INT64 durationMs = HundredNanosToMillis(nextVideoFrameDuration100Nanos);
 		if (FAILED(hr)) {
 			_com_error err(hr);
 			LOG_ERROR(L"Writing of slideshow frame with start pos %lld ms failed: %s", startposMs, err.ErrorMessage());
@@ -231,7 +236,7 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 		}
 		else {
 
-			m_FrameDelays.insert(std::pair<wstring, int>(path, m_RenderedFrameCount == 0 ? 0 : (int)durationMs));
+			m_FrameDelays.insert(std::pair<wstring, int>(path, renderedFrameCount == 0 ? 0 : (int)durationMs));
 			LOG_TRACE(L"Wrote video slideshow frame with start pos %lld ms and with duration %lld ms", startposMs, durationMs);
 		}
 	}
@@ -246,7 +251,6 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel &model) {
 		}
 	}
 	model.Frame.Release();
-	m_RenderedFrameCount++;
 	return hr;
 }
 
@@ -258,41 +262,7 @@ HRESULT OutputManager::WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopI
 {
 	return SaveWICTextureToStream(m_DeviceContext, pAcquiredDesktopImage, GetSnapshotOptions()->GetSnapshotEncoderFormat(), pStream);
 }
-HRESULT OutputManager::StartMediaClock()
-{
-	return m_PresentationClock->Start(0);
-}
-HRESULT OutputManager::ResumeMediaClock()
-{
-	return m_PresentationClock->Start(PRESENTATION_CURRENT_POSITION);
-}
-HRESULT OutputManager::PauseMediaClock()
-{
-	return m_PresentationClock->Pause();
-}
-HRESULT OutputManager::StopMediaClock()
-{
-	return m_PresentationClock->Stop();
-}
 
-bool OutputManager::isMediaClockRunning()
-{
-	MFCLOCK_STATE state;
-	m_PresentationClock->GetState(0, &state);
-	return state == MFCLOCK_STATE_RUNNING;
-}
-
-bool OutputManager::isMediaClockPaused()
-{
-	MFCLOCK_STATE state;
-	m_PresentationClock->GetState(0, &state);
-	return state == MFCLOCK_STATE_PAUSED;
-}
-
-HRESULT OutputManager::GetMediaTimeStamp(_Out_ INT64 *pTime)
-{
-	return m_PresentationClock->GetTime(pTime);
-}
 
 HRESULT OutputManager::ConfigureOutputMediaTypes(
 	_In_ UINT destWidth,

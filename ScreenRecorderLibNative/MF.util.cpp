@@ -1,6 +1,8 @@
 #include "MF.util.h"
 #include "Cleanup.h"
 #include <uuids.h>
+#include <atlbase.h>
+#include "util.h"
 
 #pragma comment(lib, "strmiids.lib")
 HRESULT FindDecoderEx(const GUID &subtype, BOOL bAudio, IMFActivate **ppDecoder)

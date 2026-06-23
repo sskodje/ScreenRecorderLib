@@ -11,12 +11,7 @@ AudioDriftCorrector::~AudioDriftCorrector()
 {
 }
 
-HRESULT AudioDriftCorrector::Initialize()
-{
-	return S_OK;
-}
-
-INT64 AudioDriftCorrector::GetDriftCorrection(int frameNum, INT64 nextAudioPacketStartPos100Nanos, INT64 nextVideoFrameStartPos100Nanos, INT64 audioQpcPosition)
+INT64 AudioDriftCorrector::GetDriftCorrection(INT64 frameNum, INT64 nextAudioPacketStartPos100Nanos, INT64 nextVideoFrameStartPos100Nanos, INT64 audioQpcPosition)
 {
 	if (m_InitialQpc == 0 && audioQpcPosition > 0) {
 		m_InitialQpc = audioQpcPosition;

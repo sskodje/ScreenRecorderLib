@@ -24,6 +24,27 @@ enum WWAvailableType {
 	WWAvailableInput,
 	WWAvailableOutput,
 };
+class ReleaseWWMFSampleDataOnExit {
+public:
+	ReleaseWWMFSampleDataOnExit(WWMFSampleData *p) : m_p(p) {}
+	~ReleaseWWMFSampleDataOnExit() {
+		m_p->Release();
+	}
+
+private:
+	WWMFSampleData *m_p;
+};
+
+class ForgetWWMFSampleDataOnExit {
+public:
+	ForgetWWMFSampleDataOnExit(WWMFSampleData *p) : m_p(p) {}
+	~ForgetWWMFSampleDataOnExit() {
+		m_p->Forget();
+	}
+
+private:
+	WWMFSampleData *m_p;
+};
 
 static HRESULT
 CreateAudioMediaType(const WWMFPcmFormat &fmt, IMFMediaType **ppMediaType)

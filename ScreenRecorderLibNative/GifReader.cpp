@@ -1,6 +1,6 @@
 #include "GifReader.h"
 #include "Cleanup.h"
-
+#include <atlbase.h>
 using namespace std;
 
 GifReader::GifReader()

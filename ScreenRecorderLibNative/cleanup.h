@@ -1,10 +1,8 @@
 // Cleanup.h
 #pragma once
-#include <audioclient.h>
-#include "WWMFResampler.h"
 #include "Log.h"
-#include "SourceReaderBase.h"
 #include <vector>
+#include <dxgi.h>
 //#include <mutex>
 template <class T> void SafeRelease(T **ppT)
 {
@@ -57,33 +55,6 @@ public:
 private:
 	CRITICAL_SECTION *m_p;
 	std::wstring m_tag;
-};
-
-
-class AudioClientStopOnExit {
-public:
-	AudioClientStopOnExit(IAudioClient *p) : m_p(p) {}
-	~AudioClientStopOnExit() {
-		HRESULT hr = m_p->Stop();
-		if (FAILED(hr)) {
-			LOG_ERROR(L"IAudioClient::Stop failed: hr = 0x%08x", hr);
-		}
-	}
-
-private:
-	IAudioClient *m_p;
-};
-
-class AvRevertMmThreadCharacteristicsOnExit {
-public:
-	AvRevertMmThreadCharacteristicsOnExit(HANDLE hTask) : m_hTask(hTask) {}
-	~AvRevertMmThreadCharacteristicsOnExit() {
-		if (!AvRevertMmThreadCharacteristics(m_hTask)) {
-			LOG_ERROR(L"AvRevertMmThreadCharacteristics failed: last error is %d", GetLastError());
-		}
-	}
-private:
-	HANDLE m_hTask;
 };
 
 class CancelWaitableTimerOnExit {
@@ -215,28 +186,6 @@ private:
 	DWORD m_millis = INFINITE;
 };
 
-class ReleaseWWMFSampleDataOnExit {
-public:
-	ReleaseWWMFSampleDataOnExit(WWMFSampleData *p) : m_p(p) {}
-	~ReleaseWWMFSampleDataOnExit() {
-		m_p->Release();
-	}
-
-private:
-	WWMFSampleData *m_p;
-};
-
-class ForgetWWMFSampleDataOnExit {
-public:
-	ForgetWWMFSampleDataOnExit(WWMFSampleData *p) : m_p(p) {}
-	~ForgetWWMFSampleDataOnExit() {
-		m_p->Forget();
-	}
-
-private:
-	WWMFSampleData *m_p;
-};
-
 class ReleaseDCOnExit {
 public:
 	ReleaseDCOnExit(HDC p) : m_p(p) {}
@@ -278,20 +227,6 @@ public:
 
 private:
 	HANDLE m_p;
-};
-
-class CloseMediaReaderOnExit {
-public:
-	CloseMediaReaderOnExit(SourceReaderBase *capture) : m_p(capture) {}
-	~CloseMediaReaderOnExit() {
-
-		if (m_p) {
-			m_p->Close();
-		}
-	}
-
-private:
-	SourceReaderBase *m_p;
 };
 
 class ReleaseCOMArrayOnExit {

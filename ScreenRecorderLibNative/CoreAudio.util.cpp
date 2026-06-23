@@ -1,6 +1,7 @@
 #include "CoreAudio.util.h"
 #include "cleanup.h"
 #include <functiondiscoverykeys_devpkey.h>
+#include <atlbase.h>
 
 HRESULT GetDefaultAudioDevice(_In_ EDataFlow flow, _Outptr_ IMMDevice **ppMMDevice) {
 	HRESULT hr = S_OK;
