@@ -125,28 +125,6 @@ private:
 	IUnknown *m_p;
 };
 
-class DeleteOnExit {
-public:
-	DeleteOnExit(void *p) : m_p(p) {}
-	~DeleteOnExit() {
-		delete m_p;
-	}
-
-private:
-	void *m_p;
-};
-
-class DeleteArrayOnExit {
-public:
-	DeleteArrayOnExit(void *p) : m_p(p) {}
-	~DeleteArrayOnExit() {
-		delete[] m_p;
-	}
-
-private:
-	void *m_p;
-};
-
 class DeleteGdiObjectOnExit {
 public:
 	DeleteGdiObjectOnExit(HGDIOBJ p) : m_p(p) {}

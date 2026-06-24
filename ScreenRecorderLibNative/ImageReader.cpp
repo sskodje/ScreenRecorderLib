@@ -175,14 +175,13 @@ HRESULT ImageReader::InitializeDecoder(_In_ IWICBitmapSource *pBitmap) {
 	if (bitmapSize <= 0) {
 		return E_FAIL;
 	}
-	BYTE *pFrameBuffer = new (std::nothrow) BYTE[bitmapSize];
+	std::unique_ptr<BYTE[]> pFrameBuffer(new (std::nothrow) BYTE[bitmapSize]);
 	if (!pFrameBuffer) {
 		LOG_ERROR("Failed to allocate memory for bitmap decode");
 		return E_OUTOFMEMORY;
 	}
-	DeleteArrayOnExit deleteOnExit(pFrameBuffer);
-	RETURN_ON_BAD_HR(hr = pBitmap->CopyPixels(nullptr, stride, bitmapSize, pFrameBuffer));
-	RETURN_ON_BAD_HR(m_TextureManager->CreateTextureFromBuffer(pFrameBuffer, stride, width, height, &m_Texture, 0, D3D11_BIND_SHADER_RESOURCE));
+	RETURN_ON_BAD_HR(hr = pBitmap->CopyPixels(nullptr, stride, bitmapSize, pFrameBuffer.get()));
+	RETURN_ON_BAD_HR(m_TextureManager->CreateTextureFromBuffer(pFrameBuffer.get(), stride, width, height, &m_Texture, 0, D3D11_BIND_SHADER_RESOURCE));
 	m_NativeSize = SIZE{ static_cast<long>(width),static_cast<long>(height) };
 	return hr;
 }

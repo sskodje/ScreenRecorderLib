@@ -423,8 +423,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 
 	int bufferFrameCount = int(ceil(m_InputFormat.sampleRate * HundredNanosToSeconds(AUDIO_CLIENT_BUFFER_100_NS)));
 	int bufferByteCount = bufferFrameCount * nBlockAlign;
-	BYTE *bufferData = new BYTE[bufferByteCount]{ 0 };
-	DeleteArrayOnExit deleteBufferData(bufferData);
+	std::unique_ptr<BYTE[]> bufferData(new BYTE[bufferByteCount]{ 0 });
 	{
 		// activate an IAudioCaptureClient
 		CComPtr<IAudioCaptureClient> pAudioCaptureClient = nullptr;
@@ -556,7 +555,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 				}
 
 				UINT32 size = nNumFramesToRead * nBlockAlign;
-				memcpy_s(bufferData, bufferByteCount, pData, size);
+				memcpy_s(bufferData.get(), bufferByteCount, pData, size);
 
 				hr = pAudioCaptureClient->ReleaseBuffer(nNumFramesToRead);
 				if (FAILED(hr)) {
