@@ -1,10 +1,11 @@
 #pragma once
-#include "Screengrab.h"
-#include <Windows.h>
-#include "Log.h"
-#include <atlbase.h>
 #include "Cleanup.h"
+#include "Log.h"
+#include "Screengrab.h"
 #include "util.h"
+#include <atlbase.h>
+#include <cassert>
+#include <Windows.h>
 namespace {
 	bool g_WIC2 = false;
 
@@ -253,7 +254,7 @@ HRESULT __cdecl SaveWICTextureToWicStream(
 	_In_ ID3D11DeviceContext *pContext,
 	_In_ ID3D11Resource *pSource,
 	_In_ REFGUID guidContainerFormat,
-	_Inout_ IWICStream *pStream,
+	_In_ IWICStream *pStream,
 	_In_opt_ const std::optional<SIZE> destSize,
 	_In_opt_ const GUID *targetFormat,
 	_In_opt_ std::function<void(IPropertyBag2 *)> setCustomProps)
