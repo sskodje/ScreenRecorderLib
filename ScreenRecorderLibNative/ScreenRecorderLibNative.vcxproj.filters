@@ -180,6 +180,9 @@
     <ClInclude Include="TimelineManager.h">
       <Filter>Header Files\Output</Filter>
     </ClInclude>
+    <ClInclude Include="Concurrency.util.h">
+      <Filter>Header Files\Utils</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="RecordingManager.cpp">

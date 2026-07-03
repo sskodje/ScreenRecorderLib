@@ -1,3 +1,5 @@
+#define _CRTDBG_MAP_ALLOC
+#include <crtdbg.h>
 #include <ppltasks.h> 
 #include <concrt.h>
 #include <mfidl.h>
@@ -15,6 +17,7 @@
 #include "DynamicWait.h"
 #include "HighresTimer.h"
 #include "TimelineManager.h"
+#include "Concurrency.util.h"
 
 #pragma comment(lib, "dxguid.lib")
 #pragma comment(lib, "D3D11.lib")
@@ -282,8 +285,14 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 	}
 	if (m_TaskWrapperImpl->m_RecordTaskActive.exchange(true))
 	{
-		// Recording task is already running, so abort gracefully.
-		return S_FALSE;
+		auto guarded = cancel_after_timeout(m_TaskWrapperImpl->m_RecordTask, m_TaskWrapperImpl->m_RecordTaskCts, 1000 /* ms */);
+		try {
+			guarded.get();
+	}
+		catch (const task_canceled &) {
+			// timed out
+			return E_FAIL;
+		}
 	}
 
 	HRESULT hr;

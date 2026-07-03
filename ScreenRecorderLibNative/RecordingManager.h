@@ -1,5 +1,4 @@
 #pragma once
-#define _CRTDBG_MAP_ALLOC
 #include "MouseManager.h"
 #include "AudioManager.h"
 #include "OutputManager.h"

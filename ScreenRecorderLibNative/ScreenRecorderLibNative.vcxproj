@@ -33,6 +33,7 @@
     <ClInclude Include="AudioManager.h" />
     <ClInclude Include="AudioSample.h" />
     <ClInclude Include="CMFSinkWriterCallback.h" />
+    <ClInclude Include="Concurrency.util.h" />
     <ClInclude Include="CoreAudio.util.h" />
     <ClInclude Include="DynamicWait.h" />
     <ClInclude Include="Exception.h" />
