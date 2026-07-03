@@ -49,7 +49,7 @@ public:
 		}
 		m_RecordingSources.clear();
 	}
-	inline void SetRecordingSources(std::vector<RECORDING_SOURCE> sources)
+	inline void SetRecordingSources(std::vector<RECORDING_SOURCE> &sources)
 	{
 		ClearRecordingSources();
 		for each (RECORDING_SOURCE source in sources)
@@ -79,7 +79,7 @@ public:
 		}
 		m_Overlays.clear();
 	}
-	inline void SetOverlays(std::vector<RECORDING_OVERLAY> overlays) {
+	inline void SetOverlays(std::vector<RECORDING_OVERLAY> &overlays) {
 		ClearOverlays();
 		for each (RECORDING_OVERLAY overlay in overlays)
 		{
@@ -127,6 +127,7 @@ private:
 	UINT m_TimerResolution;
 	struct TaskWrapper;
 	std::unique_ptr<TaskWrapper> m_TaskWrapperImpl;
+	bool m_LastFrameHadAudio;
 
 	DX_RESOURCES m_DxResources;
 
@@ -169,6 +170,17 @@ private:
 	HRESULT PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pTextureToRender, _In_opt_ std::optional<PTR_INFO> pointerInfo);
 	HRESULT RestartCapture(_In_ CAPTURE_RESULT &result, _In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hErrorEvent, _Out_opt_ RECT *videoInputFrameRect);
 	bool IsAnySourcePreviewsActive();
+
+	/// <summary>
+	/// If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
+	/// If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
+	/// </summary>
+	/// <param name="audioData"></param>
+	/// <param name="nextVideoFramePos"></param>
+	/// <param name="nextVideoFrameDuration"></param>
+	/// <returns></returns>
+	bool PadAudio(_Inout_ std::vector<BYTE> &audioData, _In_ INT64 nextVideoFramePos, _In_ INT64 nextVideoFrameDuration);
+
 	/// <summary>
 	/// Creates adjusted source and output rects from a recording frame rect. The source rect is normalized to start on [0,0], and the output is adjusted for any cropping.
 	/// </summary>

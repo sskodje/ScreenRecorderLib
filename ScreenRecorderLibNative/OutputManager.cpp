@@ -189,46 +189,35 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel model) {
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 	MeasureExecutionTime measure(L"RenderFrame");
 	auto recorderMode = GetOutputOptions()->GetRecorderMode();
-	const INT64 renderedFrameCount = m_TimelineManager->GetRenderedVideoFrameCount();
-
-	const INT64 nextVideoFrameStartPos100Nanos = m_TimelineManager->GetNextVideoFrameStartPosition();
-	const INT64 nextVideoFrameDuration100Nanos = m_TimelineManager->OnVideoFrame();
 
 	if (recorderMode == RecorderModeInternal::Video) {
-
-
-		const INT64 nextAudioPacketStartPos100Nanos = m_TimelineManager->GetNextAudioFrameStartPosition();
-		const INT64 audioFrameCount = model.Audio.size() / (INT64)((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
-		const INT64 audioDuration100Nanos = m_TimelineManager->OnAudioPacket(audioFrameCount, GetAudioOptions()->GetAudioSamplesPerSecond());
-
-		hr = WriteFrameToVideo(nextVideoFrameStartPos100Nanos, nextVideoFrameDuration100Nanos, m_VideoStreamIndex, model.Frame);
+		hr = WriteFrameToVideo(model.VideoStartPos, model.VideoDuration, m_VideoStreamIndex, model.Frame);
 		bool wroteAudioSample = false;
 		if (FAILED(hr)) {
 			_com_error err(hr);
-			LOG_ERROR(L"Writing of video frame with start pos %lld ms failed: %s", (HundredNanosToMillis(nextVideoFrameStartPos100Nanos)), err.ErrorMessage());
+			LOG_ERROR(L"Writing of video frame with start pos %lld ms failed: %s", (HundredNanosToMillis(model.VideoStartPos)), err.ErrorMessage());
 			return hr;//Stop recording if we fail
 		}
-		bool paddedAudio = false;
 
 		if (model.Audio.size() > 0) {
-			hr = WriteAudioSamplesToVideo(nextAudioPacketStartPos100Nanos, audioDuration100Nanos, m_AudioStreamIndex, &(model.Audio)[0], (DWORD)model.Audio.size());
+			hr = WriteAudioSamplesToVideo(model.AudioStartPos, model.AudioDuration, m_AudioStreamIndex, &(model.Audio)[0], (DWORD)model.Audio.size());
 			if (FAILED(hr)) {
 				_com_error err(hr);
-				LOG_ERROR(L"Writing of audio sample with start pos %lld ms failed: %s", (HundredNanosToMillis(nextAudioPacketStartPos100Nanos)), err.ErrorMessage());
+				LOG_ERROR(L"Writing of audio sample with start pos %lld ms failed: %s", (HundredNanosToMillis(model.AudioStartPos)), err.ErrorMessage());
 				return hr;//Stop recording if we fail
 			}
 			else {
 				wroteAudioSample = true;
 			}
 		}
-		auto frameInfoStr = wroteAudioSample ? (paddedAudio ? L"video sample and audio padding" : L"video and audio sample") : L"video sample";
-		LOG_TRACE(L"Wrote %s with vid start %lld ms, vid duration %.2f ms, audio start %lld ms, audio duration %.2f ms", frameInfoStr, HundredNanosToMillis(nextVideoFrameStartPos100Nanos), HundredNanosToMillisDouble(nextVideoFrameDuration100Nanos), HundredNanosToMillis(nextAudioPacketStartPos100Nanos), HundredNanosToMillisDouble(audioDuration100Nanos));
+		auto frameInfoStr = wroteAudioSample ? (model.PaddedBytes > 0 ? L"video sample and audio padding" : L"video and audio sample") : L"video sample";
+		LOG_TRACE(L"Wrote %s with vid start %lld ms, vid duration %.2f ms, audio start %lld ms, audio duration %.3f ms. diff %.2f ms.", frameInfoStr, HundredNanosToMillis(model.VideoStartPos), HundredNanosToMillisDouble(model.VideoDuration), HundredNanosToMillis(model.AudioStartPos), HundredNanosToMillisDouble(model.AudioDuration), HundredNanosToMillisDouble(model.VideoStartPos - model.AudioStartPos));
 	}
 	else if (recorderMode == RecorderModeInternal::Slideshow) {
-		wstring	path = m_OutputFolder + L"\\" + to_wstring(renderedFrameCount) + GetSnapshotOptions()->GetImageExtension();
+		wstring	path = m_OutputFolder + L"\\" + to_wstring(m_TimelineManager->GetRenderedVideoFrameCount()) + GetSnapshotOptions()->GetImageExtension();
 		hr = WriteFrameToImage(model.Frame, path);
-		INT64 startposMs = HundredNanosToMillis(nextVideoFrameStartPos100Nanos);
-		INT64 durationMs = HundredNanosToMillis(nextVideoFrameDuration100Nanos);
+		INT64 startposMs = HundredNanosToMillis(model.VideoStartPos);
+		INT64 durationMs = HundredNanosToMillis(model.VideoDuration);
 		if (FAILED(hr)) {
 			_com_error err(hr);
 			LOG_ERROR(L"Writing of slideshow frame with start pos %lld ms failed: %s", startposMs, err.ErrorMessage());
@@ -236,8 +225,8 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel model) {
 		}
 		else {
 
-			m_FrameDelays.insert(std::pair<wstring, int>(path, renderedFrameCount == 0 ? 0 : (int)durationMs));
-			LOG_TRACE(L"Wrote video slideshow frame with start pos %lld ms and with duration %lld ms", startposMs, durationMs);
+			m_FrameDelays.insert(std::pair<wstring, int>(path, startposMs == 0 ? 0 : (int)durationMs));
+			LOG_TRACE(L"Wrote slideshow frame with start pos %lld ms and with duration %lld ms", startposMs, durationMs);
 		}
 	}
 	else if (recorderMode == RecorderModeInternal::Screenshot) {
@@ -628,7 +617,7 @@ HRESULT OutputManager::WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ I
 		hr = pBuffer->Unlock();
 	}
 
-	IMFSample *pSample;
+	IMFSample *pSample = nullptr;
 	if (SUCCEEDED(hr))
 	{
 		hr = MFCreateSample(&pSample);

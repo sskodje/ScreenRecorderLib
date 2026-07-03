@@ -96,6 +96,7 @@ RecordingManager::RecordingManager() :
 	m_DynamicWait(nullptr),
 	m_IsPaused(false),
 	m_IsRecording(false),
+	m_LastFrameHadAudio(false)
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	m_MfStartupResult = MFStartup(MF_VERSION, MFSTARTUP_LITE);
@@ -288,7 +289,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		auto guarded = cancel_after_timeout(m_TaskWrapperImpl->m_RecordTask, m_TaskWrapperImpl->m_RecordTaskCts, 1000 /* ms */);
 		try {
 			guarded.get();
-	}
+		}
 		catch (const task_canceled &) {
 			// timed out
 			return E_FAIL;
@@ -395,7 +396,7 @@ void RecordingManager::PauseRecording() {
 			m_TimelineManager->PauseMediaClock();
 		}
 		if (m_AudioManager) {
-		m_AudioManager->PauseCapture();
+			m_AudioManager->PauseCapture();
 		}
 		if (RecordingStatusChangedCallback != nullptr) {
 			RecordingStatusChangedCallback(STATUS_PAUSED);
@@ -406,7 +407,7 @@ void RecordingManager::PauseRecording() {
 void RecordingManager::ResumeRecording() {
 	if (m_IsRecording && m_IsPaused.exchange(false)) {
 		if (m_AudioManager) {
-		m_AudioManager->ResumeCapture();
+			m_AudioManager->ResumeCapture();
 		}
 		if (m_TimelineManager) {
 			m_TimelineManager->ResumeMediaClock();
@@ -650,6 +651,10 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 
 HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pTextureToRender, _In_opt_ std::optional<PTR_INFO> pointerInfo)
 {
+	const INT64 nextVideoFrameStartPos100Nanos = m_TimelineManager->GetNextVideoFrameStartPosition();
+	const INT64 nextVideoFrameDuration100Nanos = m_TimelineManager->OnVideoFrame();
+
+
 	CComPtr<ID3D11Texture2D> processedTexture;
 	HRESULT hr = ProcessTexture(pTextureToRender, &processedTexture, pointerInfo);
 	if (hr == S_OK) {
@@ -667,13 +672,25 @@ HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pT
 	}
 	std::unique_ptr<FRAME_AUDIO_DATA> audioPacket(m_AudioManager->GrabAudioSamples());
 
-	UINT64 audioQpcPosition;
-	auto audioPacket = m_AudioManager->GrabAudioSamples(&audioQpcPosition);
+	const INT64 nextAudioPacketStartPos100Nanos = m_TimelineManager->GetNextAudioFrameStartPosition();
+	const INT64 audioFrameCount = audioPacket->Data.size() / (INT64)((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
+	const INT64 nextAudioPacketDuration100Nanos = m_TimelineManager->OnAudioPacket(audioFrameCount, GetAudioOptions()->GetAudioSamplesPerSecond());
 
 	FrameWriteModel model{};
-	model.Frame = pTextureToRender;
+	model.Frame = std::move(pTextureToRender);
 	model.AudioQpcPosition = audioPacket->QpcTimestamp;
 	model.Audio = std::move(audioPacket->Data);
+	model.VideoStartPos = nextVideoFrameStartPos100Nanos;
+	model.VideoDuration = nextVideoFrameDuration100Nanos;
+	model.AudioStartPos = nextAudioPacketStartPos100Nanos;
+	model.AudioDuration = nextAudioPacketDuration100Nanos;
+
+	int unpaddedAudioSize = model.Audio.size();
+	bool paddedAudio = PadAudio(model.Audio, nextVideoFrameStartPos100Nanos, nextVideoFrameDuration100Nanos);
+	if (paddedAudio) {
+		model.PaddedBytes = model.Audio.size() - unpaddedAudioSize;
+	}
+
 	RETURN_ON_BAD_HR(hr = m_EncoderResult = m_OutputManager->RenderFrame(model));
 	if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
 		SendNewFrameCallback(m_TimelineManager->GetRenderedVideoFrameCount(), model.Frame, audioPacket->Info.get());
@@ -751,7 +768,35 @@ bool RecordingManager::IsAnySourcePreviewsActive()
 	return false;
 }
 
-HRESULT RecordingManager::SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture) {
+
+bool RecordingManager::PadAudio(_Inout_ std::vector<BYTE> &audioData, _In_ INT64 nextVideoFramePos, _In_ INT64 nextVideoFrameDuration)
+{
+	bool paddedAudio = false;
+	/* If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
+	 * If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
+	 * We ignore every instance where the last frame had audio, due to sometimes very short frame durations due to mouse cursor changes have zero audio length,
+	 * and inserting silence between two frames that has audio leads to glitching. */
+	if (GetOutputOptions()->GetRecorderMode() == RecorderModeInternal::Video
+		&& GetAudioOptions()->IsAudioEnabled()
+		&& audioData.size() == 0
+		&& nextVideoFrameDuration > 0) {
+		if (!m_LastFrameHadAudio || HundredNanosToMillisDouble(nextVideoFrameDuration) > 5) {
+			INT64 expectedAudioFrames = ((nextVideoFramePos + nextVideoFrameDuration) * GetAudioOptions()->GetAudioSamplesPerSecond()) / 10000000ULL;
+			INT64 renderedAudioFrames = m_TimelineManager->GetRenderedAudioFrameCount();
+			int frameCount = static_cast<int>(max(0, expectedAudioFrames - renderedAudioFrames));
+			int byteCount = frameCount * (GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels();
+			audioData.insert(audioData.end(), byteCount, 0);
+			paddedAudio = true;
+		}
+		m_LastFrameHadAudio = false;
+	}
+	else {
+		m_LastFrameHadAudio = true;
+	}
+	return paddedAudio;
+}
+
+HRESULT RecordingManager::SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture, _In_opt_ FRAME_AUDIO_INFO *audioData) {
 	HRESULT hr = S_FALSE;
 	if (RecordingFrameNumberChangedCallback != nullptr) {
 		INT64 timestamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();

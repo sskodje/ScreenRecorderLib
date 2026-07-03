@@ -13,6 +13,16 @@
 
 struct FrameWriteModel
 {
+	//Timestamp of the start of the frame, in 100 nanosecond units.
+	INT64 VideoStartPos;
+	//Timestamp of the start of the audio, in 100 nanosecond units.
+	INT64 AudioStartPos;
+	//Duration of the frame, in 100 nanosecond units.
+	INT64 VideoDuration;
+	//Duration of the audio, in 100 nanosecond units.
+	INT64 AudioDuration;
+	//The number of padded bytes, if any.
+	int PaddedBytes;
 	//The audio sample bytes for this frame.
 	std::vector<BYTE> Audio;
 	//The frame texture.
