@@ -13,7 +13,7 @@ class TimelineManager
 public:
 	TimelineManager();
 	~TimelineManager();
-	HRESULT Initialize(int targetVideoFrameDurationMillis, int snapshotsIntervalMillis);
+	HRESULT Initialize(double targetVideoFrameDurationMillis, double snapshotsIntervalMillis);
 	double GetTimeUntilNextFrameMillis();
 	INT64 GetTimeUntilNextFrame100Nanos();
 	INT64 GetTimeSinceLastFrame100Nanos();
@@ -41,7 +41,7 @@ public:
 private:
 	UINT32 m_TargetVideoFrameDuration100Nanos;
 	double m_TargetVideoFrameDurationMillis;
-	UINT32 m_SnapshotIntervalMillis;
+	double m_SnapshotIntervalMillis;
 	INT64 m_SnapshotInterval100Nanos;
 	INT64 m_NextAudioPacketStartPos100Nanos;
 	INT64 m_NextVideoFrameStartPos100Nanos;
@@ -49,6 +49,7 @@ private:
 	INT64 m_LastSnapshotTime;
 	INT64 m_RenderedVideoFrameCount;
 	INT64 m_RenderedAudioFrameCount;
+	INT64 m_AudioTimeRemainder;
 
 	CComPtr<IMFPresentationTimeSource> m_TimeSrc;
 	CComPtr<IMFPresentationClock> m_PresentationClock;

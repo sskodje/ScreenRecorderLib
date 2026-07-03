@@ -16,7 +16,8 @@ TimelineManager::TimelineManager() :
 	m_LastSnapshotTime(0),
 	m_LastPresentationClockTime(0),
 	m_SnapshotIntervalMillis(0),
-	m_SnapshotInterval100Nanos(0)
+	m_SnapshotInterval100Nanos(0),
+	m_AudioTimeRemainder(0)
 {
 }
 
@@ -24,7 +25,7 @@ TimelineManager::~TimelineManager()
 {
 }
 
-HRESULT TimelineManager::Initialize(int targetVideoFrameDurationMillis, int snapshotsIntervalMillis)
+HRESULT TimelineManager::Initialize(double targetVideoFrameDurationMillis, double snapshotsIntervalMillis)
 {
 	m_TargetVideoFrameDurationMillis = targetVideoFrameDurationMillis;
 	m_TargetVideoFrameDuration100Nanos = MillisToHundredNanos(targetVideoFrameDurationMillis);
@@ -140,15 +141,18 @@ INT64 TimelineManager::OnVideoFrame()
 
 INT64 TimelineManager::OnAudioPacket(_In_ INT64 frameCount, _In_ INT64 sampleRate)
 {
-	const INT64 audioDuration100Nanos = (frameCount * 10 * 1000 * 1000) / sampleRate;
+	UINT64 ticks = (UINT64)frameCount * 10000000ULL;
+	m_AudioTimeRemainder += ticks;
+	const INT64 audioDuration100Nanos = m_AudioTimeRemainder / sampleRate;
+	m_AudioTimeRemainder %= sampleRate;
+	m_NextAudioPacketStartPos100Nanos += audioDuration100Nanos;
 	INT64 audioDriftCorrection = m_AudioCorrector->GetDriftCorrection(
 GetRenderedVideoFrameCount(),
 GetNextAudioFrameStartPosition(),
-GetNextVideoFrameStartPosition(),
+GetNextVideoFrameStartPosition());
 	m_NextAudioPacketStartPos100Nanos += audioDriftCorrection;
-	INT64 correctedAudioDuration100Nanos = audioDuration100Nanos + audioDriftCorrection;
-	m_NextAudioPacketStartPos100Nanos += correctedAudioDuration100Nanos;
-	return correctedAudioDuration100Nanos;
+	m_RenderedAudioFrameCount += frameCount;
+	return audioDuration100Nanos + audioDriftCorrection;
 }
 
 
