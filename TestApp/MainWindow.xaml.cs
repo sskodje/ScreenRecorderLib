@@ -258,6 +258,21 @@ namespace TestApp
                 }
             }
         }
+
+        private double _masterGain;
+        public double MasterGain
+        {
+            get { return _masterGain; }
+            set
+            {
+                if (_masterGain != value)
+                {
+                    _masterGain = value;
+                    RaisePropertyChanged(nameof(MasterGain));
+                }
+            }
+        }
+
         public H264Profile CurrentH264Profile { get; set; } = H264Profile.High;
         public H265Profile CurrentH265Profile { get; set; } = H265Profile.Main;
 
@@ -297,9 +312,12 @@ namespace TestApp
 
         private void RecordingSource_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            _rec?.GetDynamicOptionsBuilder()
+            if (IsRecording)
+            {
+                _rec?.GetDynamicOptionsBuilder()
                 .SetUpdatedRecordingSource(CreateRecordingSource(sender as ICheckableRecordingSource))
                 .Apply();
+            }
             if (e.PropertyName == nameof(RecordingSourceBase.IsVideoFramePreviewEnabled))
             {
                 ((CollectionViewSource)this.Resources["SelectedPreviewRecordingSourcesViewSource"]).View.Refresh();
@@ -307,9 +325,12 @@ namespace TestApp
         }
         private void Overlay_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            _rec?.GetDynamicOptionsBuilder()
-                .SetUpdatedOverlay(sender as RecordingOverlayBase)
-                .Apply();
+            if (IsRecording)
+            {
+                _rec?.GetDynamicOptionsBuilder()
+                    .SetUpdatedOverlay(sender as RecordingOverlayBase)
+                    .Apply();
+            }
         }
         private void RecorderOptions_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
@@ -535,14 +556,35 @@ namespace TestApp
         {
             Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
             {
-                FrameBitmapData args = e.BitmapData;
-                if (args != null)
+                FrameBitmapData bitmapData = e.BitmapData;
+                if (bitmapData != null)
                 {
-                    if (RecordingPreviewBitmap == null || RecordingPreviewBitmap.Width != args.Width || RecordingPreviewBitmap.Height != args.Height)
+                    if (RecordingPreviewBitmap == null || RecordingPreviewBitmap.Width != bitmapData.Width || RecordingPreviewBitmap.Height != bitmapData.Height)
                     {
-                        RecordingPreviewBitmap = new WriteableBitmap(args.Width, args.Height, 96, 96, PixelFormats.Bgra32, null);
+                        RecordingPreviewBitmap = new WriteableBitmap(bitmapData.Width, bitmapData.Height, 96, 96, PixelFormats.Bgra32, null);
                     }
-                    RecordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, args.Width, args.Height), args.Data, args.Length, Math.Abs(args.Stride));
+                    RecordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, bitmapData.Width, bitmapData.Height), bitmapData.Data, bitmapData.Length, Math.Abs(bitmapData.Stride));
+                }
+                FrameAudioData audioData = e.AudioData;
+                if (audioData != null)
+                {
+                    foreach (var source in audioData.Sources)
+                    {
+                        ICheckableAudioRecordingSource audioSource = this.AudioRecordingSources.FirstOrDefault(x => x.ID == source.Id);
+                        if (audioSource != null)
+                        {
+                            audioSource.Gain = source.Gain;
+                            if (source.Gain > 1)
+                            {
+                                Debug.WriteLine("Source %s Clipped!", source);
+                            }
+                        }
+                    }
+                    MasterGain = audioData.Gain;
+                    if (audioData.Gain > 1)
+                    {
+                        Debug.WriteLine("Master clipped!");
+                    }
                 }
                 CurrentFrameNumber = e.FrameNumber;
                 _recordedFrameTimes.Add(e.Timestamp);
@@ -693,6 +735,8 @@ namespace TestApp
                 ErrorTextBlock.Text = e.Error;
                 IsRecording = false;
                 CleanupResources();
+                RefreshAudioSourceComboBoxes();
+                MasterGain = 0;
             }));
         }
         private void Rec_OnRecordingComplete(object sender, RecordingCompleteEventArgs e)
@@ -715,6 +759,11 @@ namespace TestApp
                 this.StatusTextBlock.Text = "Completed";
                 IsRecording = false;
                 CleanupResources();
+                foreach (var source in AudioRecordingSources)
+                {
+                    source.Gain = 0;
+                }
+                MasterGain = 0;
             }));
         }
         private void Rec_OnSnapshotSaved(object sender, SnapshotSavedEventArgs e)
@@ -1101,9 +1150,16 @@ namespace TestApp
 
         private void AudioSource_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
-            _rec?.GetDynamicOptionsBuilder()
+            if (e.PropertyName == nameof(ICheckableAudioRecordingSource.Gain))
+            {
+                return;
+            }
+            if (IsRecording)
+            {
+                _rec?.GetDynamicOptionsBuilder()
                   .SetUpdatedAudioSource(sender as AudioSourceBase)
                   .Apply();
+            }
         }
 
         private void ScreenCheckBox_CheckedChanged(object sender, RoutedEventArgs e)

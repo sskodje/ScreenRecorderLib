@@ -50,7 +50,7 @@ public:
 	int GetNextFrameCount();
 	std::vector<BYTE> PeakRecordedBytes();
 	std::vector<BYTE> GetRecordedBytesByDuration(UINT64 duration100Nanos, _Out_ UINT64 *qpcTimestamp);
-	std::vector<BYTE> GetRecordedBytesByFrameCount(UINT64 frameCount, _Out_ UINT64 *qpcTimestamp);
+	std::vector<BYTE> GetRecordedBytesByFrameCount(int requestedFrameCount, _Out_ UINT64 *qpcTimestamp);
 	HRESULT Initialize(_In_ std::wstring endpointID, _In_ AudioClientKind kind);
 	HRESULT StartCapture();
 	HRESULT StopCapture();
@@ -63,6 +63,7 @@ public:
 	inline std::wstring GetDeviceName() { return m_DeviceName; }
 	inline WWMFPcmFormat GetInputFormat() { return m_InputFormat; }
 	inline AUDIO_SOURCE *GetAudioCaptureSource() { return m_AudioCaptureSource; }
+	inline bool NeedSync() { return m_NeedSync; }
 	inline static std::mutex StaticMutex{};
 
 private:
@@ -108,6 +109,7 @@ private:
 
 	bool m_IsRegisteredForEndpointNotifications = false;
 	bool m_IsDefaultDevice = false;
+	bool m_NeedSync = false;
 	std::atomic<bool> m_IsPaused = false;
 	std::atomic<bool> m_IsCapturing = false;
 	std::atomic<bool> m_IsOffline = false;

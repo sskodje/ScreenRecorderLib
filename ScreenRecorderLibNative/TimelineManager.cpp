@@ -11,7 +11,8 @@ TimelineManager::TimelineManager() :
 	m_NextAudioPacketStartPos100Nanos(0),
 	m_NextVideoFrameStartPos100Nanos(0),
 	m_AudioCorrector(nullptr),
-	m_RenderedFrameCount(0),
+	m_RenderedVideoFrameCount(0),
+	m_RenderedAudioFrameCount(0),
 	m_LastSnapshotTime(0),
 	m_LastPresentationClockTime(0),
 	m_SnapshotIntervalMillis(0),
@@ -68,11 +69,16 @@ double TimelineManager::GetTimeUntilNextFrameMillis()
 
 INT64 TimelineManager::GetTimeUntilNextFrame100Nanos()
 {
+	INT64 timeRemaining100Nanos = max(0, m_TargetVideoFrameDuration100Nanos - GetTimeSinceLastFrame100Nanos());
+	return timeRemaining100Nanos;
+}
+
+INT64 TimelineManager::GetTimeSinceLastFrame100Nanos()
+{
 	INT64 currentPresentationClockTime;
 	GetMediaTimeStamp(&currentPresentationClockTime);
 	INT64 durationSinceLastFrame100Nanos = currentPresentationClockTime - m_LastPresentationClockTime;
-	INT64 timeRemaining100Nanos = max(0, m_TargetVideoFrameDuration100Nanos - durationSinceLastFrame100Nanos);
-	return timeRemaining100Nanos;
+	return durationSinceLastFrame100Nanos;
 }
 
 HRESULT TimelineManager::StartMediaClock()
@@ -128,7 +134,7 @@ INT64 TimelineManager::OnVideoFrame()
 	INT64 frameDuration100Nanos = currentPresentationClockTime - m_LastPresentationClockTime;
 	m_NextVideoFrameStartPos100Nanos += frameDuration100Nanos;
 	m_LastPresentationClockTime = currentPresentationClockTime;
-	m_RenderedFrameCount++;
+	m_RenderedVideoFrameCount++;
 	return frameDuration100Nanos;
 }
 
@@ -136,7 +142,7 @@ INT64 TimelineManager::OnAudioPacket(INT64 frameCount, INT64 sampleRate, INT64 q
 {
 	const INT64 audioDuration100Nanos = (frameCount * 10 * 1000 * 1000) / sampleRate;
 	INT64 audioDriftCorrection = m_AudioCorrector->GetDriftCorrection(
-GetRenderedFrameCount(),
+GetRenderedVideoFrameCount(),
 GetNextAudioFrameStartPosition(),
 GetNextVideoFrameStartPosition(),
 qpcPosition);

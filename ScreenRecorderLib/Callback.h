@@ -15,7 +15,7 @@ namespace ScreenRecorderLib {
 		property String^ Path;
 		property int Delay;
 		FrameData() {}
-		FrameData(String^ path, int delay) {
+		FrameData(String^ path, int delay) :FrameData() {
 			Path = path;
 			Delay = delay;
 		}
@@ -29,12 +29,35 @@ namespace ScreenRecorderLib {
 		property IntPtr Data;
 		property int Length;
 		FrameBitmapData() {}
-		FrameBitmapData(int stride, byte* data, int length, int width, int height) {
+		FrameBitmapData(int stride, byte* data, int length, int width, int height) :FrameBitmapData() {
 			Stride = stride;
 			Data = IntPtr(data);
 			Length = length;
 			Width = width;
 			Height = height;
+		}
+	};
+
+	public ref class FrameAudioSource {
+	public:
+		property String^ Id;
+		property double Gain;
+		FrameAudioSource() {}
+		FrameAudioSource(String^ id, double gain) :FrameAudioSource() {
+			Id = id;
+			Gain = gain;
+		}
+	};
+
+	public ref class FrameAudioData {
+	public:
+		property double Gain;
+		property List<FrameAudioSource^>^ Sources;
+		FrameAudioData() {
+			Sources = gcnew List< FrameAudioSource^>();
+		}
+		FrameAudioData(double gain) :FrameAudioData() {
+			Gain = gain;
 		}
 	};
 
@@ -76,15 +99,17 @@ namespace ScreenRecorderLib {
 		property int FrameNumber;
 		property INT64 Timestamp;
 		FrameBitmapData^ BitmapData;
+		FrameAudioData^ AudioData;
 		FrameRecordedEventArgs() {}
 		FrameRecordedEventArgs(int frameNumber, INT64 timestamp) {
 			FrameNumber = frameNumber;
 			Timestamp = timestamp;
 		}
-		FrameRecordedEventArgs(int frameNumber, INT64 timestamp, FrameBitmapData^ bitmapData) {
+		FrameRecordedEventArgs(int frameNumber, INT64 timestamp, FrameBitmapData^ bitmapData, FrameAudioData^ audioData) {
 			FrameNumber = frameNumber;
 			Timestamp = timestamp;
 			BitmapData = bitmapData;
+			AudioData = audioData;
 		}
 	};
 

@@ -189,8 +189,8 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel model) {
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 	MeasureExecutionTime measure(L"RenderFrame");
 	auto recorderMode = GetOutputOptions()->GetRecorderMode();
+	const INT64 renderedFrameCount = m_TimelineManager->GetRenderedVideoFrameCount();
 
-	const INT64 renderedFrameCount = m_TimelineManager->GetRenderedFrameCount();
 	const INT64 nextVideoFrameStartPos100Nanos = m_TimelineManager->GetNextVideoFrameStartPosition();
 	const INT64 nextVideoFrameDuration100Nanos = m_TimelineManager->OnVideoFrame();
 

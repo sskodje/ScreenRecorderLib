@@ -16,6 +16,7 @@ public:
 	HRESULT Initialize(int targetVideoFrameDurationMillis, int snapshotsIntervalMillis);
 	double GetTimeUntilNextFrameMillis();
 	INT64 GetTimeUntilNextFrame100Nanos();
+	INT64 GetTimeSinceLastFrame100Nanos();
 	double GetTimeUntilNextShapshotMillis();
 	INT64 GetTimeUntilNextShapshot100Nanos();
 	inline double GetTargetVideoFrameDurationMillis() { return m_TargetVideoFrameDurationMillis; }
@@ -34,7 +35,8 @@ public:
 	INT64 GetNextVideoFrameStartPosition();
 	INT64 GetNextAudioFrameStartPosition();
 
-	inline INT64 GetRenderedFrameCount() { return m_RenderedFrameCount; }
+	inline INT64 GetRenderedVideoFrameCount() { return m_RenderedVideoFrameCount; }
+	inline INT64 GetRenderedAudioFrameCount() { return m_RenderedAudioFrameCount; }
 
 private:
 	UINT32 m_TargetVideoFrameDuration100Nanos;
@@ -45,7 +47,8 @@ private:
 	INT64 m_NextVideoFrameStartPos100Nanos;
 	INT64 m_LastPresentationClockTime;
 	INT64 m_LastSnapshotTime;
-	INT64 m_RenderedFrameCount;
+	INT64 m_RenderedVideoFrameCount;
+	INT64 m_RenderedAudioFrameCount;
 
 	CComPtr<IMFPresentationTimeSource> m_TimeSrc;
 	CComPtr<IMFPresentationClock> m_PresentationClock;

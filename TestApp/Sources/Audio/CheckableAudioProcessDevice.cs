@@ -50,6 +50,21 @@ namespace TestApp.Sources.Audio
             }
         }
 
+        private double _gain;
+        public double Gain
+        {
+            get { return _gain; }
+            set
+            {
+                if (_gain != value)
+                {
+                    _gain = value;
+                    OnPropertyChanged(nameof(Gain));
+                }
+            }
+        }
+
+
         public override string ToString()
         {
             return this.FriendlyName;

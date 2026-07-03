@@ -1017,12 +1017,20 @@ void ScreenRecorderLib::Recorder::EventSnapshotCreated(std::wstring str)
 	OnSnapshotSaved(this, gcnew SnapshotSavedEventArgs(gcnew String(str.c_str())));
 }
 
-void Recorder::FrameNumberChanged(int newFrameNumber, INT64 timestamp, FRAME_BITMAP_DATA* frameData)
+void Recorder::FrameNumberChanged(int newFrameNumber, INT64 timestamp, FRAME_BITMAP_DATA* frameData, FRAME_AUDIO_INFO* audioData)
 {
 	FrameBitmapData^ managedFrameData = nullptr;
 	if (frameData != nullptr) {
 		managedFrameData = gcnew FrameBitmapData(frameData->Stride, frameData->Data, frameData->Length, frameData->Width, frameData->Height);
 	}
-	OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber, timestamp, managedFrameData));
+	FrameAudioData^ managedAudioData = nullptr;
+	if (audioData != nullptr) {
+		managedAudioData = gcnew FrameAudioData(audioData->MasterVolume);
+		for each (FRAME_AUDIO_SOURCE source in audioData->Sources)
+		{
+			managedAudioData->Sources->Add(gcnew FrameAudioSource(gcnew String(source.Id.c_str()), source.Volume));
+		}
+	}
+	OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber, timestamp, managedFrameData, managedAudioData));
 	CurrentFrameNumber = newFrameNumber;
 }

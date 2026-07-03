@@ -1054,7 +1054,8 @@
                                                       Unchecked="AudioCaptureSourceCheckBox_CheckedChanged"
                                                       IsEnabled="{Binding IsCheckable}"
                                                       Width="20" />
-                                            <TextBlock FontFamily="Arial" FontWeight="{Binding IsDefaultDevice,Converter={StaticResource IsDefaultDeviceToFontWeightConverter}}">
+                                            <TextBlock FontFamily="Arial"
+                                                       FontWeight="{Binding IsDefaultDevice,Converter={StaticResource IsDefaultDeviceToFontWeightConverter}}">
                                                 <TextBlock.Text>
                                                     <MultiBinding StringFormat="{}[Loopback]  {0}]">
                                                         <Binding />
@@ -1151,14 +1152,23 @@
                                                     Grid.Column="1"
                                                     Foreground="Blue"
                                                     Margin="0,5,5,5"
-                                                    Maximum="1"
+                                                    Maximum="2.0"
                                                     Width="100"
+                                                    IsSnapToTickEnabled="True"
+                                                    AutoToolTipPlacement="BottomRight"
+                                                    AutoToolTipPrecision="2"
+                                                    SmallChange="0.1"
+                                                    LargeChange="0.5"
                                                     TickPlacement="BottomRight"
                                                     Value="{Binding Volume,Mode=TwoWay}"
                                                     TickFrequency="0.1" />
-                                            <Label Content="100%"
+                                            <Label Content="200%"
                                                    Grid.Column="2" />
                                         </Grid>
+                                        <local:GainLed Gain="{Binding Gain}"
+                                                       YellowThreshold="0.6"
+                                                       Width="20"
+                                                       Height="20" />
                                     </StackPanel>
                                 </DataTemplate>
                                 <DataTemplate x:Key="CaptureAudioSourceTemplate">
@@ -1185,14 +1195,23 @@
                                                     Grid.Column="1"
                                                     Foreground="Blue"
                                                     Margin="0,5,5,5"
-                                                    Maximum="1"
+                                                    Maximum="2"
                                                     Width="100"
+                                                    IsSnapToTickEnabled="True"
+                                                    AutoToolTipPlacement="BottomRight"
+                                                    AutoToolTipPrecision="2"
+                                                    SmallChange="0.1"
+                                                    LargeChange="0.5"
                                                     TickPlacement="BottomRight"
                                                     Value="{Binding Volume,Mode=TwoWay}"
                                                     TickFrequency="0.1" />
-                                            <Label Content="100%"
+                                            <Label Content="200%"
                                                    Grid.Column="2" />
                                         </Grid>
+                                        <local:GainLed Gain="{Binding Gain}"
+                                                       YellowThreshold="0.6"
+                                                       Width="20"
+                                                       Height="20" />
                                         <CheckBox Content="Force mono"
                                                   x:Name="CheckBoxDownmixInput"
                                                   IsChecked="{Binding ForceMono,Mode=TwoWay}"
@@ -1238,20 +1257,68 @@
                                                     Grid.Column="1"
                                                     Foreground="Blue"
                                                     Margin="0,5,5,5"
-                                                    Maximum="1"
+                                                    Maximum="2"
                                                     Width="100"
+                                                    IsSnapToTickEnabled="True"
+                                                    AutoToolTipPlacement="BottomRight"
+                                                    AutoToolTipPrecision="2"
+                                                    SmallChange="0.1"
+                                                    LargeChange="0.5"
                                                     TickPlacement="BottomRight"
                                                     Value="{Binding Volume,Mode=TwoWay}"
                                                     TickFrequency="0.1" />
-                                            <Label Content="100%"
+                                            <Label Content="200%"
                                                    Grid.Column="2" />
                                         </Grid>
+                                        <local:GainLed Gain="{Binding Gain}"
+                                                       YellowThreshold="0.6"
+                                                       Width="20"
+                                                       Height="20" />
                                     </StackPanel>
                                 </DataTemplate>
                             </ListBox.Resources>
                         </ListBox>
                     </Grid>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Label Content="Master gain" />
+                        <Grid Grid.Column="1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Label Content="0%" />
 
+                            <Slider Name="OutputVolumeSlider"
+                                    Orientation="Horizontal"
+                                    Grid.Column="1"
+                                    Foreground="Blue"
+                                    Margin="0,5,5,5"
+                                    Maximum="2.0"
+                                    
+                                    IsSnapToTickEnabled="True"
+                                    AutoToolTipPlacement="BottomRight"
+                                    AutoToolTipPrecision="2"
+                                    SmallChange="0.1"
+                                    LargeChange="0.5"
+                                    TickPlacement="BottomRight"
+                                    Value="{Binding ElementName=MainWin, Path=RecorderOptions.AudioOptions.MasterVolume,Mode=TwoWay}"
+                                    TickFrequency="0.1" />
+                            <Label Content="200%"
+                                   Grid.Column="2" />
+                        </Grid>
+                        <local:GainLed Gain="{Binding ElementName=MainWin,Path=MasterGain}"
+                                       YellowThreshold="0.6"
+                                       Width="20"
+                                       Height="20"
+                                       Margin="0,0,7,0"
+                                       Grid.Column="2"/>
+                    </Grid>
                     <CheckBox x:Name="CheckBoxEnableOverlays"
                               HorizontalAlignment="Left"
                               Content="Add overlays"

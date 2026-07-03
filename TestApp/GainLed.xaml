@@ -1,0 +1,62 @@
+﻿<UserControl x:Class="TestApp.GainLed"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:TestApp"
+             mc:Ignorable="d" 
+             d:DesignHeight="20" d:DesignWidth="20">
+    <Grid>
+        <!-- Dark bezel / housing -->
+        <Ellipse x:Name="HousingEllipse"
+                 Fill="#FF1A1A1A"
+                 Stroke="#FF000000"
+                 StrokeThickness="1" />
+
+        <!-- Faint "unlit" base disc so the LED still reads as green/idle at rest -->
+        <Ellipse x:Name="BaseEllipse"
+                 Margin="2"
+                 Opacity="0.18">
+            <Ellipse.Fill>
+                <RadialGradientBrush>
+                    <GradientStop Offset="0"
+                                  Color="#FF1B5E20" />
+                    <GradientStop Offset="1"
+                                  Color="#FF0D2E0F" />
+                </RadialGradientBrush>
+            </Ellipse.Fill>
+        </Ellipse>
+
+        <!-- The actual "lit" LED. Opacity, color and glow are all driven from code based on Gain. -->
+        <Ellipse x:Name="LitEllipse"
+                 Margin="2"
+                 Opacity="0">
+            <Ellipse.Fill>
+                <RadialGradientBrush>
+                    <GradientStop x:Name="LitStopInner"
+                                  Offset="0"
+                                  Color="White" />
+                    <GradientStop x:Name="LitStopMid"
+                                  Offset="0.35"
+                                  Color="LimeGreen" />
+                    <GradientStop x:Name="LitStopOuter"
+                                  Offset="1"
+                                  Color="#FF1B5E20" />
+                </RadialGradientBrush>
+            </Ellipse.Fill>
+            <Ellipse.Effect>
+                <DropShadowEffect x:Name="GlowEffect"
+                                  Color="LimeGreen"
+                                  BlurRadius="12"
+                                  ShadowDepth="0"
+                                  Opacity="0.8" />
+            </Ellipse.Effect>
+        </Ellipse>
+
+        <!-- Subtle glass highlight, purely cosmetic -->
+        <Ellipse Margin="4,3,4,12"
+                 Opacity="0.25"
+                 Fill="White"
+                 IsHitTestVisible="False" />
+    </Grid>
+</UserControl>

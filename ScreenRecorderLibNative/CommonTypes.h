@@ -27,12 +27,59 @@ struct FRAME_BITMAP_DATA {
 		Data(nullptr),
 		Length(0) {
 	}
-	FRAME_BITMAP_DATA(int stride, byte *data, int length, int width, int height) {
+	FRAME_BITMAP_DATA(int stride, byte *data, int length, int width, int height) :FRAME_BITMAP_DATA() {
 		Stride = stride;
 		Data = data;
 		Length = length;
 		Width = width;
 		Height = height;
+	}
+};
+
+struct FRAME_AUDIO_SOURCE {
+	std::wstring Id;
+	double Volume;
+	FRAME_AUDIO_SOURCE() :
+		Id(L""),
+		Volume(0) {
+	}
+	FRAME_AUDIO_SOURCE(std::wstring id, double volume) :FRAME_AUDIO_SOURCE() {
+		Id = id;
+		Volume = volume;
+	}
+};
+
+struct FRAME_AUDIO_INFO {
+	std::vector<FRAME_AUDIO_SOURCE> Sources;
+	double MasterVolume;
+	FRAME_AUDIO_INFO() :
+		Sources{},
+		MasterVolume(0) {
+	}
+	FRAME_AUDIO_INFO(const std::vector<FRAME_AUDIO_SOURCE> &sources, double masterVolume) :FRAME_AUDIO_INFO() {
+		Sources = sources;
+		MasterVolume = masterVolume;
+	}
+};
+
+struct FRAME_AUDIO_DATA {
+public:
+	std::vector<BYTE> Data;
+	std::unique_ptr<FRAME_AUDIO_INFO> Info;
+	UINT64 QpcTimestamp;
+
+	FRAME_AUDIO_DATA() :
+		QpcTimestamp(0),
+		Data{},
+		Info(nullptr) {
+	}
+	FRAME_AUDIO_DATA(const std::vector<BYTE> &data, FRAME_AUDIO_INFO *info, const UINT64 qpcTimestamp) :
+		Data(data), Info(std::move(info)), QpcTimestamp(qpcTimestamp)
+	{
+
+	}
+	~FRAME_AUDIO_DATA() {
+
 	}
 };
 
@@ -536,7 +583,7 @@ public:
 	void SetAudioEnabled(bool value) { m_IsAudioEnabled = value; Notify(OnPropertyChangedEvent); }
 	void SetInputDeviceDownmixingEnabled(bool value) { m_IsInputDeviceDownmixingEnabled = value; Notify(OnPropertyChangedEvent); }
 	void SetInputDeviceMasterChannel(int value) { m_InputMasterChannel = value; Notify(OnPropertyChangedEvent); }
-	void SetAudioSources(std::vector<AUDIO_SOURCE> sources, std::optional<bool> notify = true) {
+	void SetAudioSources(std::vector<AUDIO_SOURCE> &sources, std::optional<bool> notify = true) {
 
 		bool itemsChanged = false;
 		if (sources.size() != m_AudioSources.size()) {

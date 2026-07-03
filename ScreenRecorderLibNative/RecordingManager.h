@@ -11,7 +11,7 @@ typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_m
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
 typedef void(__stdcall *CallbackErrorFunction)(std::wstring, std::wstring);
 typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
-typedef void(__stdcall *CallbackFrameNumberChangedFunction)(int, INT64, _In_opt_ FRAME_BITMAP_DATA *data);
+typedef void(__stdcall *CallbackFrameNumberChangedFunction)(int, INT64, _In_opt_ FRAME_BITMAP_DATA *bitmapData, _In_opt_ FRAME_AUDIO_INFO *audioData);
 
 #define STATUS_IDLE 0
 #define STATUS_RECORDING 1
@@ -148,8 +148,8 @@ private:
 
 	std::vector<RECORDING_SOURCE *> m_RecordingSources;
 	std::vector<RECORDING_OVERLAY *> m_Overlays;
-	std::atomic<bool> m_IsPaused = false;
-	std::atomic<bool> m_IsRecording = false;
+	std::atomic<bool> m_IsPaused;
+	std::atomic<bool> m_IsRecording;
 
 	std::shared_ptr<ENCODER_OPTIONS> m_EncoderOptions;
 	std::shared_ptr<AUDIO_OPTIONS> m_AudioOptions;
@@ -164,7 +164,7 @@ private:
 	HRESULT ConfigureOutputDir(_In_ std::wstring path, _Out_ std::wstring *error);
 	REC_RESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_opt_ IStream *pStream);
 
-	HRESULT SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture);
+	HRESULT SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture, _In_opt_ FRAME_AUDIO_INFO *audioData);
 	HRESULT TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStream *pStream, _In_opt_ ID3D11Texture2D *pTexture = nullptr);
 	HRESULT BeginRecording(_In_opt_ std::wstring path, _In_opt_ IStream *pStream);
 	HRESULT PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pTextureToRender, _In_opt_ std::optional<PTR_INFO> pointerInfo);

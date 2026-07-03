@@ -9,7 +9,9 @@ namespace TestApp.Sources.Audio
 {
     public interface ICheckableAudioRecordingSource : INotifyPropertyChanged
     {
+        string ID { get; }
         bool IsSelected { get; set; }
         bool IsCheckable { get; set; }
+        double Gain { get; set; }
     }
 }

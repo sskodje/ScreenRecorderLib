@@ -58,7 +58,8 @@ WASAPICapture::WASAPICapture(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptions, 
 	m_Flow(eRender),
 	m_Kind(AudioClientKind::Endpoint),
 	m_IsDefaultDevice(false),
-	m_AudioCaptureSource(nullptr)
+	m_AudioCaptureSource(nullptr),
+	m_NeedSync(false)
 {
 	m_AudioCaptureSource = source;
 	m_AudioOptions = audioOptions.get();
@@ -262,8 +263,10 @@ HRESULT WASAPICapture::InitializeAudioClient(
 			return hr;
 		}
 	}
-	AudioClientContext *audioClientContext = new AudioClientContext(pAudioClient, kind);
-	*ppAudioClient = audioClientContext;
+
+	auto audioClientContext = std::make_unique<AudioClientContext>(pAudioClient, kind);
+	*ppAudioClient = audioClientContext.release();
+
 	return hr;
 }
 
@@ -435,7 +438,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 			LOG_ERROR(L"IAudioClient::GetService(IAudioCaptureClient) failed on %ls: hr = 0x%08x", GetDeviceFriendlyName().c_str(), hr);
 			return hr;
 		}
-		LONG lTimeBetweenFiresMillis = 0;
+		INT64 lTimeBetweenFiresMillis = 0;
 
 		if (pAudioClientContext->kind == AudioClientKind::ProcessLoopback) {
 			lTimeBetweenFiresMillis = 5;
@@ -448,7 +451,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 				LOG_ERROR(L"IAudioClient::GetDevicePeriod failed on %ls: hr = 0x%08x", GetDeviceFriendlyName().c_str(), hr);
 				return hr;
 			}
-			lTimeBetweenFiresMillis = HundredNanosToMillis((LONG)hnsDefaultDevicePeriod / 2);
+			lTimeBetweenFiresMillis = HundredNanosToMillis((INT64)hnsDefaultDevicePeriod / 2);
 		}
 
 		// create a periodic waitable timer
@@ -574,7 +577,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 					UINT64 expectedPosition = nLastDevicePosition + nNumFramesToRead;
 					if (nDevicePosition > expectedPosition)
 					{
-						UINT64 frameDiff = nDevicePosition - expectedPosition;
+						INT64 frameDiff = max(0, static_cast<INT64>(nDevicePosition) - static_cast<INT64>(expectedPosition));
 						recordedBytes.insert(recordedBytes.begin(), (size_t)(frameDiff * nBlockAlign), 0);
 						LOG_DEBUG(L"Discontinuity detected, padded audio bytes with %d bytes of silence on %ls", frameDiff, GetDeviceFriendlyName().c_str());
 					}
@@ -633,7 +636,7 @@ std::vector<BYTE> WASAPICapture::GetRecordedBytesByDuration(UINT64 duration100Na
 	int frameCount = int(ceil(m_InputFormat.sampleRate * HundredNanosToSeconds(duration100Nanos)));
 	return GetRecordedBytesByFrameCount(frameCount, qpcTimestamp);
 }
-std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(UINT64 frameCount, _Out_ UINT64 *qpcTimestamp)
+std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(int requestedFrameCount, _Out_ UINT64 *qpcTimestamp)
 {
 	std::vector<BYTE> newvector;
 	*qpcTimestamp = 0;
@@ -645,7 +648,7 @@ std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(UINT64 frameCount,
 		int readPacketCount = 0;
 		for each (AudioPacket recordedPacket in m_RecordedAudioPackets)
 		{
-			if (recordedFrameCount < frameCount) {
+			if (recordedFrameCount < requestedFrameCount) {
 				newvector.insert(newvector.end(), recordedPacket.data.begin(), recordedPacket.data.end());
 				recordedFrameCount += recordedPacket.frameCount;
 				if (readPacketCount == 0) {
@@ -657,8 +660,14 @@ std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(UINT64 frameCount,
 				remainingBytes += recordedPacket.data.size();
 			}
 		}
+		int diff = requestedFrameCount - recordedFrameCount;
+		if (diff > 0 && m_NeedSync) {
+			newvector.insert(newvector.begin(), diff * m_InputFormat.FrameBytes(), 0);
+			LOG_TRACE("Padded packet with %d bytes on WASAPICapture %ls", diff, GetDeviceFriendlyName().c_str());
+			m_NeedSync = false;
+		}
 		m_RecordedAudioPackets.erase(m_RecordedAudioPackets.begin(), m_RecordedAudioPackets.begin() + readPacketCount);
-		LOG_TRACE(L"Got %d bytes from WASAPICapture %ls. %d bytes remaining", newvector.size(), GetDeviceFriendlyName().c_str(), remainingBytes);
+		LOG_TRACE(L"Got %d bytes from WASAPICapture %ls. %d bytes remaining.", newvector.size(), GetDeviceFriendlyName().c_str(), remainingBytes);
 
 		// convert audio
 		if (m_Resampler && newvector.size() > 0) {
@@ -774,6 +783,8 @@ HRESULT WASAPICapture::StopCapture()
 	{
 		if (m_TaskWrapperImpl->m_CaptureThread.joinable()) {
 			m_TaskWrapperImpl->m_CaptureThread.join();
+			m_AudioClientContext.reset();
+			m_NeedSync = true;
 		}
 		else {
 			return S_FALSE;

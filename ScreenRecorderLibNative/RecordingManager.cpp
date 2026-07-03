@@ -90,7 +90,9 @@ RecordingManager::RecordingManager() :
 	m_DxResources{},
 	m_FrameDataCallbackTexture(nullptr),
 	m_TimerResolution(0),
-	m_DynamicWait(nullptr)
+	m_DynamicWait(nullptr),
+	m_IsPaused(false),
+	m_IsRecording(false),
 {
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 	m_MfStartupResult = MFStartup(MF_VERSION, MFSTARTUP_LITE);
@@ -303,10 +305,6 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		return E_FAIL;
 	}
 	m_AudioManager = make_unique<AudioManager>();
-	if (FAILED(hr = m_AudioManager->Initialize(GetAudioOptions()))) {
-		SetRecordingCompleteStatus(REC_RESULT(hr, L"Failed to initialize AudioManager"));
-		return hr;
-	}
 
 	m_EncoderResult = S_FALSE;
 	m_TaskWrapperImpl->m_RecordTaskCts = cancellation_token_source();
@@ -336,9 +334,9 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 		m_CaptureManager = make_unique<ScreenCaptureManager>();
 		RETURN_RESULT_ON_BAD_HR(m_CaptureManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetOutputOptions(), GetEncoderOptions(), GetMouseOptions()), L"Failed to initialize ScreenCaptureManager");
 		m_MouseManager = make_unique<MouseManager>();
-		RETURN_RESULT_ON_BAD_HR(hr = m_MouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions()), L"Failed to initialize mouse manager");
+		RETURN_RESULT_ON_BAD_HR(hr = m_MouseManager->Initialize(m_DxResources.Context, m_DxResources.Device, GetMouseOptions()), L"Failed to initialize MouseManager");
 		m_DynamicWait = make_unique<DynamicWait>();
-
+		RETURN_RESULT_ON_BAD_HR(hr = m_AudioManager->Initialize(GetAudioOptions(), m_TimelineManager.get()), L"Failed to initialize AudioManager");
 		result = StartRecorderLoop(m_RecordingSources, m_Overlays, stream);
 		if (RecordingStatusChangedCallback != nullptr && !m_IsDestructing) {
 			RecordingStatusChangedCallback(STATUS_FINALIZING);
@@ -354,7 +352,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 					m_AudioManager.reset(nullptr);
 					m_TextureManager.reset(nullptr);
 					m_IsRecording = false;
-					m_IsPaused = false;
+					m_IsPaused.exchange(false);
 					REC_RESULT result{ };
 					try {
 						result = t.get();
@@ -387,7 +385,9 @@ void RecordingManager::PauseRecording() {
 		if (m_TimelineManager) {
 			m_TimelineManager->PauseMediaClock();
 		}
+		if (m_AudioManager) {
 		m_AudioManager->PauseCapture();
+		}
 		if (RecordingStatusChangedCallback != nullptr) {
 			RecordingStatusChangedCallback(STATUS_PAUSED);
 			LOG_DEBUG("Changed Recording Status to Paused");
@@ -396,7 +396,9 @@ void RecordingManager::PauseRecording() {
 }
 void RecordingManager::ResumeRecording() {
 	if (m_IsRecording && m_IsPaused.exchange(false)) {
+		if (m_AudioManager) {
 		m_AudioManager->ResumeCapture();
+		}
 		if (m_TimelineManager) {
 			m_TimelineManager->ResumeMediaClock();
 		}
@@ -582,6 +584,9 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			if (m_TimelineManager->isMediaClockRunning()) {
 				m_TimelineManager->PauseMediaClock();
 			}
+			if (m_AudioManager) {
+				m_AudioManager->PauseCapture();
+			}
 			ExecuteFuncOnExit clearDataOnExit([&]() {
 				m_TimelineManager->UpdateLastSnapshotTime();
 				if (m_AudioManager)
@@ -618,7 +623,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			hr = S_OK;
 			break;
 		}
-		if (m_TimelineManager->GetRenderedFrameCount() == 0) {
+		if (m_TimelineManager->GetRenderedVideoFrameCount() == 0) {
 			if (RecordingStatusChangedCallback != nullptr) {
 				RecordingStatusChangedCallback(STATUS_RECORDING);
 				LOG_DEBUG("Changed Recording Status to Recording");
@@ -651,17 +656,18 @@ HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pT
 			TakeSnapshot(snapshotPath, nullptr, pTextureToRender);
 		}
 	}
+	std::unique_ptr<FRAME_AUDIO_DATA> audioPacket(m_AudioManager->GrabAudioSamples());
 
 	UINT64 audioQpcPosition;
 	auto audioPacket = m_AudioManager->GrabAudioSamples(&audioQpcPosition);
 
 	FrameWriteModel model{};
 	model.Frame = pTextureToRender;
-	model.AudioQpcPosition = audioQpcPosition;
-	model.Audio = audioPacket;
+	model.AudioQpcPosition = audioPacket->QpcTimestamp;
+	model.Audio = std::move(audioPacket->Data);
 	RETURN_ON_BAD_HR(hr = m_EncoderResult = m_OutputManager->RenderFrame(model));
 	if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
-		SendNewFrameCallback(m_TimelineManager->GetRenderedFrameCount(), pTextureToRender);
+		SendNewFrameCallback(m_TimelineManager->GetRenderedVideoFrameCount(), model.Frame, audioPacket->Info.get());
 	}
 	return hr;
 }
@@ -791,11 +797,11 @@ HRESULT RecordingManager::SendNewFrameCallback(_In_ const int frameNumber, _In_ 
 			pFramePreviewData->Width = width;
 			pFramePreviewData->Height = height;
 			pFramePreviewData->Length = len;
-			RecordingFrameNumberChangedCallback(frameNumber, timestamp, pFramePreviewData.get());
+			RecordingFrameNumberChangedCallback(frameNumber, timestamp, pFramePreviewData.get(), audioData);
 			m_DxResources.Context->Unmap(m_FrameDataCallbackTexture, 0);
 		}
 		else {
-			RecordingFrameNumberChangedCallback(frameNumber, timestamp, nullptr);
+			RecordingFrameNumberChangedCallback(frameNumber, timestamp, nullptr, audioData);
 		}
 	}
 	return hr;
