@@ -14,9 +14,12 @@
 using namespace DirectX;
 using namespace std::chrono;
 using namespace std;
+using namespace concurrency;
+
 DWORD WINAPI CaptureThreadProc(_In_ void *Param);
 DWORD WINAPI OverlayCaptureThreadProc(_In_ void *Param);
 _Ret_maybenull_ CaptureBase *CreateCaptureInstance(_In_ RECORDING_SOURCE_BASE *pSource);
+
 ScreenCaptureManager::ScreenCaptureManager() :
 	m_Device(nullptr),
 	m_DeviceContext(nullptr),
@@ -240,7 +243,7 @@ HRESULT ScreenCaptureManager::CopyCurrentFrame(_Out_ CAPTURED_FRAME *pFrame)
 	return S_OK;
 }
 
-HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  double timeUntilNextFrame, _In_ double maxFrameLength, _Out_ CAPTURED_FRAME *pFrame)
+HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  double timeUntilNextFrame, _In_ double maxFrameLength, _In_ const Concurrency::cancellation_token &token, _Out_ CAPTURED_FRAME *pFrame)
 {
 	HRESULT hr;
 	auto  start = std::chrono::steady_clock::now();
@@ -292,6 +295,11 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  double timeUntilNextFrame, 
 	{
 		// Try to acquire keyed mutex in order to access shared surface
 		hr = m_KeyMutex->AcquireSync(1, syncTimeout);
+		if (token.is_canceled()) {
+			LOG_DEBUG("AcquireNextFrame was cancelled");
+			hr = S_FALSE;
+			break;
+		}
 
 		if (hr == static_cast<HRESULT>(WAIT_TIMEOUT)) {
 			if (!ShouldDelay()) {
@@ -547,7 +555,7 @@ void ScreenCaptureManager::InvalidateCaptureSources()
 	for each (CAPTURE_THREAD * threadObject in m_CaptureThreads)
 	{
 		threadObject->ThreadData->TotalUpdatedFrameCount = 0;
-		if (threadObject->ThreadData) {			
+		if (threadObject->ThreadData) {
 			threadObject->ThreadData->LastUpdateTimeStamp.QuadPart = 0;
 		}
 		QueryPerformanceCounter(&m_LastAcquiredFrameTimeStamp);
@@ -691,7 +699,7 @@ HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ const std::vector<RECORDING_
 	}
 
 	std::vector<RECT> outputRects{};
-	for each (auto & pair in validOutputs)
+	for each (auto &pair in validOutputs)
 	{
 		if (validOutputs.size() == 1 && m_OutputOptions->GetFrameSize().has_value()) {
 			outputRects.push_back(RECT{ 0,0,m_OutputOptions->GetFrameSize().value().cx,m_OutputOptions->GetFrameSize().value().cy });

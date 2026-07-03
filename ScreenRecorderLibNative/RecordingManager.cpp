@@ -210,7 +210,7 @@ HRESULT RecordingManager::TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStr
 	if (!pTexture) {
 		CAPTURED_FRAME capturedFrame{};
 		if (m_IsPaused) {
-			hr = m_CaptureManager->AcquireNextFrame(0, m_MaxFrameLengthMillis, &capturedFrame);
+			hr = m_CaptureManager->AcquireNextFrame(0, m_MaxFrameLengthMillis, cancellation_token::none(), &capturedFrame);
 			if (SUCCEEDED(hr)) {
 				capturedFrame.Frame->AddRef();
 			}
@@ -362,7 +362,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 					m_AudioManager.reset(nullptr);
 					m_TextureManager.reset(nullptr);
 					m_IsRecording = false;
-					m_IsPaused.exchange(false);
+					m_IsPaused = false;
 					REC_RESULT result{ };
 					try {
 						result = t.get();
@@ -609,9 +609,9 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 		CAPTURED_FRAME capturedFrame{};
 		// Get new frame
-		hr = m_CaptureManager->AcquireNextFrame(m_TimelineManager->GetTimeUntilNextFrameMillis(), m_MaxFrameLengthMillis, &capturedFrame);
+		hr = m_CaptureManager->AcquireNextFrame(m_TimelineManager->GetTimeUntilNextFrameMillis(), m_MaxFrameLengthMillis, token, &capturedFrame);
 
-		//If there are any source previews on paused status, the loop exits here. This allows the source previews to continu render.
+		//If there are any source previews on paused status, the loop exits here. This allows the source previews to continue rendering.
 		if (m_IsPaused) {
 			wait(m_TimelineManager->GetTargetVideoFrameDurationMillis());
 			continue;

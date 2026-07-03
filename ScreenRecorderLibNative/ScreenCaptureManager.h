@@ -7,6 +7,7 @@
 #include "Util.h"
 #include <atlbase.h>
 
+namespace Concurrency { class cancellation_token; }
 void ProcessCaptureHRESULT(_In_ HRESULT hr, _Inout_ CAPTURE_RESULT *pResult, _In_opt_ ID3D11Device *pDevice);
 
 class ScreenCaptureManager
@@ -26,7 +27,7 @@ public:
 	virtual RECT GetOutputRect() { return m_OutputRect; }
 	virtual SIZE GetOutputSize() { return SIZE{ RectWidth(m_OutputRect),RectHeight(m_OutputRect) }; }
 	virtual HRESULT CopyCurrentFrame(_Out_ CAPTURED_FRAME *pFrame);
-	virtual HRESULT AcquireNextFrame(_In_  double timeUntilNextFrame, _In_ double maxFrameLength, _Out_ CAPTURED_FRAME *pFrame);
+	virtual HRESULT AcquireNextFrame(_In_  double timeUntilNextFrame, _In_ double maxFrameLength,_In_ const Concurrency::cancellation_token &token, _Out_ CAPTURED_FRAME *pFrame);
 	virtual HRESULT StartCapture(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hErrorEvent);
 	virtual HRESULT StopCapture();
 	virtual bool IsUpdatedFramesAvailable();
@@ -53,6 +54,7 @@ protected:
 	virtual HRESULT CreateSharedSurf(_In_ RECT desktopRect, _Outptr_ ID3D11Texture2D **ppSharedTexture, _Outptr_ IDXGIKeyedMutex **ppKeyedMutex);
 	virtual HRESULT CreateSharedSurf(_In_ const std::vector<RECORDING_SOURCE *> &sources, _Out_ std::vector<RECORDING_SOURCE_DATA *> *pCreatedOutputs, _Out_ RECT *pDeskBounds, _Outptr_ ID3D11Texture2D **ppSharedTexture, _Outptr_ IDXGIKeyedMutex **ppKeyedMutex);
 private:
+
 	bool m_IsInitialFrameWriteComplete;
 	bool m_IsInitialOverlayWriteComplete;
 	bool m_IsCapturing;
