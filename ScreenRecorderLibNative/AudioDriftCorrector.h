@@ -5,7 +5,7 @@ class AudioDriftCorrector
 public:
 	AudioDriftCorrector();
 	~AudioDriftCorrector();
-	INT64 GetDriftCorrection(INT64 frameNum, INT64 nextAudioPacketStartPos100Nanos, INT64 nextVideoFrameStartPos100Nanos, INT64 audioQpcPosition);
+	INT64 GetDriftCorrection(INT64 frameNum, INT64 nextAudioPacketStartPos100Nanos, INT64 nextVideoFrameStartPos100Nanos);
 
 private:
 	const int CORRECTION_PERIOD_FRAME_COUNT = 1000;
@@ -14,6 +14,5 @@ private:
 	INT64 m_AudioVideoDiffDeltaPeriodSum = 0;
 	INT64 m_AudioDriftCorrection = 0;
 	INT64 m_AccumulatedDriftCorrection = 0;
-	INT64 m_InitialQpc = 0;
 	INT64 m_LastCorrectionTimestamp = 0;
 };

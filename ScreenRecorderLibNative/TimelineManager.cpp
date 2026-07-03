@@ -138,14 +138,14 @@ INT64 TimelineManager::OnVideoFrame()
 	return frameDuration100Nanos;
 }
 
-INT64 TimelineManager::OnAudioPacket(INT64 frameCount, INT64 sampleRate, INT64 qpcPosition)
+INT64 TimelineManager::OnAudioPacket(_In_ INT64 frameCount, _In_ INT64 sampleRate)
 {
 	const INT64 audioDuration100Nanos = (frameCount * 10 * 1000 * 1000) / sampleRate;
 	INT64 audioDriftCorrection = m_AudioCorrector->GetDriftCorrection(
 GetRenderedVideoFrameCount(),
 GetNextAudioFrameStartPosition(),
 GetNextVideoFrameStartPosition(),
-qpcPosition);
+	m_NextAudioPacketStartPos100Nanos += audioDriftCorrection;
 	INT64 correctedAudioDuration100Nanos = audioDuration100Nanos + audioDriftCorrection;
 	m_NextAudioPacketStartPos100Nanos += correctedAudioDuration100Nanos;
 	return correctedAudioDuration100Nanos;

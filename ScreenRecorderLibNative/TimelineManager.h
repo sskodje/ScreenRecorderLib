@@ -30,7 +30,7 @@ public:
 	void UpdateLastSnapshotTime();
 
 	INT64 OnVideoFrame();
-	INT64 OnAudioPacket(INT64 frameCount, INT64 sampleRate, INT64 qpcPosition);
+	INT64 OnAudioPacket(_In_ INT64 frameCount, _In_ INT64 sampleRate);
 
 	INT64 GetNextVideoFrameStartPosition();
 	INT64 GetNextAudioFrameStartPosition();

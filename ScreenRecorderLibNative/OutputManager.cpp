@@ -199,7 +199,7 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel model) {
 
 		const INT64 nextAudioPacketStartPos100Nanos = m_TimelineManager->GetNextAudioFrameStartPosition();
 		const INT64 audioFrameCount = model.Audio.size() / (INT64)((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
-		const INT64 audioDuration100Nanos = m_TimelineManager->OnAudioPacket(audioFrameCount, GetAudioOptions()->GetAudioSamplesPerSecond(), model.AudioQpcPosition);
+		const INT64 audioDuration100Nanos = m_TimelineManager->OnAudioPacket(audioFrameCount, GetAudioOptions()->GetAudioSamplesPerSecond());
 
 		hr = WriteFrameToVideo(nextVideoFrameStartPos100Nanos, nextVideoFrameDuration100Nanos, m_VideoStreamIndex, model.Frame);
 		bool wroteAudioSample = false;
