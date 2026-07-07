@@ -190,6 +190,55 @@ namespace ScreenRecorderLib
                new ScreenSize(900,900)
             };
         }
+        private static IEnumerable<object[]> GetAudioSources()
+        {
+            yield return new object[] {
+               new List<AudioSourceBase>()
+               {
+                LoopbackAudioSource.Default
+               },
+               false
+            };
+            yield return new object[] {
+               new List<AudioSourceBase>()
+               {
+                LoopbackAudioSource.Default
+               },
+               true
+            };
+            yield return new object[] {
+               new List<AudioSourceBase>()
+               {
+                CaptureAudioSource.Default
+               },
+               true
+            };
+            yield return new object[] {
+               new List<AudioSourceBase>()
+               {
+                new ProcessAudioSource(Recorder.GetWindows().First().Pid.GetValueOrDefault(0))
+               },
+               true
+            };
+            yield return new object[] {
+               new List<AudioSourceBase>()
+               {
+                LoopbackAudioSource.Default,
+                CaptureAudioSource.Default,
+                new ProcessAudioSource(Recorder.GetWindows().First().Pid.GetValueOrDefault(0))
+               },
+               true
+            };
+            yield return new object[] {
+               new List<AudioSourceBase>()
+               {
+                LoopbackAudioSource.Default,
+                CaptureAudioSource.Default,
+                new ProcessAudioSource(Recorder.GetWindows().First().Pid.GetValueOrDefault(0))
+               },
+               false
+            };
+        }
 
         [TestMethod]
         public void OverlayAndSourceChangeDuringRecording()
@@ -627,62 +676,8 @@ namespace ScreenRecorderLib
         }
 
         [TestMethod]
-        public void RecordingWithAudioInput()
-        {
-            string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
-            try
-            {
-                using (var outStream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
-                {
-                    RecorderOptions options = new RecorderOptions();
-                    options.AudioOptions = new AudioOptions { IsAudioEnabled = true, AudioSources = new List<AudioSourceBase> { CaptureAudioSource.Default } };
-                    using (var rec = Recorder.CreateRecorder(options))
-                    {
-                        string error = "";
-                        bool isError = false;
-                        bool isComplete = false;
-                        ManualResetEvent finalizeResetEvent = new ManualResetEvent(false);
-                        ManualResetEvent recordingResetEvent = new ManualResetEvent(false);
-                        rec.OnRecordingComplete += (s, args) =>
-                        {
-                            isComplete = true;
-                            finalizeResetEvent.Set();
-                        };
-                        rec.OnRecordingFailed += (s, args) =>
-                        {
-                            isError = true;
-                            error = args.Error;
-                            finalizeResetEvent.Set();
-                            recordingResetEvent.Set();
-                        };
-                        rec.OnFrameRecorded += (s, args) =>
-                        {
-                            if (args.FrameNumber == 10)
-                            {
-                                recordingResetEvent.Set();
-                            }
-                        };
-                        rec.Record(outStream);
-                        recordingResetEvent.WaitOne(DefaultMaxRecordingLengthMillis);
-                        rec.Stop();
-                        finalizeResetEvent.WaitOne(5000);
-                        outStream.Flush();
-                        Assert.IsFalse(isError, error);
-                        Assert.IsTrue(isComplete);
-                        Assert.AreNotEqual(outStream.Length, 0);
-                        var mediaInfo = new MediaInfoWrapper(filePath);
-                        Assert.IsTrue(mediaInfo.AudioStreams.Count > 0);
-                    }
-                }
-            }
-            finally
-            {
-                File.Delete(filePath);
-            }
-        }
-
-        [TestMethod]
-        public void RecordingWithAudioMixing()
+        [DynamicData(nameof(GetAudioSources), DynamicDataSourceType.Method)]
+        public void RecordingWithAudioMixing(IEnumerable<AudioSourceBase> sources, bool isEnabled)
         {
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             try
@@ -692,8 +687,8 @@ namespace ScreenRecorderLib
                     RecorderOptions options = new RecorderOptions();
                     options.AudioOptions = new AudioOptions
                     {
-                        IsAudioEnabled = true,
-                        AudioSources = new List<AudioSourceBase> { LoopbackAudioSource.Default, CaptureAudioSource.Default }
+                        IsAudioEnabled = isEnabled,
+                        AudioSources = sources.ToList()
                     };
                     using (var rec = Recorder.CreateRecorder(options))
                     {
@@ -716,6 +711,15 @@ namespace ScreenRecorderLib
                         };
                         rec.OnFrameRecorded += (s, args) =>
                         {
+                            if (isEnabled)
+                            {
+                                Assert.IsTrue(args.AudioData != null);
+                                Assert.IsTrue(args.AudioData.Sources.Count == sources.Count());
+                            }
+                            else
+                            {
+                                Assert.IsTrue(args.AudioData == null);
+                            }
                             if (args.FrameNumber == 10)
                             {
                                 recordingResetEvent.Set();
@@ -730,7 +734,14 @@ namespace ScreenRecorderLib
                         Assert.IsTrue(isComplete);
                         Assert.AreNotEqual(outStream.Length, 0);
                         var mediaInfo = new MediaInfoWrapper(filePath);
-                        Assert.IsTrue(mediaInfo.AudioStreams.Count > 0);
+                        if (isEnabled)
+                        {
+                            Assert.IsTrue(mediaInfo.AudioStreams.Count > 0);
+                        }
+                        else
+                        {
+                            Assert.IsTrue(mediaInfo.AudioStreams.Count == 0);
+                        }
                     }
                 }
             }
