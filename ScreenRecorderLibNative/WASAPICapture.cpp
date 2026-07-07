@@ -661,9 +661,11 @@ std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(int requestedFrame
 			}
 		}
 		int diff = requestedFrameCount - recordedFrameCount;
-		if (diff > 0 && m_NeedSync) {
-			newvector.insert(newvector.begin(), diff * m_InputFormat.FrameBytes(), 0);
-			LOG_TRACE("Padded packet with %d bytes on WASAPICapture %ls", diff, GetDeviceFriendlyName().c_str());
+		if (m_NeedSync) {
+			if (diff > 0) {
+				newvector.insert(newvector.begin(), diff * m_InputFormat.FrameBytes(), 0);
+				LOG_TRACE("Padded packet with %d bytes on WASAPICapture %ls", diff, GetDeviceFriendlyName().c_str());
+			}
 			m_NeedSync = false;
 		}
 		m_RecordedAudioPackets.erase(m_RecordedAudioPackets.begin(), m_RecordedAudioPackets.begin() + readPacketCount);
