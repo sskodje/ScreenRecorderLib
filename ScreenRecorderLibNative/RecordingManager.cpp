@@ -672,6 +672,9 @@ HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pT
 	}
 	std::unique_ptr<FRAME_AUDIO_DATA> audioPacket(m_AudioManager->GrabAudioSamples());
 
+	int unpaddedAudioSize = audioPacket->Data.size();
+	bool paddedAudio = PadAudio(audioPacket->Data, nextVideoFrameStartPos100Nanos, nextVideoFrameDuration100Nanos);
+
 	const INT64 nextAudioPacketStartPos100Nanos = m_TimelineManager->GetNextAudioFrameStartPosition();
 	const INT64 audioFrameCount = audioPacket->Data.size() / (INT64)((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
 	const INT64 nextAudioPacketDuration100Nanos = m_TimelineManager->OnAudioPacket(audioFrameCount, GetAudioOptions()->GetAudioSamplesPerSecond());
@@ -684,12 +687,10 @@ HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pT
 	model.VideoDuration = nextVideoFrameDuration100Nanos;
 	model.AudioStartPos = nextAudioPacketStartPos100Nanos;
 	model.AudioDuration = nextAudioPacketDuration100Nanos;
-
-	int unpaddedAudioSize = model.Audio.size();
-	bool paddedAudio = PadAudio(model.Audio, nextVideoFrameStartPos100Nanos, nextVideoFrameDuration100Nanos);
 	if (paddedAudio) {
 		model.PaddedBytes = model.Audio.size() - unpaddedAudioSize;
 	}
+
 
 	RETURN_ON_BAD_HR(hr = m_EncoderResult = m_OutputManager->RenderFrame(model));
 	if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
