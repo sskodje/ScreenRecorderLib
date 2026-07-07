@@ -482,7 +482,22 @@ namespace ScreenRecorderLib {
 			Channels = AudioChannels::Stereo;
 			IsAudioEnabled = false;
 		}
-
+		static property AudioOptions^ DefaultAudioPlaybackDevice {
+			AudioOptions^ get() {
+				AudioOptions^ options = gcnew AudioOptions();
+				options->IsAudioEnabled = true;
+				options->AudioSources->Add(LoopbackAudioSource::Default);
+				return options;
+			}
+		}
+		static property AudioOptions^ DefaultAudioCaptureDevice {
+			AudioOptions^ get() {
+				AudioOptions^ options = gcnew AudioOptions();
+				options->IsAudioEnabled = true;
+				options->AudioSources->Add(CaptureAudioSource::Default);
+				return options;
+			}
+		}
 		/// <summary>
 		/// Enable or disable the writing of an audio track for the recording.
 		/// </summary>
