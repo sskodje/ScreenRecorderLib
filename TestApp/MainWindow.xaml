@@ -1016,18 +1016,19 @@
                                     VerticalAlignment="Top" />
                         </Grid>
                     </Grid>
-                </StackPanel>
-                <StackPanel HorizontalAlignment="Center">
                     <CheckBox IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.AudioOptions.IsAudioEnabled}"
                               x:Name="CheckBoxIsAudioEnabled"
                               VerticalAlignment="Center"
                               Content="Record audio"
                               Margin="0,10"
                               FontWeight="Bold" />
+
+
                     <Grid x:Name="AudioPanel"
                           d:Visibility="Visible"
                           Visibility="{Binding ElementName=CheckBoxIsAudioEnabled, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -1117,7 +1118,6 @@
                                  x:Name="AudioRecordingSourceListBox"
                                  HorizontalContentAlignment="Stretch"
                                  ItemTemplateSelector="{StaticResource AudioRecordingSourceTemplateSelector}"
-                                 Visibility="{Binding Source={StaticResource SelectedAudioRecordingSourcesViewSource}}"
                                  d:ItemsSource="{d:SampleData ItemCount=5}">
                             <ListBox.ItemContainerStyle>
                                 <Style TargetType="{x:Type ListBoxItem}">
@@ -1141,15 +1141,13 @@
                                                   VerticalAlignment="Center" />
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <Label Content="0%" />
 
                                             <Slider Name="OutputVolumeSlider"
                                                     Orientation="Horizontal"
-                                                    Grid.Column="1"
+                                                    Grid.Column="0"
                                                     Foreground="Blue"
                                                     Margin="0,5,5,5"
                                                     Maximum="2.0"
@@ -1162,8 +1160,11 @@
                                                     TickPlacement="BottomRight"
                                                     Value="{Binding Volume,Mode=TwoWay}"
                                                     TickFrequency="0.1" />
-                                            <Label Content="200%"
-                                                   Grid.Column="2" />
+                                            <Label Content="{Binding Volume, Mode=OneWay}"
+                                                   d:Content="100%"
+                                                   MinWidth="40"
+                                                   ContentStringFormat="{}{0:P0}"
+                                                   Grid.Column="1" />
                                         </Grid>
                                         <local:GainLed Gain="{Binding Gain}"
                                                        YellowThreshold="0.6"
@@ -1184,29 +1185,28 @@
                                                   VerticalAlignment="Center" />
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <Label Content="0%" />
 
                                             <Slider Name="OutputVolumeSlider"
                                                     Orientation="Horizontal"
-                                                    Grid.Column="1"
+                                                    Grid.Column="0"
                                                     Foreground="Blue"
                                                     Margin="0,5,5,5"
                                                     Maximum="2"
                                                     Width="100"
                                                     IsSnapToTickEnabled="True"
-                                                    AutoToolTipPlacement="BottomRight"
-                                                    AutoToolTipPrecision="2"
                                                     SmallChange="0.1"
                                                     LargeChange="0.5"
                                                     TickPlacement="BottomRight"
                                                     Value="{Binding Volume,Mode=TwoWay}"
                                                     TickFrequency="0.1" />
-                                            <Label Content="200%"
-                                                   Grid.Column="2" />
+                                            <Label Content="{Binding Volume, Mode=OneWay}"
+                                                   d:Content="100%"
+                                                   MinWidth="40"
+                                                   ContentStringFormat="{}{0:P0}"
+                                                   Grid.Column="1" />
                                         </Grid>
                                         <local:GainLed Gain="{Binding Gain}"
                                                        YellowThreshold="0.6"
@@ -1216,7 +1216,7 @@
                                                   x:Name="CheckBoxDownmixInput"
                                                   IsChecked="{Binding ForceMono,Mode=TwoWay}"
                                                   ToolTip="Pick one of the channels of the input device, and copy it to all audio channels on the video."
-                                                  Margin="0,0,5,0"
+                                                  Margin="5,0,5,0"
                                                   VerticalAlignment="Center" />
                                         <StackPanel VerticalAlignment="Center"
                                                     Orientation="Horizontal"
@@ -1246,29 +1246,28 @@
                                                   VerticalAlignment="Center" />
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <Label Content="0%" />
 
                                             <Slider Name="OutputVolumeSlider"
                                                     Orientation="Horizontal"
-                                                    Grid.Column="1"
+                                                    Grid.Column="0"
                                                     Foreground="Blue"
                                                     Margin="0,5,5,5"
                                                     Maximum="2"
                                                     Width="100"
                                                     IsSnapToTickEnabled="True"
-                                                    AutoToolTipPlacement="BottomRight"
-                                                    AutoToolTipPrecision="2"
                                                     SmallChange="0.1"
                                                     LargeChange="0.5"
                                                     TickPlacement="BottomRight"
                                                     Value="{Binding Volume,Mode=TwoWay}"
                                                     TickFrequency="0.1" />
-                                            <Label Content="200%"
-                                                   Grid.Column="2" />
+                                            <Label Content="{Binding Volume, Mode=OneWay}"
+                                                   d:Content="100%"
+                                                   MinWidth="40"
+                                                   ContentStringFormat="{}{0:P0}"
+                                                   Grid.Column="1" />
                                         </Grid>
                                         <local:GainLed Gain="{Binding Gain}"
                                                        YellowThreshold="0.6"
@@ -1278,53 +1277,53 @@
                                 </DataTemplate>
                             </ListBox.Resources>
                         </ListBox>
-                    </Grid>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <Label Content="Master gain" />
-                        <Grid Grid.Column="1">
+                        <Grid  Grid.Row="3">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <Label Content="0%" />
+                            <Label Content="Master gain" />
+                            <Grid Grid.Column="1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
 
-                            <Slider Name="OutputVolumeSlider"
-                                    Orientation="Horizontal"
-                                    Grid.Column="1"
-                                    Foreground="Blue"
-                                    Margin="0,5,5,5"
-                                    Maximum="2.0"
-                                    
-                                    IsSnapToTickEnabled="True"
-                                    AutoToolTipPlacement="BottomRight"
-                                    AutoToolTipPrecision="2"
-                                    SmallChange="0.1"
-                                    LargeChange="0.5"
-                                    TickPlacement="BottomRight"
-                                    Value="{Binding ElementName=MainWin, Path=RecorderOptions.AudioOptions.MasterVolume,Mode=TwoWay}"
-                                    TickFrequency="0.1" />
-                            <Label Content="200%"
-                                   Grid.Column="2" />
+                                <Slider Name="OutputVolumeSlider"
+                                        Orientation="Horizontal"
+                                        Grid.Column="0"
+                                        Foreground="Blue"
+                                        Margin="0,5,5,5"
+                                        Maximum="2.0"
+                                        IsSnapToTickEnabled="True"
+                                        SmallChange="0.1"
+                                        LargeChange="0.5"
+                                        TickPlacement="BottomRight"
+                                        Value="{Binding ElementName=MainWin, Path=RecorderOptions.AudioOptions.MasterVolume,Mode=TwoWay}"
+                                        TickFrequency="0.1" />
+                                <Label Content="{Binding ElementName=MainWin, Path=RecorderOptions.AudioOptions.MasterVolume, Mode=OneWay}"
+                                       d:Content="100%"
+                                       MinWidth="40"
+                                       ContentStringFormat="{}{0:P0}"
+                                       Grid.Column="1" />
+                            </Grid>
+                            <local:GainLed Gain="{Binding ElementName=MainWin,Path=MasterGain}"
+                                           YellowThreshold="0.6"
+                                           Width="20"
+                                           Height="20"
+                                           Margin="0,0,7,0"
+                                           Grid.Column="2" />
                         </Grid>
-                        <local:GainLed Gain="{Binding ElementName=MainWin,Path=MasterGain}"
-                                       YellowThreshold="0.6"
-                                       Width="20"
-                                       Height="20"
-                                       Margin="0,0,7,0"
-                                       Grid.Column="2"/>
                     </Grid>
+
                     <CheckBox x:Name="CheckBoxEnableOverlays"
                               HorizontalAlignment="Left"
                               Content="Add overlays"
                               FontWeight="Bold"
                               Margin="0,10" />
                 </StackPanel>
+
                 <StackPanel Visibility="{Binding ElementName=CheckBoxEnableOverlays, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}"
                             d:Visibility="Visible">
                     <ListView ItemsSource="{Binding ElementName=MainWin,Path=Overlays}"
