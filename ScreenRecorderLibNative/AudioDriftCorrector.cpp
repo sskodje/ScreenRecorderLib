@@ -29,11 +29,10 @@ INT64 AudioDriftCorrector::GetDriftCorrection(INT64 frameNum, INT64 nextAudioPac
 
 		m_AudioVideoDiffDeltaPeriodSum = 0;
 		m_AudioDriftCorrection = round(audioDriftCorrectionDouble);
-		LOG_DEBUG("Period drift: %0.2f ms. Drift correction: %lld ns. Accumulated drift correction: %0.3f ms. Current frame diff: %0.2f ms",
+		LOG_TRACE("Period drift: %0.2f ms. Drift correction: %lld ns. Accumulated drift correction: %0.3f ms.s",
 			-HundredNanosToMillisDouble(periodAudioDrift),
 			m_AudioDriftCorrection * 100,
-			HundredNanosToMillisDouble(m_AccumulatedDriftCorrection),
-			-HundredNanosToMillisDouble(nextVideoFrameStartPos100Nanos - nextAudioPacketStartPos100Nanos));
+			HundredNanosToMillisDouble(m_AccumulatedDriftCorrection));
 	}
 	else {
 		m_AudioVideoDiffDeltaPeriodSum += (nextVideoFrameStartPos100Nanos - nextAudioPacketStartPos100Nanos);
