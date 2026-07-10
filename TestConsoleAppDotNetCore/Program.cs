@@ -47,13 +47,19 @@ class Program
             }
         }
         ManualResetEvent completionEvent = new ManualResetEvent(false);
+        ManualResetEvent escapeEvent = new ManualResetEvent(false);
         string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH-mm-ss");
         Console.WriteLine("Starting recording");
         int count = 50;
+        CancellationTokenSource cts = new CancellationTokenSource();
+        var token = cts.Token;
         Task.Run(async () =>
             {
                 for (int i = 0; i < count; i++)
                 {
+                    if (token.IsCancellationRequested)
+                        break;
+
                     var currentRecorder = i % 2 == 0 ? rec : rec2;
                     var nextRecorder = i % 2 == 0 ? rec2 : rec;
 
@@ -78,7 +84,36 @@ class Program
                 completionEvent.Set();
             });
 
-        completionEvent.WaitOne();
+
+        var escapeThread = new Thread(() =>
+        {
+            while (!escapeEvent.WaitOne(0))
+            {
+                if (Console.KeyAvailable)
+                {
+                    var key = Console.ReadKey(intercept: true);
+                    if (key.Key == ConsoleKey.Escape)
+                    {
+                        escapeEvent.Set();
+                        return;
+                    }
+                }
+                else
+                {
+                    Thread.Sleep(50);
+                }
+            }
+        });
+        escapeThread.IsBackground = true;
+        escapeThread.Start();
+
+        int index = WaitHandle.WaitAny(new WaitHandle[] { completionEvent, escapeEvent });
+        if (index == 1)
+        {
+            cts.Cancel();
+            Console.WriteLine("Waiting for recording to exit..");
+            completionEvent.WaitOne();
+        }
         Console.WriteLine("Press any key to exit");
         Console.ReadKey();
     }
