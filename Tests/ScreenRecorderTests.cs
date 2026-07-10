@@ -374,13 +374,13 @@ namespace ScreenRecorderLib
             string filePath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".mp4"));
             string snapshotPath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".jpg"));
             string snapshotStreamPath = Path.Combine(GetTempPath(), Path.ChangeExtension(Path.GetRandomFileName(), ".jpg"));
+            string savedSnapshotPath = "";
             try
             {
                 var options = RecorderOptions.DefaultMainMonitor;
                 options.LogOptions.LogSeverityLevel = LogLevel.Trace;
                 using (var rec = Recorder.CreateRecorder(options))
                 {
-                    string savedSnapshotPath = "";
                     string error = "";
                     bool isError = false;
                     bool isComplete = false;
@@ -463,6 +463,10 @@ namespace ScreenRecorderLib
             finally
             {
                 File.Delete(filePath);
+                File.Delete(snapshotPath);
+                File.Delete(snapshotStreamPath);
+                File.Delete(savedSnapshotPath);
+                Directory.Delete(Path.GetDirectoryName(savedSnapshotPath));
             }
         }
 
