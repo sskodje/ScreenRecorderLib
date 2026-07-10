@@ -12,13 +12,13 @@ typedef void(__stdcall *CallbackErrorFunction)(std::wstring, std::wstring);
 typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
 typedef void(__stdcall *CallbackFrameNumberChangedFunction)(int, INT64, _In_opt_ FRAME_BITMAP_DATA *bitmapData, _In_opt_ FRAME_AUDIO_INFO *audioData);
 
-#define STATUS_IDLE 0
-#define STATUS_RECORDING 1
-#define STATUS_PAUSED 2
-#define STATUS_FINALIZING 3
+constexpr auto STATUS_IDLE = 0;
+constexpr auto STATUS_RECORDING = 1;
+constexpr auto STATUS_PAUSED = 2;
+constexpr auto STATUS_FINALIZING = 3;
 
-#define API_DESKTOP_DUPLICATION 0
-#define API_GRAPHICS_CAPTURE 1
+constexpr auto API_DESKTOP_DUPLICATION = 0;
+constexpr auto API_GRAPHICS_CAPTURE = 1;
 
 class RecordingManager
 {
