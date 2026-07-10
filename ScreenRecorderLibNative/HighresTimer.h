@@ -16,7 +16,7 @@ public:
 private:
 	bool m_IsActive;
 	INT64 m_TickCount;
-	std::chrono::steady_clock::time_point m_LastTick;
+	INT64 m_LastTick;
 	INT64 m_Interval;
 	UINT m_TimerResolution;
 	HANDLE m_TickEvent;

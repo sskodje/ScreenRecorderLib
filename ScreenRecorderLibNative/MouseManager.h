@@ -46,7 +46,7 @@ private:
 
 	CRITICAL_SECTION m_CriticalSection;
 	bool m_IsCapturingMouseClicks;
-	std::chrono::steady_clock::time_point m_LastMouseDrawTimeStamp;
+	UINT64 m_LastMouseDrawTimeStamp;
 	HANDLE m_MouseHookThread;
 	DWORD m_MouseHookThreadId;
 	std::vector<BYTE> _InitBuffer;

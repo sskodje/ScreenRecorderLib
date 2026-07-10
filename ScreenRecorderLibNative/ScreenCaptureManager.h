@@ -27,7 +27,7 @@ public:
 	virtual RECT GetOutputRect() { return m_OutputRect; }
 	virtual SIZE GetOutputSize() { return SIZE{ RectWidth(m_OutputRect),RectHeight(m_OutputRect) }; }
 	virtual HRESULT CopyCurrentFrame(_Out_ CAPTURED_FRAME *pFrame);
-	virtual HRESULT AcquireNextFrame(_In_  double timeUntilNextFrame, _In_ double maxFrameLength,_In_ const Concurrency::cancellation_token &token, _Out_ CAPTURED_FRAME *pFrame);
+	virtual HRESULT AcquireNextFrame(_In_  INT64 timeUntilNextFrame100Nanos, _In_ INT64 maxFrameLengt100Nanos,_In_ const Concurrency::cancellation_token &token, _Out_ CAPTURED_FRAME *pFrame);
 	virtual HRESULT StartCapture(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hErrorEvent);
 	virtual HRESULT StopCapture();
 	virtual bool IsUpdatedFramesAvailable();

@@ -5,7 +5,6 @@
 #include <comdef.h>
 #include "log.h"
 #include <string>
-#include <chrono>
 #include <algorithm>
 
 template < class T, class U >

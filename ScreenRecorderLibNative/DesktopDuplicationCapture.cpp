@@ -4,7 +4,6 @@
 #include "PixelShader.h"
 #include "VertexShader.h"
 
-using namespace std::chrono;
 using namespace std;
 using namespace DirectX;
 

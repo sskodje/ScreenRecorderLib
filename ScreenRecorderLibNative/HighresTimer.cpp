@@ -7,7 +7,7 @@ HighresTimer::HighresTimer() :
 	m_TickEvent(nullptr),
 	m_StopEvent(nullptr),
 	m_EventArray{},
-	m_LastTick{},
+	m_LastTick(0),
 	m_Interval(0),
 	m_TickCount(0),
 	m_IsActive(false)
@@ -53,7 +53,7 @@ HRESULT HighresTimer::StartRecurringTimer(INT64 msInterval)
 	ResetEvent(m_TickEvent);
 	ResetEvent(m_StopEvent);
 
-	m_LastTick = std::chrono::steady_clock::now();
+	QueryPerformanceCounter((LARGE_INTEGER *)&m_LastTick);
 
 	LARGE_INTEGER liFirstFire;
 	liFirstFire.QuadPart = -0; // negative means relative time
@@ -95,7 +95,7 @@ HRESULT HighresTimer::WaitForNextTick()
 		return E_FAIL;
 	}
 
-	m_LastTick = std::chrono::steady_clock::now();
+	QueryPerformanceCounter((LARGE_INTEGER *)&m_LastTick);
 	m_TickCount++;
 	return S_OK;
 }
@@ -122,7 +122,7 @@ HRESULT HighresTimer::WaitFor(INT64 interval100Nanos)
 		return E_FAIL;
 	}
 	m_IsActive = false;
-	m_LastTick = std::chrono::steady_clock::now();
+	QueryPerformanceCounter((LARGE_INTEGER *)&m_LastTick);
 	m_TickCount++;
 	return S_OK;
 }
@@ -131,5 +131,7 @@ double HighresTimer::GetMillisUntilNextTick()
 {
 	if (m_TickCount == 0)
 		return 0;
-	return max(0, (m_Interval - std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - m_LastTick).count()));
+	INT64 now{};
+	QueryPerformanceCounter((LARGE_INTEGER *)&now);
+	return max(0, (m_Interval - HundredNanosToMillisDouble(now - m_LastTick)));
 }

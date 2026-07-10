@@ -1,5 +1,4 @@
 #include "Cleanup.h"
-#include <chrono>
 #include "ScreenCaptureManager.h"
 #include "DesktopDuplicationCapture.h"
 #include "WindowsGraphicsCapture.h"
@@ -12,7 +11,6 @@
 #include "Exception.h"
 
 using namespace DirectX;
-using namespace std::chrono;
 using namespace std;
 using namespace concurrency;
 
@@ -243,20 +241,30 @@ HRESULT ScreenCaptureManager::CopyCurrentFrame(_Out_ CAPTURED_FRAME *pFrame)
 	return S_OK;
 }
 
-HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  double timeUntilNextFrame, _In_ double maxFrameLength, _In_ const Concurrency::cancellation_token &token, _Out_ CAPTURED_FRAME *pFrame)
+HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  INT64 timeUntilNextFrame100Nanos, _In_ INT64 maxFrameLengt100Nanos, _In_ const Concurrency::cancellation_token &token, _Out_ CAPTURED_FRAME *pFrame)
 {
 	HRESULT hr;
-	auto  start = std::chrono::steady_clock::now();
+	INT64 start{};
+	QueryPerformanceCounter((LARGE_INTEGER *)&start);
+
 	bool haveNewFrame = false;
-	auto GetMillisUntilNextFrame([&]()
+	auto GetTimeWaited100Nanos([&]() {
+		INT64 now{};
+		QueryPerformanceCounter((LARGE_INTEGER *)&now);
+		return now - start;
+	});
+	auto Get100NanosUntilNextFrame([&]()
 		{
-			auto millisWaited = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+			INT64 timeWaited100Nanons = GetTimeWaited100Nanos();
 			if (m_EncoderOptions->GetIsFixedFramerate() || haveNewFrame) {
-				return timeUntilNextFrame - millisWaited;
+				return timeUntilNextFrame100Nanos - timeWaited100Nanons;
 			}
 			else {
-				return maxFrameLength - millisWaited;
+				return maxFrameLengt100Nanos - timeWaited100Nanons;
 			}
+		});
+	auto GetMillisUntilNextFrame([&]() {
+		return HundredNanosToMillisDouble(Get100NanosUntilNextFrame());
 		});
 	auto GetNextSyncTimeout([&]()
 		{
@@ -264,8 +272,8 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  double timeUntilNextFrame, 
 		});
 	auto ShouldDelay([&]()
 		{
-			auto millisWaited = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-			if (!IsInitialFrameWriteComplete() && millisWaited < maxFrameLength) {
+			INT64 timeWaited100Nanons = GetTimeWaited100Nanos();
+			if (!IsInitialFrameWriteComplete() && timeWaited100Nanons < maxFrameLengt100Nanos) {
 				return true;
 			}
 			if (m_LastAcquiredFrameTimeStamp.QuadPart == 0 && IsInitialFrameWriteComplete()) {
@@ -279,11 +287,11 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  double timeUntilNextFrame, 
 					return false;
 				}
 			}
-			auto millisUntilNextFrame = GetMillisUntilNextFrame();
-			if (millisUntilNextFrame < 0.1) {
+			auto timeUntilNextFrame100Nanos = Get100NanosUntilNextFrame();
+			if (timeUntilNextFrame100Nanos < 1000) {
 				return false;
 			}
-			else if (millisUntilNextFrame >= 0.1) {
+			else if (timeUntilNextFrame100Nanos >= 1000) {
 				return true;
 			}
 			return false;
@@ -884,7 +892,8 @@ Start:
 
 			bool isPreviewEnabled = pSource->IsVideoFramePreviewEnabled.value_or(false);
 			// Main duplication loop
-			std::chrono::steady_clock::time_point WaitForFrameBegin = (std::chrono::steady_clock::time_point::min)();
+			INT64 waitForFrameBegin{};
+			QueryPerformanceCounter((LARGE_INTEGER *)&waitForFrameBegin);
 			while (true)
 			{
 				if (WaitForSingleObjectEx(pData->TerminateThreadsEvent, 0, FALSE) == WAIT_OBJECT_0) {
@@ -942,7 +951,7 @@ Start:
 				{
 					// Can't use shared surface right now, try again later
 					if (!waitToProcessCurrentFrame) {
-						WaitForFrameBegin = chrono::steady_clock::now();
+						QueryPerformanceCounter((LARGE_INTEGER *)&waitForFrameBegin);
 					}
 					waitToProcessCurrentFrame = true;
 					continue;
@@ -961,7 +970,10 @@ Start:
 				// We can now process the current frame
 				if (waitToProcessCurrentFrame) {
 					waitToProcessCurrentFrame = false;
-					LONGLONG waitTimeMillis = duration_cast<milliseconds>(chrono::steady_clock::now() - WaitForFrameBegin).count();
+					INT64 now{};
+					QueryPerformanceCounter((LARGE_INTEGER *)&now);
+
+					double waitTimeMillis = HundredNanosToMillisDouble(now - waitForFrameBegin);
 					//If the capture has been waiting for an excessive time to draw a frame, we assume the frame is stale, and drop it.
 					if (pData->TotalUpdatedFrameCount > 0 && waitTimeMillis > 1000) {
 						isSharedSurfaceDirty = true;

@@ -20,6 +20,8 @@ constexpr auto STATUS_FINALIZING = 3;
 constexpr auto API_DESKTOP_DUPLICATION = 0;
 constexpr auto API_GRAPHICS_CAPTURE = 1;
 
+constexpr auto MAX_FRAME_LENGTH_100_NANOS = 5'000'000;
+
 class RecordingManager
 {
 public:
@@ -143,7 +145,6 @@ private:
 	HRESULT m_MfStartupResult = S_FALSE;
 	std::wstring m_OutputFolder = L"";
 	std::wstring m_OutputFullPath = L"";
-	double m_MaxFrameLengthMillis = 500;
 	int m_RestartCaptureCount = 0;
 
 	std::vector<RECORDING_SOURCE *> m_RecordingSources;

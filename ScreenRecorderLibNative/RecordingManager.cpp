@@ -210,7 +210,7 @@ HRESULT RecordingManager::TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStr
 	if (!pTexture) {
 		CAPTURED_FRAME capturedFrame{};
 		if (m_IsPaused) {
-			hr = m_CaptureManager->AcquireNextFrame(0, m_MaxFrameLengthMillis, cancellation_token::none(), &capturedFrame);
+			hr = m_CaptureManager->AcquireNextFrame(0, MAX_FRAME_LENGTH_100_NANOS, cancellation_token::none(), &capturedFrame);
 			if (SUCCEEDED(hr)) {
 				capturedFrame.Frame->AddRef();
 			}
@@ -609,7 +609,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 		}
 		CAPTURED_FRAME capturedFrame{};
 		// Get new frame
-		hr = m_CaptureManager->AcquireNextFrame(m_TimelineManager->GetTimeUntilNextFrameMillis(), m_MaxFrameLengthMillis, token, &capturedFrame);
+		hr = m_CaptureManager->AcquireNextFrame(m_TimelineManager->GetTimeUntilNextFrame100Nanos(), MAX_FRAME_LENGTH_100_NANOS, token, &capturedFrame);
 
 		//If there are any source previews on paused status, the loop exits here. This allows the source previews to continue rendering.
 		if (m_IsPaused) {

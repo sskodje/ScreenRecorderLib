@@ -54,7 +54,7 @@ MouseManager::MouseManager() :
 	m_DeviceContext(nullptr),
 	m_Device(nullptr),
 	m_StopPollingTaskEvent(nullptr),
-	m_LastMouseDrawTimeStamp(std::chrono::steady_clock::now()),
+	m_LastMouseDrawTimeStamp(0),
 	m_IsCapturingMouseClicks(false),
 	m_MouseHookThread(nullptr),
 	m_MouseHookThreadId(0),
@@ -249,7 +249,8 @@ HRESULT MouseManager::ProcessMousePointer(_In_ ID3D11Texture2D *pFrame, _In_ PTR
 		{
 			hr = DrawMouseClick(pPtrInfo, pFrame, m_MouseOptions->GetMouseClickDetectionRMBColor(), (float)m_MouseOptions->GetMouseClickDetectionRadius(), DXGI_MODE_ROTATION_UNSPECIFIED);
 		}
-		INT64 millisSinceLastMouseDraw = (INT64)max(0, (std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - m_LastMouseDrawTimeStamp).count()));
+
+		UINT64 millisSinceLastMouseDraw = max(0, GetTickCount64() - m_LastMouseDrawTimeStamp);
 		g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millisSinceLastMouseDraw, 0);
 		LOG_TRACE("Drawing mouse click, duration remaining on click is %u ms", g_LastMouseClickDurationRemaining);
 	}
@@ -257,7 +258,7 @@ HRESULT MouseManager::ProcessMousePointer(_In_ ID3D11Texture2D *pFrame, _In_ PTR
 	if (m_MouseOptions->IsMousePointerEnabled()) {
 		hr = DrawMousePointer(pPtrInfo, pFrame, DXGI_MODE_ROTATION_UNSPECIFIED);
 	}
-	m_LastMouseDrawTimeStamp = std::chrono::steady_clock::now();
+	m_LastMouseDrawTimeStamp = GetTickCount64();
 	return hr;
 }
 
