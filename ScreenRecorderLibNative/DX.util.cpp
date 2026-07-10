@@ -415,7 +415,7 @@ void GetCombinedRects(_In_ std::vector<RECT> inputs, _Out_ RECT *pOutRect, _Out_
 }
 
 std::wstring GetMonitorName(HMONITOR monitor) {
-	MONITORINFOEXW info;
+	MONITORINFOEXW info{};
 	info.cbSize = sizeof(info);
 	GetMonitorInfoW(monitor, &info);
 
@@ -426,14 +426,14 @@ std::wstring GetMonitorName(HMONITOR monitor) {
 	QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, &requiredPaths, paths.data(), &requiredModes, modes.data(), nullptr);
 
 	for (auto &p : paths) {
-		DISPLAYCONFIG_SOURCE_DEVICE_NAME sourceName;
+		DISPLAYCONFIG_SOURCE_DEVICE_NAME sourceName{};
 		sourceName.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
 		sourceName.header.size = sizeof(sourceName);
 		sourceName.header.adapterId = p.sourceInfo.adapterId;
 		sourceName.header.id = p.sourceInfo.id;
 		DisplayConfigGetDeviceInfo(&sourceName.header);
 		if (wcscmp(info.szDevice, sourceName.viewGdiDeviceName) == 0) {
-			DISPLAYCONFIG_TARGET_DEVICE_NAME name;
+			DISPLAYCONFIG_TARGET_DEVICE_NAME name{};
 			name.header.type = DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME;
 			name.header.size = sizeof(name);
 			name.header.adapterId = p.sourceInfo.adapterId;
@@ -455,7 +455,7 @@ std::vector<IDXGIAdapter *> EnumDisplayAdapters()
 		hr = pFactory1->QueryInterface(IID_PPV_ARGS(&pFactory6));
 		if (SUCCEEDED(hr)) {
 			UINT i = 0;
-			IDXGIAdapter4 *pAdapter;
+			IDXGIAdapter4 *pAdapter = nullptr;
 			while (pFactory6->EnumAdapterByGpuPreference(i, DXGI_GPU_PREFERENCE_MINIMUM_POWER, __uuidof(IDXGIAdapter4), (void **)&pAdapter) != DXGI_ERROR_NOT_FOUND)
 			{
 				vAdapters.push_back(pAdapter);
@@ -490,7 +490,7 @@ void CleanDx(_Inout_ DX_RESOURCES *Data)
 //
 void SetViewPort(_In_ ID3D11DeviceContext *deviceContext, _In_ float Width, _In_ float Height, _In_ float left, _In_ float top)
 {
-	D3D11_VIEWPORT VP;
+	D3D11_VIEWPORT VP{};
 	VP.Width = Width;
 	VP.Height = Height;
 	VP.MinDepth = 0.0f;

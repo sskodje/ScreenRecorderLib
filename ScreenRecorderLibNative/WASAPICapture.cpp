@@ -831,7 +831,7 @@ bool WASAPICapture::StartListeners() {
 	if (!m_IsRegisteredForEndpointNotifications)
 	{
 		// Create the device enumerator
-		IMMDeviceEnumerator *pEnumerator;
+		IMMDeviceEnumerator *pEnumerator = nullptr;
 		HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void **)&pEnumerator);
 		if (SUCCEEDED(hr)) {
 			// Register for device change notifications

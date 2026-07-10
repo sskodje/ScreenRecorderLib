@@ -165,7 +165,7 @@ HRESULT WindowsGraphicsCapture::WriteNextFrameToSharedSurface(_In_ DWORD timeout
 		LONG textureOffsetX = finalFrameRect.left + offsetX + contentOffset.cx;
 		LONG textureOffsetY = finalFrameRect.top + offsetY + contentOffset.cy;
 
-		D3D11_BOX Box;
+		D3D11_BOX Box{};
 		Box.front = 0;
 		Box.back = 1;
 		Box.left = 0;
@@ -282,7 +282,7 @@ HRESULT WindowsGraphicsCapture::GetNativeSize(_In_ RECORDING_SOURCE_BASE &record
 		{
 			RECT windowRect{};
 			if (IsIconic(recordingSource.SourceWindow)) {
-				WINDOWPLACEMENT placement;
+				WINDOWPLACEMENT placement{};
 				placement.length = sizeof(WINDOWPLACEMENT);
 				if (GetWindowPlacement(recordingSource.SourceWindow, &placement)) {
 					windowRect = placement.rcNormalPosition;
