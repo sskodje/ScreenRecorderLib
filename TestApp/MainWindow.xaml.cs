@@ -609,8 +609,8 @@ namespace TestApp
         {
             var sourcesToRecord = this.AudioRecordingSources.Where(x => x.IsSelected && this.CheckBoxIsAudioEnabled.IsChecked.GetValueOrDefault(false)).ToList();
             if (sourcesToRecord.Count == 0
-                && SelectedRecordingSource != null
-                && SelectedRecordingSource.IsCheckable)
+                && SelectedAudioRecordingSource != null
+                && SelectedAudioRecordingSource.IsCheckable)
             {
                 sourcesToRecord.Add(SelectedAudioRecordingSource);
             }
