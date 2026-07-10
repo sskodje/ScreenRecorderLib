@@ -160,7 +160,7 @@ private:
 	ID3D11Texture2D *m_FrameDataCallbackTexture;
 	D3D11_TEXTURE2D_DESC m_FrameDataCallbackTextureDesc;
 
-	bool CheckDependencies(_Out_ std::wstring *error);
+	bool CheckDependencies(_Out_ std::wstring *error)  const;
 	HRESULT ConfigureOutputDir(_In_ std::wstring path, _Out_ std::wstring *error);
 	REC_RESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_opt_ IStream *pStream);
 

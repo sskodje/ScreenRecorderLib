@@ -25,7 +25,7 @@ private:
 	HRESULT GetCaptureItem(_In_ RECORDING_SOURCE_BASE &recordingSource, _Out_ winrt::Windows::Graphics::Capture::GraphicsCaptureItem *item);
 	HRESULT RecreateFramePool(_Inout_ GRAPHICS_FRAME_DATA *pData, _In_ winrt::Windows::Graphics::SizeInt32 newSize);
 	HRESULT ProcessRecordingTimeout(_Inout_ GRAPHICS_FRAME_DATA *pData);
-	bool IsRecordingSessionStale();
+	bool IsRecordingSessionStale() const;
 	winrt::Windows::Graphics::Capture::GraphicsCaptureItem m_CaptureItem;
 	winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool m_framePool;
 	winrt::Windows::Graphics::Capture::GraphicsCaptureSession m_session;

@@ -532,13 +532,13 @@ public:
 	void SetMouseClickDetectionMode(UINT32 value) { m_MouseClickDetectionMode = value; }
 	void SetMouseClickDetectionDuration(int value) { m_MouseClickDetectionDurationMillis = value; }
 
-	bool IsMouseClicksDetected() { return m_IsMouseClicksDetected; }
-	bool IsMousePointerEnabled() { return m_IsMousePointerEnabled; }
-	std::string GetMouseClickDetectionLMBColor() { return m_MouseClickDetectionLMBColor; }
-	std::string GetMouseClickDetectionRMBColor() { return m_MouseClickDetectionRMBColor; }
-	UINT32 GetMouseClickDetectionRadius() { return  m_MouseClickDetectionRadius; }
-	UINT32 GetMouseClickDetectionMode() { return m_MouseClickDetectionMode; }
-	UINT32 GetMouseClickDetectionDurationMillis() { return m_MouseClickDetectionDurationMillis; }
+	bool IsMouseClicksDetected() const { return m_IsMouseClicksDetected; }
+	bool IsMousePointerEnabled() const { return m_IsMousePointerEnabled; }
+	std::string GetMouseClickDetectionLMBColor() const { return m_MouseClickDetectionLMBColor; }
+	std::string GetMouseClickDetectionRMBColor() const { return m_MouseClickDetectionRMBColor; }
+	UINT32 GetMouseClickDetectionRadius() const { return  m_MouseClickDetectionRadius; }
+	UINT32 GetMouseClickDetectionMode() const { return m_MouseClickDetectionMode; }
+	UINT32 GetMouseClickDetectionDurationMillis() const { return m_MouseClickDetectionDurationMillis; }
 };
 
 struct AUDIO_OPTIONS {
@@ -610,15 +610,15 @@ public:
 		}
 	}
 
-	bool IsAudioEnabled() { return m_IsAudioEnabled; }
-	UINT32 GetAudioBitrate() { return m_AudioBitrate; }
-	UINT32 GetAudioChannels() { return m_AudioChannels; }
-	float GetMasterVolume() { return m_MasterVolumeModifier; }
-	bool IsInputDeviceDownmixingEnabled() { return m_IsInputDeviceDownmixingEnabled; }
-	GUID GetAudioEncoderFormat() { return AUDIO_ENCODING_FORMAT; }
-	UINT32 GetAudioBitsPerSample() { return AUDIO_BITS_PER_SAMPLE; }
-	UINT32 GetAudioSamplesPerSecond() { return AUDIO_SAMPLES_PER_SECOND; }
-	UINT32 GetInputMasterChannel() { return m_InputMasterChannel; }
+	bool IsAudioEnabled() const { return m_IsAudioEnabled; }
+	UINT32 GetAudioBitrate() const { return m_AudioBitrate; }
+	UINT32 GetAudioChannels() const { return m_AudioChannels; }
+	float GetMasterVolume() const { return m_MasterVolumeModifier; }
+	bool IsInputDeviceDownmixingEnabled() const { return m_IsInputDeviceDownmixingEnabled; }
+	GUID GetAudioEncoderFormat() const { return AUDIO_ENCODING_FORMAT; }
+	UINT32 GetAudioBitsPerSample() const { return AUDIO_BITS_PER_SAMPLE; }
+	UINT32 GetAudioSamplesPerSecond() const { return AUDIO_SAMPLES_PER_SECOND; }
+	UINT32 GetInputMasterChannel() const { return m_InputMasterChannel; }
 	std::vector<AUDIO_SOURCE *> &GetAudioSources() { return m_AudioSources; }
 };
 
@@ -632,20 +632,20 @@ protected:
 	bool m_IsVideoFramePreviewEnabled = false;
 	std::optional<SIZE> m_VideoFramePreviewSize{};
 public:
-	std::optional<SIZE> GetFrameSize() { return m_FrameSize; }
+	std::optional<SIZE> GetFrameSize() const { return m_FrameSize; }
 	void SetFrameSize(SIZE size) { m_FrameSize = size; }
 	void SetSourceRectangle(RECT rect) { m_SourceRect = MakeRectEven(rect); }
-	std::optional<RECT> GetSourceRectangle() { return m_SourceRect; }
+	std::optional<RECT> GetSourceRectangle() const { return m_SourceRect; }
 	void SetStretch(TextureStretchMode stretch) { m_Stretch = stretch; }
-	TextureStretchMode GetStretch() { return m_Stretch; }
-	RecorderModeInternal GetRecorderMode() { return m_RecorderMode; }
+	TextureStretchMode GetStretch() const { return m_Stretch; }
+	RecorderModeInternal GetRecorderMode() const { return m_RecorderMode; }
 	void SetRecorderMode(RecorderModeInternal recorderMode) { m_RecorderMode = recorderMode; }
-	bool IsVideoCaptureEnabled() { return m_IsVideoCaptureEnabled; }
+	bool IsVideoCaptureEnabled() const { return m_IsVideoCaptureEnabled; }
 	void SetVideoCaptureEnabled(bool value) { m_IsVideoCaptureEnabled = value; }
 	void SetVideoFramePreviewEnabled(bool value) { m_IsVideoFramePreviewEnabled = value; }
 	void SetVideoFramePreviewSize(SIZE value) { m_VideoFramePreviewSize = value; }
-	bool IsVideoFramePreviewEnabled() { return m_IsVideoFramePreviewEnabled; }
-	std::optional<SIZE> GetVideoFramePreviewSize() { return m_VideoFramePreviewSize; }
+	bool IsVideoFramePreviewEnabled() const { return m_IsVideoFramePreviewEnabled; }
+	std::optional<SIZE> GetVideoFramePreviewSize() const { return m_VideoFramePreviewSize; }
 };
 
 struct ENCODER_OPTIONS abstract {
@@ -676,17 +676,17 @@ public:
 	void SetVideoBitrateMode(UINT32 bitrateMode) { m_VideoBitrateControlMode = bitrateMode; }
 	void SetEncoderProfile(UINT32 profile) { m_EncoderProfile = profile; }
 
-	UINT32 GetVideoFps() { return m_VideoFps; }
-	UINT32 GetVideoBitrate() { return m_VideoBitrate; }
-	UINT32 GetVideoQuality() { return m_VideoQuality; }
-	bool GetIsFixedFramerate() { return  m_IsFixedFramerate; }
-	bool GetIsThrottlingDisabled() { return  m_IsThrottlingDisabled; }
-	bool GetIsFastStartEnabled() { return m_IsMp4FastStartEnabled; }
-	bool GetIsFragmentedMp4Enabled() { return m_IsFragmentedMp4Enabled; }
-	bool GetIsHardwareEncodingEnabled() { return m_IsHardwareEncodingEnabled; }
-	bool GetIsLowLatencyModeEnabled() { return m_IsLowLatencyModeEnabled; }
-	UINT32 GetVideoBitrateMode() { return m_VideoBitrateControlMode; }
-	UINT32 GetEncoderProfile() { return m_EncoderProfile; }
+	UINT32 GetVideoFps() const { return m_VideoFps; }
+	UINT32 GetVideoBitrate() const { return m_VideoBitrate; }
+	UINT32 GetVideoQuality() const { return m_VideoQuality; }
+	bool GetIsFixedFramerate() const { return  m_IsFixedFramerate; }
+	bool GetIsThrottlingDisabled() const { return  m_IsThrottlingDisabled; }
+	bool GetIsFastStartEnabled() const { return m_IsMp4FastStartEnabled; }
+	bool GetIsFragmentedMp4Enabled() const { return m_IsFragmentedMp4Enabled; }
+	bool GetIsHardwareEncodingEnabled() const { return m_IsHardwareEncodingEnabled; }
+	bool GetIsLowLatencyModeEnabled() const { return m_IsLowLatencyModeEnabled; }
+	UINT32 GetVideoBitrateMode() const { return m_VideoBitrateControlMode; }
+	UINT32 GetEncoderProfile() const { return m_EncoderProfile; }
 
 	virtual GUID GetVideoEncoderFormat() abstract;
 	virtual std::wstring GetVideoExtension() {
@@ -722,21 +722,21 @@ public:
 	void SetSnapshotDirectory(std::wstring string) { m_OutputSnapshotsFolderPath = string; }
 	void SetSnapshotSaveFormat(GUID value) { m_ImageEncoderFormat = value; }
 
-	bool IsSnapshotWithVideoEnabled() {
+	bool IsSnapshotWithVideoEnabled() const {
 		return m_TakesSnapshotsWithVideo;
 	}
-	UINT32 GetSnapshotsInterval() {
+	UINT32 GetSnapshotsInterval() const {
 		return m_SnapshotsInterval;
 	}
-	std::wstring GetSnapshotsDirectory() {
+	std::wstring GetSnapshotsDirectory() const {
 		return m_OutputSnapshotsFolderPath;
 	}
-	GUID GetSnapshotEncoderFormat() {
+	GUID GetSnapshotEncoderFormat() const {
 		return m_ImageEncoderFormat;
 	}
 
 
-	std::wstring GetImageExtension() {
+	std::wstring GetImageExtension() const {
 		if (m_ImageEncoderFormat == GUID_ContainerFormatPng) {
 			return L".png";
 		}

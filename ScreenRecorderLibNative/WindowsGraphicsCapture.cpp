@@ -466,7 +466,7 @@ HRESULT WindowsGraphicsCapture::ProcessRecordingTimeout(_Inout_ GRAPHICS_FRAME_D
 /// This issue could be caused by some window operations bugging out WGC.
 /// </summary>
 /// <returns>True is frame pool have stopped receiving frames, else false</returns>
-bool WindowsGraphicsCapture::IsRecordingSessionStale()
+bool WindowsGraphicsCapture::IsRecordingSessionStale() const
 {
 	LARGE_INTEGER currentTime;
 	QueryPerformanceCounter(&currentTime);

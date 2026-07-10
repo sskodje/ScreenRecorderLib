@@ -932,7 +932,7 @@ HRESULT RecordingManager::ProcessTextureTransforms(_In_ ID3D11Texture2D *pTextur
 	return hr;
 }
 
-bool RecordingManager::CheckDependencies(_Out_ std::wstring *error)
+bool RecordingManager::CheckDependencies(_Out_ std::wstring *error) const
 {
 	wstring errorText;
 	bool result = true;

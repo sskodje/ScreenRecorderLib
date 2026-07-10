@@ -155,13 +155,3 @@ GetNextVideoFrameStartPosition());
 	return audioDuration100Nanos + audioDriftCorrection;
 }
 
-
-INT64 TimelineManager::GetNextVideoFrameStartPosition()
-{
-	return m_NextVideoFrameStartPos100Nanos;
-}
-
-INT64 TimelineManager::GetNextAudioFrameStartPosition()
-{
-	return m_NextAudioPacketStartPos100Nanos;
-}

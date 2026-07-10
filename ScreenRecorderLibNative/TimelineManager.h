@@ -19,7 +19,7 @@ public:
 	INT64 GetTimeSinceLastFrame100Nanos();
 	double GetTimeUntilNextShapshotMillis();
 	INT64 GetTimeUntilNextShapshot100Nanos();
-	inline double GetTargetVideoFrameDurationMillis() { return m_TargetVideoFrameDurationMillis; }
+	inline double GetTargetVideoFrameDurationMillis() const { return m_TargetVideoFrameDurationMillis; }
 	HRESULT StartMediaClock();
 	HRESULT ResumeMediaClock();
 	HRESULT PauseMediaClock();
@@ -32,11 +32,11 @@ public:
 	INT64 OnVideoFrame();
 	INT64 OnAudioPacket(_In_ int frameCount, _In_ int sampleRate);
 
-	INT64 GetNextVideoFrameStartPosition();
-	INT64 GetNextAudioFrameStartPosition();
+	inline INT64 GetNextVideoFrameStartPosition() const { return m_NextVideoFrameStartPos100Nanos; }
+	inline INT64 GetNextAudioFrameStartPosition() const { return m_NextAudioPacketStartPos100Nanos; }
 
-	inline int GetRenderedVideoFrameCount() { return m_RenderedVideoFrameCount; }
-	inline INT64 GetRenderedAudioFrameCount() { return m_RenderedAudioFrameCount; }
+	inline int GetRenderedVideoFrameCount() const { return m_RenderedVideoFrameCount; }
+	inline INT64 GetRenderedAudioFrameCount() const { return m_RenderedAudioFrameCount; }
 
 private:
 	UINT32 m_TargetVideoFrameDuration100Nanos;
