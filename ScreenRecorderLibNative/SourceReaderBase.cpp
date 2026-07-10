@@ -429,16 +429,20 @@ HRESULT SourceReaderBase::OnReadSample(HRESULT status, DWORD streamIndex, DWORD 
 					m_FramerateTimer->StartRecurringTimer((INT64)floor(1000 / m_FrameRate));
 				}
 				if (m_FrameRate > 0) {
+#if MEASURE_EXECUTION_TIME
 					auto t1 = std::chrono::high_resolution_clock::now();
 					auto sleepTime = m_FramerateTimer->GetMillisUntilNextTick();
 					MeasureExecutionTime measureNextTick(L"OnReadSample scheduled delay");
+#endif
 					hr = m_FramerateTimer->WaitForNextTick();
+#if MEASURE_EXECUTION_TIME
 					if (SUCCEEDED(hr)) {
 						auto t2 = std::chrono::high_resolution_clock::now();
 						std::chrono::duration<double, std::milli> ms_double = t2 - t1;
 						double diff = ms_double.count() - sleepTime;
 						measureNextTick.SetName(string_format(L"OnReadSample scheduled delay for %.2f ms for next frame. Actual delay differed by: %.2f ms, with a total delay of", sleepTime, diff));
 					}
+#endif
 				}
 			}
 		}
