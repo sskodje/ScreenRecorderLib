@@ -30,12 +30,12 @@ public:
 	void UpdateLastSnapshotTime();
 
 	INT64 OnVideoFrame();
-	INT64 OnAudioPacket(_In_ INT64 frameCount, _In_ INT64 sampleRate);
+	INT64 OnAudioPacket(_In_ int frameCount, _In_ int sampleRate);
 
 	INT64 GetNextVideoFrameStartPosition();
 	INT64 GetNextAudioFrameStartPosition();
 
-	inline INT64 GetRenderedVideoFrameCount() { return m_RenderedVideoFrameCount; }
+	inline int GetRenderedVideoFrameCount() { return m_RenderedVideoFrameCount; }
 	inline INT64 GetRenderedAudioFrameCount() { return m_RenderedAudioFrameCount; }
 
 private:
@@ -47,7 +47,7 @@ private:
 	INT64 m_NextVideoFrameStartPos100Nanos;
 	INT64 m_LastPresentationClockTime;
 	INT64 m_LastSnapshotTime;
-	INT64 m_RenderedVideoFrameCount;
+	int m_RenderedVideoFrameCount;
 	INT64 m_RenderedAudioFrameCount;
 	INT64 m_AudioTimeRemainder;
 

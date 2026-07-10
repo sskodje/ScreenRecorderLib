@@ -44,6 +44,6 @@ private:
 	HRESULT StopOptionsChangeListenerThread();
 
 	int GetNextAudioSampleFrameCount();
-	std::vector<BYTE> DownmixToMono(_In_ const std::vector<BYTE> &data, _In_ int inputChannels, _In_ int outputChannels, _In_ int channelToCopy);
+	std::vector<BYTE> DownmixToMono(_In_ const std::vector<BYTE> &data, _In_ int inputChannels, _In_ int outputChannels, _In_ UINT32 channelToCopy);
 	FRAME_AUDIO_DATA *MixAudioSamples(_In_ std::map<WASAPICapture *, std::vector<BYTE>> &audioSamples);
 };

@@ -373,7 +373,7 @@ std::vector<BYTE> AudioManager::DownmixToMono(
 	_In_ const std::vector<BYTE> &data,
 	_In_ int inputChannels,
 	_In_ int outputChannels,
-	_In_ int channelToCopy
+	_In_ UINT32 channelToCopy
 )
 {
 	const int bytesPerSample = 2; // PCM16

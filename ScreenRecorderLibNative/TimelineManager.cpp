@@ -28,7 +28,7 @@ TimelineManager::~TimelineManager()
 HRESULT TimelineManager::Initialize(double targetVideoFrameDurationMillis, double snapshotsIntervalMillis)
 {
 	m_TargetVideoFrameDurationMillis = targetVideoFrameDurationMillis;
-	m_TargetVideoFrameDuration100Nanos = MillisToHundredNanos(targetVideoFrameDurationMillis);
+	m_TargetVideoFrameDuration100Nanos = static_cast<UINT32>(MillisToHundredNanos(targetVideoFrameDurationMillis));
 
 	m_SnapshotIntervalMillis = snapshotsIntervalMillis;
 	m_SnapshotInterval100Nanos = MillisToHundredNanos(snapshotsIntervalMillis);
@@ -139,7 +139,7 @@ INT64 TimelineManager::OnVideoFrame()
 	return frameDuration100Nanos;
 }
 
-INT64 TimelineManager::OnAudioPacket(_In_ INT64 frameCount, _In_ INT64 sampleRate)
+INT64 TimelineManager::OnAudioPacket(_In_ int frameCount, _In_ int sampleRate)
 {
 	UINT64 ticks = (UINT64)frameCount * 10000000ULL;
 	m_AudioTimeRemainder += ticks;

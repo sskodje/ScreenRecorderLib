@@ -438,7 +438,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 			LOG_ERROR(L"IAudioClient::GetService(IAudioCaptureClient) failed on %ls: hr = 0x%08x", GetDeviceFriendlyName().c_str(), hr);
 			return hr;
 		}
-		INT64 lTimeBetweenFiresMillis = 0;
+		int lTimeBetweenFiresMillis = 0;
 
 		if (pAudioClientContext->kind == AudioClientKind::ProcessLoopback) {
 			lTimeBetweenFiresMillis = 5;
@@ -451,7 +451,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 				LOG_ERROR(L"IAudioClient::GetDevicePeriod failed on %ls: hr = 0x%08x", GetDeviceFriendlyName().c_str(), hr);
 				return hr;
 			}
-			lTimeBetweenFiresMillis = HundredNanosToMillis((INT64)hnsDefaultDevicePeriod / 2);
+			lTimeBetweenFiresMillis = static_cast<int>(HundredNanosToMillis((INT64)hnsDefaultDevicePeriod / 2));
 		}
 
 		// create a periodic waitable timer
@@ -465,7 +465,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 
 		// set the waitable timer
 		LARGE_INTEGER liFirstFire{};
-		liFirstFire.QuadPart = -MillisToHundredNanos(lTimeBetweenFiresMillis); // negative means relative time
+		liFirstFire.QuadPart = -MillisToHundredNanos(static_cast<double>(lTimeBetweenFiresMillis)); // negative means relative time
 		BOOL bOK = SetWaitableTimer(
 			hWakeUp,
 			&liFirstFire,
@@ -640,11 +640,11 @@ std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(int requestedFrame
 {
 	std::vector<BYTE> newvector;
 	*qpcTimestamp = 0;
-	size_t recordedFrameCount{};
+	int recordedFrameCount{};
 	if (m_RecordedAudioPackets.size() > 0)
 	{
 		const std::lock_guard<std::mutex> lock(m_TaskWrapperImpl->m_Mutex);
-		int remainingBytes = 0;
+		size_t remainingBytes = 0;
 		int readPacketCount = 0;
 		for each (AudioPacket recordedPacket in m_RecordedAudioPackets)
 		{
@@ -742,7 +742,7 @@ HRESULT WASAPICapture::StartCapture()
 				LOG_ERROR(L"Audio capture loop failed to start: hr = 0x%08x", hr);
 			}
 		}
-		catch (const AccessViolationException &e) {
+		catch (const AccessViolationException &) {
 			hr = EXCEPTION_ACCESS_VIOLATION;
 			LOG_ERROR(L"Exception in WASAPICapture: AccessViolationException");
 		}

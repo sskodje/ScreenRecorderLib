@@ -711,7 +711,7 @@ HRESULT ScreenCaptureManager::CreateSharedSurf(_In_ const std::vector<RECORDING_
 	std::vector<SIZE> outputOffsets{};
 	GetCombinedRects(outputRects, pDeskBounds, &outputOffsets);
 
-	for (int i = 0; i < validOutputs.size(); i++)
+	for (size_t i = 0; i < validOutputs.size(); i++)
 	{
 		RECORDING_SOURCE *source = validOutputs.at(i).first;
 		RECT sourceRect = validOutputs.at(i).second;
@@ -1026,7 +1026,7 @@ Start:
 				QueryPerformanceCounter(&pData->LastUpdateTimeStamp);
 			}
 		}
-		catch (const AccessViolationException &ex) {
+		catch (const AccessViolationException &) {
 			hr = EXCEPTION_ACCESS_VIOLATION;
 		}
 		catch (...) {
@@ -1234,7 +1234,7 @@ Start:
 				}
 			}
 		}
-		catch (const AccessViolationException &e) {
+		catch (const AccessViolationException &) {
 			hr = EXCEPTION_ACCESS_VIOLATION;
 			LOG_ERROR(L"Exception in WASAPICapture: AccessViolationException");
 		}

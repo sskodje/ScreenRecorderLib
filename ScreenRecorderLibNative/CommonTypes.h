@@ -592,7 +592,7 @@ public:
 		else {
 			for each (AUDIO_SOURCE * source in m_AudioSources)
 			{
-				for (int i = 0; i < sources.size(); i++)
+				for (size_t i = 0; i < sources.size(); i++)
 					if (*m_AudioSources[i] != sources[i])
 					{
 						itemsChanged = true;

@@ -613,7 +613,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 
 		//If there are any source previews on paused status, the loop exits here. This allows the source previews to continue rendering.
 		if (m_IsPaused) {
-			wait(m_TimelineManager->GetTargetVideoFrameDurationMillis());
+			wait(static_cast<UINT32>(round(m_TimelineManager->GetTargetVideoFrameDurationMillis())));
 			continue;
 		}
 		if (SUCCEEDED(hr)) {
@@ -672,11 +672,11 @@ HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pT
 	}
 	std::unique_ptr<FRAME_AUDIO_DATA> audioPacket(m_AudioManager->GrabAudioSamples());
 
-	int unpaddedAudioSize = audioPacket->Data.size();
+	size_t unpaddedAudioSize = audioPacket->Data.size();
 	bool paddedAudio = PadAudio(audioPacket->Data, nextVideoFrameStartPos100Nanos, nextVideoFrameDuration100Nanos);
 
 	const INT64 nextAudioPacketStartPos100Nanos = m_TimelineManager->GetNextAudioFrameStartPosition();
-	const INT64 audioFrameCount = audioPacket->Data.size() / (INT64)((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
+	const int audioFrameCount = static_cast<int>(audioPacket->Data.size()) / ((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
 	const INT64 nextAudioPacketDuration100Nanos = m_TimelineManager->OnAudioPacket(audioFrameCount, GetAudioOptions()->GetAudioSamplesPerSecond());
 
 	FrameWriteModel model{};
@@ -688,7 +688,7 @@ HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pT
 	model.AudioStartPos = nextAudioPacketStartPos100Nanos;
 	model.AudioDuration = nextAudioPacketDuration100Nanos;
 	if (paddedAudio) {
-		model.PaddedBytes = model.Audio.size() - unpaddedAudioSize;
+		model.PaddedBytes = static_cast<int>(model.Audio.size() - unpaddedAudioSize);
 	}
 
 

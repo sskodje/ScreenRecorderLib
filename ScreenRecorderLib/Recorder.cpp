@@ -843,7 +843,7 @@ List<VideoCaptureFormat^>^ ScreenRecorderLib::Recorder::CreateVideoCaptureFormat
 		}
 	}
 
-	for (int i = 0; i < mediaTypes.size(); i++)
+	for (size_t i = 0; i < mediaTypes.size(); i++)
 	{
 		IMFMediaType* pMediaType = mediaTypes.at(i);
 		GUID majorType;
@@ -872,7 +872,7 @@ List<VideoCaptureFormat^>^ ScreenRecorderLib::Recorder::CreateVideoCaptureFormat
 		pMediaType->GetUINT32(MF_MT_INTERLACE_MODE, &videoInterlaceMode);
 
 		VideoCaptureFormat^ managedFormat = gcnew VideoCaptureFormat();
-		managedFormat->Index = i;
+		managedFormat->Index = static_cast<int>(i);
 		managedFormat->VideoFormat = FromNativeGuid(videoFormat);
 		managedFormat->VideoFormatName = gcnew String(pVideoFormatString);
 		managedFormat->Framerate = framerate;

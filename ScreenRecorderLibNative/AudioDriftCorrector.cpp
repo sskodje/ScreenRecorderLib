@@ -28,7 +28,7 @@ INT64 AudioDriftCorrector::GetDriftCorrection(INT64 frameNum, INT64 nextAudioPac
 		}
 
 		m_AudioVideoDiffDeltaPeriodSum = 0;
-		m_AudioDriftCorrection = round(audioDriftCorrectionDouble);
+		m_AudioDriftCorrection = static_cast<INT64>(round(audioDriftCorrectionDouble));
 		LOG_TRACE("Period drift: %0.2f ms. Drift correction: %lld ns. Accumulated drift correction: %0.3f ms.s",
 			-HundredNanosToMillisDouble(periodAudioDrift),
 			m_AudioDriftCorrection * 100,

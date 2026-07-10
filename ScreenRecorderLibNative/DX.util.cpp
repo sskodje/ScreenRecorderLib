@@ -255,7 +255,7 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 	//Sort all sources according to leftmost and then topmost edge
 	std::sort(validOutputs.begin(), validOutputs.end(), sortRect);
 
-	for (int i = 0; i < validOutputs.size(); i++) {
+	for (size_t i = 0; i < validOutputs.size(); i++) {
 		//Compare to the previous source rect and offset this source rect if there is a gap in the coordinates
 		//not manually configured with Position property.
 		auto source = validOutputs[i].first;
@@ -400,7 +400,7 @@ void GetCombinedRects(_In_ std::vector<RECT> inputs, _Out_ RECT *pOutRect, _Out_
 	if (pOffsets) {
 		*pOffsets = std::vector<SIZE>();
 	}
-	for (int i = 0; i < inputs.size(); i++) {
+	for (size_t i = 0; i < inputs.size(); i++) {
 		RECT curRecordingSource = inputs[i];
 		UnionRect(pOutRect, &curRecordingSource, pOutRect);
 		//The offset is the difference between the end of the previous source and the start of the current source.
