@@ -470,9 +470,9 @@ bool WindowsGraphicsCapture::IsRecordingSessionStale() const
 {
 	LARGE_INTEGER currentTime;
 	QueryPerformanceCounter(&currentTime);
-	double millisSinceLastFrameReceive = double(currentTime.QuadPart - m_LastSampleReceivedTimeStamp.QuadPart) / (m_QPCFrequency.QuadPart / 1000);
+	double millisSinceLastFrameReceive = double(currentTime.QuadPart - m_LastSampleReceivedTimeStamp.QuadPart) / (m_QPCFrequency.QuadPart / 1000.0);
 	if (millisSinceLastFrameReceive > 250) {
-		double millisSinceLastCaptureRestart = double(currentTime.QuadPart - m_LastCaptureSessionRestart.QuadPart) / (m_QPCFrequency.QuadPart / 1000);
+		double millisSinceLastCaptureRestart = double(currentTime.QuadPart - m_LastCaptureSessionRestart.QuadPart) / (m_QPCFrequency.QuadPart / 1000.0);
 		if (millisSinceLastCaptureRestart > 500) {
 			return true;
 		}
