@@ -569,6 +569,7 @@ void Recorder::SetupCallbacks() {
 	CreateStatusCallback();
 	CreateSnapshotCallback();
 	CreateFrameNumberCallback();
+	CreateAudioDataCallback();
 }
 
 void Recorder::ReleaseCallbacks() {
@@ -582,6 +583,8 @@ void Recorder::ReleaseCallbacks() {
 		_snapshotDelegateGcHandler.Free();
 	if (_frameNumberDelegateGcHandler.IsAllocated)
 		_frameNumberDelegateGcHandler.Free();
+	if (_audioDataDelegateGcHandler.IsAllocated)
+		_audioDataDelegateGcHandler.Free();
 }
 
 void Recorder::ReleaseResources() {
@@ -988,6 +991,13 @@ void Recorder::CreateFrameNumberCallback() {
 	CallbackFrameNumberChangedFunction cb = static_cast<CallbackFrameNumberChangedFunction>(ip.ToPointer());
 	m_Rec->RecordingFrameNumberChangedCallback = cb;
 }
+void Recorder::CreateAudioDataCallback() {
+	InternalAudioDataCallbackDelegate^ fp = gcnew InternalAudioDataCallbackDelegate(this, &Recorder::AudioDataChanged);
+	_audioDataDelegateGcHandler = GCHandle::Alloc(fp);
+	IntPtr ip = Marshal::GetFunctionPointerForDelegate(fp);
+	CallbackNewAudioDataFunction cb = static_cast<CallbackNewAudioDataFunction>(ip.ToPointer());
+	m_Rec->RecordingNewAudioCallback = cb;
+}
 void Recorder::EventComplete(std::wstring path, fifo_map<std::wstring, int> delays)
 {
 	ReleaseResources();
@@ -1017,20 +1027,25 @@ void ScreenRecorderLib::Recorder::EventSnapshotCreated(std::wstring str)
 	OnSnapshotSaved(this, gcnew SnapshotSavedEventArgs(gcnew String(str.c_str())));
 }
 
-void Recorder::FrameNumberChanged(int newFrameNumber, INT64 timestamp, FRAME_BITMAP_DATA* frameData, FRAME_AUDIO_INFO* audioData)
+void Recorder::FrameNumberChanged(int newFrameNumber, INT64 timestamp, FRAME_BITMAP_DATA* frameData)
 {
 	FrameBitmapData^ managedFrameData = nullptr;
 	if (frameData != nullptr) {
 		managedFrameData = gcnew FrameBitmapData(frameData->Stride, frameData->Data, frameData->Length, frameData->Width, frameData->Height);
 	}
-	FrameAudioData^ managedAudioData = nullptr;
+	OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber, timestamp, managedFrameData));
+	CurrentFrameNumber = newFrameNumber;
+}
+
+void ScreenRecorderLib::Recorder::AudioDataChanged(FRAME_AUDIO_INFO* audioData)
+{
+	AudioPacketData^ managedAudioData = nullptr;
 	if (audioData != nullptr) {
-		managedAudioData = gcnew FrameAudioData(audioData->MasterVolume);
+		managedAudioData = gcnew AudioPacketData(audioData->Gain);
 		for each (FRAME_AUDIO_SOURCE source in audioData->Sources)
 		{
-			managedAudioData->Sources->Add(gcnew FrameAudioSource(gcnew String(source.Id.c_str()), source.Volume));
+			managedAudioData->Sources->Add(gcnew AudioPacketSource(gcnew String(source.Id.c_str()), source.Volume));
 		}
 	}
-	OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber, timestamp, managedFrameData, managedAudioData));
-	CurrentFrameNumber = newFrameNumber;
+	OnAudioPacketRecorded(this, gcnew AudioDataRecordedEventArgs(managedAudioData));
 }

@@ -133,7 +133,7 @@ namespace ScreenRecorderLib {
 		CaptureAudioSource(String^ deviceName) :CaptureAudioSource() {
 			DeviceName = deviceName;
 		}
-		CaptureAudioSource(CaptureAudioSource^ source) :CaptureAudioSource() {
+		CaptureAudioSource(CaptureAudioSource^ source) :AudioSourceBase(source) {
 			DeviceName = source->DeviceName;
 		}
 	};
@@ -171,7 +171,7 @@ namespace ScreenRecorderLib {
 		LoopbackAudioSource(String^ deviceName) :LoopbackAudioSource() {
 			DeviceName = deviceName;
 		}
-		LoopbackAudioSource(LoopbackAudioSource^ source) :LoopbackAudioSource() {
+		LoopbackAudioSource(LoopbackAudioSource^ source) :AudioSourceBase(source) {
 			DeviceName = source->DeviceName;
 		}
 	};
@@ -187,7 +187,7 @@ namespace ScreenRecorderLib {
 		ProcessAudioSource(int pid) :ProcessAudioSource() {
 			ProcessId = pid;
 		}
-		ProcessAudioSource(ProcessAudioSource^ source) :ProcessAudioSource() {
+		ProcessAudioSource(ProcessAudioSource^ source) :AudioSourceBase(source) {
 			ProcessId = source->ProcessId;
 		}
 	};

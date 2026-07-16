@@ -38,25 +38,26 @@ namespace ScreenRecorderLib {
 		}
 	};
 
-	public ref class FrameAudioSource {
+	public ref class AudioPacketSource {
 	public:
 		property String^ Id;
 		property double Gain;
-		FrameAudioSource() {}
-		FrameAudioSource(String^ id, double gain) :FrameAudioSource() {
+		AudioPacketSource() {}
+		AudioPacketSource(String^ id, double gain) :AudioPacketSource() {
 			Id = id;
 			Gain = gain;
 		}
 	};
 
-	public ref class FrameAudioData {
+	public ref class AudioPacketData {
 	public:
 		property double Gain;
-		property List<FrameAudioSource^>^ Sources;
-		FrameAudioData() {
-			Sources = gcnew List< FrameAudioSource^>();
+		property List<AudioPacketSource^>^ Sources;
+		AudioPacketData() {
+			Gain = 0;
+			Sources = gcnew List< AudioPacketSource^>();
 		}
-		FrameAudioData(double gain) :FrameAudioData() {
+		AudioPacketData(double gain) :AudioPacketData() {
 			Gain = gain;
 		}
 	};
@@ -99,17 +100,15 @@ namespace ScreenRecorderLib {
 		property int FrameNumber;
 		property INT64 Timestamp;
 		FrameBitmapData^ BitmapData;
-		FrameAudioData^ AudioData;
 		FrameRecordedEventArgs() {}
 		FrameRecordedEventArgs(int frameNumber, INT64 timestamp) {
 			FrameNumber = frameNumber;
 			Timestamp = timestamp;
 		}
-		FrameRecordedEventArgs(int frameNumber, INT64 timestamp, FrameBitmapData^ bitmapData, FrameAudioData^ audioData) {
+		FrameRecordedEventArgs(int frameNumber, INT64 timestamp, FrameBitmapData^ bitmapData) {
 			FrameNumber = frameNumber;
 			Timestamp = timestamp;
 			BitmapData = bitmapData;
-			AudioData = audioData;
 		}
 	};
 
@@ -123,6 +122,18 @@ namespace ScreenRecorderLib {
 		}
 		FrameDataRecordedEventArgs(int stride, byte* data, int length, int width, int height) {
 			this->BitmapData = gcnew FrameBitmapData(stride, data, length, width, height);
+		}
+	};
+	public ref class AudioDataRecordedEventArgs :System::EventArgs {
+	public:
+		property AudioPacketData^ AudioData;
+		AudioDataRecordedEventArgs() {}
+		AudioDataRecordedEventArgs(AudioPacketData^ audioData)
+		{
+			this->AudioData = audioData;
+		}
+		AudioDataRecordedEventArgs(double gain) {
+			this->AudioData = gcnew AudioPacketData(gain);
 		}
 	};
 }

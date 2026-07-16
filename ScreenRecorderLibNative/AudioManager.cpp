@@ -287,7 +287,7 @@ FRAME_AUDIO_DATA *AudioManager::MixAudioSamples(_In_ std::map<WASAPICapture *, s
 	if (audioSamples.empty()) {
 		return new FRAME_AUDIO_DATA{};
 	}
-	std::vector<StreamData> streams;
+	std::vector<StreamData> streams{};
 	streams.reserve(audioSamples.size());
 	size_t maxSize = 0;
 	for (auto &pair : audioSamples) {
@@ -315,56 +315,60 @@ FRAME_AUDIO_DATA *AudioManager::MixAudioSamples(_In_ std::map<WASAPICapture *, s
 			pair.first->GetAudioCaptureSource()->OutputVolumeModifier
 		});
 	}
-	FRAME_AUDIO_INFO *info = new FRAME_AUDIO_INFO();
-	std::vector<BYTE> output(maxSize);
 	const size_t maxSamples = maxSize / 2;
-	short *outputSamples = reinterpret_cast<short *>(output.data());
-	bool clipped = false;
+	const size_t streamCount = streams.size();
 
-	std::map<std::wstring, double> sourceVolumes;
-	double maxMasterVolume = 0;
-	for (size_t i = 0; i < maxSamples; i += 1) {
-		float mixed = 0;
-		for (auto &s : streams) {
-			if (i < s.sampleCount) {
-				float sample = 0;
-				if (s.samples[i] > 1 || s.samples[i] < -1) {
-					sample = s.samples[i] * s.volume;
-				}
-				double sampleVolume = abs(sample) / 32767.0;
-				if (sourceVolumes.find(s.id) == sourceVolumes.end()) {
-					sourceVolumes.emplace(s.id, sampleVolume);
-				}
-				else if (sampleVolume > sourceVolumes[s.id]) {
-					sourceVolumes[s.id] = sampleVolume;
-				}
-				mixed += sample;
+	std::vector<float> mixed(maxSamples, 0.0f);
+	std::vector<float> streamPeak(streamCount, 0.0f);
+
+	for (size_t s = 0; s < streamCount; ++s) {
+		const short *samples = streams[s].samples;
+		const size_t count = streams[s].sampleCount;
+		const float volume = streams[s].volume;
+		float peak = 0.0f;
+
+		for (size_t i = 0; i < count; ++i) {
+			short raw = samples[i];
+			float sample = (raw > SILENCE_THRESHOLD || raw < -SILENCE_THRESHOLD) ? raw * volume : 0.0f;		
+			float sampleVolume = std::abs(sample) / 32767.0f;
+			if (sampleVolume > peak) {
+				peak = sampleVolume;
 			}
+
+			mixed[i] += sample;
 		}
-		mixed = mixed * GetAudioOptions()->GetMasterVolume();
-		double sampleVolume = abs(mixed) / 32767.0;
-		if (sampleVolume > maxMasterVolume) {
-			maxMasterVolume = sampleVolume;
-		}
-		long output = std::lround(mixed);
-		if (output > 32767) {
-			output = 32767 - (output - 32767) / 2;
-			clipped = true;
-		}
-		else if (output < -32768) {
-			output = -32768 - (output + 32768) / 2;
-			clipped = true;
+		streamPeak[s] = peak;
+	}
+
+	const float masterVolume = static_cast<float>(GetAudioOptions()->GetMasterVolume());
+
+	std::vector<BYTE> output(maxSize);
+	short *outputSamples = reinterpret_cast<short *>(output.data());
+	double maxMasterGain = 0;
+
+	for (size_t i = 0; i < maxSamples; ++i) {
+		float sample = mixed[i] * masterVolume;
+		double sampleVolume = std::abs(sample) / SHORT_MAX;
+		if (sampleVolume > maxMasterGain) {
+			maxMasterGain = sampleVolume;
 		}
 
+		long output = std::lround(sample);
+		if (output > SHORT_MAX) {
+			output = SHORT_MAX - (output - SHORT_MAX) / 2;
+		}
+		else if (output < SHORT_MIN) {
+			output = SHORT_MIN - (output - SHORT_MIN) / 2;
+		}
 		outputSamples[i] = static_cast<short>(output);
 	}
 
-	info->MasterVolume = maxMasterVolume;
-
-	for (auto const &[key, val] : sourceVolumes) {
-		info->Sources.push_back(FRAME_AUDIO_SOURCE(key, val));
+	FRAME_AUDIO_INFO *info = new FRAME_AUDIO_INFO();
+	info->Gain = maxMasterGain;
+	info->Sources.reserve(streamCount);
+	for (size_t s = 0; s < streamCount; ++s) {
+		info->Sources.push_back(FRAME_AUDIO_SOURCE(streams[s].id, streamPeak[s]));
 	}
-
 	FRAME_AUDIO_DATA *data = new FRAME_AUDIO_DATA(output, info, 0);
 	return data;
 }

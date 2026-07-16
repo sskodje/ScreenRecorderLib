@@ -78,6 +78,7 @@ RecordingManager::RecordingManager() :
 	RecordingSnapshotCreatedCallback(nullptr),
 	RecordingStatusChangedCallback(nullptr),
 	RecordingFrameNumberChangedCallback(nullptr),
+	RecordingNewAudioCallback(nullptr),
 	m_TextureManager(nullptr),
 	m_OutputManager(nullptr),
 	m_CaptureManager(nullptr),
@@ -361,6 +362,7 @@ HRESULT RecordingManager::BeginRecording(_In_opt_ std::wstring path, _In_opt_ IS
 					m_MouseManager.reset(nullptr);
 					m_AudioManager.reset(nullptr);
 					m_TextureManager.reset(nullptr);
+					m_TimelineManager.reset(nullptr);
 					m_IsRecording = false;
 					m_IsPaused = false;
 					REC_RESULT result{ };
@@ -394,9 +396,6 @@ void RecordingManager::PauseRecording() {
 	if (m_IsRecording && !m_IsPaused.exchange(true)) {
 		if (m_TimelineManager) {
 			m_TimelineManager->PauseMediaClock();
-		}
-		if (m_AudioManager) {
-			m_AudioManager->PauseCapture();
 		}
 		if (RecordingStatusChangedCallback != nullptr) {
 			RecordingStatusChangedCallback(STATUS_PAUSED);
@@ -590,30 +589,28 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 				continue;
 			}
 		}
+		CAPTURED_FRAME capturedFrame{};
+		if (!m_IsPaused || IsAnySourcePreviewsActive()) {
+			// Get new frame
+			hr = m_CaptureManager->AcquireNextFrame(m_TimelineManager->GetTimeUntilNextFrame100Nanos(), MAX_FRAME_LENGTH_100_NANOS, token, &capturedFrame);
+		}
+		std::unique_ptr<FRAME_AUDIO_DATA> audioPacket(m_AudioManager->GrabAudioSamples());
+
+		if (RecordingNewAudioCallback != nullptr && !m_IsDestructing) {
+			try {
+				RecordingNewAudioCallback(audioPacket->Info.get());
+			}
+			catch (exception &ex) {
+				LOG_ERROR(L"Error in CallbackNewAudioDataFunction %ls", s2ws(ex.what()).c_str());
+			}
+		}
+
 		if (m_IsPaused) {
 			if (m_TimelineManager->isMediaClockRunning()) {
 				m_TimelineManager->PauseMediaClock();
 			}
-			if (m_AudioManager) {
-				m_AudioManager->PauseCapture();
-			}
-			ExecuteFuncOnExit clearDataOnExit([&]() {
-				m_TimelineManager->UpdateLastSnapshotTime();
-				if (m_AudioManager)
-					m_AudioManager->ClearRecordedBytes();
-			});
-			if (!IsAnySourcePreviewsActive()) {
-				wait(10);
-				continue;
-			}
-		}
-		CAPTURED_FRAME capturedFrame{};
-		// Get new frame
-		hr = m_CaptureManager->AcquireNextFrame(m_TimelineManager->GetTimeUntilNextFrame100Nanos(), MAX_FRAME_LENGTH_100_NANOS, token, &capturedFrame);
-
-		//If there are any source previews on paused status, the loop exits here. This allows the source previews to continue rendering.
-		if (m_IsPaused) {
 			wait(static_cast<UINT32>(round(m_TimelineManager->GetTargetVideoFrameDurationMillis())));
+			m_TimelineManager->UpdateLastSnapshotTime();
 			continue;
 		}
 		if (SUCCEEDED(hr)) {
@@ -640,16 +637,18 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			}
 		}
 
-		RETURN_RESULT_ON_BAD_HR(hr = PrepareAndRenderFrame(capturedFrame.Frame, pPtrInfo), L"Failed to render frame");
+		RETURN_RESULT_ON_BAD_HR(hr = PrepareAndRenderFrame(capturedFrame.Frame, audioPacket.get(), pPtrInfo), L"Failed to render frame");
 		if (recorderMode == RecorderModeInternal::Screenshot) {
 			break;
 		}
 	}
-
+	if (m_AudioManager) {
+		m_AudioManager->StopCapture();
+	}
 	return CAPTURE_RESULT(hr);
 }
 
-HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pTextureToRender, _In_opt_ std::optional<PTR_INFO> pointerInfo)
+HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pTextureToRender, FRAME_AUDIO_DATA *pAudioData, _In_opt_ std::optional<PTR_INFO> pointerInfo)
 {
 	const INT64 nextVideoFrameStartPos100Nanos = m_TimelineManager->GetNextVideoFrameStartPosition();
 	const INT64 nextVideoFrameDuration100Nanos = m_TimelineManager->OnVideoFrame();
@@ -670,19 +669,19 @@ HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pT
 			TakeSnapshot(snapshotPath, nullptr, pTextureToRender);
 		}
 	}
-	std::unique_ptr<FRAME_AUDIO_DATA> audioPacket(m_AudioManager->GrabAudioSamples());
 
-	size_t unpaddedAudioSize = audioPacket->Data.size();
-	bool paddedAudio = PadAudio(audioPacket->Data, nextVideoFrameStartPos100Nanos, nextVideoFrameDuration100Nanos);
+
+	size_t unpaddedAudioSize = pAudioData->Data.size();
+	bool paddedAudio = PadAudio(pAudioData->Data, nextVideoFrameStartPos100Nanos, nextVideoFrameDuration100Nanos);
 
 	const INT64 nextAudioPacketStartPos100Nanos = m_TimelineManager->GetNextAudioFrameStartPosition();
-	const int audioFrameCount = static_cast<int>(audioPacket->Data.size()) / ((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
+	const int audioFrameCount = static_cast<int>(pAudioData->Data.size()) / ((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
 	const INT64 nextAudioPacketDuration100Nanos = m_TimelineManager->OnAudioPacket(audioFrameCount, GetAudioOptions()->GetAudioSamplesPerSecond());
 
 	FrameWriteModel model{};
 	model.Frame = std::move(pTextureToRender);
-	model.AudioQpcPosition = audioPacket->QpcTimestamp;
-	model.Audio = std::move(audioPacket->Data);
+	model.AudioQpcPosition = pAudioData->QpcTimestamp;
+	model.Audio = std::move(pAudioData->Data);
 	model.VideoStartPos = nextVideoFrameStartPos100Nanos;
 	model.VideoDuration = nextVideoFrameDuration100Nanos;
 	model.AudioStartPos = nextAudioPacketStartPos100Nanos;
@@ -694,7 +693,7 @@ HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pT
 
 	RETURN_ON_BAD_HR(hr = m_EncoderResult = m_OutputManager->RenderFrame(model));
 	if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
-		SendNewFrameCallback(m_TimelineManager->GetRenderedVideoFrameCount(), model.Frame, audioPacket->Info.get());
+		SendNewFrameCallback(m_TimelineManager->GetRenderedVideoFrameCount(), model.Frame, pAudioData->Info.get());
 	}
 	return hr;
 }
@@ -799,65 +798,70 @@ bool RecordingManager::PadAudio(_Inout_ std::vector<BYTE> &audioData, _In_ INT64
 
 HRESULT RecordingManager::SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture, _In_opt_ FRAME_AUDIO_INFO *audioData) {
 	HRESULT hr = S_FALSE;
-	if (RecordingFrameNumberChangedCallback != nullptr) {
-		INT64 timestamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-		if (GetOutputOptions()->IsVideoFramePreviewEnabled()) {
-			CComPtr< ID3D11Texture2D> pProcessedTexture = nullptr;
-			unique_ptr<FRAME_BITMAP_DATA> pFramePreviewData = nullptr;
-			D3D11_TEXTURE2D_DESC textureDesc;
-			pTexture->GetDesc(&textureDesc);
-			if (GetOutputOptions()->GetVideoFramePreviewSize().has_value()) {
-				long cx = GetOutputOptions()->GetVideoFramePreviewSize().value().cx;
-				long cy = GetOutputOptions()->GetVideoFramePreviewSize().value().cy;
-				if (cx > 0 && cy == 0) {
-					cy = static_cast<long>(round((static_cast<double>(textureDesc.Height) / static_cast<double>(textureDesc.Width)) * cx));
+	try {
+		if (RecordingFrameNumberChangedCallback != nullptr) {
+			INT64 timestamp = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+			if (GetOutputOptions()->IsVideoFramePreviewEnabled()) {
+				CComPtr< ID3D11Texture2D> pProcessedTexture = nullptr;
+				unique_ptr<FRAME_BITMAP_DATA> pFramePreviewData = nullptr;
+				D3D11_TEXTURE2D_DESC textureDesc;
+				pTexture->GetDesc(&textureDesc);
+				if (GetOutputOptions()->GetVideoFramePreviewSize().has_value()) {
+					long cx = GetOutputOptions()->GetVideoFramePreviewSize().value().cx;
+					long cy = GetOutputOptions()->GetVideoFramePreviewSize().value().cy;
+					if (cx > 0 && cy == 0) {
+						cy = static_cast<long>(round((static_cast<double>(textureDesc.Height) / static_cast<double>(textureDesc.Width)) * cx));
+					}
+					else if (cx == 0 && cy > 0) {
+						cx = static_cast<long>(round((static_cast<double>(textureDesc.Width) / static_cast<double>(textureDesc.Height)) * cy));
+					}
+					ID3D11Texture2D *pResizedTexture;
+					RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pTexture, SIZE{ cx,cy }, TextureStretchMode::Uniform, &pResizedTexture));
+					pProcessedTexture.Attach(pResizedTexture);
+					pResizedTexture->GetDesc(&textureDesc);
 				}
-				else if (cx == 0 && cy > 0) {
-					cx = static_cast<long>(round((static_cast<double>(textureDesc.Width) / static_cast<double>(textureDesc.Height)) * cy));
+				else {
+					pProcessedTexture.Attach(pTexture);
+					pTexture->AddRef();
 				}
-				ID3D11Texture2D *pResizedTexture;
-				RETURN_ON_BAD_HR(hr = m_TextureManager->ResizeTexture(pTexture, SIZE{ cx,cy }, TextureStretchMode::Uniform, &pResizedTexture));
-				pProcessedTexture.Attach(pResizedTexture);
-				pResizedTexture->GetDesc(&textureDesc);
+				int width = textureDesc.Width;
+				int height = textureDesc.Height;
+
+				if (m_FrameDataCallbackTextureDesc.Width != width || m_FrameDataCallbackTextureDesc.Height != height) {
+					SafeRelease(&m_FrameDataCallbackTexture);
+					textureDesc.Usage = D3D11_USAGE_STAGING;
+					textureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+					textureDesc.MiscFlags = 0;
+					textureDesc.BindFlags = 0;
+					RETURN_ON_BAD_HR(m_DxResources.Device->CreateTexture2D(&textureDesc, nullptr, &m_FrameDataCallbackTexture));
+
+					m_FrameDataCallbackTextureDesc = textureDesc;
+				}
+
+				m_DxResources.Context->CopyResource(m_FrameDataCallbackTexture, pProcessedTexture);
+				D3D11_MAPPED_SUBRESOURCE map;
+				m_DxResources.Context->Map(m_FrameDataCallbackTexture, 0, D3D11_MAP_READ, 0, &map);
+
+				int bytesPerPixel = map.RowPitch / width;
+				int len = map.DepthPitch;
+				int stride = map.RowPitch;
+				BYTE *data = static_cast<BYTE *>(map.pData);
+				pFramePreviewData = make_unique<FRAME_BITMAP_DATA>();
+				pFramePreviewData->Data = data;
+				pFramePreviewData->Stride = stride;
+				pFramePreviewData->Width = width;
+				pFramePreviewData->Height = height;
+				pFramePreviewData->Length = len;
+				RecordingFrameNumberChangedCallback(frameNumber, timestamp, pFramePreviewData.get(), audioData);
+				m_DxResources.Context->Unmap(m_FrameDataCallbackTexture, 0);
 			}
 			else {
-				pProcessedTexture.Attach(pTexture);
-				pTexture->AddRef();
+				RecordingFrameNumberChangedCallback(frameNumber, timestamp, nullptr, audioData);
 			}
-			int width = textureDesc.Width;
-			int height = textureDesc.Height;
-
-			if (m_FrameDataCallbackTextureDesc.Width != width || m_FrameDataCallbackTextureDesc.Height != height) {
-				SafeRelease(&m_FrameDataCallbackTexture);
-				textureDesc.Usage = D3D11_USAGE_STAGING;
-				textureDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-				textureDesc.MiscFlags = 0;
-				textureDesc.BindFlags = 0;
-				RETURN_ON_BAD_HR(m_DxResources.Device->CreateTexture2D(&textureDesc, nullptr, &m_FrameDataCallbackTexture));
-
-				m_FrameDataCallbackTextureDesc = textureDesc;
-			}
-
-			m_DxResources.Context->CopyResource(m_FrameDataCallbackTexture, pProcessedTexture);
-			D3D11_MAPPED_SUBRESOURCE map;
-			m_DxResources.Context->Map(m_FrameDataCallbackTexture, 0, D3D11_MAP_READ, 0, &map);
-
-			int bytesPerPixel = map.RowPitch / width;
-			int len = map.DepthPitch;
-			int stride = map.RowPitch;
-			BYTE *data = static_cast<BYTE *>(map.pData);
-			pFramePreviewData = make_unique<FRAME_BITMAP_DATA>();
-			pFramePreviewData->Data = data;
-			pFramePreviewData->Stride = stride;
-			pFramePreviewData->Width = width;
-			pFramePreviewData->Height = height;
-			pFramePreviewData->Length = len;
-			RecordingFrameNumberChangedCallback(frameNumber, timestamp, pFramePreviewData.get(), audioData);
-			m_DxResources.Context->Unmap(m_FrameDataCallbackTexture, 0);
 		}
-		else {
-			RecordingFrameNumberChangedCallback(frameNumber, timestamp, nullptr, audioData);
-		}
+	}
+	catch (exception &ex) {
+		LOG_ERROR(L"Error in CallbackFrameNumberChangedFunction %ls", s2ws(ex.what()).c_str());
 	}
 	return hr;
 }

@@ -517,6 +517,12 @@ HRESULT WASAPICapture::StartCaptureLoop(
 					&nQpcPosition
 				);
 
+				if (FAILED(hr)) {
+					LOG_ERROR(L"IAudioCaptureClient::GetBuffer failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, GetDeviceFriendlyName().c_str(), hr);
+					bDone = true;
+					continue; // exits loop
+				}
+
 				if (m_IsPaused.load()) {
 					hr = pAudioCaptureClient->ReleaseBuffer(nNumFramesToRead);
 					if (FAILED(hr)) {
@@ -526,11 +532,6 @@ HRESULT WASAPICapture::StartCaptureLoop(
 					continue;
 				}
 
-				if (FAILED(hr)) {
-					LOG_ERROR(L"IAudioCaptureClient::GetBuffer failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, GetDeviceFriendlyName().c_str(), hr);
-					bDone = true;
-					continue; // exits loop
-				}
 				bool isDiscontinuity = false;
 				if ((dwFlags & (AUDCLNT_BUFFERFLAGS_DATA_DISCONTINUITY)) != 0) {
 					if (bFirstPacket) {
@@ -553,6 +554,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 				if (0 == nNumFramesToRead) {
 					LOG_ERROR(L"IAudioCaptureClient::GetBuffer said to read 0 frames on pass %u after %u frames on %ls", nPasses, nFrames, GetDeviceFriendlyName().c_str());
 					hr = E_UNEXPECTED;
+					pAudioCaptureClient->ReleaseBuffer(nNumFramesToRead);
 					bDone = true;
 					continue; // exits loop
 				}
@@ -566,11 +568,6 @@ HRESULT WASAPICapture::StartCaptureLoop(
 					bDone = true;
 					continue; // exits loop
 				}
-#pragma warning(disable: 26110)
-
-				const std::scoped_lock lock(m_TaskWrapperImpl->m_Mutex, StaticMutex);
-#pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
-
 				std::vector<BYTE> recordedBytes(&bufferData[0], &bufferData[size]);
 				//This should reduce glitching if there is discontinuity in the audio stream.
 				if (isDiscontinuity) {
@@ -582,6 +579,10 @@ HRESULT WASAPICapture::StartCaptureLoop(
 						LOG_DEBUG(L"Discontinuity detected, padded audio bytes with %d bytes of silence on %ls", frameDiff, GetDeviceFriendlyName().c_str());
 					}
 				}
+#pragma warning(disable: 26110)
+				const std::scoped_lock lock(m_TaskWrapperImpl->m_Mutex, StaticMutex);
+#pragma prefast(suppress: __WARNING_INCORRECT_ANNOTATION, "IAudioCaptureClient::GetBuffer SAL annotation implies a 1-byte buffer")
+
 				AudioPacket packet = AudioPacket(recordedBytes, nNumFramesToRead, nQpcPosition);
 				m_RecordedAudioPackets.push_back(packet);
 				nFrames += nNumFramesToRead;

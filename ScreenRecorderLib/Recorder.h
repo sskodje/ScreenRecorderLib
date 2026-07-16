@@ -20,7 +20,8 @@ delegate void InternalStatusCallbackDelegate(int status);
 delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fifo_map<std::wstring, int>);
 delegate void InternalErrorCallbackDelegate(std::wstring error, std::wstring path);
 delegate void InternalSnapshotCallbackDelegate(std::wstring path);
-delegate void InternalFrameNumberCallbackDelegate(int newFrameNumber, INT64 timestamp, FRAME_BITMAP_DATA* bitmapData, FRAME_AUDIO_INFO* audioData);
+delegate void InternalFrameNumberCallbackDelegate(int newFrameNumber, INT64 timestamp, FRAME_BITMAP_DATA* bitmapData);
+delegate void InternalAudioDataCallbackDelegate(FRAME_AUDIO_INFO* audioData);
 namespace ScreenRecorderLib {
 
 	ref class DynamicOptionsBuilder;
@@ -53,11 +54,13 @@ namespace ScreenRecorderLib {
 		void CreateStatusCallback();
 		void CreateSnapshotCallback();
 		void CreateFrameNumberCallback();
+		void CreateAudioDataCallback();
 		void EventComplete(std::wstring path, nlohmann::fifo_map<std::wstring, int> delays);
 		void EventFailed(std::wstring error, std::wstring path);
 		void EventStatusChanged(int status);
 		void EventSnapshotCreated(std::wstring str);
-		void FrameNumberChanged(int newFrameNumber, INT64 timestamp, FRAME_BITMAP_DATA* bitmapData, FRAME_AUDIO_INFO* audioData);
+		void FrameNumberChanged(int newFrameNumber, INT64 timestamp, FRAME_BITMAP_DATA* bitmapData);
+		void AudioDataChanged(FRAME_AUDIO_INFO* audioData);
 		void SetupCallbacks();
 		void ReleaseCallbacks();
 		void ReleaseResources();
@@ -79,6 +82,7 @@ namespace ScreenRecorderLib {
 		GCHandle _completedDelegateGcHandler;
 		GCHandle _snapshotDelegateGcHandler;
 		GCHandle _frameNumberDelegateGcHandler;
+		GCHandle _audioDataDelegateGcHandler;
 
 	internal:
 		void SetDynamicOptions(DynamicOptions^ options);
@@ -134,6 +138,7 @@ namespace ScreenRecorderLib {
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;
 		event EventHandler<SnapshotSavedEventArgs^>^ OnSnapshotSaved;
 		event EventHandler<FrameRecordedEventArgs^>^ OnFrameRecorded;
+		event EventHandler<AudioDataRecordedEventArgs^>^ OnAudioPacketRecorded;
 	};
 
 	public ref class DynamicOptionsBuilder {

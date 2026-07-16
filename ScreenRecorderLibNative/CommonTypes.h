@@ -48,17 +48,16 @@ struct FRAME_AUDIO_SOURCE {
 		Volume = volume;
 	}
 };
-
 struct FRAME_AUDIO_INFO {
+	double Gain;
 	std::vector<FRAME_AUDIO_SOURCE> Sources;
-	double MasterVolume;
 	FRAME_AUDIO_INFO() :
 		Sources{},
-		MasterVolume(0) {
+		Gain(0) {
 	}
-	FRAME_AUDIO_INFO(const std::vector<FRAME_AUDIO_SOURCE> &sources, double masterVolume) :FRAME_AUDIO_INFO() {
+	FRAME_AUDIO_INFO(double gain, const std::vector<FRAME_AUDIO_SOURCE> &sources) :FRAME_AUDIO_INFO() {
 		Sources = sources;
-		MasterVolume = masterVolume;
+		Gain = gain;
 	}
 };
 

@@ -211,7 +211,13 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel model) {
 			}
 		}
 		auto frameInfoStr = wroteAudioSample ? (model.PaddedBytes > 0 ? L"video sample and audio padding" : L"video and audio sample") : L"video sample";
-		LOG_TRACE(L"Wrote %s with vid start %lld ms, vid duration %.2f ms, audio start %lld ms, audio duration %.3f ms. diff %.2f ms.", frameInfoStr, HundredNanosToMillis(model.VideoStartPos), HundredNanosToMillisDouble(model.VideoDuration), HundredNanosToMillis(model.AudioStartPos), HundredNanosToMillisDouble(model.AudioDuration), HundredNanosToMillisDouble(model.VideoStartPos - model.AudioStartPos));
+		LOG_TRACE(L"Wrote %s with vid start %lld ms, vid duration %.2f ms, audio start %lld ms, audio duration %.2f ms. diff %.2f ms.",
+			frameInfoStr,
+			HundredNanosToMillis(model.VideoStartPos),
+			HundredNanosToMillisDouble(model.VideoDuration),
+			HundredNanosToMillis(model.AudioStartPos),
+			HundredNanosToMillisDouble(model.AudioDuration),
+			HundredNanosToMillisDouble(model.VideoStartPos - model.AudioStartPos));
 	}
 	else if (recorderMode == RecorderModeInternal::Slideshow) {
 		wstring	path = m_OutputFolder + L"\\" + to_wstring(m_TimelineManager->GetRenderedVideoFrameCount()) + GetSnapshotOptions()->GetImageExtension();

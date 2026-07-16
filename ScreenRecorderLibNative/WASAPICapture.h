@@ -22,6 +22,8 @@
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "winmm.lib")
 
+static constexpr short SILENCE_THRESHOLD = 1;
+
 struct AudioPacket
 {
 	std::vector<BYTE> data;

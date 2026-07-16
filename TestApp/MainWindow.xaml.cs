@@ -534,6 +534,7 @@ namespace TestApp
                 _rec.OnStatusChanged += Rec_OnStatusChanged;
                 _rec.OnSnapshotSaved += Rec_OnSnapshotSaved;
                 _rec.OnFrameRecorded += Rec_OnFrameRecorded;
+                _rec.OnAudioPacketRecorded += Rec_OnAudioPacketRecorded;
             }
             else
             {
@@ -552,6 +553,30 @@ namespace TestApp
             IsRecording = true;
         }
 
+        private void Rec_OnAudioPacketRecorded(object sender, AudioDataRecordedEventArgs args)
+        {
+            Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
+            {
+                AudioPacketData data = args.AudioData;
+                if (data != null)
+                {
+                    foreach (var source in data.Sources)
+                    {
+                        ICheckableAudioRecordingSource audioSource = this.AudioRecordingSources.FirstOrDefault(x => x.ID == source.Id);
+                        if (audioSource != null)
+                        {
+                            audioSource.Gain = source.Gain;
+                            if (source.Gain > 1)
+                            {
+                                Debug.WriteLine("Source %s Clipped!", source);
+                            }
+                        }
+                    }
+                    MasterGain = data.Gain;
+                }
+            }));
+        }
+
         private void Rec_OnFrameRecorded(object sender, FrameRecordedEventArgs e)
         {
             Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
@@ -564,27 +589,6 @@ namespace TestApp
                         RecordingPreviewBitmap = new WriteableBitmap(bitmapData.Width, bitmapData.Height, 96, 96, PixelFormats.Bgra32, null);
                     }
                     RecordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, bitmapData.Width, bitmapData.Height), bitmapData.Data, bitmapData.Length, Math.Abs(bitmapData.Stride));
-                }
-                FrameAudioData audioData = e.AudioData;
-                if (audioData != null)
-                {
-                    foreach (var source in audioData.Sources)
-                    {
-                        ICheckableAudioRecordingSource audioSource = this.AudioRecordingSources.FirstOrDefault(x => x.ID == source.Id);
-                        if (audioSource != null)
-                        {
-                            audioSource.Gain = source.Gain;
-                            if (source.Gain > 1)
-                            {
-                                Debug.WriteLine("Source %s Clipped!", source);
-                            }
-                        }
-                    }
-                    MasterGain = audioData.Gain;
-                    if (audioData.Gain > 1)
-                    {
-                        Debug.WriteLine("Master clipped!");
-                    }
                 }
                 CurrentFrameNumber = e.FrameNumber;
                 _recordedFrameTimes.Add(e.Timestamp);
@@ -616,6 +620,7 @@ namespace TestApp
             }
             return sourcesToRecord.Cast<AudioSourceBase>().ToList();
         }
+
         private List<RecordingSourceBase> CreateSelectedRecordingSources()
         {
             var sourcesToRecord = RecordingSources.Where(x => x.IsSelected).ToList();
@@ -714,6 +719,34 @@ namespace TestApp
             }
         }
 
+        private void ResetState()
+        {
+            PauseButton.Visibility = Visibility.Collapsed;
+            ManualSnapshotButton.Visibility = Visibility.Collapsed;
+            RecordButton.Content = "Record";
+            RecordButton.IsEnabled = true;
+            _recordingStartTime = null;
+            _recordingPauseTime = null;
+            IsRecording = false;
+            foreach (var source in AudioRecordingSources)
+            {
+                source.Gain = 0;
+            }
+            MasterGain = 0;
+        }
+
+        private void CleanupResources()
+        {
+            _outputStream?.Flush();
+            _outputStream?.Dispose();
+            _outputStream = null;
+
+            _progressTimer?.Stop();
+
+            _rec?.Dispose();
+            _rec = null;
+        }
+
         private void Rec_OnRecordingFailed(object sender, RecordingFailedEventArgs e)
         {
             Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, (Action)(() =>
@@ -724,19 +757,12 @@ namespace TestApp
                     filePath = ((FileStream)_outputStream)?.Name;
                 }
                 OutputResultTextBlock.Text = filePath;
-                PauseButton.Visibility = Visibility.Collapsed;
-                ManualSnapshotButton.Visibility = Visibility.Collapsed;
-                RecordButton.Content = "Record";
-                RecordButton.IsEnabled = true;
                 StatusTextBlock.Text = "Error:";
-                _recordingStartTime = null;
-                _recordingPauseTime = null;
                 ErrorTextBlock.Visibility = Visibility.Visible;
                 ErrorTextBlock.Text = e.Error;
-                IsRecording = false;
+                ResetState();
                 CleanupResources();
-                RefreshAudioSourceComboBoxes();
-                MasterGain = 0;
+
             }));
         }
         private void Rec_OnRecordingComplete(object sender, RecordingCompleteEventArgs e)
@@ -748,22 +774,10 @@ namespace TestApp
                 {
                     filePath = ((FileStream)_outputStream)?.Name;
                 }
-
                 OutputResultTextBlock.Text = filePath;
-                PauseButton.Visibility = Visibility.Collapsed;
-                ManualSnapshotButton.Visibility = Visibility.Collapsed;
-                RecordButton.Content = "Record";
-                RecordButton.IsEnabled = true;
-                _recordingStartTime = null;
-                _recordingPauseTime = null;
                 this.StatusTextBlock.Text = "Completed";
-                IsRecording = false;
+                ResetState();
                 CleanupResources();
-                foreach (var source in AudioRecordingSources)
-                {
-                    source.Gain = 0;
-                }
-                MasterGain = 0;
             }));
         }
         private void Rec_OnSnapshotSaved(object sender, SnapshotSavedEventArgs e)
@@ -773,17 +787,6 @@ namespace TestApp
                 string filepath = e.SnapshotPath;
                 OutputResultTextBlock.Text = filepath;
             }));
-        }
-        private void CleanupResources()
-        {
-            _outputStream?.Flush();
-            _outputStream?.Dispose();
-            _outputStream = null;
-
-            _progressTimer?.Stop();
-
-            _rec?.Dispose();
-            _rec = null;
         }
 
         private void Rec_OnStatusChanged(object sender, RecordingStatusEventArgs e)
