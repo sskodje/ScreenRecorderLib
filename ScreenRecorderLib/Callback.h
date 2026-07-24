@@ -42,23 +42,45 @@ namespace ScreenRecorderLib {
 	public:
 		property String^ Id;
 		property double Gain;
+		property cli::array<byte>^ Data;
 		AudioPacketSource() {}
-		AudioPacketSource(String^ id, double gain) :AudioPacketSource() {
+		AudioPacketSource(String^ id, double gain, std::optional<std::vector<byte>> audioData) :AudioPacketSource() {
 			Id = id;
 			Gain = gain;
+			if (audioData.has_value()) {
+				auto vector = audioData.value();
+				cli::array<byte>^ managedArray = gcnew cli::array<Byte>(static_cast<int>(vector.size()));
+				if (!vector.empty()) {
+					// Pin the managed array so the GC can't move/collect it mid-copy
+					pin_ptr<Byte> pinned = &managedArray[0];
+					memcpy(pinned, vector.data(), vector.size());
+				}
+				Data = managedArray;
+			}
 		}
 	};
 
 	public ref class AudioPacketData {
 	public:
 		property double Gain;
+		property cli::array<byte>^ Data;
 		property List<AudioPacketSource^>^ Sources;
 		AudioPacketData() {
 			Gain = 0;
 			Sources = gcnew List< AudioPacketSource^>();
 		}
-		AudioPacketData(double gain) :AudioPacketData() {
+		AudioPacketData(double gain, std::optional<std::vector<byte>> audioData) :AudioPacketData() {
 			Gain = gain;
+			if (audioData.has_value()) {
+				auto vector = audioData.value();
+				cli::array<byte>^ managedArray = gcnew cli::array<Byte>(static_cast<int>(vector.size()));
+				if (!vector.empty()) {
+					// Pin the managed array so the GC can't move/collect it mid-copy
+					pin_ptr<Byte> pinned = &managedArray[0];
+					memcpy(pinned, vector.data(), vector.size());
+				}			
+				Data = managedArray;
+			}
 		}
 	};
 
@@ -131,9 +153,6 @@ namespace ScreenRecorderLib {
 		AudioDataRecordedEventArgs(AudioPacketData^ audioData)
 		{
 			this->AudioData = audioData;
-		}
-		AudioDataRecordedEventArgs(double gain) {
-			this->AudioData = gcnew AudioPacketData(gain);
 		}
 	};
 }

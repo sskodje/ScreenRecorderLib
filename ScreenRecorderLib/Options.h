@@ -433,10 +433,12 @@ namespace ScreenRecorderLib {
 	private:
 		Nullable<float> _masterVolume;
 		List<AudioSourceBase^>^ _audioSources;
+		Nullable<bool> _isAudioPacketPreviewEnabled;
 	public:
 		DynamicAudioOptions() {
 			MasterVolume = 1.0f;
 			AudioSources = gcnew List<AudioSourceBase^>();
+			IsAudioPacketPreviewEnabled = false;
 		}
 		virtual event PropertyChangedEventHandler^ PropertyChanged;
 		void OnPropertyChanged(String^ info)
@@ -467,7 +469,20 @@ namespace ScreenRecorderLib {
 				OnPropertyChanged("MasterVolume");
 			}
 		}
-
+		/// <summary>
+		/// Enables captured audio packets to be included through the OnAudioPacketRecorded event.
+		/// </summary>
+		property Nullable<bool> IsAudioPacketPreviewEnabled {
+			Nullable<bool> get() {
+				return _isAudioPacketPreviewEnabled;
+			}
+			void set(Nullable<bool> value) {
+				if (!Object::Equals(_isAudioPacketPreviewEnabled, value)) {
+					_isAudioPacketPreviewEnabled = value;
+					OnPropertyChanged("IsAudioPacketPreviewEnabled");
+				}
+			}
+		}
 	};
 
 	public ref class AudioOptions :DynamicAudioOptions {

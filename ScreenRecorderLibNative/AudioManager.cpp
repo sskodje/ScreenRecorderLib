@@ -320,21 +320,28 @@ FRAME_AUDIO_DATA *AudioManager::MixAudioSamples(_In_ std::map<WASAPICapture *, s
 
 	std::vector<float> mixed(maxSamples, 0.0f);
 	std::vector<float> streamPeak(streamCount, 0.0f);
+	std::map<std::wstring, std::vector<BYTE>> sourceDataMap{};
 
 	for (size_t s = 0; s < streamCount; ++s) {
 		const short *samples = streams[s].samples;
 		const size_t count = streams[s].sampleCount;
 		const float volume = streams[s].volume;
+		short *sourceSamples = nullptr;
+		if (GetAudioOptions()->IsAudioDataPreviewEnabled()) {
+			sourceDataMap.emplace(streams[s].id, std::vector<BYTE>(maxSize, 0));
+			sourceSamples = reinterpret_cast<short *>(sourceDataMap[streams[s].id].data());
+		}
 		float peak = 0.0f;
-
 		for (size_t i = 0; i < count; ++i) {
 			short raw = samples[i];
-			float sample = (raw > SILENCE_THRESHOLD || raw < -SILENCE_THRESHOLD) ? raw * volume : 0.0f;		
+			float sample = (raw > SILENCE_THRESHOLD || raw < -SILENCE_THRESHOLD) ? raw * volume : 0.0f;
 			float sampleVolume = std::abs(sample) / 32767.0f;
 			if (sampleVolume > peak) {
 				peak = sampleVolume;
 			}
-
+			if (GetAudioOptions()->IsAudioDataPreviewEnabled()) {
+				sourceSamples[i] += ClampSample(sample);
+			}
 			mixed[i] += sample;
 		}
 		streamPeak[s] = peak;
@@ -353,24 +360,36 @@ FRAME_AUDIO_DATA *AudioManager::MixAudioSamples(_In_ std::map<WASAPICapture *, s
 			maxMasterGain = sampleVolume;
 		}
 
-		long output = std::lround(sample);
-		if (output > SHORT_MAX) {
-			output = SHORT_MAX - (output - SHORT_MAX) / 2;
-		}
-		else if (output < SHORT_MIN) {
-			output = SHORT_MIN - (output - SHORT_MIN) / 2;
-		}
-		outputSamples[i] = static_cast<short>(output);
+		outputSamples[i] = ClampSample(sample);
 	}
 
 	FRAME_AUDIO_INFO *info = new FRAME_AUDIO_INFO();
 	info->Gain = maxMasterGain;
 	info->Sources.reserve(streamCount);
+	if (GetAudioOptions()->IsAudioDataPreviewEnabled()) {
+		info->Data = output;
+	}
 	for (size_t s = 0; s < streamCount; ++s) {
-		info->Sources.push_back(FRAME_AUDIO_SOURCE(streams[s].id, streamPeak[s]));
+		auto source = FRAME_AUDIO_SOURCE(streams[s].id, streamPeak[s]);
+		if (GetAudioOptions()->IsAudioDataPreviewEnabled()) {
+			source.Data = sourceDataMap.at(streams[s].id);
+		}
+		info->Sources.push_back(source);
 	}
 	FRAME_AUDIO_DATA *data = new FRAME_AUDIO_DATA(output, info, 0);
 	return data;
+}
+
+short AudioManager::ClampSample(float sample)
+{
+	long output = std::lround(sample);
+	if (output > SHORT_MAX) {
+		output = SHORT_MAX - (output - SHORT_MAX) / 2;
+	}
+	else if (output < SHORT_MIN) {
+		output = SHORT_MIN - (output - SHORT_MIN) / 2;
+	}
+	return static_cast<short>(output);
 }
 
 std::vector<BYTE> AudioManager::DownmixToMono(

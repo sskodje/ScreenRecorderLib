@@ -693,7 +693,7 @@ HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pT
 
 	RETURN_ON_BAD_HR(hr = m_EncoderResult = m_OutputManager->RenderFrame(model));
 	if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
-		SendNewFrameCallback(m_TimelineManager->GetRenderedVideoFrameCount(), model.Frame, pAudioData->Info.get());
+		SendNewFrameCallback(m_TimelineManager->GetRenderedVideoFrameCount(), model.Frame);
 	}
 	return hr;
 }
@@ -796,7 +796,7 @@ bool RecordingManager::PadAudio(_Inout_ std::vector<BYTE> &audioData, _In_ INT64
 	return paddedAudio;
 }
 
-HRESULT RecordingManager::SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture, _In_opt_ FRAME_AUDIO_INFO *audioData) {
+HRESULT RecordingManager::SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture) {
 	HRESULT hr = S_FALSE;
 	try {
 		if (RecordingFrameNumberChangedCallback != nullptr) {
@@ -852,11 +852,11 @@ HRESULT RecordingManager::SendNewFrameCallback(_In_ const int frameNumber, _In_ 
 				pFramePreviewData->Width = width;
 				pFramePreviewData->Height = height;
 				pFramePreviewData->Length = len;
-				RecordingFrameNumberChangedCallback(frameNumber, timestamp, pFramePreviewData.get(), audioData);
+				RecordingFrameNumberChangedCallback(frameNumber, timestamp, pFramePreviewData.get());
 				m_DxResources.Context->Unmap(m_FrameDataCallbackTexture, 0);
 			}
 			else {
-				RecordingFrameNumberChangedCallback(frameNumber, timestamp, nullptr, audioData);
+				RecordingFrameNumberChangedCallback(frameNumber, timestamp, nullptr);
 			}
 		}
 	}

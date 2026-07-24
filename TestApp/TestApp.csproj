@@ -131,6 +131,7 @@
     </Compile>
     <Compile Include="IsDefaultDeviceToFontWeightConverter.cs" />
     <Compile Include="RecordingSourceTemplateSelector.cs" />
+    <Compile Include="WavFileWriter.cs" />
     <Page Include="GainLed.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>

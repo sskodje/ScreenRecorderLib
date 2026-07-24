@@ -39,6 +39,7 @@ struct FRAME_BITMAP_DATA {
 struct FRAME_AUDIO_SOURCE {
 	std::wstring Id;
 	double Volume;
+	std::vector<BYTE> Data;
 	FRAME_AUDIO_SOURCE() :
 		Id(L""),
 		Volume(0) {
@@ -47,9 +48,13 @@ struct FRAME_AUDIO_SOURCE {
 		Id = id;
 		Volume = volume;
 	}
+	FRAME_AUDIO_SOURCE(std::wstring id, double volume, const std::vector<BYTE> &data) :FRAME_AUDIO_SOURCE(id, volume) {
+		Data = data;
+	}
 };
 struct FRAME_AUDIO_INFO {
 	double Gain;
+	std::vector<BYTE> Data;
 	std::vector<FRAME_AUDIO_SOURCE> Sources;
 	FRAME_AUDIO_INFO() :
 		Sources{},
@@ -555,6 +560,7 @@ protected:
 	UINT32 m_AudioChannels = 2;					//Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
 	float m_MasterVolumeModifier = 1;
 	UINT32 m_InputMasterChannel = 0;
+	bool m_IsAudioDataPreviewEnabled = false;
 
 	void Notify(HANDLE h) {
 		SetEvent(h);
@@ -582,6 +588,7 @@ public:
 	void SetAudioEnabled(bool value) { m_IsAudioEnabled = value; Notify(OnPropertyChangedEvent); }
 	void SetInputDeviceDownmixingEnabled(bool value) { m_IsInputDeviceDownmixingEnabled = value; Notify(OnPropertyChangedEvent); }
 	void SetInputDeviceMasterChannel(int value) { m_InputMasterChannel = value; Notify(OnPropertyChangedEvent); }
+	void SetAudioDataPreviewEnabled(bool value) { m_IsAudioDataPreviewEnabled = value; }
 	void SetAudioSources(std::vector<AUDIO_SOURCE> &sources, std::optional<bool> notify = true) {
 
 		bool itemsChanged = false;
@@ -618,6 +625,7 @@ public:
 	UINT32 GetAudioBitsPerSample() const { return AUDIO_BITS_PER_SAMPLE; }
 	UINT32 GetAudioSamplesPerSecond() const { return AUDIO_SAMPLES_PER_SECOND; }
 	UINT32 GetInputMasterChannel() const { return m_InputMasterChannel; }
+	bool IsAudioDataPreviewEnabled() const { return m_IsAudioDataPreviewEnabled; }
 	std::vector<AUDIO_SOURCE *> &GetAudioSources() { return m_AudioSources; }
 };
 

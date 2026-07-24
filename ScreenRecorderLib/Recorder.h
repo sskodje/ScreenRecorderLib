@@ -15,6 +15,7 @@ using namespace System;
 using namespace System::Runtime::InteropServices;
 using namespace System::Collections::Generic;
 using namespace System::ComponentModel;
+using namespace System::Threading;
 
 delegate void InternalStatusCallbackDelegate(int status);
 delegate void InternalCompletionCallbackDelegate(std::wstring path, nlohmann::fifo_map<std::wstring, int>);
@@ -84,6 +85,9 @@ namespace ScreenRecorderLib {
 		GCHandle _frameNumberDelegateGcHandler;
 		GCHandle _audioDataDelegateGcHandler;
 
+		ReaderWriterLock^ m_lock = gcnew ReaderWriterLock();
+		int _audioDataEventSubscriberCount = 0;
+		EventHandler<AudioDataRecordedEventArgs^>^ _audioDataDelegate;
 	internal:
 		void SetDynamicOptions(DynamicOptions^ options);
 
@@ -138,9 +142,56 @@ namespace ScreenRecorderLib {
 		event EventHandler<RecordingStatusEventArgs^>^ OnStatusChanged;
 		event EventHandler<SnapshotSavedEventArgs^>^ OnSnapshotSaved;
 		event EventHandler<FrameRecordedEventArgs^>^ OnFrameRecorded;
-		event EventHandler<AudioDataRecordedEventArgs^>^ OnAudioPacketRecorded;
-	};
+		event EventHandler<AudioDataRecordedEventArgs^>^ OnAudioPacketRecorded
+		{
+			void add(EventHandler<AudioDataRecordedEventArgs^>^ handler)
+			{
+				m_lock->AcquireWriterLock(Timeout::Infinite);
+				try {
+					int prevCount = _audioDataEventSubscriberCount;
+					_audioDataDelegate += handler;
+					_audioDataEventSubscriberCount++;
 
+					if (prevCount == 0 && _audioDataEventSubscriberCount > 0) {
+						CreateAudioDataCallback();
+					}
+				}
+				finally {
+					m_lock->ReleaseWriterLock();
+				}
+			}
+			void remove(EventHandler<AudioDataRecordedEventArgs^>^ handler)
+			{
+				m_lock->AcquireWriterLock(Timeout::Infinite);
+				try {
+					_audioDataDelegate -= handler;
+					_audioDataEventSubscriberCount--;
+
+					if (_audioDataEventSubscriberCount == 0) {
+						if (_audioDataDelegateGcHandler.IsAllocated)
+							_audioDataDelegateGcHandler.Free();
+						m_Rec->RecordingNewAudioCallback = nullptr;
+					}
+				}
+				finally {
+					m_lock->ReleaseWriterLock();
+				}
+			}
+			void raise(Object^ sender, AudioDataRecordedEventArgs^ args) {
+				EventHandler<AudioDataRecordedEventArgs^>^ handlerCopy;
+				m_lock->AcquireReaderLock(Timeout::Infinite);
+				try {
+					handlerCopy = _audioDataDelegate;
+				}
+				finally {
+					m_lock->ReleaseReaderLock();
+				}
+				if (handlerCopy != nullptr) {
+					handlerCopy->Invoke(sender, args);
+				}
+			}
+		};
+	};
 	public ref class DynamicOptionsBuilder {
 	public:
 		DynamicOptionsBuilder^ SetDynamicAudioOptions(DynamicAudioOptions^ options) {

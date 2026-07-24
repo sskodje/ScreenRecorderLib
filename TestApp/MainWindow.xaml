@@ -1027,294 +1027,292 @@
                     <Grid x:Name="AudioPanel"
                           d:Visibility="Visible"
                           Visibility="{Binding ElementName=CheckBoxIsAudioEnabled, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
+                        <StackPanel Orientation="Vertical">
+                            <CheckBox IsChecked="{Binding ElementName=MainWin,Path=RecorderOptions.AudioOptions.IsAudioPacketPreviewEnabled}"
+                                      x:Name="CheckBoxEnableAudioDataPreview"
+                                      Content="Enable audio data preview"
+                                      Margin="0,10"/>
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Center">
+                                <ComboBox x:Name="AudioSourceComboBox"
+                                          Margin="5"
+                                          Width="350"
+                                          IsEditable="True"
+                                          IsReadOnly="True"
+                                          SelectedItem="{Binding ElementName=MainWin,Path=SelectedAudioRecordingSource}"
+                                          ItemsSource="{Binding Source={StaticResource AudioRecordingSourcesViewSource}}"
+                                          SelectionChanged="AudioSourceComboBox_SelectionChanged"
+                                          ItemTemplateSelector="{StaticResource AudioRecordingSourceTemplateSelector}">
+                                    <ComboBox.Resources>
+                                        <DataTemplate x:Key="LoopbackAudioSourceTemplate">
+                                            <StackPanel Orientation="Horizontal">
 
+                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                          Checked="AudioCaptureSourceCheckBox_CheckedChanged"
+                                                          Unchecked="AudioCaptureSourceCheckBox_CheckedChanged"
+                                                          IsEnabled="{Binding IsCheckable}"
+                                                          Width="20" />
+                                                <TextBlock FontFamily="Arial"
+                                                           FontWeight="{Binding IsDefaultDevice,Converter={StaticResource IsDefaultDeviceToFontWeightConverter}}">
+                                                    <TextBlock.Text>
+                                                        <MultiBinding StringFormat="{}[Loopback]  {0}]">
+                                                            <Binding />
+                                                        </MultiBinding>
+                                                    </TextBlock.Text>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                        <DataTemplate x:Key="CaptureAudioSourceTemplate">
+                                            <StackPanel Orientation="Horizontal">
+                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                          Checked="AudioCaptureSourceCheckBox_CheckedChanged"
+                                                          Unchecked="AudioCaptureSourceCheckBox_CheckedChanged"
+                                                          IsEnabled="{Binding IsCheckable}"
+                                                          Width="20" />
 
-                        <StackPanel Orientation="Horizontal"
-                                    HorizontalAlignment="Center">
-                            <ComboBox x:Name="AudioSourceComboBox"
-                                      Margin="5"
-                                      Width="350"
-                                      IsEditable="True"
-                                      IsReadOnly="True"
-                                      SelectedItem="{Binding ElementName=MainWin,Path=SelectedAudioRecordingSource}"
-                                      ItemsSource="{Binding Source={StaticResource AudioRecordingSourcesViewSource}}"
-                                      SelectionChanged="AudioSourceComboBox_SelectionChanged"
-                                      ItemTemplateSelector="{StaticResource AudioRecordingSourceTemplateSelector}">
-                                <ComboBox.Resources>
+                                                <TextBlock FontFamily="Arial"
+                                                           FontWeight="{Binding IsDefaultDevice,Converter={StaticResource IsDefaultDeviceToFontWeightConverter}}">
+                                                    <TextBlock.Text>
+                                                        <MultiBinding StringFormat="{}[Capture]  {0}]">
+                                                            <Binding />
+                                                        </MultiBinding>
+                                                    </TextBlock.Text>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                        <DataTemplate x:Key="ProcessAudioSourceTemplate">
+                                            <StackPanel Orientation="Horizontal">
+                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                          Checked="AudioCaptureSourceCheckBox_CheckedChanged"
+                                                          Unchecked="AudioCaptureSourceCheckBox_CheckedChanged"
+                                                          IsEnabled="{Binding IsCheckable}"
+                                                          Width="20" />
+
+                                                <TextBlock FontFamily="Arial">
+                                                    <TextBlock.Text>
+                                                        <MultiBinding StringFormat="{}[Process]  {0}]">
+                                                            <Binding />
+                                                        </MultiBinding>
+                                                    </TextBlock.Text>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </DataTemplate>
+
+                                    </ComboBox.Resources>
+                                </ComboBox>
+                                <Button HorizontalAlignment="Left"
+                                        Margin="5,5"
+                                        MinWidth="90"
+                                        Grid.Column="1"
+                                        Content="Refresh targets"
+                                        Click="RefreshAudioSourcesButton_Click" />
+                            </StackPanel>
+
+                            <ListBox ItemsSource="{Binding Source={StaticResource SelectedAudioRecordingSourcesViewSource}}"
+                                     MaxHeight="140"
+                                     MinHeight="2"
+                                     Grid.Row="2"
+                                     x:Name="AudioRecordingSourceListBox"
+                                     HorizontalContentAlignment="Stretch"
+                                     ItemTemplateSelector="{StaticResource AudioRecordingSourceTemplateSelector}"
+                                     d:ItemsSource="{d:SampleData ItemCount=5}">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="{x:Type ListBoxItem}">
+                                        <Setter Property="Focusable"
+                                                Value="False" />
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.Resources>
                                     <DataTemplate x:Key="LoopbackAudioSourceTemplate">
                                         <StackPanel Orientation="Horizontal">
 
-                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                      Checked="AudioCaptureSourceCheckBox_CheckedChanged"
-                                                      Unchecked="AudioCaptureSourceCheckBox_CheckedChanged"
-                                                      IsEnabled="{Binding IsCheckable}"
-                                                      Width="20" />
-                                            <TextBlock FontFamily="Arial"
-                                                       FontWeight="{Binding IsDefaultDevice,Converter={StaticResource IsDefaultDeviceToFontWeightConverter}}">
-                                                <TextBlock.Text>
-                                                    <MultiBinding StringFormat="{}[Loopback]  {0}]">
-                                                        <Binding />
-                                                    </MultiBinding>
-                                                </TextBlock.Text>
-                                            </TextBlock>
+                                            <TextBlock Text="{Binding}"
+                                                       Width="200"
+                                                       FontWeight="{Binding IsDefaultDevice,Converter={StaticResource IsDefaultDeviceToFontWeightConverter}}"
+                                                       ToolTip="{Binding}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <CheckBox Content="Enabled"
+                                                      Margin="10,0,5,0"
+                                                      IsChecked="{Binding IsAudioCaptureEnabled,Mode=TwoWay}"
+                                                      VerticalAlignment="Center" />
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <Slider Name="OutputVolumeSlider"
+                                                        Orientation="Horizontal"
+                                                        Grid.Column="0"
+                                                        Foreground="Blue"
+                                                        Margin="0,5,5,5"
+                                                        Maximum="2.0"
+                                                        Width="100"
+                                                        IsSnapToTickEnabled="True"
+                                                        AutoToolTipPlacement="BottomRight"
+                                                        AutoToolTipPrecision="2"
+                                                        SmallChange="0.1"
+                                                        LargeChange="0.5"
+                                                        TickPlacement="BottomRight"
+                                                        Value="{Binding Volume,Mode=TwoWay}"
+                                                        TickFrequency="0.1" />
+                                                <Label Content="{Binding Volume, Mode=OneWay}"
+                                                       d:Content="100%"
+                                                       MinWidth="40"
+                                                       ContentStringFormat="{}{0:P0}"
+                                                       Grid.Column="1" />
+                                            </Grid>
+                                            <local:GainLed Gain="{Binding Gain}"
+                                                           YellowThreshold="0.6"
+                                                           Width="20"
+                                                           Height="20" />
                                         </StackPanel>
                                     </DataTemplate>
                                     <DataTemplate x:Key="CaptureAudioSourceTemplate">
                                         <StackPanel Orientation="Horizontal">
-                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                      Checked="AudioCaptureSourceCheckBox_CheckedChanged"
-                                                      Unchecked="AudioCaptureSourceCheckBox_CheckedChanged"
-                                                      IsEnabled="{Binding IsCheckable}"
-                                                      Width="20" />
+                                            <TextBlock Text="{Binding}"
+                                                       Width="200"
+                                                       ToolTip="{Binding}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <CheckBox Content="Enabled"
+                                                      IsChecked="{Binding IsAudioCaptureEnabled,Mode=TwoWay}"
+                                                      Margin="10,0,5,0"
+                                                      VerticalAlignment="Center" />
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
 
-                                            <TextBlock FontFamily="Arial"
-                                                       FontWeight="{Binding IsDefaultDevice,Converter={StaticResource IsDefaultDeviceToFontWeightConverter}}">
-                                                <TextBlock.Text>
-                                                    <MultiBinding StringFormat="{}[Capture]  {0}]">
-                                                        <Binding />
-                                                    </MultiBinding>
-                                                </TextBlock.Text>
-                                            </TextBlock>
+                                                <Slider Name="OutputVolumeSlider"
+                                                        Orientation="Horizontal"
+                                                        Grid.Column="0"
+                                                        Foreground="Blue"
+                                                        Margin="0,5,5,5"
+                                                        Maximum="2"
+                                                        Width="100"
+                                                        IsSnapToTickEnabled="True"
+                                                        SmallChange="0.1"
+                                                        LargeChange="0.5"
+                                                        TickPlacement="BottomRight"
+                                                        Value="{Binding Volume,Mode=TwoWay}"
+                                                        TickFrequency="0.1" />
+                                                <Label Content="{Binding Volume, Mode=OneWay}"
+                                                       d:Content="100%"
+                                                       MinWidth="40"
+                                                       ContentStringFormat="{}{0:P0}"
+                                                       Grid.Column="1" />
+                                            </Grid>
+                                            <local:GainLed Gain="{Binding Gain}"
+                                                           YellowThreshold="0.6"
+                                                           Width="20"
+                                                           Height="20" />
+                                            <CheckBox Content="Force mono"
+                                                      x:Name="CheckBoxDownmixInput"
+                                                      IsChecked="{Binding ForceMono,Mode=TwoWay}"
+                                                      ToolTip="Pick one of the channels of the input device, and copy it to all audio channels on the video."
+                                                      Margin="5,0,5,0"
+                                                      VerticalAlignment="Center" />
+                                            <StackPanel VerticalAlignment="Center"
+                                                        Orientation="Horizontal"
+                                                        Visibility="{Binding ElementName=CheckBoxDownmixInput, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <Label Content="Channel"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,3,0"
+                                                       Padding="0" />
+                                                <TextBox x:Name="MonoChannelTextBox"
+                                                         MinWidth="20"
+                                                         Text="{Binding InputDeviceMasterChannel,Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         HorizontalAlignment="Left"
+                                                         VerticalAlignment="Center" />
+                                            </StackPanel>
                                         </StackPanel>
                                     </DataTemplate>
                                     <DataTemplate x:Key="ProcessAudioSourceTemplate">
                                         <StackPanel Orientation="Horizontal">
-                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                      Checked="AudioCaptureSourceCheckBox_CheckedChanged"
-                                                      Unchecked="AudioCaptureSourceCheckBox_CheckedChanged"
-                                                      IsEnabled="{Binding IsCheckable}"
-                                                      Width="20" />
+                                            <TextBlock Text="{Binding}"
+                                                       Width="200"
+                                                       ToolTip="{Binding}"
+                                                       VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <CheckBox Content="Enabled"
+                                                      Margin="10,0,5,0"
+                                                      IsChecked="{Binding IsAudioCaptureEnabled,Mode=TwoWay}"
+                                                      VerticalAlignment="Center" />
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
 
-                                            <TextBlock FontFamily="Arial">
-                                                <TextBlock.Text>
-                                                    <MultiBinding StringFormat="{}[Process]  {0}]">
-                                                        <Binding />
-                                                    </MultiBinding>
-                                                </TextBlock.Text>
-                                            </TextBlock>
+                                                <Slider Name="OutputVolumeSlider"
+                                                        Orientation="Horizontal"
+                                                        Grid.Column="0"
+                                                        Foreground="Blue"
+                                                        Margin="0,5,5,5"
+                                                        Maximum="2"
+                                                        Width="100"
+                                                        IsSnapToTickEnabled="True"
+                                                        SmallChange="0.1"
+                                                        LargeChange="0.5"
+                                                        TickPlacement="BottomRight"
+                                                        Value="{Binding Volume,Mode=TwoWay}"
+                                                        TickFrequency="0.1" />
+                                                <Label Content="{Binding Volume, Mode=OneWay}"
+                                                       d:Content="100%"
+                                                       MinWidth="40"
+                                                       ContentStringFormat="{}{0:P0}"
+                                                       Grid.Column="1" />
+                                            </Grid>
+                                            <local:GainLed Gain="{Binding Gain}"
+                                                           YellowThreshold="0.6"
+                                                           Width="20"
+                                                           Height="20" />
                                         </StackPanel>
                                     </DataTemplate>
-
-                                </ComboBox.Resources>
-                            </ComboBox>
-                            <Button HorizontalAlignment="Left"
-                                    Margin="5,5"
-                                    MinWidth="90"
-                                    Grid.Column="1"
-                                    Content="Refresh targets"
-                                    Click="RefreshAudioSourcesButton_Click" />
-                        </StackPanel>
-
-                        <ListBox ItemsSource="{Binding Source={StaticResource SelectedAudioRecordingSourcesViewSource}}"
-                                 MaxHeight="140"
-                                 MinHeight="2"
-                                 Grid.Row="2"
-                                 x:Name="AudioRecordingSourceListBox"
-                                 HorizontalContentAlignment="Stretch"
-                                 ItemTemplateSelector="{StaticResource AudioRecordingSourceTemplateSelector}"
-                                 d:ItemsSource="{d:SampleData ItemCount=5}">
-                            <ListBox.ItemContainerStyle>
-                                <Style TargetType="{x:Type ListBoxItem}">
-                                    <Setter Property="Focusable"
-                                            Value="False" />
-                                </Style>
-                            </ListBox.ItemContainerStyle>
-                            <ListBox.Resources>
-                                <DataTemplate x:Key="LoopbackAudioSourceTemplate">
-                                    <StackPanel Orientation="Horizontal">
-
-                                        <TextBlock Text="{Binding}"
-                                                   Width="200"
-                                                   FontWeight="{Binding IsDefaultDevice,Converter={StaticResource IsDefaultDeviceToFontWeightConverter}}"
-                                                   ToolTip="{Binding}"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis" />
-                                        <CheckBox Content="Enabled"
-                                                  Margin="10,0,5,0"
-                                                  IsChecked="{Binding IsAudioCaptureEnabled,Mode=TwoWay}"
-                                                  VerticalAlignment="Center" />
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <Slider Name="OutputVolumeSlider"
-                                                    Orientation="Horizontal"
-                                                    Grid.Column="0"
-                                                    Foreground="Blue"
-                                                    Margin="0,5,5,5"
-                                                    Maximum="2.0"
-                                                    Width="100"
-                                                    IsSnapToTickEnabled="True"
-                                                    AutoToolTipPlacement="BottomRight"
-                                                    AutoToolTipPrecision="2"
-                                                    SmallChange="0.1"
-                                                    LargeChange="0.5"
-                                                    TickPlacement="BottomRight"
-                                                    Value="{Binding Volume,Mode=TwoWay}"
-                                                    TickFrequency="0.1" />
-                                            <Label Content="{Binding Volume, Mode=OneWay}"
-                                                   d:Content="100%"
-                                                   MinWidth="40"
-                                                   ContentStringFormat="{}{0:P0}"
-                                                   Grid.Column="1" />
-                                        </Grid>
-                                        <local:GainLed Gain="{Binding Gain}"
-                                                       YellowThreshold="0.6"
-                                                       Width="20"
-                                                       Height="20" />
-                                    </StackPanel>
-                                </DataTemplate>
-                                <DataTemplate x:Key="CaptureAudioSourceTemplate">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding}"
-                                                   Width="200"
-                                                   ToolTip="{Binding}"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis" />
-                                        <CheckBox Content="Enabled"
-                                                  IsChecked="{Binding IsAudioCaptureEnabled,Mode=TwoWay}"
-                                                  Margin="10,0,5,0"
-                                                  VerticalAlignment="Center" />
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <Slider Name="OutputVolumeSlider"
-                                                    Orientation="Horizontal"
-                                                    Grid.Column="0"
-                                                    Foreground="Blue"
-                                                    Margin="0,5,5,5"
-                                                    Maximum="2"
-                                                    Width="100"
-                                                    IsSnapToTickEnabled="True"
-                                                    SmallChange="0.1"
-                                                    LargeChange="0.5"
-                                                    TickPlacement="BottomRight"
-                                                    Value="{Binding Volume,Mode=TwoWay}"
-                                                    TickFrequency="0.1" />
-                                            <Label Content="{Binding Volume, Mode=OneWay}"
-                                                   d:Content="100%"
-                                                   MinWidth="40"
-                                                   ContentStringFormat="{}{0:P0}"
-                                                   Grid.Column="1" />
-                                        </Grid>
-                                        <local:GainLed Gain="{Binding Gain}"
-                                                       YellowThreshold="0.6"
-                                                       Width="20"
-                                                       Height="20" />
-                                        <CheckBox Content="Force mono"
-                                                  x:Name="CheckBoxDownmixInput"
-                                                  IsChecked="{Binding ForceMono,Mode=TwoWay}"
-                                                  ToolTip="Pick one of the channels of the input device, and copy it to all audio channels on the video."
-                                                  Margin="5,0,5,0"
-                                                  VerticalAlignment="Center" />
-                                        <StackPanel VerticalAlignment="Center"
-                                                    Orientation="Horizontal"
-                                                    Visibility="{Binding ElementName=CheckBoxDownmixInput, Path=IsChecked, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <Label Content="Channel"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,3,0"
-                                                   Padding="0" />
-                                            <TextBox x:Name="MonoChannelTextBox"
-                                                     MinWidth="20"
-                                                     Text="{Binding InputDeviceMasterChannel,Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                     HorizontalAlignment="Left"
-                                                     VerticalAlignment="Center" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                </DataTemplate>
-                                <DataTemplate x:Key="ProcessAudioSourceTemplate">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding}"
-                                                   Width="200"
-                                                   ToolTip="{Binding}"
-                                                   VerticalAlignment="Center"
-                                                   TextTrimming="CharacterEllipsis" />
-                                        <CheckBox Content="Enabled"
-                                                  Margin="10,0,5,0"
-                                                  IsChecked="{Binding IsAudioCaptureEnabled,Mode=TwoWay}"
-                                                  VerticalAlignment="Center" />
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*" />
-                                                <ColumnDefinition Width="Auto" />
-                                            </Grid.ColumnDefinitions>
-
-                                            <Slider Name="OutputVolumeSlider"
-                                                    Orientation="Horizontal"
-                                                    Grid.Column="0"
-                                                    Foreground="Blue"
-                                                    Margin="0,5,5,5"
-                                                    Maximum="2"
-                                                    Width="100"
-                                                    IsSnapToTickEnabled="True"
-                                                    SmallChange="0.1"
-                                                    LargeChange="0.5"
-                                                    TickPlacement="BottomRight"
-                                                    Value="{Binding Volume,Mode=TwoWay}"
-                                                    TickFrequency="0.1" />
-                                            <Label Content="{Binding Volume, Mode=OneWay}"
-                                                   d:Content="100%"
-                                                   MinWidth="40"
-                                                   ContentStringFormat="{}{0:P0}"
-                                                   Grid.Column="1" />
-                                        </Grid>
-                                        <local:GainLed Gain="{Binding Gain}"
-                                                       YellowThreshold="0.6"
-                                                       Width="20"
-                                                       Height="20" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ListBox.Resources>
-                        </ListBox>
-                        <Grid  Grid.Row="3">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Label Content="Master gain" />
-                            <Grid Grid.Column="1">
+                                </ListBox.Resources>
+                            </ListBox>
+                            <Grid  Grid.Row="3">
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
+                                <Label Content="Master gain" />
+                                <Grid Grid.Column="1">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
 
-                                <Slider Name="OutputVolumeSlider"
-                                        Orientation="Horizontal"
-                                        Grid.Column="0"
-                                        Foreground="Blue"
-                                        Margin="0,5,5,5"
-                                        Maximum="2.0"
-                                        IsSnapToTickEnabled="True"
-                                        SmallChange="0.1"
-                                        LargeChange="0.5"
-                                        TickPlacement="BottomRight"
-                                        Value="{Binding ElementName=MainWin, Path=RecorderOptions.AudioOptions.MasterVolume,Mode=TwoWay}"
-                                        TickFrequency="0.1" />
-                                <Label Content="{Binding ElementName=MainWin, Path=RecorderOptions.AudioOptions.MasterVolume, Mode=OneWay}"
-                                       d:Content="100%"
-                                       MinWidth="40"
-                                       ContentStringFormat="{}{0:P0}"
-                                       Grid.Column="1" />
+                                    <Slider Name="OutputVolumeSlider"
+                                            Orientation="Horizontal"
+                                            Grid.Column="0"
+                                            Foreground="Blue"
+                                            Margin="0,5,5,5"
+                                            Maximum="2.0"
+                                            IsSnapToTickEnabled="True"
+                                            SmallChange="0.1"
+                                            LargeChange="0.5"
+                                            TickPlacement="BottomRight"
+                                            Value="{Binding ElementName=MainWin, Path=RecorderOptions.AudioOptions.MasterVolume,Mode=TwoWay}"
+                                            TickFrequency="0.1" />
+                                    <Label Content="{Binding ElementName=MainWin, Path=RecorderOptions.AudioOptions.MasterVolume, Mode=OneWay}"
+                                           d:Content="100%"
+                                           MinWidth="40"
+                                           ContentStringFormat="{}{0:P0}"
+                                           Grid.Column="1" />
+                                </Grid>
+                                <local:GainLed Gain="{Binding ElementName=MainWin,Path=MasterGain}"
+                                               YellowThreshold="0.6"
+                                               Width="20"
+                                               Height="20"
+                                               Margin="0,0,7,0"
+                                               Grid.Column="2" />
                             </Grid>
-                            <local:GainLed Gain="{Binding ElementName=MainWin,Path=MasterGain}"
-                                           YellowThreshold="0.6"
-                                           Width="20"
-                                           Height="20"
-                                           Margin="0,0,7,0"
-                                           Grid.Column="2" />
-                        </Grid>
+                        </StackPanel>
                     </Grid>
 
                     <CheckBox x:Name="CheckBoxEnableOverlays"

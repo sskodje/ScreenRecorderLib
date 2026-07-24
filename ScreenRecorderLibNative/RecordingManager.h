@@ -10,7 +10,7 @@ typedef void(__stdcall *CallbackCompleteFunction)(std::wstring, nlohmann::fifo_m
 typedef void(__stdcall *CallbackStatusChangedFunction)(int);
 typedef void(__stdcall *CallbackErrorFunction)(std::wstring, std::wstring);
 typedef void(__stdcall *CallbackSnapshotFunction)(std::wstring);
-typedef void(__stdcall *CallbackFrameNumberChangedFunction)(int, INT64, _In_opt_ FRAME_BITMAP_DATA *bitmapData, _In_opt_ FRAME_AUDIO_INFO *audioData);
+typedef void(__stdcall *CallbackFrameNumberChangedFunction)(int, INT64, _In_opt_ FRAME_BITMAP_DATA *bitmapData);
 typedef void(__stdcall *CallbackNewAudioDataFunction)(_In_ FRAME_AUDIO_INFO *audioData);
 
 constexpr auto STATUS_IDLE = 0;
@@ -167,7 +167,7 @@ private:
 	HRESULT ConfigureOutputDir(_In_ std::wstring path, _Out_ std::wstring *error);
 	REC_RESULT StartRecorderLoop(_In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_opt_ IStream *pStream);
 
-	HRESULT SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture, _In_opt_ FRAME_AUDIO_INFO *audioData);
+	HRESULT SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture);
 	HRESULT TakeSnapshot(_In_opt_ std::wstring path, _In_opt_ IStream *pStream, _In_opt_ ID3D11Texture2D *pTexture = nullptr);
 	HRESULT BeginRecording(_In_opt_ std::wstring path, _In_opt_ IStream *pStream);
 	HRESULT PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pTextureToRender_In_, FRAME_AUDIO_DATA *pAudioData, _In_opt_ std::optional<PTR_INFO> pointerInfo);

@@ -114,6 +114,9 @@ void Recorder::SetOptions(RecorderOptions^ options) {
 			if (options->AudioOptions->MasterVolume.HasValue) {
 				audioOptions->SetMasterVolume(options->AudioOptions->MasterVolume.Value);
 			}
+			if (options->AudioOptions->IsAudioPacketPreviewEnabled.HasValue) {
+				audioOptions->SetAudioDataPreviewEnabled(options->AudioOptions->IsAudioPacketPreviewEnabled.Value);
+			}
 			audioOptions->SetAudioSources(CreateAudioSourceList(options->AudioOptions->AudioSources), false);
 			m_Rec->SetAudioOptions(audioOptions);
 		}
@@ -164,6 +167,9 @@ void Recorder::SetDynamicOptions(DynamicOptions^ options)
 	if (options->AudioOptions) {
 		if (options->AudioOptions->MasterVolume.HasValue) {
 			m_Rec->GetAudioOptions()->SetMasterVolume(options->AudioOptions->MasterVolume.Value);
+		}
+		if (options->AudioOptions->IsAudioPacketPreviewEnabled.HasValue) {
+			m_Rec->GetAudioOptions()->SetAudioDataPreviewEnabled(options->AudioOptions->IsAudioPacketPreviewEnabled.Value);
 		}
 		if (options->AudioOptions->AudioSources) {
 			for each (AudioSourceBase ^ managedSource in options->AudioOptions->AudioSources)
@@ -569,7 +575,6 @@ void Recorder::SetupCallbacks() {
 	CreateStatusCallback();
 	CreateSnapshotCallback();
 	CreateFrameNumberCallback();
-	CreateAudioDataCallback();
 }
 
 void Recorder::ReleaseCallbacks() {
@@ -1041,10 +1046,10 @@ void ScreenRecorderLib::Recorder::AudioDataChanged(FRAME_AUDIO_INFO* audioData)
 {
 	AudioPacketData^ managedAudioData = nullptr;
 	if (audioData != nullptr) {
-		managedAudioData = gcnew AudioPacketData(audioData->Gain);
+		managedAudioData = gcnew AudioPacketData(audioData->Gain, audioData->Data);
 		for each (FRAME_AUDIO_SOURCE source in audioData->Sources)
 		{
-			managedAudioData->Sources->Add(gcnew AudioPacketSource(gcnew String(source.Id.c_str()), source.Volume));
+			managedAudioData->Sources->Add(gcnew AudioPacketSource(gcnew String(source.Id.c_str()), source.Volume, source.Data));
 		}
 	}
 	OnAudioPacketRecorded(this, gcnew AudioDataRecordedEventArgs(managedAudioData));

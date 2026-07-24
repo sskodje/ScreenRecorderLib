@@ -34,7 +34,7 @@ namespace TestApp
         private DateTimeOffset? _recordingStartTime = null;
         private DateTimeOffset? _recordingPauseTime = null;
         private Stream _outputStream;
-
+        private StreamingWavWriter _wavWriter;
         public bool IsRecording { get; set; }
         public RecorderOptions RecorderOptions { get; } = RecorderOptions.Default;
         public ObservableCollection<ICheckableRecordingSource> RecordingSources { get; } = new ObservableCollection<ICheckableRecordingSource>();
@@ -550,6 +550,10 @@ namespace TestApp
             {
                 _rec.Record(videoPath);
             }
+            if (RecorderOptions.AudioOptions.IsAudioPacketPreviewEnabled.GetValueOrDefault(false))
+            {
+                _wavWriter = new StreamingWavWriter(Path.Combine(Path.GetDirectoryName(videoPath), "audio.wav"), 48000, 2, 16);
+            }
             IsRecording = true;
         }
 
@@ -557,10 +561,10 @@ namespace TestApp
         {
             Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
             {
-                AudioPacketData data = args.AudioData;
-                if (data != null)
+                AudioPacketData packet = args.AudioData;
+                if (packet != null)
                 {
-                    foreach (var source in data.Sources)
+                    foreach (var source in packet.Sources)
                     {
                         ICheckableAudioRecordingSource audioSource = this.AudioRecordingSources.FirstOrDefault(x => x.ID == source.Id);
                         if (audioSource != null)
@@ -570,9 +574,18 @@ namespace TestApp
                             {
                                 Debug.WriteLine("Source %s Clipped!", source);
                             }
+                            if (source.Data != null && source.Data.Length > 0)
+                            {
+
+                            }
                         }
                     }
-                    MasterGain = data.Gain;
+                    if (packet.Data != null && packet.Data.Length > 0)
+                    {
+                        _wavWriter?.WritePacket(packet.Data);
+                    }
+                    MasterGain = packet.Gain;
+
                 }
             }));
         }
@@ -737,6 +750,8 @@ namespace TestApp
 
         private void CleanupResources()
         {
+            _wavWriter?.Dispose();
+
             _outputStream?.Flush();
             _outputStream?.Dispose();
             _outputStream = null;
