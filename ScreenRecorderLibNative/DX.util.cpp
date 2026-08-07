@@ -12,6 +12,7 @@
 #include <dxgi1_6.h>
 
 using namespace DirectX;
+using namespace std;
 //
 // Get DX_RESOURCES
 //
@@ -261,8 +262,8 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 		auto source = validOutputs[i].first;
 		RECT &curRect = validOutputs[i].second;
 		RECT prevRect = i > 0 ? validOutputs[i - 1].second : RECT{ 0 };
-		int xPosOffset = max(0, (curRect.left - prevRect.right) - abs((source->Position.value_or(POINT{ 0 })).x));
-		int yPosOffset = max(0, curRect.top - prevRect.bottom - abs((source->Position.value_or(POINT{ 0 })).y));
+		int xPosOffset = max(0l, (curRect.left - prevRect.right) - abs((source->Position.value_or(POINT{ 0 })).x));
+		int yPosOffset = max(0l, curRect.top - prevRect.bottom - abs((source->Position.value_or(POINT{ 0 })).y));
 		if (curRect.left >= 0) {
 			OffsetRect(&curRect, -xPosOffset, -yPosOffset);
 		}
@@ -411,7 +412,7 @@ void GetCombinedRects(_In_ std::vector<RECT> inputs, _Out_ RECT *pOutRect, _Out_
 			pOffsets->push_back(SIZE{ xPosOffset,yPosOffset });
 		}
 	}
-	*pOutRect = MakeRectEven(RECT{ min(0,pOutRect->left),min(0,pOutRect->top),pOutRect->right,pOutRect->bottom }, 1);
+	*pOutRect = MakeRectEven(RECT{ min(0l,pOutRect->left),min(0l,pOutRect->top),pOutRect->right,pOutRect->bottom }, 1);
 }
 
 std::wstring GetMonitorName(HMONITOR monitor) {

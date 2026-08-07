@@ -1,6 +1,7 @@
 #include "CaptureBase.h"
 #include "cleanup.h"
 
+using namespace std;
 
 CaptureBase::CaptureBase() :
 	m_LastGrabTimeStamp{},
@@ -31,23 +32,23 @@ SIZE CaptureBase::GetContentOffset(_In_ ContentAnchor anchor, _In_ RECT parentRe
 			break;
 		}
 		case ContentAnchor::TopRight: {
-			leftMargin = (int)max(0, round(((double)RectWidth(parentRect) - (double)RectWidth(contentRect))));
+			leftMargin = (int)max(0.0, round(((double)RectWidth(parentRect) - (double)RectWidth(contentRect))));
 			topMargin = 0;
 			break;
 		}
 		case ContentAnchor::Center: {
-			leftMargin = (int)max(0, round(((double)RectWidth(parentRect) - (double)RectWidth(contentRect))) / 2);
-			topMargin = (int)max(0, round(((double)RectHeight(parentRect) - (double)RectHeight(contentRect))) / 2);
+			leftMargin = (int)max(0.0, round(((double)RectWidth(parentRect) - (double)RectWidth(contentRect))) / 2);
+			topMargin = (int)max(0.0, round(((double)RectHeight(parentRect) - (double)RectHeight(contentRect))) / 2);
 			break;
 		}
 		case ContentAnchor::BottomLeft: {
 			leftMargin = 0;
-			topMargin = (int)max(0, round(((double)RectHeight(parentRect) - (double)RectHeight(contentRect))));
+			topMargin = (int)max(0.0, round(((double)RectHeight(parentRect) - (double)RectHeight(contentRect))));
 			break;
 		}
 		case ContentAnchor::BottomRight: {
-			leftMargin = (int)max(0, round(((double)RectWidth(parentRect) - (double)RectWidth(contentRect))));
-			topMargin = (int)max(0, round(((double)RectHeight(parentRect) - (double)RectHeight(contentRect))));
+			leftMargin = (int)max(0.0, round(((double)RectWidth(parentRect) - (double)RectWidth(contentRect))));
+			topMargin = (int)max(0.0, round(((double)RectHeight(parentRect) - (double)RectHeight(contentRect))));
 			break;
 		}
 	}

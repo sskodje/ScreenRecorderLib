@@ -3,10 +3,10 @@
 
 //#define WINVER _WIN32_WINNT_WIN7
 
-#include <windows.h>
 #include <mfapi.h>
 #include <mfidl.h>
 #include <assert.h>
+#include "Util.h"
 
 /// sample data type. int or float
 /// it is compatible to WWBitFormatType on WasapiUser.h

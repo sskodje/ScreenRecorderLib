@@ -11,7 +11,7 @@ public:
 	HRESULT StopTimer(bool waitForCompletion);
 	HRESULT WaitForNextTick();
 	HRESULT WaitFor(INT64 interval100Nanos);
-	double GetMillisUntilNextTick();
+	INT64 GetMillisUntilNextTick();
 	inline INT64 GetTickCount() { return m_TickCount; }
 private:
 	bool m_IsActive;

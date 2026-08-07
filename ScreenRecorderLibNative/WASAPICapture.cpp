@@ -574,7 +574,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 					UINT64 expectedPosition = nLastDevicePosition + nNumFramesToRead;
 					if (nDevicePosition > expectedPosition)
 					{
-						INT64 frameDiff = max(0, static_cast<INT64>(nDevicePosition) - static_cast<INT64>(expectedPosition));
+						INT64 frameDiff = max(0ll, static_cast<INT64>(nDevicePosition) - static_cast<INT64>(expectedPosition));
 						recordedBytes.insert(recordedBytes.begin(), (size_t)(frameDiff * nBlockAlign), 0);
 						LOG_DEBUG(L"Discontinuity detected, padded audio bytes with %d bytes of silence on %ls", frameDiff, GetDeviceFriendlyName().c_str());
 					}

@@ -2,6 +2,7 @@
 #include "Log.h"
 
 using namespace std::chrono;
+using namespace std;
 HighresTimer::HighresTimer() :
 	m_TimerResolution(0),
 	m_TickEvent(nullptr),
@@ -127,11 +128,11 @@ HRESULT HighresTimer::WaitFor(INT64 interval100Nanos)
 	return S_OK;
 }
 
-double HighresTimer::GetMillisUntilNextTick()
+INT64 HighresTimer::GetMillisUntilNextTick()
 {
 	if (m_TickCount == 0)
 		return 0;
 	INT64 now{};
 	QueryPerformanceCounter((LARGE_INTEGER *)&now);
-	return max(0, (m_Interval - HundredNanosToMillisDouble(now - m_LastTick)));
+	return max(0ll, (m_Interval - HundredNanosToMillis(now - m_LastTick)));
 }

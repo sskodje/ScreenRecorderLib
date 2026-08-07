@@ -59,7 +59,7 @@ INT64 TimelineManager::GetTimeUntilNextShapshot100Nanos()
 	INT64 currentPresentationClockTime;
 	GetMediaTimeStamp(&currentPresentationClockTime);
 	INT64 durationSinceLastSnapshot100Nanos = currentPresentationClockTime - m_LastSnapshotTime;
-	INT64 timeRemaining100Nanos = max(0, m_SnapshotInterval100Nanos - durationSinceLastSnapshot100Nanos);
+	INT64 timeRemaining100Nanos = max(0ll, m_SnapshotInterval100Nanos - durationSinceLastSnapshot100Nanos);
 	return timeRemaining100Nanos;
 }
 
@@ -70,7 +70,7 @@ double TimelineManager::GetTimeUntilNextFrameMillis()
 
 INT64 TimelineManager::GetTimeUntilNextFrame100Nanos()
 {
-	INT64 timeRemaining100Nanos = max(0, m_TargetVideoFrameDuration100Nanos - GetTimeSinceLastFrame100Nanos());
+	INT64 timeRemaining100Nanos = max(0ll, m_TargetVideoFrameDuration100Nanos - GetTimeSinceLastFrame100Nanos());
 	return timeRemaining100Nanos;
 }
 

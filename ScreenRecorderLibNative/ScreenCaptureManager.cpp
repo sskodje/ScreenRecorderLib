@@ -268,7 +268,7 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  INT64 timeUntilNextFrame100
 		});
 	auto GetNextSyncTimeout([&]()
 		{
-			return static_cast<DWORD>(max(haveNewFrame ? 0 : 1, floor(GetMillisUntilNextFrame()) - 0.5));
+			return static_cast<DWORD>(max(haveNewFrame ? 0 : 1, static_cast<int>(floor(GetMillisUntilNextFrame()) - 0.5)));
 		});
 	auto ShouldDelay([&]()
 		{

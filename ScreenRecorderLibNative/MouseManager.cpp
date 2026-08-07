@@ -250,8 +250,8 @@ HRESULT MouseManager::ProcessMousePointer(_In_ ID3D11Texture2D *pFrame, _In_ PTR
 			hr = DrawMouseClick(pPtrInfo, pFrame, m_MouseOptions->GetMouseClickDetectionRMBColor(), (float)m_MouseOptions->GetMouseClickDetectionRadius(), DXGI_MODE_ROTATION_UNSPECIFIED);
 		}
 
-		UINT64 millisSinceLastMouseDraw = max(0, GetTickCount64() - m_LastMouseDrawTimeStamp);
-		g_LastMouseClickDurationRemaining = max(g_LastMouseClickDurationRemaining - millisSinceLastMouseDraw, 0);
+		UINT64 millisSinceLastMouseDraw = max(0ull, GetTickCount64() - m_LastMouseDrawTimeStamp);
+		g_LastMouseClickDurationRemaining = max(0ull, g_LastMouseClickDurationRemaining - millisSinceLastMouseDraw);
 		LOG_TRACE("Drawing mouse click, duration remaining on click is %u ms", g_LastMouseClickDurationRemaining);
 	}
 

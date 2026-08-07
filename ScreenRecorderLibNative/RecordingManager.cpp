@@ -783,7 +783,7 @@ bool RecordingManager::PadAudio(_Inout_ std::vector<BYTE> &audioData, _In_ INT64
 		if (!m_LastFrameHadAudio || HundredNanosToMillisDouble(nextVideoFrameDuration) > 5) {
 			INT64 expectedAudioFrames = ((nextVideoFramePos + nextVideoFrameDuration) * GetAudioOptions()->GetAudioSamplesPerSecond()) / 10000000ULL;
 			INT64 renderedAudioFrames = m_TimelineManager->GetRenderedAudioFrameCount();
-			int frameCount = static_cast<int>(max(0, expectedAudioFrames - renderedAudioFrames));
+			int frameCount = static_cast<int>(max(0ll, expectedAudioFrames - renderedAudioFrames));
 			int byteCount = frameCount * (GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels();
 			audioData.insert(audioData.end(), byteCount, 0);
 			paddedAudio = true;
@@ -914,8 +914,8 @@ HRESULT RecordingManager::ProcessTextureTransforms(_In_ ID3D11Texture2D *pTextur
 		desc.Height = videoOutputFrameSize.cy;
 		ID3D11Texture2D *pCanvas;
 		RETURN_ON_BAD_HR(hr = m_DxResources.Device->CreateTexture2D(&desc, nullptr, &pCanvas));
-		int leftMargin = (int)max(0, round(((double)videoOutputFrameSize.cx - (double)RectWidth(contentRect))) / 2);
-		int topMargin = (int)max(0, round(((double)videoOutputFrameSize.cy - (double)RectHeight(contentRect))) / 2);
+		int leftMargin = (int)max(0.0, round(((double)videoOutputFrameSize.cx - (double)RectWidth(contentRect))) / 2);
+		int topMargin = (int)max(0.0, round(((double)videoOutputFrameSize.cy - (double)RectHeight(contentRect))) / 2);
 
 		D3D11_BOX Box{};
 		Box.front = 0;

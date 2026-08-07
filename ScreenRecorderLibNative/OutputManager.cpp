@@ -389,8 +389,8 @@ HRESULT OutputManager::InitializeVideoSinkWriter(
 	UINT sourceWidth = RectWidth(sourceRect);
 	UINT sourceHeight = RectHeight(sourceRect);
 
-	UINT destWidth = max(0, outputFrameSize.cx);
-	UINT destHeight = max(0, outputFrameSize.cy);
+	UINT destWidth = max(0l, outputFrameSize.cx);
+	UINT destHeight = max(0l, outputFrameSize.cy);
 
 	RETURN_ON_BAD_HR(ConfigureOutputMediaTypes(destWidth, destHeight, &pVideoMediaTypeOut, &pAudioMediaTypeOut));
 	RETURN_ON_BAD_HR(ConfigureInputMediaTypes(sourceWidth, sourceHeight, rotationFormat, pVideoMediaTypeOut, &pVideoMediaTypeIn, &pAudioMediaTypeIn));

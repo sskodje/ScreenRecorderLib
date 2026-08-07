@@ -23,7 +23,7 @@ INT64 AudioDriftCorrector::GetDriftCorrection(INT64 frameNum, INT64 nextAudioPac
 		INT64 periodAudioDrift = m_AudioVideoDiffDeltaPeriodSum / (CORRECTION_PERIOD_FRAME_COUNT);
 		if (abs(periodAudioDrift) > MINIMUM_DRIFT_TO_CORRECT_100_NANOS) {
 			audioDriftCorrectionDouble = static_cast<double>(periodAudioDrift) / CORRECTION_PERIOD_FRAME_COUNT;
-			double clampSize = max(1, floor(abs(audioDriftCorrectionDouble) / 10));
+			double clampSize = max(1, static_cast<int>(floor(abs(audioDriftCorrectionDouble) / 10)));
 			audioDriftCorrectionDouble = clamp(audioDriftCorrectionDouble, -clampSize, +clampSize);
 		}
 

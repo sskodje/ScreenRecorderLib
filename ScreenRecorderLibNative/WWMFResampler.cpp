@@ -3,9 +3,7 @@
 //#define WINVER _WIN32_WINNT_WIN7
 
 #include "WWMFResampler.h"
-#include "Util.h"
 #include "Cleanup.h"
-#include <windows.h>
 #include <atlbase.h>
 #include <mfapi.h>
 #include <mfidl.h>
