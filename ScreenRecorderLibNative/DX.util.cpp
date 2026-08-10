@@ -567,6 +567,28 @@ HRESULT InitShaders(_In_ ID3D11Device *pDevice, _Outptr_ ID3D11PixelShader **ppP
 	return hr;
 }
 
+HRESULT CreateVertexBuffer(_In_ ID3D11Device *pDevice, _Outptr_ ID3D11Buffer **ppVertexBuffer)
+{
+	D3D11_BUFFER_DESC BufferDesc;
+	RtlZeroMemory(&BufferDesc, sizeof(BufferDesc));
+	BufferDesc.Usage = D3D11_USAGE_DEFAULT;
+	BufferDesc.ByteWidth = sizeof(VERTEX) * _countof(Vertices);
+	BufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	BufferDesc.CPUAccessFlags = 0;
+	D3D11_SUBRESOURCE_DATA InitData;
+	RtlZeroMemory(&InitData, sizeof(InitData));
+	InitData.pSysMem = Vertices;
+
+	ID3D11Buffer *vertexBuffer = nullptr;
+
+	// Create vertex buffer
+	HRESULT hr = pDevice->CreateBuffer(&BufferDesc, &InitData, &vertexBuffer);
+	if (SUCCEEDED(hr)) {
+		*ppVertexBuffer = vertexBuffer;
+	}
+	return hr;
+}
+
 //
 // Returns shared handle
 //

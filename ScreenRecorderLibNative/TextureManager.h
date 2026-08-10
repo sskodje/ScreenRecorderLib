@@ -34,6 +34,7 @@ public:
 	HRESULT CreateTextureFromBuffer(_In_ BYTE *pFrameBuffer, _In_ LONG stride, _In_ UINT width, _In_ UINT height, _Outptr_ ID3D11Texture2D **ppTexture, UINT miscFlag = 0, UINT bindFlag = 0);
 	HRESULT BlankTexture(_Inout_ ID3D11Texture2D *pTexture, _In_ RECT rect, _In_ INT OffsetX = 0, _In_  INT OffsetY = 0);
 private:
+	HRESULT InitBuffers();
 	HRESULT InitializeDesc(_In_ UINT width, _In_ UINT height, _Out_ D3D11_TEXTURE2D_DESC *pTargetDesc);
 	HRESULT GetOrCreateTexture(_In_ D3D11_TEXTURE2D_DESC desc, _Outptr_ ID3D11Texture2D **ppTexture);
 	void ConfigureRotationVertices(_Inout_ VERTEX(&vertices)[6], _In_ RECT textureRect, _In_opt_ DXGI_MODE_ROTATION rotation = DXGI_MODE_ROTATION_UNSPECIFIED);
@@ -46,8 +47,9 @@ private:
 	ID3D11VertexShader *m_VertexShader;
 	ID3D11PixelShader *m_PixelShader;
 	ID3D11InputLayout *m_InputLayout;
-
-
+	ID3D11Buffer *m_ResizeVertexBuffer;
+	ID3D11Buffer *m_RotateVertexBuffer;
+	ID3D11Buffer *m_DrawVertexBuffer;
 	struct TextureDescHasher {
 		std::size_t operator()(const D3D11_TEXTURE2D_DESC &desc) const noexcept {
 			std::string temp =

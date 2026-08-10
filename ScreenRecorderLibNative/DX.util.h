@@ -1,6 +1,18 @@
 #pragma once
 #include "CommonTypes.h"
 
+using namespace DirectX;
+// Vertices for drawing whole texture
+const VERTEX Vertices[] =
+{
+	{ XMFLOAT3(-1.0f, -1.0f, 0), XMFLOAT2(0.0f, 1.0f) },
+	{ XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f) },
+	{ XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f) },
+	{ XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f) },
+	{ XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f) },
+	{ XMFLOAT3(1.0f, 1.0f, 0), XMFLOAT2(1.0f, 0.0f) },
+};
+
 HRESULT InitializeDx(_In_opt_ IDXGIAdapter *adapter, _Out_ DX_RESOURCES *Data);
 HRESULT GetAdapterForDevice(_In_ ID3D11Device *pDevice, _Outptr_ IDXGIAdapter **ppAdapter);
 HRESULT GetAdapterForDeviceName(_In_ std::wstring deviceName, _Outptr_opt_result_maybenull_ IDXGIAdapter **ppAdapter);
@@ -17,7 +29,7 @@ HRESULT GetMainOutput(_Outptr_result_maybenull_ IDXGIOutput **ppOutput);
 /// </summary>
 /// <param name="sources">The recording sources to process</param>
 /// <param name="outputs">A vector of pairs, containing the source and corresponding rectangle.</param>
-HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURCE*> &sources, _Out_ std::vector<std::pair<RECORDING_SOURCE*, RECT>> *outputs);
+HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURCE *> &sources, _Out_ std::vector<std::pair<RECORDING_SOURCE *, RECT>> *outputs);
 
 /// <summary>
 /// Initialize shaders for drawing to screen
@@ -25,6 +37,13 @@ HRESULT GetOutputRectsForRecordingSources(_In_ const std::vector<RECORDING_SOURC
 /// <param name="pDevice"></param>
 /// <returns></returns>
 HRESULT InitShaders(_In_ ID3D11Device *pDevice, _Outptr_ ID3D11PixelShader **ppPixelShader, _Outptr_ ID3D11VertexShader **ppVertexShader, _Outptr_ ID3D11InputLayout **ppInputLayout);
+
+/// <summary>
+/// Creates a ID3D11Buffer
+/// </summary>
+/// <param name="pDevice"></param>
+/// <returns></returns>
+HRESULT CreateVertexBuffer(_In_ ID3D11Device *pDevice, _Outptr_ ID3D11Buffer **ppVertexBuffer);
 
 /// <summary>
 /// Creates a list of all display adapters on the system.

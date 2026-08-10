@@ -13,7 +13,10 @@ TextureManager::TextureManager() :
 	m_BlendState(nullptr),
 	m_VertexShader(nullptr),
 	m_PixelShader(nullptr),
-	m_InputLayout(nullptr)
+	m_InputLayout(nullptr),
+	m_ResizeVertexBuffer(nullptr),
+	m_DrawVertexBuffer(nullptr),
+	m_RotateVertexBuffer(nullptr)
 {
 }
 
@@ -61,6 +64,8 @@ HRESULT TextureManager::Initialize(_In_ ID3D11DeviceContext *pDeviceContext, _In
 
 	// Initialize shaders
 	hr = InitShaders(pDevice, &m_PixelShader, &m_VertexShader, &m_InputLayout);
+	RETURN_ON_BAD_HR(hr);
+	hr = InitBuffers();
 	RETURN_ON_BAD_HR(hr);
 
 	return hr;
@@ -143,16 +148,6 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_  S
 	// Set view port
 	SetViewPort(m_DeviceContext, static_cast<float>(resizedWidth), static_cast<float>(resizedHeight));
 
-	// Vertices for drawing whole texture
-	VERTEX Vertices[] =
-	{
-		{ XMFLOAT3(-1.0f, -1.0f, 0), XMFLOAT2(0.0f, 1.0f) },
-		{ XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f) },
-		{ XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f) },
-		{ XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f) },
-		{ XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f) },
-		{ XMFLOAT3(1.0f, 1.0f, 0), XMFLOAT2(1.0f, 0.0f) },
-	};
 
 	// Make new render target view
 	ID3D11RenderTargetView *RTV;
@@ -170,27 +165,8 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_  S
 	m_DeviceContext->PSSetSamplers(0, 1, &m_SamplerLinear);
 	m_DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	D3D11_BUFFER_DESC BufferDesc;
-	RtlZeroMemory(&BufferDesc, sizeof(BufferDesc));
-	BufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	BufferDesc.ByteWidth = sizeof(VERTEX) * _countof(Vertices);
-	BufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	BufferDesc.CPUAccessFlags = 0;
-	D3D11_SUBRESOURCE_DATA InitData;
-	RtlZeroMemory(&InitData, sizeof(InitData));
-	InitData.pSysMem = Vertices;
 
-	ID3D11Buffer *VertexBuffer = nullptr;
-
-	// Create vertex buffer
-	hr = m_Device->CreateBuffer(&BufferDesc, &InitData, &VertexBuffer);
-	if (FAILED(hr))
-	{
-		srcSRV->Release();
-		srcSRV = nullptr;
-		return S_FALSE;
-	}
-	m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBuffer, &Stride, &Offset);
+	m_DeviceContext->IASetVertexBuffers(0, 1, &m_ResizeVertexBuffer, &Stride, &Offset);
 
 	// Draw textured quad onto render target
 	m_DeviceContext->Draw(_countof(Vertices), 0);
@@ -201,9 +177,6 @@ HRESULT TextureManager::ResizeTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_  S
 	// Clear shader resource
 	ID3D11ShaderResourceView *null[] = { nullptr, nullptr };
 	m_DeviceContext->PSSetShaderResources(0, 1, null);
-	// Clean up
-	VertexBuffer->Release();
-	VertexBuffer = nullptr;
 
 	srcSRV->Release();
 	srcSRV = nullptr;
@@ -292,27 +265,8 @@ HRESULT TextureManager::RotateTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_ DX
 	m_DeviceContext->PSSetSamplers(0, 1, &m_SamplerLinear);
 	m_DeviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-	D3D11_BUFFER_DESC BufferDesc;
-	RtlZeroMemory(&BufferDesc, sizeof(BufferDesc));
-	BufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	BufferDesc.ByteWidth = sizeof(VERTEX) * _countof(Vertices);
-	BufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	BufferDesc.CPUAccessFlags = 0;
-	D3D11_SUBRESOURCE_DATA InitData;
-	RtlZeroMemory(&InitData, sizeof(InitData));
-	InitData.pSysMem = Vertices;
 
-	ID3D11Buffer *VertexBuffer = nullptr;
-
-	// Create vertex buffer
-	hr = m_Device->CreateBuffer(&BufferDesc, &InitData, &VertexBuffer);
-	if (FAILED(hr))
-	{
-		srcSRV->Release();
-		srcSRV = nullptr;
-		return S_FALSE;
-	}
-	m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBuffer, &Stride, &Offset);
+	m_DeviceContext->IASetVertexBuffers(0, 1, &m_RotateVertexBuffer, &Stride, &Offset);
 
 	// Draw textured quad onto render target
 	m_DeviceContext->Draw(_countof(Vertices), 0);
@@ -324,9 +278,6 @@ HRESULT TextureManager::RotateTexture(_In_ ID3D11Texture2D *pOrgTexture, _In_ DX
 	ID3D11ShaderResourceView *null[] = { nullptr, nullptr };
 	m_DeviceContext->PSSetShaderResources(0, 1, null);
 
-	// Clean up
-	VertexBuffer->Release();
-	VertexBuffer = nullptr;
 
 	srcSRV->Release();
 	srcSRV = nullptr;
@@ -353,15 +304,6 @@ HRESULT TextureManager::DrawTexture(_Inout_ ID3D11Texture2D *pCanvasTexture, _In
 	// Set view port
 	SetViewPort(m_DeviceContext, static_cast<float>(RectWidth(rect)), static_cast<float>(RectHeight(rect)), static_cast<float>(rect.left), static_cast<float>(rect.top));
 
-	VERTEX Vertices[] =
-	{
-		{ XMFLOAT3(-1.0f, -1.0f, 0), XMFLOAT2(0.0f, 1.0f) },
-		{ XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f) },
-		{ XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f) },
-		{ XMFLOAT3(1.0f, -1.0f, 0), XMFLOAT2(1.0f, 1.0f) },
-		{ XMFLOAT3(-1.0f, 1.0f, 0), XMFLOAT2(0.0f, 0.0f) },
-		{ XMFLOAT3(1.0f, 1.0f, 0), XMFLOAT2(1.0f, 0.0f) },
-	};
 
 	// Set shader resource properties
 	D3D11_SHADER_RESOURCE_VIEW_DESC shaderDesc;
@@ -379,26 +321,7 @@ HRESULT TextureManager::DrawTexture(_Inout_ ID3D11Texture2D *pCanvasTexture, _In
 		LOG_ERROR(L"Failed to create shader resource from overlay texture: %ls", err.ErrorMessage());
 		return hr;
 	}
-	D3D11_BUFFER_DESC bufferDesc;
-	ZeroMemory(&bufferDesc, sizeof(D3D11_BUFFER_DESC));
-	bufferDesc.Usage = D3D11_USAGE_DEFAULT;
-	bufferDesc.ByteWidth = sizeof(VERTEX) * _countof(Vertices);
-	bufferDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bufferDesc.CPUAccessFlags = 0;
 
-	D3D11_SUBRESOURCE_DATA initData;
-	ZeroMemory(&initData, sizeof(D3D11_SUBRESOURCE_DATA));
-	initData.pSysMem = Vertices;
-
-	// Create vertex buffer
-	ID3D11Buffer *VertexBuffer;
-	hr = m_Device->CreateBuffer(&bufferDesc, &initData, &VertexBuffer);
-	if (FAILED(hr))
-	{
-		_com_error err(hr);
-		LOG_ERROR(L"Failed to create overlay vertex buffer: %ls", err.ErrorMessage());
-		return hr;
-	}
 	ID3D11RenderTargetView *RTV;
 	// Create a render target view
 	hr = m_Device->CreateRenderTargetView(pCanvasTexture, nullptr, &RTV);
@@ -412,7 +335,7 @@ HRESULT TextureManager::DrawTexture(_Inout_ ID3D11Texture2D *pCanvasTexture, _In
 	FLOAT BlendFactor[4] = { 0.f, 0.f, 0.f, 0.f };
 	UINT Stride = sizeof(VERTEX);
 	UINT Offset = 0;
-	m_DeviceContext->IASetVertexBuffers(0, 1, &VertexBuffer, &Stride, &Offset);
+	m_DeviceContext->IASetVertexBuffers(0, 1, &m_DrawVertexBuffer, &Stride, &Offset);
 	m_DeviceContext->OMSetBlendState(m_BlendState, BlendFactor, 0xFFFFFFFF);
 	m_DeviceContext->OMSetRenderTargets(1, &RTV, nullptr);
 	m_DeviceContext->VSSetShader(m_VertexShader, nullptr, 0);
@@ -429,9 +352,6 @@ HRESULT TextureManager::DrawTexture(_Inout_ ID3D11Texture2D *pCanvasTexture, _In
 	ID3D11ShaderResourceView *nullShader[] = { nullptr };
 	m_DeviceContext->PSSetShaderResources(0, 1, nullShader);
 
-	// Clean up
-	VertexBuffer->Release();
-	VertexBuffer = nullptr;
 
 	srcSRV->Release();
 	srcSRV = nullptr;
@@ -441,7 +361,7 @@ HRESULT TextureManager::DrawTexture(_Inout_ ID3D11Texture2D *pCanvasTexture, _In
 	return hr;
 }
 
-void TextureManager::ConfigureRotationVertices(_Inout_ VERTEX(&vertices)[6], _In_ RECT textureRect, _In_opt_ DXGI_MODE_ROTATION rotation)
+void TextureManager::ConfigureRotationVertices(_Inout_ VERTEX (&vertices)[6], _In_ RECT textureRect, _In_opt_ DXGI_MODE_ROTATION rotation)
 {
 	LONG textureLeft = textureRect.left;
 	LONG textureTop = textureRect.top;
@@ -540,6 +460,16 @@ void TextureManager::ConfigureRotationVertices(_Inout_ VERTEX(&vertices)[6], _In
 
 	vertices[3].TexCoord = vertices[2].TexCoord;
 	vertices[4].TexCoord = vertices[1].TexCoord;
+}
+
+HRESULT TextureManager::InitBuffers()
+{
+	HRESULT hr = CreateVertexBuffer(m_Device, &m_ResizeVertexBuffer);
+	RETURN_ON_BAD_HR(hr);
+	hr = CreateVertexBuffer(m_Device, &m_DrawVertexBuffer);
+	RETURN_ON_BAD_HR(hr);
+	hr = CreateVertexBuffer(m_Device, &m_RotateVertexBuffer);
+	return hr;
 }
 
 HRESULT TextureManager::InitializeDesc(_In_ UINT width, _In_ UINT height, _Out_ D3D11_TEXTURE2D_DESC *pTargetDesc)
@@ -738,35 +668,14 @@ HRESULT TextureManager::BlankTexture(_Inout_ ID3D11Texture2D *pTexture, _In_ REC
 //
 void TextureManager::CleanRefs()
 {
-	if (m_VertexShader)
-	{
-		m_VertexShader->Release();
-		m_VertexShader = nullptr;
-	}
-
-	if (m_PixelShader)
-	{
-		m_PixelShader->Release();
-		m_PixelShader = nullptr;
-	}
-
-	if (m_InputLayout)
-	{
-		m_InputLayout->Release();
-		m_InputLayout = nullptr;
-	}
-
-	if (m_SamplerLinear)
-	{
-		m_SamplerLinear->Release();
-		m_SamplerLinear = nullptr;
-	}
-
-	if (m_BlendState)
-	{
-		m_BlendState->Release();
-		m_BlendState = nullptr;
-	}
+	SafeRelease(&m_DrawVertexBuffer);
+	SafeRelease(&m_RotateVertexBuffer);
+	SafeRelease(&m_ResizeVertexBuffer);
+	SafeRelease(&m_VertexShader);
+	SafeRelease(&m_PixelShader);
+	SafeRelease(&m_InputLayout);
+	SafeRelease(&m_SamplerLinear);
+	SafeRelease(&m_BlendState);
 	for (auto &pair : m_TextureCache)
 	{
 		SafeRelease(&pair.second);
