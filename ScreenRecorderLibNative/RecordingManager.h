@@ -21,7 +21,7 @@ constexpr auto STATUS_FINALIZING = 3;
 constexpr auto API_DESKTOP_DUPLICATION = 0;
 constexpr auto API_GRAPHICS_CAPTURE = 1;
 
-constexpr auto MAX_FRAME_LENGTH_100_NANOS = 5'000'000;
+constexpr auto MAX_FRAME_LENGTH_100_NANOS = 10'000'000;
 
 class RecordingManager
 {
