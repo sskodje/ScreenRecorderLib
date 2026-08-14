@@ -1013,18 +1013,42 @@ void Recorder::EventComplete(std::wstring path, fifo_map<std::wstring, int> dela
 		frameInfos->Add(gcnew FrameData(gcnew String(x.first.c_str()), x.second));
 	}
 	RecordingCompleteEventArgs^ args = gcnew RecordingCompleteEventArgs(gcnew String(path.c_str()), frameInfos);
-	OnRecordingComplete(this, args);
+	try
+	{
+		OnRecordingComplete(this, args);
+	}
+	catch (Exception^ ex)
+	{
+		std::wstring message = msclr::interop::marshal_as<std::wstring>(ex->Message);
+		LOG_ERROR(L"Error in EventComplete: %ls", message.c_str());
+	}
 }
 void Recorder::EventFailed(std::wstring error, std::wstring path)
 {
 	ReleaseResources();
-	OnRecordingFailed(this, gcnew RecordingFailedEventArgs(gcnew String(error.c_str()), gcnew String(path.c_str())));
+	try
+	{
+		OnRecordingFailed(this, gcnew RecordingFailedEventArgs(gcnew String(error.c_str()), gcnew String(path.c_str())));
+	}
+	catch (Exception^ ex)
+	{
+		std::wstring message = msclr::interop::marshal_as<std::wstring>(ex->Message);
+		LOG_ERROR(L"Error in EventFailed: %ls", message.c_str());
+	}
 }
 void Recorder::EventStatusChanged(int status)
 {
 	RecorderStatus recorderStatus = (RecorderStatus)status;
 	Status = recorderStatus;
-	OnStatusChanged(this, gcnew RecordingStatusEventArgs(recorderStatus));
+	try
+	{
+		OnStatusChanged(this, gcnew RecordingStatusEventArgs(recorderStatus));
+	}
+	catch (Exception^ ex)
+	{
+		std::wstring message = msclr::interop::marshal_as<std::wstring>(ex->Message);
+		LOG_ERROR(L"Error in EventStatusChanged: %ls", message.c_str());
+	}
 }
 
 void ScreenRecorderLib::Recorder::EventSnapshotCreated(std::wstring str)
@@ -1038,7 +1062,15 @@ void Recorder::FrameNumberChanged(int newFrameNumber, INT64 timestamp, FRAME_BIT
 	if (frameData != nullptr) {
 		managedFrameData = gcnew FrameBitmapData(frameData->Stride, frameData->Data, frameData->Length, frameData->Width, frameData->Height);
 	}
-	OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber, timestamp, managedFrameData));
+	try
+	{
+		OnFrameRecorded(this, gcnew FrameRecordedEventArgs(newFrameNumber, timestamp, managedFrameData));
+	}
+	catch (Exception^ ex)
+	{
+		std::wstring message = msclr::interop::marshal_as<std::wstring>(ex->Message);
+		LOG_ERROR(L"Error in FrameNumberChanged: %ls", message.c_str());
+	}
 	CurrentFrameNumber = newFrameNumber;
 }
 
@@ -1052,5 +1084,13 @@ void ScreenRecorderLib::Recorder::AudioDataChanged(FRAME_AUDIO_INFO* audioData)
 			managedAudioData->Sources->Add(gcnew AudioPacketSource(gcnew String(source.Id.c_str()), source.Volume, source.Data));
 		}
 	}
-	OnAudioPacketRecorded(this, gcnew AudioDataRecordedEventArgs(managedAudioData));
+	try
+	{
+		OnAudioPacketRecorded(this, gcnew AudioDataRecordedEventArgs(managedAudioData));
+	}
+	catch (Exception^ ex)
+	{
+		std::wstring message = msclr::interop::marshal_as<std::wstring>(ex->Message);
+		LOG_ERROR(L"Error in AudioDataChanged: %ls", message.c_str());
+	}
 }
