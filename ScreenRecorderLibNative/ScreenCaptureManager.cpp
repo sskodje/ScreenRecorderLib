@@ -980,7 +980,7 @@ Start:
 						LOG_DEBUG("Dropped %ls frame because wait time exceeded limit", pRecordingSourceCapture->Name().c_str());
 						continue;
 					}
-					LOG_TRACE(L"CaptureThreadProc waited for busy shared surface for %lld ms", waitTimeMillis);
+					LOG_TRACE(L"CaptureThreadProc waited for busy shared surface for %0.2f ms", waitTimeMillis);
 				}
 				if (pSource->IsCursorCaptureEnabled.value_or(true)) {
 					// Get mouse info
