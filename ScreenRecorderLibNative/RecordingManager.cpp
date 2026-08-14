@@ -598,6 +598,14 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 				if (capturedFrame.FrameUpdateCount > 0) {
 					m_RestartCaptureCount = 0;
 				}
+				else {
+					//On stale frames, periodically flush sink writer to avoid encoder hoarding memory.
+					if (m_TimelineManager->GetRenderedVideoFrameCount() % 100 == 0) {
+						LOG_TRACE("Flushed ID3D11DeviceContext");
+						isFrameTimeout = true;
+						m_OutputManager->FlushSinkWriter();
+					}
+				}
 				if (capturedFrame.PtrInfo) {
 					pPtrInfo = capturedFrame.PtrInfo.value();
 				}
