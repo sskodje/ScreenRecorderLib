@@ -45,6 +45,8 @@ namespace TestApp
 
         private bool _isBlinking;
 
+        private double _lastGain;
+
         public GainLed()
         {
             InitializeComponent();
@@ -61,6 +63,9 @@ namespace TestApp
         {
             if (LitEllipse == null) return; // template not yet loaded
 
+            if (Math.Abs(gain - _lastGain) < 0.01) return;
+
+            _lastGain = gain;
             gain = Math.Max(0.0, gain);
             bool clipping = gain >= ClipThreshold;
             Color color = GetColorForGain(gain);

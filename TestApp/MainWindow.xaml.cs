@@ -1,5 +1,6 @@
 ﻿using ScreenRecorderLib;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -8,6 +9,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -30,7 +32,7 @@ namespace TestApp
     {
         private Recorder _rec;
         private DispatcherTimer _progressTimer;
-        private readonly List<long> _recordedFrameTimes = new List<long>();
+        private readonly ConcurrentQueue<long> _recordedFrameTimes = new ConcurrentQueue<long>();
         private DateTimeOffset? _recordingStartTime = null;
         private DateTimeOffset? _recordingPauseTime = null;
         private Stream _outputStream;
@@ -559,7 +561,7 @@ namespace TestApp
 
         private void Rec_OnAudioPacketRecorded(object sender, AudioDataRecordedEventArgs args)
         {
-            Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
             {
                 AudioPacketData packet = args.AudioData;
                 if (packet != null)
@@ -576,7 +578,7 @@ namespace TestApp
                             }
                             if (source.Data != null && source.Data.Length > 0)
                             {
-
+                                //Audio data for individual sources
                             }
                         }
                     }
@@ -592,25 +594,30 @@ namespace TestApp
 
         private void Rec_OnFrameRecorded(object sender, FrameRecordedEventArgs e)
         {
-            Dispatcher.Invoke(DispatcherPriority.Normal, (Action)(() =>
+
+            FrameBitmapData bitmapData = e.BitmapData;
+            if (bitmapData != null)
             {
-                FrameBitmapData bitmapData = e.BitmapData;
-                if (bitmapData != null)
+                Dispatcher.BeginInvoke(DispatcherPriority.Normal, (Action)(() =>
                 {
                     if (RecordingPreviewBitmap == null || RecordingPreviewBitmap.Width != bitmapData.Width || RecordingPreviewBitmap.Height != bitmapData.Height)
                     {
                         RecordingPreviewBitmap = new WriteableBitmap(bitmapData.Width, bitmapData.Height, 96, 96, PixelFormats.Bgra32, null);
                     }
                     RecordingPreviewBitmap.WritePixels(new Int32Rect(0, 0, bitmapData.Width, bitmapData.Height), bitmapData.Data, bitmapData.Length, Math.Abs(bitmapData.Stride));
-                }
-                CurrentFrameNumber = e.FrameNumber;
-                _recordedFrameTimes.Add(e.Timestamp);
-            }));
+                }));
+            }
+            Interlocked.Exchange(ref _currentFrameNumber, e.FrameNumber);
+            _recordedFrameTimes.Enqueue(e.Timestamp);
+            while (_recordedFrameTimes.Count > 10)
+            {
+                _recordedFrameTimes.TryDequeue(out _);
+            }
         }
 
         private void Source_OnFrameRecorded(object sender, FrameDataRecordedEventArgs args)
         {
-            Dispatcher.Invoke(DispatcherPriority.Render, (Action)(() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.Render, (Action)(() =>
             {
                 FrameBitmapData data = args.BitmapData;
                 ICheckableRecordingSource recordingSource = this.RecordingSources.FirstOrDefault(x => x.ID == ((RecordingSourceBase)sender).ID);
@@ -865,7 +872,6 @@ namespace TestApp
             if (_recordedFrameTimes.Count > 0)
             {
                 AverageFrameRate = CurrentFrameNumber / DateTimeOffset.FromUnixTimeMilliseconds(_recordedFrameTimes.Last()).Subtract(_recordingStartTime.Value).TotalSeconds;
-                _recordedFrameTimes.RemoveRange(0, Math.Max(0, _recordedFrameTimes.Count - 10));
                 double intervalMillis = (double)(_recordedFrameTimes.Last() - _recordedFrameTimes.First());
                 CurrentFrameRate = (_recordedFrameTimes.Count - 1) / (double)intervalMillis * 1000;
                 RaisePropertyChanged(nameof(CurrentFrameNumber));
