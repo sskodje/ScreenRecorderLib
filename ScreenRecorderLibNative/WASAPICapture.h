@@ -50,6 +50,7 @@ public:
 	bool IsPaused();
 	inline bool IsDefaultDevice() { return m_IsDefaultDevice; }
 	int GetNextFrameCount();
+	INT64 WASAPICapture::GetQueuedDuration100Nanos();
 	std::vector<BYTE> PeakRecordedBytes();
 	std::vector<BYTE> GetRecordedBytesByDuration(UINT64 duration100Nanos, _Out_ UINT64 *qpcTimestamp);
 	std::vector<BYTE> GetRecordedBytesByFrameCount(int requestedFrameCount, _Out_ UINT64 *qpcTimestamp);

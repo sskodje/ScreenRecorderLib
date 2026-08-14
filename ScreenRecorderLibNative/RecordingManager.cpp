@@ -96,10 +96,9 @@ RecordingManager::RecordingManager() :
 	m_TimerResolution(0),
 	m_DynamicWait(nullptr),
 	m_IsPaused(false),
-	m_IsRecording(false),
-	m_LastFrameHadAudio(false)
+	m_IsRecording(false)
 {
-	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF | _CRTDBG_CHECK_ALWAYS_DF);
 	m_MfStartupResult = MFStartup(MF_VERSION, MFSTARTUP_LITE);
 	TIMECAPS tc;
 	UINT targetResolutionMs = 1;
@@ -589,19 +588,38 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 				continue;
 			}
 		}
+		bool isFrameTimeout = false;
 		CAPTURED_FRAME capturedFrame{};
 		if (!m_IsPaused || IsAnySourcePreviewsActive()) {
 			// Get new frame
 			hr = m_CaptureManager->AcquireNextFrame(m_TimelineManager->GetTimeUntilNextFrame100Nanos(), MAX_FRAME_LENGTH_100_NANOS, token, &capturedFrame);
-		}
-		std::unique_ptr<FRAME_AUDIO_DATA> audioPacket(m_AudioManager->GrabAudioSamples());
-
-		if (RecordingNewAudioCallback != nullptr && !m_IsDestructing) {
-			try {
-				RecordingNewAudioCallback(audioPacket->Info.get());
+			if (SUCCEEDED(hr)) {
+				m_TimelineManager->OnVideoFrame();
+				if (capturedFrame.FrameUpdateCount > 0) {
+					m_RestartCaptureCount = 0;
+				}
+				if (capturedFrame.PtrInfo) {
+					pPtrInfo = capturedFrame.PtrInfo.value();
+				}
 			}
-			catch (exception &ex) {
-				LOG_ERROR(L"Error in CallbackNewAudioDataFunction %ls", s2ws(ex.what()).c_str());
+			else if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
+				LOG_WARN(L"DXGI_ERROR_WAIT_TIMEOUT in AcquireNextFrame");
+				continue;
+			}
+			else if (hr != DXGI_ERROR_WAIT_TIMEOUT) {
+				RETURN_RESULT_ON_BAD_HR(hr, L"");
+			}
+		}
+		std::unique_ptr<FRAME_AUDIO_DATA> audioPacket = nullptr;
+		if (GetAudioOptions()->IsAudioEnabled()) {
+			audioPacket.reset(m_AudioManager->GrabAudioSamples());
+			if (RecordingNewAudioCallback != nullptr && !m_IsDestructing) {
+				try {
+					RecordingNewAudioCallback(audioPacket->Info.get());
+				}
+				catch (exception &ex) {
+					LOG_ERROR(L"Error in CallbackNewAudioDataFunction %ls", s2ws(ex.what()).c_str());
+				}
 			}
 		}
 
@@ -613,33 +631,28 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 			m_TimelineManager->UpdateLastSnapshotTime();
 			continue;
 		}
-		if (SUCCEEDED(hr)) {
-			if (capturedFrame.FrameUpdateCount > 0) {
-				m_RestartCaptureCount = 0;
-			}
-			if (capturedFrame.PtrInfo) {
-				pPtrInfo = capturedFrame.PtrInfo.value();
-			}
+		if (GetAudioOptions()->IsAudioEnabled()) {
+			const INT64 nextAudioPacketStartPos100Nanos = m_TimelineManager->GetNextAudioFrameStartPosition();
+			const int audioFrameCount = static_cast<int>(audioPacket->Data.size()) / ((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
+			m_TimelineManager->OnAudioPacket(audioFrameCount, GetAudioOptions()->GetAudioSamplesPerSecond());
 		}
-		else if (hr != DXGI_ERROR_WAIT_TIMEOUT) {
-			RETURN_RESULT_ON_BAD_HR(hr, L"");
-		}
-
 		if (token.is_canceled()) {
 			LOG_DEBUG("Recording task was cancelled");
 			hr = S_OK;
 			break;
 		}
-		if (m_TimelineManager->GetRenderedVideoFrameCount() == 0) {
+		if (m_TimelineManager->GetRenderedVideoFrameCount() == 1) {
 			if (RecordingStatusChangedCallback != nullptr) {
 				RecordingStatusChangedCallback(STATUS_RECORDING);
 				LOG_DEBUG("Changed Recording Status to Recording");
 			}
 		}
+		if (capturedFrame.Frame) {
 
-		RETURN_RESULT_ON_BAD_HR(hr = PrepareAndRenderFrame(capturedFrame.Frame, audioPacket.get(), pPtrInfo), L"Failed to render frame");
-		if (recorderMode == RecorderModeInternal::Screenshot) {
-			break;
+			RETURN_RESULT_ON_BAD_HR(hr = PrepareAndRenderFrame(capturedFrame.Frame, audioPacket.get(), pPtrInfo), L"Failed to render frame");
+			if (recorderMode == RecorderModeInternal::Screenshot) {
+				break;
+			}
 		}
 	}
 	if (m_AudioManager) {
@@ -648,18 +661,18 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 	return CAPTURE_RESULT(hr);
 }
 
-HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pTextureToRender, FRAME_AUDIO_DATA *pAudioData, _In_opt_ std::optional<PTR_INFO> pointerInfo)
+HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pTextureToRender, _In_opt_ FRAME_AUDIO_DATA *pAudioData, _In_opt_ std::optional<PTR_INFO> pointerInfo)
 {
-	const INT64 nextVideoFrameStartPos100Nanos = m_TimelineManager->GetNextVideoFrameStartPosition();
-	const INT64 nextVideoFrameDuration100Nanos = m_TimelineManager->OnVideoFrame();
-
+	const INT64 videoFrameStartPos100Nanos = m_TimelineManager->GetCurrentVideoFrameStartPosition();
+	const INT64 videoFrameDuration100Nanos = m_TimelineManager->GetCurrentVideoFrameDuration();
+	const INT64 audioPacketStartPos100Nanos = m_TimelineManager->GetCurrentAudioFrameStartPosition();
+	const INT64 audioPacketDuration100Nanos = m_TimelineManager->GetCurrentAudioFrameDuration();
 
 	CComPtr<ID3D11Texture2D> processedTexture;
 	HRESULT hr = ProcessTexture(pTextureToRender, &processedTexture, pointerInfo);
 	if (hr == S_OK) {
 		pTextureToRender.Release();
 		pTextureToRender.Attach(processedTexture);
-		(*pTextureToRender).AddRef();
 	}
 	if (GetOutputOptions()->GetRecorderMode() == RecorderModeInternal::Video) {
 		if (GetSnapshotOptions()->IsSnapshotWithVideoEnabled() && m_TimelineManager->GetTimeUntilNextShapshot100Nanos() <= 0) {
@@ -671,26 +684,21 @@ HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pT
 	}
 
 
-	size_t unpaddedAudioSize = pAudioData->Data.size();
-	bool paddedAudio = PadAudio(pAudioData->Data, nextVideoFrameStartPos100Nanos, nextVideoFrameDuration100Nanos);
 
-	const INT64 nextAudioPacketStartPos100Nanos = m_TimelineManager->GetNextAudioFrameStartPosition();
-	const int audioFrameCount = static_cast<int>(pAudioData->Data.size()) / ((GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels());
-	const INT64 nextAudioPacketDuration100Nanos = m_TimelineManager->OnAudioPacket(audioFrameCount, GetAudioOptions()->GetAudioSamplesPerSecond());
 
 	FrameWriteModel model{};
-	model.Frame = std::move(pTextureToRender);
-	model.AudioQpcPosition = pAudioData->QpcTimestamp;
-	model.Audio = std::move(pAudioData->Data);
-	model.VideoStartPos = nextVideoFrameStartPos100Nanos;
-	model.VideoDuration = nextVideoFrameDuration100Nanos;
-	model.AudioStartPos = nextAudioPacketStartPos100Nanos;
-	model.AudioDuration = nextAudioPacketDuration100Nanos;
-	if (paddedAudio) {
-		model.PaddedBytes = static_cast<int>(model.Audio.size() - unpaddedAudioSize);
+	model.Frame = pTextureToRender;
+	model.VideoStartPos = videoFrameStartPos100Nanos;
+	model.VideoDuration = videoFrameDuration100Nanos;
+	model.AudioStartPos = audioPacketStartPos100Nanos;
+	model.AudioDuration = audioPacketDuration100Nanos;
+	if (pAudioData) {
+		model.AudioQpcPosition = pAudioData->QpcTimestamp;
+		model.Audio = std::move(pAudioData->Data);
+		if (pAudioData->Info) {
+			model.PaddedBytes = static_cast<int>(pAudioData->Info->PaddedBytes);
+		}
 	}
-
-
 	RETURN_ON_BAD_HR(hr = m_EncoderResult = m_OutputManager->RenderFrame(model));
 	if (RecordingFrameNumberChangedCallback != nullptr && !m_IsDestructing) {
 		SendNewFrameCallback(m_TimelineManager->GetRenderedVideoFrameCount(), model.Frame);
@@ -698,7 +706,7 @@ HRESULT RecordingManager::PrepareAndRenderFrame(_In_ CComPtr<ID3D11Texture2D> pT
 	return hr;
 }
 
-HRESULT RecordingManager::RestartCapture(_In_ CAPTURE_RESULT &result, _In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hErrorEvent, _Out_opt_ RECT *videoInputFrameRect) {
+HRESULT RecordingManager::RestartCapture(_In_ CAPTURE_RESULT result, _In_ const std::vector<RECORDING_SOURCE *> &sources, _In_ const std::vector<RECORDING_OVERLAY *> &overlays, _In_  HANDLE hErrorEvent, _Out_opt_ RECT *videoInputFrameRect) {
 	HRESULT hr = m_CaptureManager->StopCapture();
 
 	// As we have encountered an error due to a system transition we wait before trying again, using this dynamic wait
@@ -769,32 +777,6 @@ bool RecordingManager::IsAnySourcePreviewsActive()
 }
 
 
-bool RecordingManager::PadAudio(_Inout_ std::vector<BYTE> &audioData, _In_ INT64 nextVideoFramePos, _In_ INT64 nextVideoFrameDuration)
-{
-	bool paddedAudio = false;
-	/* If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
-	 * If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
-	 * We ignore every instance where the last frame had audio, due to sometimes very short frame durations due to mouse cursor changes have zero audio length,
-	 * and inserting silence between two frames that has audio leads to glitching. */
-	if (GetOutputOptions()->GetRecorderMode() == RecorderModeInternal::Video
-		&& GetAudioOptions()->IsAudioEnabled()
-		&& audioData.size() == 0
-		&& nextVideoFrameDuration > 0) {
-		if (!m_LastFrameHadAudio || HundredNanosToMillisDouble(nextVideoFrameDuration) > 5) {
-			INT64 expectedAudioFrames = ((nextVideoFramePos + nextVideoFrameDuration) * GetAudioOptions()->GetAudioSamplesPerSecond()) / 10000000ULL;
-			INT64 renderedAudioFrames = m_TimelineManager->GetRenderedAudioFrameCount();
-			int frameCount = static_cast<int>(max(0ll, expectedAudioFrames - renderedAudioFrames));
-			int byteCount = frameCount * (GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels();
-			audioData.insert(audioData.end(), byteCount, 0);
-			paddedAudio = true;
-		}
-		m_LastFrameHadAudio = false;
-	}
-	else {
-		m_LastFrameHadAudio = true;
-	}
-	return paddedAudio;
-}
 
 HRESULT RecordingManager::SendNewFrameCallback(_In_ const int frameNumber, _In_ ID3D11Texture2D *pTexture) {
 	HRESULT hr = S_FALSE;
@@ -900,8 +882,7 @@ HRESULT RecordingManager::ProcessTextureTransforms(_In_ ID3D11Texture2D *pTextur
 		|| RectHeight(videoInputFrameRect) < static_cast<long>(round(desc.Height))) {
 		ID3D11Texture2D *pCroppedFrameCopy;
 		RETURN_ON_BAD_HR(hr = m_TextureManager->CropTexture(pTexture, videoInputFrameRect, &pCroppedFrameCopy));
-		pProcessedTexture.Release();
-		pProcessedTexture.Attach(pCroppedFrameCopy);
+		pProcessedTexture = pCroppedFrameCopy;
 	}
 	if (RectWidth(videoInputFrameRect) != videoOutputFrameSize.cx
 		|| RectHeight(videoInputFrameRect) != videoOutputFrameSize.cy) {

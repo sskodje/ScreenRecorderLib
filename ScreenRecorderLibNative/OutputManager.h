@@ -26,7 +26,7 @@ struct FrameWriteModel
 	//The audio sample bytes for this frame.
 	std::vector<BYTE> Audio;
 	//The frame texture.
-	CComPtr<ID3D11Texture2D> Frame;
+	ID3D11Texture2D *Frame;
 	//The QPC (query performance counter) timestamp of the beginning of the audio packet as reported by the audio device.
 	UINT64 AudioQpcPosition;
 };
@@ -48,10 +48,15 @@ public:
 	HRESULT BeginRecording(_In_ std::wstring outputPath, _In_ SIZE videoOutputFrameSizer);
 	HRESULT BeginRecording(_In_ IStream *pStream, _In_ SIZE videoOutputFrameSize);
 	HRESULT FinalizeRecording();
-	HRESULT RenderFrame(_In_ FrameWriteModel model);
+	HRESULT RenderFrame(_In_ const FrameWriteModel &model);
 	HRESULT WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ std::wstring filePath);
 	HRESULT WriteFrameToImage(_In_ ID3D11Texture2D *pAcquiredDesktopImage, _In_ IStream *pStream);
 	inline nlohmann::fifo_map<std::wstring, int> GetFrameDelays() { return m_FrameDelays; }
+	inline void FlushSinkWriter() {
+		if (m_SinkWriter) {
+			m_SinkWriter->Flush(m_VideoStreamIndex);
+		}
+	}
 private:
 	ID3D11DeviceContext *m_DeviceContext = nullptr;
 	ID3D11Device *m_Device = nullptr;
@@ -92,6 +97,6 @@ private:
 	HRESULT InitializeVideoSinkWriter(_In_ IMFByteStream *pOutStream, _In_ RECT sourceRect, _In_ SIZE outputFrameSize, _In_ DXGI_MODE_ROTATION rotation, _In_ IMFSinkWriterCallback *pCallback, _Outptr_ IMFSinkWriter **ppWriter, _Out_ DWORD *pVideoStreamIndex, _Out_ DWORD *pAudioStreamIndex);
 	HRESULT WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ ID3D11Texture2D *pAcquiredDesktopImage);
 
-	HRESULT WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE *pSrc, _In_ DWORD cbData);
+	HRESULT WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ const BYTE *pSrc, _In_ DWORD cbData);
 };
 

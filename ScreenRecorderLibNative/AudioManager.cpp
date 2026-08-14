@@ -67,8 +67,9 @@ HRESULT AudioManager::Initialize(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptio
 	m_TimelineManager = pTimelineManager;
 	StopOptionsChangeListenerThread();
 	ResetEvent(m_OptionsListenerStopEvent);
+	hr = ConfigureAudioCapture(false);
 	m_OptionsListenerThread = std::thread([this] {OnOptionsChanged(); });
-	return ConfigureAudioCapture(false);
+	return hr;
 }
 
 void AudioManager::ClearRecordedBytes()
@@ -168,7 +169,6 @@ HRESULT AudioManager::ResumeDeviceCapture(WASAPICapture *pCapture)
 HRESULT AudioManager::ConfigureAudioCapture(bool startDeviceCapture) {
 	HRESULT hr = S_FALSE;
 	MeasureExecutionTime measure(L"ConfigureAudioCapture");
-	const std::lock_guard<std::mutex> lock(WASAPICapture::StaticMutex);
 	if (GetAudioOptions() == nullptr) {
 		return hr;
 	}
@@ -230,16 +230,19 @@ FRAME_AUDIO_DATA *AudioManager::GrabAudioSamples()
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
 	std::map<WASAPICapture *, std::vector<BYTE>> audioSamples;
+	INT64 start100Nanos;
+	m_TimelineManager->GetMediaTimeStamp(&start100Nanos);
 	UINT64 qpcTimestamp = 0;
 	{
 		const std::lock_guard<std::mutex> lock(WASAPICapture::StaticMutex);
-
-		int frameCount = GetNextAudioSampleFrameCount();
+		UINT64 audioSyncDiff = max(0ull, (m_TimelineManager->GetCurrentVideoFrameStartPosition() + m_TimelineManager->GetCurrentVideoFrameDuration()) - m_TimelineManager->GetNextAudioFrameStartPosition());
+		UINT64 shortestQueuedDuration100Nanos = GetNextAudioSampleDuration();
+		UINT64 requestedDuration100Nanos = min(audioSyncDiff, shortestQueuedDuration100Nanos);
 		for each (WASAPICapture * capture in m_AudioCaptures)
 		{
 			if (capture->IsCapturing()) {
 				UINT64 qpcPos;
-				std::vector<BYTE> samples = capture->GetRecordedBytesByFrameCount(frameCount, &qpcPos);
+				std::vector<BYTE> samples = capture->GetRecordedBytesByDuration(requestedDuration100Nanos, &qpcPos);
 				audioSamples.emplace(capture, samples);
 				if (qpcTimestamp == 0 || qpcTimestamp > qpcPos) {
 					qpcTimestamp = qpcPos;
@@ -248,38 +251,48 @@ FRAME_AUDIO_DATA *AudioManager::GrabAudioSamples()
 		}
 	}
 
-	FRAME_AUDIO_DATA *data = MixAudioSamples(audioSamples);
-	data->QpcTimestamp = qpcTimestamp;
-	return data;
+	FRAME_AUDIO_DATA *audioData = MixAudioSamples(audioSamples);
+	audioData->QpcTimestamp = qpcTimestamp;
+	if (!IsAnyAudioCapturesActive()) {
+		size_t unpaddedAudioSize = audioData->Data.size();
+		bool paddedAudio = PadAudio(audioData->Data, m_TimelineManager->GetCurrentVideoFrameStartPosition(), m_TimelineManager->GetCurrentVideoFrameDuration());
+		if (paddedAudio) {
+			if (!audioData->Info) {
+				audioData->Info.reset(new FRAME_AUDIO_INFO());
+			}
+			audioData->Info->PaddedBytes = audioData->Data.size() - unpaddedAudioSize;
+			LOG_DEBUG("Padded audio with %lu/%lu bytes", audioData->Info->PaddedBytes, audioData->Data.size())
+		}
+	}
+	return audioData;
 }
 
-int AudioManager::GetNextAudioSampleFrameCount()
+INT64 AudioManager::GetNextAudioSampleDuration()
 {
-	int lowestFrameCount = 0;
+	INT64 lowestDuration100Nanos = 0;
 	for each (WASAPICapture * capture in m_AudioCaptures)
 	{
 		if (capture->IsCapturing()) {
 			if (!capture->NeedSync()) {
-				int frameCount = capture->GetNextFrameCount();
-				if (lowestFrameCount == 0 || frameCount < lowestFrameCount) {
-					lowestFrameCount = frameCount;
+				INT64 duration = capture->GetQueuedDuration100Nanos();
+				if (lowestDuration100Nanos == 0 || duration < lowestDuration100Nanos) {
+					lowestDuration100Nanos = duration;
 				}
 			}
 		}
 	}
-	if (lowestFrameCount == 0) {
-		INT64 duration100Nanos = m_TimelineManager->GetTimeSinceLastFrame100Nanos();
+	if (lowestDuration100Nanos == 0) {
+		INT64 duration100Nanos = m_TimelineManager->GetCurrentVideoFrameDuration();
 		for each (WASAPICapture * capture in m_AudioCaptures)
 		{
 			if (capture->IsCapturing() && capture->NeedSync()) {
-				int frameCount = int(ceil(capture->GetInputFormat().sampleRate * HundredNanosToSeconds(duration100Nanos)));
-				if (lowestFrameCount == 0 || frameCount < lowestFrameCount) {
-					lowestFrameCount = frameCount;
+				if (lowestDuration100Nanos == 0 || duration100Nanos < lowestDuration100Nanos) {
+					lowestDuration100Nanos = duration100Nanos;
 				}
 			}
 		}
 	}
-	return lowestFrameCount;
+	return lowestDuration100Nanos;
 }
 
 FRAME_AUDIO_DATA *AudioManager::MixAudioSamples(_In_ std::map<WASAPICapture *, std::vector<BYTE>> &audioSamples)
@@ -291,28 +304,30 @@ FRAME_AUDIO_DATA *AudioManager::MixAudioSamples(_In_ std::map<WASAPICapture *, s
 	streams.reserve(audioSamples.size());
 	size_t maxSize = 0;
 	for (auto &pair : audioSamples) {
-		maxSize = max(maxSize, pair.second.size());
+		WASAPICapture *capture = pair.first;
+		std::vector<BYTE> &data = pair.second;
+		maxSize = max(maxSize, data.size());
 
-		if (pair.first->GetFlow() == eCapture
+		if (capture->GetFlow() == eCapture
 		&& m_AudioOptions
 		&& m_AudioOptions->GetAudioChannels() > 1
-		&& m_AudioOptions->IsInputDeviceDownmixingEnabled()) {
+		&& capture->GetAudioCaptureSource()->ForceMono) {
 			try
 			{
 				// This will copy the selected channel from the input device over all the output channels.
 				// Useful when i.e. the input device is stereo but only outputs audio on one channel.
-				pair.second = DownmixToMono(pair.second, pair.first->GetInputFormat().nChannels, m_AudioOptions->GetAudioChannels(), m_AudioOptions->GetInputMasterChannel());
-				LOG_TRACE("Downmixed input audio");
+				data = DownmixToMono(data, capture->GetInputFormat().nChannels, m_AudioOptions->GetAudioChannels(), m_AudioOptions->GetInputMasterChannel());
+				LOG_TRACE("Downmixed audio input device %s", capture->GetDeviceFriendlyName().c_str());
 			}
 			catch (const std::runtime_error &e) {
-				LOG_ERROR("Error downmixing audio input device: %s.", s2ws(e.what()).c_str());
+				LOG_ERROR("Error downmixing audio input device %s: %s.", capture->GetDeviceFriendlyName().c_str(), s2ws(e.what()).c_str());
 			}
 		}
 		streams.push_back({
-			pair.first->GetAudioCaptureSource()->ID,
-			reinterpret_cast<const short *>(pair.second.data()),
-			pair.second.size() / 2,
-			pair.first->GetAudioCaptureSource()->OutputVolumeModifier
+			capture->GetAudioCaptureSource()->ID,
+			reinterpret_cast<const short *>(data.data()),
+			data.size() / 2,
+			capture->GetAudioCaptureSource()->OutputVolumeModifier
 		});
 	}
 	const size_t maxSamples = maxSize / 2;
@@ -378,6 +393,28 @@ FRAME_AUDIO_DATA *AudioManager::MixAudioSamples(_In_ std::map<WASAPICapture *, s
 	}
 	FRAME_AUDIO_DATA *data = new FRAME_AUDIO_DATA(output, info, 0);
 	return data;
+}
+
+bool AudioManager::PadAudio(_Inout_ std::vector<BYTE> &audioData, _In_ INT64 videoFramePos, _In_ INT64 videoFrameDuration)
+{
+	bool paddedAudio = false;
+	/* If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
+	 * If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
+	 * We ignore every instance where the last frame had audio, due to sometimes very short frame durations due to mouse cursor changes have zero audio length,
+	 * and inserting silence between two frames that has audio leads to glitching. */
+	if (GetAudioOptions()->IsAudioEnabled()
+		&& audioData.size() == 0
+		&& videoFrameDuration > 0) {
+			INT64 expectedAudioFrames = ((videoFramePos + videoFrameDuration) * GetAudioOptions()->GetAudioSamplesPerSecond()) / 10'000'000ULL;
+			INT64 renderedAudioFrames = m_TimelineManager->GetRenderedAudioFrameCount();
+			if (renderedAudioFrames < expectedAudioFrames) {
+				int frameCount = static_cast<int>(max(0ll, expectedAudioFrames - renderedAudioFrames));
+				int byteCount = frameCount * (GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels();
+				audioData.insert(audioData.end(), byteCount, 0);
+				paddedAudio = true;
+			}
+	}
+	return paddedAudio;
 }
 
 short AudioManager::ClampSample(float sample)

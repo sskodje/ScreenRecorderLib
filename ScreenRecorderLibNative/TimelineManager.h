@@ -32,6 +32,11 @@ public:
 	INT64 OnVideoFrame();
 	INT64 OnAudioPacket(_In_ int frameCount, _In_ int sampleRate);
 
+	inline INT64 GetCurrentVideoFrameStartPosition() const { return m_CurrentVideoFrameStartPos100Nanos; }
+	inline UINT64 GetCurrentVideoFrameDuration() const { return static_cast<UINT64>(GetNextVideoFrameStartPosition() - GetCurrentVideoFrameStartPosition()); }
+	inline INT64 GetCurrentAudioFrameStartPosition() const { return m_CurrentAudioPacketStartPos100Nanos; }
+	inline UINT64 GetCurrentAudioFrameDuration() const { return static_cast<UINT64>(GetNextAudioFrameStartPosition() - GetCurrentAudioFrameStartPosition()); }
+
 	inline INT64 GetNextVideoFrameStartPosition() const { return m_NextVideoFrameStartPos100Nanos; }
 	inline INT64 GetNextAudioFrameStartPosition() const { return m_NextAudioPacketStartPos100Nanos; }
 
@@ -43,8 +48,10 @@ private:
 	double m_TargetVideoFrameDurationMillis;
 	double m_SnapshotIntervalMillis;
 	INT64 m_SnapshotInterval100Nanos;
+	INT64 m_CurrentAudioPacketStartPos100Nanos;
 	INT64 m_NextAudioPacketStartPos100Nanos;
 	INT64 m_NextVideoFrameStartPos100Nanos;
+	INT64 m_CurrentVideoFrameStartPos100Nanos;
 	INT64 m_LastPresentationClockTime;
 	INT64 m_LastSnapshotTime;
 	int m_RenderedVideoFrameCount;

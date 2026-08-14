@@ -183,7 +183,7 @@ HRESULT OutputManager::FinalizeRecording()
 	return finalizeResult;
 }
 
-HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel model) {
+HRESULT OutputManager::RenderFrame(_In_ const FrameWriteModel &model) {
 	HRESULT hr(S_OK);
 	EnterCriticalSection(&m_CriticalSection);
 	LeaveCriticalSectionOnExit leaveOnExit(&m_CriticalSection);
@@ -200,7 +200,7 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel model) {
 		}
 
 		if (model.Audio.size() > 0) {
-			hr = WriteAudioSamplesToVideo(model.AudioStartPos, model.AudioDuration, m_AudioStreamIndex, &(model.Audio)[0], (DWORD)model.Audio.size());
+			hr = WriteAudioSamplesToVideo(model.AudioStartPos, model.AudioDuration, m_AudioStreamIndex, model.Audio.data(), (DWORD)model.Audio.size());
 			if (FAILED(hr)) {
 				_com_error err(hr);
 				LOG_ERROR(L"Writing of audio sample with start pos %lld ms failed: %s", (HundredNanosToMillis(model.AudioStartPos)), err.ErrorMessage());
@@ -211,13 +211,13 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel model) {
 			}
 		}
 		auto frameInfoStr = wroteAudioSample ? (model.PaddedBytes > 0 ? L"video sample and audio padding" : L"video and audio sample") : L"video sample";
-		LOG_TRACE(L"Wrote %s with vid start %lld ms, vid duration %.2f ms, audio start %lld ms, audio duration %.2f ms. diff %.2f ms.",
+		LOG_TRACE(L"Wrote %s with video: %lldms + %.2fms, audio: %lldms + %.2fms, diff: %.2fms.",
 			frameInfoStr,
 			HundredNanosToMillis(model.VideoStartPos),
 			HundredNanosToMillisDouble(model.VideoDuration),
 			HundredNanosToMillis(model.AudioStartPos),
 			HundredNanosToMillisDouble(model.AudioDuration),
-			HundredNanosToMillisDouble(model.VideoStartPos - model.AudioStartPos));
+			HundredNanosToMillisDouble((model.VideoStartPos + model.VideoDuration) - (model.AudioStartPos + model.AudioDuration)));
 	}
 	else if (recorderMode == RecorderModeInternal::Slideshow) {
 		wstring	path = m_OutputFolder + L"\\" + to_wstring(m_TimelineManager->GetRenderedVideoFrameCount()) + GetSnapshotOptions()->GetImageExtension();
@@ -245,7 +245,6 @@ HRESULT OutputManager::RenderFrame(_In_ FrameWriteModel model) {
 			LOG_TRACE(L"Wrote snapshot to %s", m_OutputFullPath.c_str());
 		}
 	}
-	model.Frame.Release();
 	return hr;
 }
 
@@ -326,7 +325,7 @@ HRESULT OutputManager::ConfigureInputMediaTypes(
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709));
 	RETURN_ON_BAD_HR(pVideoMediaType->SetUINT32(MF_MT_TRANSFER_FUNCTION, MFVideoTransFunc_709));
 	RETURN_ON_BAD_HR(MFSetAttributeSize(pVideoMediaType, MF_MT_FRAME_SIZE, sourceWidth, sourceHeight));
-	if (!GetEncoderOptions()->GetIsFixedFramerate() && !GetEncoderOptions()->GetIsFragmentedMp4Enabled()) {
+	if (!GetEncoderOptions()->GetIsFixedFramerate()) {
 		RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_FRAME_RATE, GetEncoderOptions()->GetVideoFps(), 1));
 	}
 	RETURN_ON_BAD_HR(MFSetAttributeRatio(pVideoMediaType, MF_MT_PIXEL_ASPECT_RATIO, 1, 1));
@@ -584,7 +583,7 @@ HRESULT OutputManager::WriteFrameToVideo(_In_ INT64 frameStartPos, _In_ INT64 fr
 	return hr;
 }
 
-HRESULT OutputManager::WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ BYTE *pSrc, _In_ DWORD cbData)
+HRESULT OutputManager::WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ INT64 frameDuration, _In_ DWORD streamIndex, _In_ const BYTE *pSrc, _In_ DWORD cbData)
 {
 	IMFMediaBuffer *pBuffer = nullptr;
 	BYTE *pData = nullptr;
@@ -593,13 +592,6 @@ HRESULT OutputManager::WriteAudioSamplesToVideo(_In_ INT64 frameStartPos, _In_ I
 		cbData,   // Amount of memory to allocate, in bytes.
 		&pBuffer
 	);
-	//once in awhile, things get behind and we get an out of memory error when trying to create the buffer
-	//so, just check, wait and try again if necessary
-	int counter = 0;
-	while (!SUCCEEDED(hr) && counter++ < 100) {
-		Sleep(10);
-		hr = MFCreateMemoryBuffer(cbData, &pBuffer);
-	}
 	// Lock the buffer to get a pointer to the memory.
 	if (SUCCEEDED(hr))
 	{

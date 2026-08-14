@@ -574,9 +574,11 @@ HRESULT WASAPICapture::StartCaptureLoop(
 					UINT64 expectedPosition = nLastDevicePosition + nNumFramesToRead;
 					if (nDevicePosition > expectedPosition)
 					{
-						INT64 frameDiff = max(0ll, static_cast<INT64>(nDevicePosition) - static_cast<INT64>(expectedPosition));
-						recordedBytes.insert(recordedBytes.begin(), (size_t)(frameDiff * nBlockAlign), 0);
-						LOG_DEBUG(L"Discontinuity detected, padded audio bytes with %d bytes of silence on %ls", frameDiff, GetDeviceFriendlyName().c_str());
+						size_t frameDiff = static_cast<size_t>(max(0ull, nDevicePosition - expectedPosition));
+						size_t byteDiff = frameDiff * nBlockAlign;
+						recordedBytes.insert(recordedBytes.begin(), byteDiff, 0);
+						nNumFramesToRead += frameDiff;
+						LOG_DEBUG(L"Discontinuity detected, padded audio bytes with %lu bytes of silence on %ls", byteDiff, GetDeviceFriendlyName().c_str());
 					}
 				}
 #pragma warning(disable: 26110)
@@ -625,6 +627,7 @@ std::vector<BYTE> WASAPICapture::PeakRecordedBytes()
 {
 	return vector < BYTE>();
 }
+
 int WASAPICapture::GetNextFrameCount()
 {
 	int availableFrameCount = std::accumulate(m_RecordedAudioPackets.begin(), m_RecordedAudioPackets.end(), 0, [this](int a, AudioPacket b) {
@@ -632,60 +635,71 @@ int WASAPICapture::GetNextFrameCount()
 	});
 	return availableFrameCount;
 }
+INT64 WASAPICapture::GetQueuedDuration100Nanos()
+{
+	return static_cast<INT64>(GetNextFrameCount()) * 10'000'000 / m_InputFormat.sampleRate;
+}
 std::vector<BYTE> WASAPICapture::GetRecordedBytesByDuration(UINT64 duration100Nanos, _Out_ UINT64 *qpcTimestamp)
 {
-	int frameCount = int(ceil(m_InputFormat.sampleRate * HundredNanosToSeconds(duration100Nanos)));
+	int frameCount = (duration100Nanos * m_InputFormat.sampleRate + 5'000'000) / 10'000'000;
 	return GetRecordedBytesByFrameCount(frameCount, qpcTimestamp);
 }
 std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(int requestedFrameCount, _Out_ UINT64 *qpcTimestamp)
 {
 	std::vector<BYTE> newvector;
 	*qpcTimestamp = 0;
-	int recordedFrameCount{};
-	if (m_RecordedAudioPackets.size() > 0)
+	UINT32 recordedFrameCount = 0;
+	const std::lock_guard<std::mutex> lock(m_TaskWrapperImpl->m_Mutex);
+	size_t remainingBytes = 0;
+	int readPacketCount = 0;
+	for (AudioPacket &recordedPacket : m_RecordedAudioPackets)
 	{
-		const std::lock_guard<std::mutex> lock(m_TaskWrapperImpl->m_Mutex);
-		size_t remainingBytes = 0;
-		int readPacketCount = 0;
-		for each (AudioPacket recordedPacket in m_RecordedAudioPackets)
-		{
-			if (recordedFrameCount < requestedFrameCount) {
-				newvector.insert(newvector.end(), recordedPacket.data.begin(), recordedPacket.data.end());
-				recordedFrameCount += recordedPacket.frameCount;
-				if (readPacketCount == 0) {
-					*qpcTimestamp = recordedPacket.timestamp100ns;
-				}
+		if (recordedFrameCount < requestedFrameCount) {
+			int packetFrameCountToCopy = min(recordedPacket.frameCount, requestedFrameCount - recordedFrameCount);
+			int packetBytesToCopy = packetFrameCountToCopy * m_InputFormat.FrameBytes();
+			newvector.insert(newvector.end(), recordedPacket.data.begin(), recordedPacket.data.begin() + packetBytesToCopy);
+			recordedFrameCount += packetFrameCountToCopy;
+			if (readPacketCount == 0) {
+				*qpcTimestamp = recordedPacket.timestamp100ns;
+			}
+			if (packetFrameCountToCopy == recordedPacket.frameCount) {
 				readPacketCount++;
 			}
 			else {
+				recordedPacket.data.erase(recordedPacket.data.begin(), recordedPacket.data.begin() + packetBytesToCopy);
+				recordedPacket.frameCount -= packetFrameCountToCopy;
 				remainingBytes += recordedPacket.data.size();
 			}
 		}
-		int diff = requestedFrameCount - recordedFrameCount;
-		if (m_NeedSync) {
-			if (diff > 0) {
-				newvector.insert(newvector.begin(), diff * m_InputFormat.FrameBytes(), 0);
-				LOG_TRACE("Padded packet with %d bytes on WASAPICapture %ls", diff, GetDeviceFriendlyName().c_str());
-			}
-			m_NeedSync = false;
+		else {
+			remainingBytes += recordedPacket.data.size();
 		}
-		m_RecordedAudioPackets.erase(m_RecordedAudioPackets.begin(), m_RecordedAudioPackets.begin() + readPacketCount);
-		LOG_TRACE(L"Got %d bytes from WASAPICapture %ls. %d bytes remaining.", newvector.size(), GetDeviceFriendlyName().c_str(), remainingBytes);
+	}
 
-		// convert audio
-		if (m_Resampler && newvector.size() > 0) {
-			WWMFSampleData sampleData;
-			HRESULT hr = m_Resampler->Resample(newvector.data(), (DWORD)newvector.size(), &sampleData);
-			if (SUCCEEDED(hr)) {
-				LOG_TRACE(L"Resampled audio from %dch %uhz to %dch %uhz", m_InputFormat.nChannels, m_InputFormat.sampleRate, m_OutputFormat.nChannels, m_OutputFormat.sampleRate);
-			}
-			else {
-				LOG_ERROR(L"Resampling of audio failed: hr = 0x%08x", hr);
-			}
-			newvector.clear();
-			newvector.insert(newvector.end(), &sampleData.data[0], &sampleData.data[sampleData.bytes]);
-			sampleData.Release();
+	if (m_NeedSync) {
+		int diff = requestedFrameCount - recordedFrameCount;
+		if (diff > 0) {
+			newvector.insert(newvector.begin(), diff * m_InputFormat.FrameBytes(), 0);
+			LOG_TRACE("Padded packet with %d bytes on WASAPICapture %ls", diff, GetDeviceFriendlyName().c_str());
 		}
+		m_NeedSync = false;
+	}
+	m_RecordedAudioPackets.erase(m_RecordedAudioPackets.begin(), m_RecordedAudioPackets.begin() + readPacketCount);
+	LOG_TRACE(L"Got %lu/%lu bytes from WASAPICapture %ls. %d bytes remaining.", newvector.size(), (recordedFrameCount * m_InputFormat.FrameBytes()), GetDeviceFriendlyName().c_str(), remainingBytes);
+
+	// convert audio
+	if (m_Resampler && newvector.size() > 0) {
+		WWMFSampleData sampleData;
+		HRESULT hr = m_Resampler->Resample(newvector.data(), (DWORD)newvector.size(), &sampleData);
+		if (SUCCEEDED(hr)) {
+			LOG_TRACE(L"Resampled audio from %dch %uhz to %dch %uhz on WASAPICapture %ls", m_InputFormat.nChannels, m_InputFormat.sampleRate, m_OutputFormat.nChannels, m_OutputFormat.sampleRate, GetDeviceFriendlyName().c_str());
+		}
+		else {
+			LOG_ERROR(L"Resampling of audio failed: hr = 0x%08x", hr);
+		}
+		newvector.clear();
+		newvector.insert(newvector.end(), &sampleData.data[0], &sampleData.data[sampleData.bytes]);
+		sampleData.Release();
 	}
 	return newvector;
 }

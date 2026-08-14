@@ -10,6 +10,8 @@ TimelineManager::TimelineManager() :
 	m_TimeSrc(nullptr),
 	m_NextAudioPacketStartPos100Nanos(0),
 	m_NextVideoFrameStartPos100Nanos(0),
+	m_CurrentVideoFrameStartPos100Nanos(0),
+	m_CurrentAudioPacketStartPos100Nanos(0),
 	m_AudioCorrector(nullptr),
 	m_RenderedVideoFrameCount(0),
 	m_RenderedAudioFrameCount(0),
@@ -133,6 +135,7 @@ INT64 TimelineManager::OnVideoFrame()
 	INT64 currentPresentationClockTime;
 	RETURN_ON_BAD_HR(GetMediaTimeStamp(&currentPresentationClockTime));
 	INT64 frameDuration100Nanos = currentPresentationClockTime - m_LastPresentationClockTime;
+	m_CurrentVideoFrameStartPos100Nanos = m_NextVideoFrameStartPos100Nanos;
 	m_NextVideoFrameStartPos100Nanos += frameDuration100Nanos;
 	m_LastPresentationClockTime = currentPresentationClockTime;
 	m_RenderedVideoFrameCount++;
@@ -145,6 +148,7 @@ INT64 TimelineManager::OnAudioPacket(_In_ int frameCount, _In_ int sampleRate)
 	m_AudioTimeRemainder += ticks;
 	const INT64 audioDuration100Nanos = m_AudioTimeRemainder / sampleRate;
 	m_AudioTimeRemainder %= sampleRate;
+	m_CurrentAudioPacketStartPos100Nanos = m_NextAudioPacketStartPos100Nanos;
 	m_NextAudioPacketStartPos100Nanos += audioDuration100Nanos;
 	INT64 audioDriftCorrection = m_AudioCorrector->GetDriftCorrection(
 GetRenderedVideoFrameCount(),

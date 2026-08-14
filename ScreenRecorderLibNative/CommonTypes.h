@@ -56,9 +56,11 @@ struct FRAME_AUDIO_INFO {
 	double Gain;
 	std::vector<BYTE> Data;
 	std::vector<FRAME_AUDIO_SOURCE> Sources;
+	size_t PaddedBytes;
 	FRAME_AUDIO_INFO() :
 		Sources{},
-		Gain(0) {
+		Gain(0),
+		PaddedBytes(0) {
 	}
 	FRAME_AUDIO_INFO(double gain, const std::vector<FRAME_AUDIO_SOURCE> &sources) :FRAME_AUDIO_INFO() {
 		Sources = sources;
@@ -555,7 +557,6 @@ protected:
 
 	std::vector<AUDIO_SOURCE *> m_AudioSources;
 	bool m_IsAudioEnabled = false;
-	bool m_IsInputDeviceDownmixingEnabled = true;
 	UINT32 m_AudioBitrate = (96 / 8) * 1000;	//Bitrate in bytes per second. Only 96,128,160 and 192kbps is supported.
 	UINT32 m_AudioChannels = 2;					//Number of audio channels. 1,2 and 6 is supported. 6 only on windows 8 and up.
 	float m_MasterVolumeModifier = 1;
@@ -586,7 +587,6 @@ public:
 	void SetAudioBitrate(UINT32 bitrate) { m_AudioBitrate = bitrate; Notify(OnPropertyChangedEvent); }
 	void SetAudioChannels(UINT32 channels) { m_AudioChannels = channels; Notify(OnPropertyChangedEvent); }
 	void SetAudioEnabled(bool value) { m_IsAudioEnabled = value; Notify(OnPropertyChangedEvent); }
-	void SetInputDeviceDownmixingEnabled(bool value) { m_IsInputDeviceDownmixingEnabled = value; Notify(OnPropertyChangedEvent); }
 	void SetInputDeviceMasterChannel(int value) { m_InputMasterChannel = value; Notify(OnPropertyChangedEvent); }
 	void SetAudioDataPreviewEnabled(bool value) { m_IsAudioDataPreviewEnabled = value; }
 	void SetAudioSources(std::vector<AUDIO_SOURCE> &sources, std::optional<bool> notify = true) {
@@ -620,7 +620,6 @@ public:
 	UINT32 GetAudioBitrate() const { return m_AudioBitrate; }
 	UINT32 GetAudioChannels() const { return m_AudioChannels; }
 	float GetMasterVolume() const { return m_MasterVolumeModifier; }
-	bool IsInputDeviceDownmixingEnabled() const { return m_IsInputDeviceDownmixingEnabled; }
 	GUID GetAudioEncoderFormat() const { return AUDIO_ENCODING_FORMAT; }
 	UINT32 GetAudioBitsPerSample() const { return AUDIO_BITS_PER_SAMPLE; }
 	UINT32 GetAudioSamplesPerSecond() const { return AUDIO_SAMPLES_PER_SECOND; }
