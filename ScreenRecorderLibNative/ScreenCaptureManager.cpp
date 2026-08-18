@@ -268,7 +268,7 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  INT64 timeUntilNextFrame100
 		});
 	auto GetNextSyncTimeout([&]()
 		{
-			return static_cast<DWORD>(max(haveNewFrame ? 0 : 1, static_cast<int>(floor(GetMillisUntilNextFrame()) - 0.5)));
+			return static_cast<DWORD>(max(haveNewFrame ? 0 : 1, static_cast<int>(floor(GetMillisUntilNextFrame() - 0.5))));
 		});
 	auto ShouldDelay([&]()
 		{
@@ -281,9 +281,9 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  INT64 timeUntilNextFrame100
 			}
 			if (m_OutputOptions->GetRecorderMode() == RecorderModeInternal::Video) {
 				if (!m_EncoderOptions->GetIsFixedFramerate()
-					&& ((m_MouseOptions->IsMousePointerEnabled() && m_PtrInfo.IsPointerShapeUpdated)//and never delay when pointer changes if we draw pointer
-						|| false)) // Or if we need to write a snapshot 
+					&& ((m_MouseOptions->IsMousePointerEnabled() && m_PtrInfo.IsPointerShapeUpdated)))
 				{
+					// never delay when pointer changes if we draw pointer
 					return false;
 				}
 			}
@@ -291,7 +291,7 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  INT64 timeUntilNextFrame100
 			if (timeUntilNextFrame100Nanos < 1000) {
 				return false;
 			}
-			else if (timeUntilNextFrame100Nanos >= 1000) {
+			else {
 				return true;
 			}
 			return false;
