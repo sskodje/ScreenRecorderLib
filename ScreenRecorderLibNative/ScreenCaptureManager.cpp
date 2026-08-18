@@ -256,7 +256,7 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  INT64 timeUntilNextFrame100
 	auto Get100NanosUntilNextFrame([&]()
 		{
 			INT64 timeWaited100Nanons = GetTimeWaited100Nanos();
-			if (m_EncoderOptions->GetIsFixedFramerate() || haveNewFrame) {
+			if (m_EncoderOptions->IsFixedFramerate() || haveNewFrame) {
 				return timeUntilNextFrame100Nanos - timeWaited100Nanons;
 			}
 			else {
@@ -280,7 +280,7 @@ HRESULT ScreenCaptureManager::AcquireNextFrame(_In_  INT64 timeUntilNextFrame100
 				return false;
 			}
 			if (m_OutputOptions->GetRecorderMode() == RecorderModeInternal::Video) {
-				if (!m_EncoderOptions->GetIsFixedFramerate()
+				if (!m_EncoderOptions->IsFixedFramerate()
 					&& ((m_MouseOptions->IsMousePointerEnabled() && m_PtrInfo.IsPointerShapeUpdated)))
 				{
 					// never delay when pointer changes if we draw pointer

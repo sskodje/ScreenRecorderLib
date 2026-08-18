@@ -685,12 +685,12 @@ public:
 	UINT32 GetVideoFps() const { return m_VideoFps; }
 	UINT32 GetVideoBitrate() const { return m_VideoBitrate; }
 	UINT32 GetVideoQuality() const { return m_VideoQuality; }
-	bool GetIsFixedFramerate() const { return  m_IsFixedFramerate; }
-	bool GetIsThrottlingDisabled() const { return  m_IsThrottlingDisabled; }
-	bool GetIsFastStartEnabled() const { return m_IsMp4FastStartEnabled; }
-	bool GetIsFragmentedMp4Enabled() const { return m_IsFragmentedMp4Enabled; }
-	bool GetIsHardwareEncodingEnabled() const { return m_IsHardwareEncodingEnabled; }
-	bool GetIsLowLatencyModeEnabled() const { return m_IsLowLatencyModeEnabled; }
+	bool IsFixedFramerate() const { return  m_IsFixedFramerate; }
+	bool IsThrottlingDisabled() const { return  m_IsThrottlingDisabled; }
+	bool IsFastStartEnabled() const { return m_IsMp4FastStartEnabled; }
+	bool IsFragmentedMp4Enabled() const { return m_IsFragmentedMp4Enabled; }
+	bool IsHardwareEncodingEnabled() const { return m_IsHardwareEncodingEnabled; }
+	bool IsLowLatencyModeEnabled() const { return m_IsLowLatencyModeEnabled; }
 	UINT32 GetVideoBitrateMode() const { return m_VideoBitrateControlMode; }
 	UINT32 GetEncoderProfile() const { return m_EncoderProfile; }
 

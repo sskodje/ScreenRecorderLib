@@ -473,7 +473,7 @@ void RecordingManager::SetRecordingCompleteStatus(_In_ REC_RESULT result, _In_ s
 			if (FAILED(m_EncoderResult)) {
 				_com_error encoderFailure(m_EncoderResult);
 				errMsg = string_format(L"Write error (0x%lx) in video encoder: %s", m_EncoderResult, encoderFailure.ErrorMessage());
-				if (GetEncoderOptions()->GetIsHardwareEncodingEnabled()) {
+				if (GetEncoderOptions()->IsHardwareEncodingEnabled()) {
 					errMsg += L" If the problem persists, disabling hardware encoding may improve stability.";
 				}
 			}
