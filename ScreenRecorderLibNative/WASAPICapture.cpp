@@ -574,8 +574,8 @@ HRESULT WASAPICapture::StartCaptureLoop(
 					UINT64 expectedPosition = nLastDevicePosition + nNumFramesToRead;
 					if (nDevicePosition > expectedPosition)
 					{
-						size_t frameDiff = static_cast<size_t>(max(0ull, nDevicePosition - expectedPosition));
-						size_t byteDiff = frameDiff * nBlockAlign;
+						UINT32 frameDiff = static_cast<UINT32>(max(0ull, nDevicePosition - expectedPosition));
+						UINT32 byteDiff = frameDiff * nBlockAlign;
 						recordedBytes.insert(recordedBytes.begin(), byteDiff, 0);
 						nNumFramesToRead += frameDiff;
 						LOG_DEBUG(L"Discontinuity detected, padded audio bytes with %lu bytes of silence on %ls", byteDiff, GetDeviceFriendlyName().c_str());
@@ -628,23 +628,23 @@ std::vector<BYTE> WASAPICapture::PeakRecordedBytes()
 	return vector < BYTE>();
 }
 
-int WASAPICapture::GetNextFrameCount()
+UINT64 WASAPICapture::GetNextFrameCount()
 {
-	int availableFrameCount = std::accumulate(m_RecordedAudioPackets.begin(), m_RecordedAudioPackets.end(), 0, [this](int a, AudioPacket b) {
+	UINT64 availableFrameCount = std::accumulate(m_RecordedAudioPackets.begin(), m_RecordedAudioPackets.end(), 0ull, [this](UINT64 a, AudioPacket b) {
 		return (a + b.data.size() / m_InputFormat.FrameBytes());
 	});
 	return availableFrameCount;
 }
 INT64 WASAPICapture::GetQueuedDuration100Nanos()
 {
-	return static_cast<INT64>(GetNextFrameCount()) * 10'000'000 / m_InputFormat.sampleRate;
+	return GetNextFrameCount() * 10'000'000 / m_InputFormat.sampleRate;
 }
 std::vector<BYTE> WASAPICapture::GetRecordedBytesByDuration(UINT64 duration100Nanos, _Out_ UINT64 *qpcTimestamp)
 {
-	int frameCount = (duration100Nanos * m_InputFormat.sampleRate + 5'000'000) / 10'000'000;
+	UINT32 frameCount = static_cast<UINT32>((duration100Nanos * m_InputFormat.sampleRate + 5'000'000) / 10'000'000);
 	return GetRecordedBytesByFrameCount(frameCount, qpcTimestamp);
 }
-std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(int requestedFrameCount, _Out_ UINT64 *qpcTimestamp)
+std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(UINT32 requestedFrameCount, _Out_ UINT64 *qpcTimestamp)
 {
 	std::vector<BYTE> newvector;
 	*qpcTimestamp = 0;
@@ -679,7 +679,7 @@ std::vector<BYTE> WASAPICapture::GetRecordedBytesByFrameCount(int requestedFrame
 	if (m_NeedSync) {
 		int diff = requestedFrameCount - recordedFrameCount;
 		if (diff > 0) {
-			newvector.insert(newvector.begin(), diff * m_InputFormat.FrameBytes(), 0);
+			newvector.insert(newvector.begin(), static_cast<size_t>(diff) * m_InputFormat.FrameBytes(), 0);
 			LOG_TRACE("Padded packet with %d bytes on WASAPICapture %ls", diff, GetDeviceFriendlyName().c_str());
 		}
 		m_NeedSync = false;

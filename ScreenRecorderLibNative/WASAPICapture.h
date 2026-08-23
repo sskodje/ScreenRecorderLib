@@ -49,11 +49,11 @@ public:
 	bool IsCapturing();
 	bool IsPaused();
 	inline bool IsDefaultDevice() const { return m_IsDefaultDevice; }
-	int GetNextFrameCount();
+	UINT64 GetNextFrameCount();
 	INT64 WASAPICapture::GetQueuedDuration100Nanos();
 	std::vector<BYTE> PeakRecordedBytes();
 	std::vector<BYTE> GetRecordedBytesByDuration(UINT64 duration100Nanos, _Out_ UINT64 *qpcTimestamp);
-	std::vector<BYTE> GetRecordedBytesByFrameCount(int requestedFrameCount, _Out_ UINT64 *qpcTimestamp);
+	std::vector<BYTE> GetRecordedBytesByFrameCount(UINT32 requestedFrameCount, _Out_ UINT64 *qpcTimestamp);
 	HRESULT Initialize(_In_ std::wstring endpointID, _In_ AudioClientKind kind);
 	HRESULT StartCapture();
 	HRESULT StopCapture();
