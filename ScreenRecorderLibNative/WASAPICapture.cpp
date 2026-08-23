@@ -343,7 +343,7 @@ HRESULT WASAPICapture::GetWaveFormat(
 	_In_ AudioClientKind kind,
 	_In_ CComPtr<IAudioClient> client,
 	_In_ bool bInt16,
-	_Out_ WAVEFORMATEX **pWaveFormat) {
+	_Out_ WAVEFORMATEX **pWaveFormat) const {
 	// get the default device format
 	HRESULT hr = E_FAIL;
 	WAVEFORMATEX *pwfx = nullptr;

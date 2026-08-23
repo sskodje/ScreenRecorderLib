@@ -48,7 +48,7 @@ public:
 	void ClearRecordedBytes();
 	bool IsCapturing();
 	bool IsPaused();
-	inline bool IsDefaultDevice() { return m_IsDefaultDevice; }
+	inline bool IsDefaultDevice() const { return m_IsDefaultDevice; }
 	int GetNextFrameCount();
 	INT64 WASAPICapture::GetQueuedDuration100Nanos();
 	std::vector<BYTE> PeakRecordedBytes();
@@ -61,12 +61,12 @@ public:
 	HRESULT ResumeCapture();
 	void SetDefaultDevice(EDataFlow flow, ERole role, LPCWSTR id);
 	void SetOffline(bool isOffline);
-	inline EDataFlow GetFlow() { return m_Flow; }
-	inline std::wstring GetDeviceFriendlyName() { return m_DeviceFriendlyName; }
-	inline std::wstring GetDeviceName() { return m_DeviceName; }
-	inline WWMFPcmFormat GetInputFormat() { return m_InputFormat; }
+	inline EDataFlow GetFlow() const { return m_Flow; }
+	inline std::wstring GetDeviceFriendlyName() const { return m_DeviceFriendlyName; }
+	inline std::wstring GetDeviceName() const { return m_DeviceName; }
+	inline WWMFPcmFormat GetInputFormat() const { return m_InputFormat; }
 	inline AUDIO_SOURCE *GetAudioCaptureSource() { return m_AudioCaptureSource; }
-	inline bool NeedSync() { return m_NeedSync; }
+	inline bool NeedSync() const { return m_NeedSync; }
 	inline static std::mutex StaticMutex{};
 
 private:
@@ -75,7 +75,7 @@ private:
 		_In_ AudioClientKind kind,
 		_In_ CComPtr<IAudioClient> client,
 		_In_ bool bInt16,
-		_Out_ WAVEFORMATEX **ppWaveFormat);
+		_Out_ WAVEFORMATEX **ppWaveFormat) const;
 	HRESULT InitializeAudioClient(
 		_In_ std::wstring deviceId,
 		_In_ AudioClientKind kind,
