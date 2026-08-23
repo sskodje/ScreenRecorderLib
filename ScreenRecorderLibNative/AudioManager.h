@@ -61,8 +61,8 @@ private:
 	/// If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
 	/// </summary>
 	/// <param name="audioData"></param>
-	/// <param name="nextVideoFramePos"></param>
-	/// <param name="nextVideoFrameDuration"></param>
+	/// <param name="videoFramePos"></param>
+	/// <param name="videoFrameDuration"></param>
 	/// <returns></returns>
 	bool PadAudio(_Inout_ std::vector<BYTE> &audioData, _In_ INT64 videoFramePos, _In_ INT64 videoFrameDuration);
 };
