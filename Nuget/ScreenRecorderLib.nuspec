@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2011/08/nuspec.xsd">
   <metadata>
     <id>ScreenRecorderLib</id>
-    <version>7.0.0</version>
+    <version>7.0.1</version>
     <authors>Sverre Kristoffer Skodje</authors>
     <license type="expression">MIT</license>
     <projectUrl>https://github.com/sskodje/ScreenRecorderLib</projectUrl>
@@ -11,10 +11,7 @@
     <summary />
     <readme>README.md</readme>
     <releaseNotes>
-      • Rewrite of audio capture system, where audio sources are now added in AudioOptions parameter.
-      • Added audio drift correction.
-      • Added new OnAudioPacketRecorded event
-      • Fix for audio desync issues on audio hardware disconnect and reconnect.
+      • Fix for stalled recordings caused by missing audio padding on silent wasapi captures.
     </releaseNotes>
     <copyright>Copyright © Sverre Kristoffer Skodje 2025</copyright>
     <language>en-GB</language>
