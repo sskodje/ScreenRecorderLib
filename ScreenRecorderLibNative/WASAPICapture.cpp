@@ -495,6 +495,7 @@ HRESULT WASAPICapture::StartCaptureLoop(
 		bool bDone = false;
 		bool bFirstPacket = true;
 		UINT64 nLastDevicePosition = 0;
+		UINT32 nLastPassWithAudio = 0;
 		for (UINT32 nPasses = 0; !bDone; nPasses++) {
 			// drain data while it is available
 			UINT32 nNextPacketSize;
@@ -558,6 +559,9 @@ HRESULT WASAPICapture::StartCaptureLoop(
 					bDone = true;
 					continue; // exits loop
 				}
+				else {
+					nLastPassWithAudio = nPasses;
+				}
 
 				UINT32 size = nNumFramesToRead * nBlockAlign;
 				memcpy_s(bufferData.get(), bufferByteCount, pData, size);
@@ -596,6 +600,13 @@ HRESULT WASAPICapture::StartCaptureLoop(
 				LOG_ERROR(L"IAudioCaptureClient::GetNextPacketSize failed on pass %u after %u frames on %ls: hr = 0x%08x", nPasses, nFrames, GetDeviceFriendlyName().c_str(), hr);
 				bDone = true;
 				continue; // exits loop
+			}
+
+			if (nNextPacketSize == 0 && nLastPassWithAudio == 0 || std::max(0u, nPasses - nLastPassWithAudio) > 3) {
+				m_IsSilent.store(true);
+			}
+			else {
+				m_IsSilent.store(false);
 			}
 
 			dwWaitResult = WaitForMultipleObjects(ARRAYSIZE(waitArray), waitArray, FALSE, 5000);
@@ -906,6 +917,11 @@ bool WASAPICapture::IsCapturing() {
 
 bool WASAPICapture::IsPaused() {
 	return m_IsPaused.load();
+}
+
+bool WASAPICapture::IsSilent()
+{
+	return m_IsSilent.load();
 }
 
 void WASAPICapture::ClearRecordedBytes()

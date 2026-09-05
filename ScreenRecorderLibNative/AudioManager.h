@@ -16,15 +16,6 @@ public:
 	HRESULT PauseCapture();
 	HRESULT ResumeCapture();
 	FRAME_AUDIO_DATA *GrabAudioSamples();
-	inline bool const IsAnyAudioCapturesActive() {
-		for each (WASAPICapture * source in m_AudioCaptures)
-		{
-			if (source->IsCapturing() && !source->IsPaused()) {
-				return true;
-			}
-		}
-		return false;
-	};
 private:
 	struct StreamData {
 		std::wstring id;
@@ -32,6 +23,9 @@ private:
 		size_t sampleCount;
 		float volume;
 	};
+
+	bool const IsAnyAudioCapturesActive();
+	bool IsAudioCaptureActive(WASAPICapture *source);
 
 	CRITICAL_SECTION m_CriticalSection;
 	std::shared_ptr<AUDIO_OPTIONS> m_AudioOptions;

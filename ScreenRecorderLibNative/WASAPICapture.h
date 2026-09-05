@@ -48,6 +48,7 @@ public:
 	void ClearRecordedBytes();
 	bool IsCapturing();
 	bool IsPaused();
+	bool IsSilent();
 	inline bool IsDefaultDevice() const { return m_IsDefaultDevice; }
 	UINT64 GetNextFrameCount();
 	INT64 WASAPICapture::GetQueuedDuration100Nanos();
@@ -113,6 +114,7 @@ private:
 	bool m_IsRegisteredForEndpointNotifications = false;
 	bool m_IsDefaultDevice = false;
 	bool m_NeedSync = false;
+	std::atomic<bool> m_IsSilent = false;
 	std::atomic<bool> m_IsPaused = false;
 	std::atomic<bool> m_IsCapturing = false;
 	std::atomic<bool> m_IsOffline = false;

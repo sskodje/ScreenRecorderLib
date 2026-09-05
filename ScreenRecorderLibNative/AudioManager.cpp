@@ -72,6 +72,25 @@ HRESULT AudioManager::Initialize(_In_ std::shared_ptr<AUDIO_OPTIONS> &audioOptio
 	return hr;
 }
 
+bool const AudioManager::IsAnyAudioCapturesActive()
+{
+	for each (WASAPICapture * source in m_AudioCaptures)
+	{
+		if (IsAudioCaptureActive(source)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool AudioManager::IsAudioCaptureActive(WASAPICapture *source)
+{
+	if (source->IsCapturing() && !source->IsPaused() && !source->IsSilent()) {
+		return true;
+	}
+	return false;
+}
+
 void AudioManager::ClearRecordedBytes()
 {
 	for each (WASAPICapture * capture in m_AudioCaptures) {
@@ -235,9 +254,7 @@ FRAME_AUDIO_DATA *AudioManager::GrabAudioSamples()
 	UINT64 qpcTimestamp = 0;
 	{
 		const std::lock_guard<std::mutex> lock(WASAPICapture::StaticMutex);
-		UINT64 audioSyncDiff = max(0ull, (m_TimelineManager->GetCurrentVideoFrameStartPosition() + m_TimelineManager->GetCurrentVideoFrameDuration()) - m_TimelineManager->GetNextAudioFrameStartPosition());
-		UINT64 shortestQueuedDuration100Nanos = GetNextAudioSampleDuration();
-		UINT64 requestedDuration100Nanos = min(audioSyncDiff, shortestQueuedDuration100Nanos);
+		UINT64 requestedDuration100Nanos = GetNextAudioSampleDuration();
 		for each (WASAPICapture * capture in m_AudioCaptures)
 		{
 			if (capture->IsCapturing()) {
@@ -253,8 +270,8 @@ FRAME_AUDIO_DATA *AudioManager::GrabAudioSamples()
 
 	FRAME_AUDIO_DATA *audioData = MixAudioSamples(audioSamples);
 	audioData->QpcTimestamp = qpcTimestamp;
+	size_t unpaddedAudioSize = audioData->Data.size();
 	if (!IsAnyAudioCapturesActive()) {
-		size_t unpaddedAudioSize = audioData->Data.size();
 		bool paddedAudio = PadAudio(audioData->Data, m_TimelineManager->GetCurrentVideoFrameStartPosition(), m_TimelineManager->GetCurrentVideoFrameDuration());
 		if (paddedAudio) {
 			if (!audioData->Info) {
@@ -272,12 +289,10 @@ INT64 AudioManager::GetNextAudioSampleDuration()
 	INT64 lowestDuration100Nanos = 0;
 	for each (WASAPICapture * capture in m_AudioCaptures)
 	{
-		if (capture->IsCapturing()) {
-			if (!capture->NeedSync()) {
-				INT64 duration = capture->GetQueuedDuration100Nanos();
-				if (lowestDuration100Nanos == 0 || duration < lowestDuration100Nanos) {
-					lowestDuration100Nanos = duration;
-				}
+		if (IsAudioCaptureActive(capture) && !capture->NeedSync()) {
+			INT64 duration = capture->GetQueuedDuration100Nanos();
+			if (lowestDuration100Nanos == 0 || duration < lowestDuration100Nanos) {
+				lowestDuration100Nanos = duration;
 			}
 		}
 	}
@@ -290,6 +305,13 @@ INT64 AudioManager::GetNextAudioSampleDuration()
 					lowestDuration100Nanos = duration100Nanos;
 				}
 			}
+		}
+	}
+
+	if (m_TimelineManager->isMediaClockRunning()) {
+		UINT64 audioSyncDiff = max(0ll, m_TimelineManager->GetNextVideoFrameStartPosition() - m_TimelineManager->GetNextAudioFrameStartPosition());
+		if (audioSyncDiff < lowestDuration100Nanos) {
+			lowestDuration100Nanos = audioSyncDiff;
 		}
 	}
 	return lowestDuration100Nanos;
@@ -398,21 +420,17 @@ FRAME_AUDIO_DATA *AudioManager::MixAudioSamples(_In_ std::map<WASAPICapture *, s
 bool AudioManager::PadAudio(_Inout_ std::vector<BYTE> &audioData, _In_ INT64 videoFramePos, _In_ INT64 videoFrameDuration)
 {
 	bool paddedAudio = false;
-	/* If the audio pCaptureInstance returns no data, i.e. the source is silent, we need to pad the PCM stream with zeros to give the media sink silence as input.
-	 * If we don't, the sink writer will begin throttling video frames because it expects audio samples to be delivered, and think they are delayed.
-	 * We ignore every instance where the last frame had audio, due to sometimes very short frame durations due to mouse cursor changes have zero audio length,
-	 * and inserting silence between two frames that has audio leads to glitching. */
 	if (GetAudioOptions()->IsAudioEnabled()
 		&& audioData.size() == 0
 		&& videoFrameDuration > 0) {
-			INT64 expectedAudioFrames = ((videoFramePos + videoFrameDuration) * GetAudioOptions()->GetAudioSamplesPerSecond()) / 10'000'000ULL;
-			INT64 renderedAudioFrames = m_TimelineManager->GetRenderedAudioFrameCount();
-			if (renderedAudioFrames < expectedAudioFrames) {
-				int frameCount = static_cast<int>(max(0ll, expectedAudioFrames - renderedAudioFrames));
-				int byteCount = frameCount * (GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels();
-				audioData.insert(audioData.end(), byteCount, 0);
-				paddedAudio = true;
-			}
+		INT64 expectedAudioFrames = ((videoFramePos + videoFrameDuration) * GetAudioOptions()->GetAudioSamplesPerSecond()) / 10'000'000ULL;
+		INT64 renderedAudioFrames = m_TimelineManager->GetRenderedAudioFrameCount();
+		if (renderedAudioFrames < expectedAudioFrames) {
+			int frameCount = static_cast<int>(max(0ll, expectedAudioFrames - renderedAudioFrames));
+			int byteCount = frameCount * (GetAudioOptions()->GetAudioBitsPerSample() / 8) * GetAudioOptions()->GetAudioChannels();
+			audioData.insert(audioData.end(), byteCount, 0);
+			paddedAudio = true;
+		}
 	}
 	return paddedAudio;
 }
