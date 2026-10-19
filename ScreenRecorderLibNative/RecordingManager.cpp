@@ -603,7 +603,7 @@ REC_RESULT RecordingManager::StartRecorderLoop(_In_ const std::vector<RECORDING_
 					if (m_TimelineManager->GetRenderedVideoFrameCount() % 100 == 0) {
 						LOG_TRACE("Flushed ID3D11DeviceContext");
 						isFrameTimeout = true;
-						m_DxResources.Context->Flush();
+						m_OutputManager->FlushSinkWriter();
 					}
 				}
 				if (capturedFrame.PtrInfo) {
